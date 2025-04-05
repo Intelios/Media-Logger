@@ -83,7 +83,7 @@ def get_games_by_year_db(year):
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, platform, completion_date, review_score, is_replay FROM games WHERE year_completed = ? ORDER BY completion_date DESC, id DESC",
+            "SELECT id, name, platform, completion_date, review_score, is_replay FROM games WHERE year_completed = ? ORDER BY completion_date ASC, id ASC", # <-- Changed DESC to ASC
             (year,)
         )
         games = [dict(row) for row in cursor.fetchall()]
@@ -178,39 +178,58 @@ def delete_backlog_item_db(item_id):
 # --- UI Helper Functions ---
 def create_rating_badge(score):
     score_text = "N/A"
+    # Default N/A color (grey)
     bgcolor = ft.Colors.with_opacity(0.5, ft.Colors.ON_SURFACE_VARIANT)
+    # Default text color (suitable for grey and darker backgrounds)
+    text_color = ft.Colors.WHITE
 
     if score is not None:
         try:
             score_val = int(score)
             score_text = str(score_val)
-            if score_val >= 9:
-                bgcolor = ft.Colors.with_opacity(0.8, ft.Colors.GREEN_ACCENT_700)
-            elif score_val >= 7:
-                bgcolor = ft.Colors.with_opacity(0.7, ft.Colors.LIGHT_GREEN)
-            elif score_val >= 5:
-                bgcolor = ft.Colors.with_opacity(0.7, ft.Colors.YELLOW_ACCENT_700)
-            elif score_val >= 3:
-                bgcolor = ft.Colors.with_opacity(0.7, ft.Colors.ORANGE)
-            else:
-                bgcolor = ft.Colors.with_opacity(0.7, ft.Colors.RED_ACCENT_700)
+
+            # Apply colors only if score is within the expected 0-10 range
+            if 0 <= score_val <= 10:
+                if score_val == 10:
+                    # Bright Green for 10 (using a vibrant accent color)
+                    bgcolor = ft.Colors.LIGHT_GREEN_ACCENT_400
+                    text_color = ft.Colors.BLACK # Needs dark text
+                elif score_val >= 7:
+                    # Standard Green for 7-9
+                    bgcolor = ft.Colors.GREEN_600
+                    text_color = ft.Colors.WHITE
+                elif score_val >= 5:
+                    # Yellow for 5-6
+                    bgcolor = ft.Colors.YELLOW_700
+                    text_color = ft.Colors.BLACK # Needs dark text
+                elif score_val >= 2:
+                    # Standard Red for 2-4
+                    bgcolor = ft.Colors.RED_700
+                    text_color = ft.Colors.WHITE
+                else: # 0-1
+                    # Brighter Red for 0-1
+                    bgcolor = ft.Colors.RED_500
+                    text_color = ft.Colors.WHITE
+            # else: If score is somehow outside 0-10, keep default grey/white
+
         except (ValueError, TypeError):
+             # If score conversion fails, keep N/A text and default grey/white colors
              pass
 
-    text_color = ft.Colors.BLACK if score is not None and isinstance(score, (int, float)) and score >= 5 else ft.Colors.WHITE
-
+    # Keep the rest of the Container creation the same
     return ft.Container(
         content=ft.Text(
             score_text,
             size=12,
             weight=ft.FontWeight.BOLD,
-            color=text_color
+            color=text_color,
+            text_align=ft.TextAlign.CENTER # <--- ADDED THIS LINE
         ),
         width=30,
         height=30,
         shape=ft.BoxShape.CIRCLE,
         bgcolor=bgcolor,
-        alignment=ft.alignment.center,
+        alignment=ft.alignment.center, # This already handles container alignment
         tooltip=f"Score: {score_text}" if score is not None else "Score: Not Rated"
     )
 
@@ -219,8 +238,8 @@ def main(page: ft.Page):
     page.title = APP_TITLE
     page.theme_mode = ft.ThemeMode.DARK
     page.theme = ft.Theme(color_scheme_seed=ft.Colors.BLUE_GREY)
-    page.window_width = 1100
-    page.window_height = 800
+    page.window_width = 1400  
+    page.window_height = 900 
 
     init_db()
     # Use a dictionary to manage state and avoid nonlocal issues
@@ -499,9 +518,30 @@ def main(page: ft.Page):
             score = game_data.get('review_score')
             is_replay = game_data.get('is_replay') == 1
 
+            # --- Create Title Row with Optional Replay Icon ---
+            title_row_controls = [
+                ft.Text(game_data['name'], weight=ft.FontWeight.BOLD) # Always include the name
+            ]
+            if is_replay:
+                # If it's a replay, add the icon
+                title_row_controls.append(
+                    ft.Icon(
+                        name=ft.icons.REPLAY, # The 'replay' icon
+                        size=18,              # <-- INCREASED SIZE
+                        tooltip="Replay",     # Tooltip for clarity
+                        # opacity=0.8        # <-- REMOVED OPACITY for more prominence
+                    )
+                )
+            # --- End Title Row Creation ---
+
             return ft.ListTile(
                 leading=create_rating_badge(score),
-                title=ft.Text(f"{game_data['name']}{' (Replay)' if is_replay else ''}", weight=ft.FontWeight.BOLD),
+                # Use an ft.Row for the title
+                title=ft.Row(
+                    controls=title_row_controls,
+                    spacing=5, # Add a small space between name and icon
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER # Align icon vertically with text
+                ),
                 subtitle=ft.Text(f"{platform_str}  |  Completed: {date_str}"),
                 trailing=ft.PopupMenuButton(
                     icon=ft.icons.MORE_VERT,
@@ -772,7 +812,7 @@ def main(page: ft.Page):
             title=ft.Text(item_data['name'], weight=ft.FontWeight.BOLD),
             subtitle=ft.Text(f"Platform: {platform_str} | Added: {added_date_str}"),
             trailing=ft.IconButton(
-                icon=ft.icons.DELETE_SWEEP_OUTLINE,
+                icon=ft.icons.DELETE_OUTLINE,
                 tooltip="Remove from Backlog",
                 icon_color=ft.Colors.ERROR,
                 # Pass item ID and name to delete action
