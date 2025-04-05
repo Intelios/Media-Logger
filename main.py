@@ -1,4 +1,4 @@
-# main.py (Corrected based on Traceback)
+# main.py (Corrected with app_state dictionary and show_snackbar helper)
 import flet as ft
 import sqlite3
 import csv
@@ -178,8 +178,7 @@ def delete_backlog_item_db(item_id):
 # --- UI Helper Functions ---
 def create_rating_badge(score):
     score_text = "N/A"
-    # <--- FIX: Use ft.Colors (uppercase C)
-    bgcolor = ft.Colors.with_opacity(0.5, ft.Colors.SURFACE)
+    bgcolor = ft.Colors.with_opacity(0.5, ft.Colors.ON_SURFACE_VARIANT)
 
     if score is not None:
         try:
@@ -219,12 +218,34 @@ def create_rating_badge(score):
 def main(page: ft.Page):
     page.title = APP_TITLE
     page.theme_mode = ft.ThemeMode.DARK
-    page.theme = ft.Theme(color_scheme_seed=ft.Colors.BLUE_GREY) # <--- FIX: Use ft.Colors
+    page.theme = ft.Theme(color_scheme_seed=ft.Colors.BLUE_GREY)
     page.window_width = 1100
     page.window_height = 800
 
     init_db()
-    current_view = "2024"
+    # Use a dictionary to manage state and avoid nonlocal issues
+    app_state = {"current_view": "2024"}
+
+    # --- SnackBar Helper ---
+    def show_snackbar(message: str, color: str = None, duration: int = 4000):
+        """Helper function to display a SnackBar."""
+        if not page:
+            print(f"Snackbar Error: Page context lost. Message: {message}")
+            return
+        try:
+            # Create a new SnackBar instance each time
+            snackbar_control = ft.SnackBar(
+                content=ft.Text(message, max_lines=3, overflow=ft.TextOverflow.ELLIPSIS),
+                bgcolor=color,
+                duration=duration,
+                open=True  # Set open to True immediately
+            )
+            page.snack_bar = snackbar_control # Assign it to the page property
+            page.update() # Update the page to show it
+            print(f"Showing snackbar: {message}")
+        except Exception as e:
+            # Catch potential errors during snackbar display itself
+            print(f"Error displaying snackbar '{message}': {e}")
 
     add_game_date_display_field = ft.Ref[ft.TextField]()
     manual_dialog_container = ft.Ref[ft.Container]()
@@ -242,6 +263,15 @@ def main(page: ft.Page):
         help_text="Select Completion Date",
     )
     page.overlay.append(date_picker)
+
+    # --- Helper Function to Open Date Picker ---
+    def open_the_date_picker(e=None): # Can accept the event 'e' or not
+        if date_picker: # Make sure date_picker exists
+            date_picker.open = True
+            page.update()
+        else:
+            print("Error: DatePicker object not found.")
+            show_snackbar("Could not open date picker.", color=ft.Colors.ERROR)
 
     # --- File Picker for CSV Import ---
     def handle_import_result(e: ft.FilePickerResultEvent):
@@ -261,7 +291,7 @@ def main(page: ft.Page):
 
             page.run_thread(import_csv_data, selected_file)
         else:
-            page.show_snack_bar(ft.SnackBar(ft.Text("CSV Import Cancelled or No File Selected"), open=True))
+            show_snackbar("CSV Import Cancelled or No File Selected")
 
     import_dialog = ft.FilePicker(on_result=handle_import_result)
     page.overlay.append(import_dialog)
@@ -347,31 +377,41 @@ def main(page: ft.Page):
 
         if page.dialog: page.dialog.open = False; page.update()
 
-        snackbar_color = ft.Colors.ERROR_CONTAINER if had_errors else ft.Colors.GREEN_700 # <--- FIX: Use ft.Colors
-        try:
-            page.show_snack_bar( ft.SnackBar( content=ft.Text(message, max_lines=10, overflow=ft.TextOverflow.ELLIPSIS), open=True, bgcolor=snackbar_color, duration=10000 ) )
-        except Exception as e: print(f"Error showing SnackBar after import: {e}")
+        snackbar_color = ft.Colors.ERROR_CONTAINER if had_errors else ft.Colors.GREEN_700
+        # Use the helper function
+        show_snackbar(message, color=snackbar_color, duration=10000)
+
         print("Refreshing views after import...")
         refresh_current_view()
+        # Check if stats_year_filter exists before accessing it
+        # This check remains potentially fragile; using Refs or IDs is better long term
         if 'stats_year_filter' in locals() or 'stats_year_filter' in globals():
              current_stats_filter = stats_year_filter.value if stats_year_filter.selected else "All Time"
              print(f"Triggering stats recalculation for: {current_stats_filter}")
              page.run_thread(calculate_and_update_stats_display, current_stats_filter)
+        else:
+             print("Stats filter control not found for refresh.")
         page.update()
 
     # --- Manual Dialog Creation/Management ---
     def close_manual_dialog(e=None):
         print("Attempting to close manual dialog...")
-        if 'main_stack' in locals() and manual_dialog_container.current and manual_dialog_container.current in main_stack.controls:
-            try:
-                main_stack.controls.remove(manual_dialog_container.current)
-                manual_dialog_container.current = None
-                print("Manual dialog container removed.")
-                main_stack.update()
-            except Exception as remove_e:
-                print(f"Error removing manual dialog from stack: {remove_e}")
+        # Need to access main_stack which is defined later in main()
+        # This check assumes main_stack is accessible globally or passed somehow
+        if 'main_stack' in locals() or 'main_stack' in globals():
+            if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls:
+                try:
+                    main_stack.controls.remove(manual_dialog_container.current)
+                    manual_dialog_container.current = None
+                    print("Manual dialog container removed.")
+                    main_stack.update()
+                except Exception as remove_e:
+                    print(f"Error removing manual dialog from stack: {remove_e}")
+            else:
+                print("Could not close manual dialog: Stack not ready, dialog not open, or ref is broken.")
         else:
-            print("Could not close manual dialog: Stack not ready, dialog not open, or ref is broken.")
+            print("Could not close manual dialog: main_stack not accessible.")
+
 
     def create_dialog_overlay(title_text, content_controls, action_buttons):
         dialog_content = ft.Container(
@@ -391,15 +431,12 @@ def main(page: ft.Page):
             ),
             width=450,
             padding=20,
-             # <--- FIX: Use ft.Colors instead of ft.theme
-            bgcolor=ft.Colors.with_opacity(0.98, ft.Colors.SURFACE), # <--- Use SURFACE instead
+            bgcolor=ft.Colors.with_opacity(0.98, ft.Colors.SURFACE), # Use SURFACE
             border_radius=10,
-             # <--- FIX: Use ft.Colors
             border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.OUTLINE)),
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=15,
-                # <--- FIX: Use ft.Colors
                 color=ft.Colors.with_opacity(0.2, ft.Colors.BLACK),
                 offset=ft.Offset(0, 5),
             ),
@@ -409,7 +446,6 @@ def main(page: ft.Page):
             ref=manual_dialog_container,
             content=dialog_content,
             alignment=ft.alignment.center,
-            # <--- FIX: Use ft.Colors
             bgcolor=ft.Colors.with_opacity(0.6, ft.Colors.BLACK),
             expand=True,
         )
@@ -436,31 +472,28 @@ def main(page: ft.Page):
                     )
                 else:
                     for game in games:
-                        year_list_view.controls.append(create_game_log_tile(game, refresh_list_content))
+                        year_list_view.controls.append(create_game_log_tile(game, refresh_list_content)) # Pass refresh func
             except ValueError:
-                year_list_view.controls.append(ft.Text(f"Invalid year: {year_str}", color=ft.Colors.ERROR)) # <--- FIX: Use ft.Colors
+                year_list_view.controls.append(ft.Text(f"Invalid year: {year_str}", color=ft.Colors.ERROR))
             except Exception as e:
                 print(f"Error loading games for {year_str}: {e}")
-                year_list_view.controls.append(ft.Text(f"Error loading games: {e}", color=ft.Colors.ERROR)) # <--- FIX: Use ft.Colors
-
-            # <--- FIX: Remove page check, update anyway
-            # if year_list_view.page:
-            # year_list_view.update()
-            # else:
-            #      print(f"Warning: Tried to update year list for {year_str}, but it's not on the page.")
-
+                year_list_view.controls.append(ft.Text(f"Error loading games: {e}", color=ft.Colors.ERROR))
+            # No year_list_view.update() here - handled by parent update
 
         def delete_game_action(game_id, game_name):
             print(f"Attempting to delete game: ID {game_id}, Name {game_name}")
             delete_game_db(game_id)
-            page.show_snack_bar(ft.SnackBar(ft.Text(f"Deleted '{game_name}'"), open=True))
-            refresh_list_content()
+            show_snackbar(f"Deleted '{game_name}'") # Use helper
+            refresh_list_content() # Refresh the list data source
+            # We need to trigger a UI update for the list view itself after data change
+            year_list_view.update()
 
+            # Also refresh stats if stats view exists
             if 'stats_year_filter' in locals() or 'stats_year_filter' in globals():
                 current_stats_filter = stats_year_filter.value if stats_year_filter.selected else "All Time"
                 page.run_thread(calculate_and_update_stats_display, current_stats_filter)
 
-        def create_game_log_tile(game_data, refresh_callback):
+        def create_game_log_tile(game_data, refresh_callback): # Accept refresh_callback
             platform_str = game_data.get('platform', 'N/A') or 'N/A'
             date_str = game_data.get('completion_date', 'Unknown Date') or 'Unknown Date'
             score = game_data.get('review_score')
@@ -474,21 +507,24 @@ def main(page: ft.Page):
                     icon=ft.icons.MORE_VERT,
                     tooltip="Options",
                     items=[
-                        ft.PopupMenuItem(),
+                        # Maybe add Edit later? ft.PopupMenuItem(text="Edit", icon=ft.icons.EDIT),
+                        ft.PopupMenuItem(), # Divider
                         ft.PopupMenuItem(
                             text="Delete",
                             icon=ft.icons.DELETE_OUTLINE,
+                            # Pass game ID and name to the delete action
                             on_click=lambda _: delete_game_action(game_data['id'], game_data['name'])
                         ),
                     ]
                 ),
             )
 
-        refresh_list_content()
+        refresh_list_content() # Populate controls initially
         return year_list_view
 
     def open_add_game_dialog(e=None):
-        target_year = current_view if current_view in YEARS else str(datetime.now().year)
+        # Use app_state here
+        target_year = app_state["current_view"] if app_state["current_view"] in YEARS else str(datetime.now().year)
         print(f"Opening MANUAL add game dialog for target year: {target_year}")
 
         name_field = ft.TextField(label="Game Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS)
@@ -522,6 +558,7 @@ def main(page: ft.Page):
             else:
                 try:
                     completion_dt = datetime.strptime(date_str, '%Y-%m-%d')
+                    # Compare with target_year which was determined when dialog opened
                     if str(completion_dt.year) != target_year:
                          print(f"Warning: Date '{date_str}' has year {completion_dt.year}, adding to target year {target_year} view.")
                     date_display.error_text = None
@@ -540,42 +577,43 @@ def main(page: ft.Page):
 
             if errors:
                 error_message = "Please fix errors: " + " ".join(errors)
-                page.show_snack_bar(ft.SnackBar(ft.Text(error_message), open=True, bgcolor=ft.Colors.ERROR_CONTAINER)) # <--- FIX: Use ft.Colors
+                show_snackbar(error_message, color=ft.Colors.ERROR_CONTAINER) # Use helper
                 return
 
             add_game_db(name, platform, date_str, score_int, is_replay)
-            page.show_snack_bar(ft.SnackBar(ft.Text(f"Added '{name}' to {target_year}"), open=True))
+            show_snackbar(f"Added '{name}' to {target_year}") # Use helper
 
             close_manual_dialog()
-            refresh_current_view()
+            refresh_current_view() # Refresh the whole view content
 
+            # Refresh stats
             if 'stats_year_filter' in locals() or 'stats_year_filter' in globals():
                  current_stats_filter = stats_year_filter.value if stats_year_filter.selected else "All Time"
                  page.run_thread(calculate_and_update_stats_display, current_stats_filter)
 
         content_controls = [
             name_field, platform_field,
-            ft.Row( [ date_display, ft.IconButton( icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=lambda _: date_picker.pick_date(), ) ], alignment=ft.MainAxisAlignment.START ),
+             # Use the helper function to open the date picker
+            ft.Row( [ date_display, ft.IconButton( icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_the_date_picker, ) ], alignment=ft.MainAxisAlignment.START ),
             score_dropdown, replay_check
         ]
         action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Game", on_click=save_new_game), ]
 
         manual_dialog = create_dialog_overlay(f"Add Game to {target_year}", content_controls, action_buttons)
 
-        if 'main_stack' in locals() and main_stack:
+        # Need to ensure main_stack is defined before this function is called
+        # Or pass main_stack into this function
+        if 'main_stack' in locals() or 'main_stack' in globals():
             if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls: close_manual_dialog()
             main_stack.controls.append(manual_dialog); print("Manual add game dialog added to stack.")
             main_stack.update(); print("...stack updated to show dialog.")
         else:
             print("ERROR: Main stack UI element not found. Cannot display dialog.")
-            page.show_snack_bar(ft.SnackBar(ft.Text("Error: Could not open dialog window."), open=True, bgcolor=ft.Colors.ERROR)) # <--- FIX: Use ft.Colors
+            show_snackbar("Error: Could not open dialog window.", color=ft.Colors.ERROR) # Use helper
 
 
     # --- Stats View ---
-    stats_year_filter = ft.SegmentedButton(
-        segments=[ft.Segment(value="All Time", label=ft.Text("Overall"))] + [ft.Segment(value=year, label=ft.Text(year)) for year in YEARS],
-        selected={"All Time"}, allow_empty_selection=False, show_selected_icon=False,
-    )
+    # Define Refs for stats text fields first
     stats_total_games_text = ft.Ref[ft.Text]()
     stats_avg_score_text = ft.Ref[ft.Text]()
     stats_total_replays_text = ft.Ref[ft.Text]()
@@ -583,10 +621,19 @@ def main(page: ft.Page):
     platform_pie_chart = ft.Ref[ft.PieChart]()
     platform_legend = ft.Ref[ft.Column]()
 
+    # Define the SegmentedButton
+    stats_year_filter = ft.SegmentedButton(
+        # Add an ID if needed for later lookup e.g., id='stats_year_filter_id'
+        segments=[ft.Segment(value="All Time", label=ft.Text("Overall"))] + [ft.Segment(value=year, label=ft.Text(year)) for year in YEARS],
+        selected={"All Time"}, allow_empty_selection=False, show_selected_icon=False,
+    )
+
 
     def calculate_and_update_stats_display(filter_year="All Time"):
         print(f"Calculating stats for display filter: {filter_year}")
         games_data = []
+        total_games, average_score, total_replays, unique_platforms = 0, 0.0, 0, 0 # Defaults
+        pie_sections_data, legend_items_data = [], []
         try:
             if filter_year == "All Time": games_data = get_all_games_db()
             else:
@@ -599,9 +646,7 @@ def main(page: ft.Page):
             average_score = (sum(valid_scores) / len(valid_scores)) if valid_scores else 0.0
             platform_counts = Counter((g.get('platform', "Unknown") or "Unknown").strip() for g in games_data)
             unique_platforms = len(platform_counts)
-            pie_sections_data = []
-            legend_items_data = []
-             # <--- FIX: Use ft.Colors (uppercase C)
+
             platform_colors = [
                 ft.Colors.BLUE_500, ft.Colors.GREEN_500, ft.Colors.RED_500, ft.Colors.ORANGE_500,
                 ft.Colors.PURPLE_500, ft.Colors.TEAL_500, ft.Colors.PINK_500, ft.Colors.CYAN_500,
@@ -613,14 +658,15 @@ def main(page: ft.Page):
             for platform, count in sorted_platforms:
                 percentage = (count / total_games * 100) if total_games > 0 else 0
                 color = platform_colors[color_index % len(platform_colors)]
-                pie_sections_data.append( ft.PieChartSection( value=percentage, title=f"{percentage:.0f}%" if percentage >= 5 else "", title_style=ft.TextStyle(size=10, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD), color=color, radius=60, tooltip=f"{platform}: {count} ({percentage:.1f}%)" ) )
+                pie_sections_data.append( ft.PieChartSection( value=percentage, title=f"{percentage:.0f}%" if percentage >= 5 else "", title_style=ft.TextStyle(size=10, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD), color=color, radius=60 ) ) # Removed tooltip argument
                 legend_items_data.append( ft.Row( [ ft.Container(width=16, height=16, bgcolor=color, border_radius=3), ft.Text(f"{platform} ({count})") ], spacing=10 ) )
                 color_index += 1
         except Exception as e:
              print(f"Error during stats calculation: {e}")
              total_games, average_score, total_replays, unique_platforms = "Error", "N/A", "Error", "Error"
-             pie_sections_data, legend_items_data = [], [ft.Text("Error loading platform data.", color=ft.Colors.ERROR)] # <--- FIX: Use ft.Colors
+             pie_sections_data, legend_items_data = [], [ft.Text("Error loading platform data.", color=ft.Colors.ERROR)]
 
+        # Update UI elements using Refs
         if stats_total_games_text.current: stats_total_games_text.current.value = str(total_games); stats_total_games_text.current.update()
         if stats_avg_score_text.current: stats_avg_score_text.current.value = f"{average_score:.1f}" if isinstance(average_score, float) else average_score; stats_avg_score_text.current.update()
         if stats_total_replays_text.current: stats_total_replays_text.current.value = str(total_replays); stats_total_replays_text.current.update()
@@ -635,15 +681,18 @@ def main(page: ft.Page):
         if page: page.run_thread(calculate_and_update_stats_display, selected_year)
 
     def create_summary_card(icon, value_ref, label):
+        # Use a default color if theme is not available early
+        theme_primary = ft.Colors.BLUE # Default
+        if page and page.theme and page.theme.color_scheme:
+            theme_primary = page.theme.color_scheme.primary
+
         return ft.Card(
             content=ft.Container(
                 padding=15,
                 content=ft.Column(
                     [
-                        # <--- FIX: Use ft.Colors
-                        ft.Icon(icon, size=24, color=ft.Colors.with_opacity(0.8, ft.Theme().color_scheme.primary if page.theme else ft.Colors.BLUE)), # Try to get theme primary color
+                        ft.Icon(icon, size=24, color=ft.Colors.with_opacity(0.8, theme_primary)),
                         ft.Text(ref=value_ref, value="...", size=20, weight=ft.FontWeight.BOLD),
-                        # <--- FIX: Use ft.Colors
                         ft.Text(label, size=12, color=ft.Colors.with_opacity(0.7, ft.Colors.ON_SURFACE))
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -656,13 +705,13 @@ def main(page: ft.Page):
     def build_stats_view():
         print("Building stats view")
         stats_year_filter.on_change = on_stats_filter_change
+        # Trigger initial calculation in a separate thread
         page.run_thread(calculate_and_update_stats_display, list(stats_year_filter.selected)[0] if stats_year_filter.selected else "All Time")
 
         controls_list = [
             ft.Text("Statistics", style=ft.TextThemeStyle.HEADLINE_MEDIUM),
             stats_year_filter,
 
-             # <--- FIX: Wrap Text with margin in Container
             ft.Container(content=ft.Text("Summary", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
             ft.GridView( runs_count=4, max_extent=180, child_aspect_ratio=1.1, spacing=10, run_spacing=10,
                 controls=[
@@ -673,21 +722,19 @@ def main(page: ft.Page):
                 ]
             ),
 
-             # <--- FIX: Wrap Text with margin in Container
             ft.Container(content=ft.Text("Platform Breakdown", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
             ft.Card( content=ft.Container( padding=20,
                     content=ft.Row( [
                             ft.Column( [ ft.PieChart( ref=platform_pie_chart, sections=[], center_space_radius=40, expand=True, ) ], expand=3, alignment=ft.MainAxisAlignment.CENTER, ),
-                            ft.Column( [ ft.Text("Platforms", weight=ft.FontWeight.BOLD), ft.Column( ref=platform_legend, controls=[], spacing=8, scroll=ft.ScrollMode.ADAPTIVE, ) ], expand=2, horizontal_alignment=ft.CrossAxisAlignment.START, scroll=ft.ScrollMode.ADAPTIVE, height=250 ),
+                            ft.Column( [ ft.Text("Platforms", weight=ft.FontWeight.BOLD), ft.Column( ref=platform_legend, controls=[ft.ProgressRing()], spacing=8, scroll=ft.ScrollMode.ADAPTIVE, ) ], expand=2, horizontal_alignment=ft.CrossAxisAlignment.START, scroll=ft.ScrollMode.ADAPTIVE, height=250 ), # Show progress initially
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     )
                 )
             ),
 
-             # <--- FIX: Wrap Text with margin in Container
             ft.Container(content=ft.Text("Import / Export", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
             ft.Row( [ ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog), ], spacing=10 ),
-            ft.Text( "CSV Format: Requires header row. Columns: 'Title' (Required), 'Platform' (Optional), 'Rating' (Optional, 0-10 or N/A), 'DateCompleted' (Required, YYYY-MM-DD), 'IsReplay' (Optional, true/false).", italic=True, size=11, color=ft.Colors.with_opacity(0.6, ft.Colors.ON_SURFACE) ) # <--- FIX: Use ft.Colors
+            ft.Text( "CSV Format: Requires header row. Columns: 'Title' (Required), 'Platform' (Optional), 'Rating' (Optional, 0-10 or N/A), 'DateCompleted' (Required, YYYY-MM-DD), 'IsReplay' (Optional, true/false).", italic=True, size=11, color=ft.Colors.with_opacity(0.6, ft.Colors.ON_SURFACE) )
         ]
         return ft.ListView( expand=True, spacing=20, padding=ft.padding.symmetric(horizontal=20, vertical=10), controls=controls_list )
 
@@ -705,28 +752,32 @@ def main(page: ft.Page):
          if not items:
               list_view.controls.append( ft.Container( content=ft.Text("Your backlog is empty. Use the '+' button to add games!", italic=True, text_align=ft.TextAlign.CENTER), padding=20 ) )
          else:
-              for item in items: list_view.controls.append(create_backlog_tile(item, refresh_backlog_view_list))
+              for item in items: list_view.controls.append(create_backlog_tile(item, refresh_backlog_view_list)) # Pass refresh func
 
-         # <--- FIX: Remove page check, update anyway
-         # if list_view.page:
-         # list_view.update()
-         # else: print("Warning: Tried to update backlog list, but it's not on the page.")
-
+         # No list_view.update() here - handled by parent or specific actions
 
     def delete_backlog_action(item_id, item_name):
         print(f"Attempting to delete backlog item: ID {item_id}, Name {item_name}")
         delete_backlog_item_db(item_id)
-        page.show_snack_bar(ft.SnackBar(ft.Text(f"Removed '{item_name}' from backlog"), open=True))
-        refresh_backlog_view_list()
+        show_snackbar(f"Removed '{item_name}' from backlog") # Use helper
+        refresh_backlog_view_list() # Refresh data
+        if backlog_list_view_content.current:
+             backlog_list_view_content.current.update() # Update the list UI
 
 
-    def create_backlog_tile(item_data, refresh_callback):
+    def create_backlog_tile(item_data, refresh_callback): # Accept callback
         platform_str = item_data.get('platform', 'Any Platform') or 'Any Platform'
         added_date_str = item_data.get('added_date', 'Unknown Date') or 'Unknown Date'
         return ft.ListTile(
             title=ft.Text(item_data['name'], weight=ft.FontWeight.BOLD),
             subtitle=ft.Text(f"Platform: {platform_str} | Added: {added_date_str}"),
-            trailing=ft.IconButton( icon=ft.icons.DELETE_SWEEP_OUTLINE, tooltip="Remove from Backlog", icon_color=ft.Colors.ERROR, on_click=lambda _: delete_backlog_action(item_data['id'], item_data['name']) ) # <--- FIX: Use ft.Colors
+            trailing=ft.IconButton(
+                icon=ft.icons.DELETE_SWEEP_OUTLINE,
+                tooltip="Remove from Backlog",
+                icon_color=ft.Colors.ERROR,
+                # Pass item ID and name to delete action
+                on_click=lambda _: delete_backlog_action(item_data['id'], item_data['name'])
+            )
         )
 
     def open_add_backlog_dialog(e=None):
@@ -739,58 +790,91 @@ def main(page: ft.Page):
             platform = platform_field.value.strip()
             if not name:
                 name_field.error_text = "Title is required."; name_field.update()
-                page.show_snack_bar(ft.SnackBar(ft.Text("Game Title cannot be empty."), open=True, bgcolor=ft.Colors.ERROR_CONTAINER)) # <--- FIX: Use ft.Colors
+                show_snackbar("Game Title cannot be empty.", color=ft.Colors.ERROR_CONTAINER) # Use helper
                 return
             else: name_field.error_text = None; name_field.update()
             add_backlog_item_db(name, platform if platform else None)
-            page.show_snack_bar(ft.SnackBar(ft.Text(f"Added '{name}' to backlog"), open=True))
+            show_snackbar(f"Added '{name}' to backlog") # Use helper
             close_manual_dialog()
-            refresh_backlog_view_list()
+            refresh_backlog_view_list() # Refresh data
+            if backlog_list_view_content.current:
+                 backlog_list_view_content.current.update() # Update the list UI
+
 
         content_controls = [name_field, platform_field]
         action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Add to Backlog", on_click=save_new_backlog), ]
         manual_dialog = create_dialog_overlay("Add Game to Backlog", content_controls, action_buttons)
-        if 'main_stack' in locals() and main_stack:
+
+        if 'main_stack' in locals() or 'main_stack' in globals():
             if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls: close_manual_dialog()
             main_stack.controls.append(manual_dialog); print("Manual add backlog dialog added to stack.")
             main_stack.update(); print("...stack updated to show dialog.")
         else:
             print("ERROR: Main stack UI element not found. Cannot display backlog dialog.")
-            page.show_snack_bar(ft.SnackBar(ft.Text("Error: Could not open dialog window."), open=True, bgcolor=ft.Colors.ERROR)) # <--- FIX: Use ft.Colors
+            show_snackbar("Error: Could not open dialog window.", color=ft.Colors.ERROR) # Use helper
 
 
     def build_backlog_view():
         print("Building backlog view")
-        view_content = ft.ListView( ref=backlog_list_view_content, expand=True, spacing=8, padding=ft.padding.only(top=10, bottom=70) )
-        refresh_backlog_view_list()
+        # Create the ListView with the Ref
+        view_content = ft.ListView(
+            ref=backlog_list_view_content,
+            expand=True,
+            spacing=8,
+            padding=ft.padding.only(top=10, bottom=70)
+        )
+        refresh_backlog_view_list() # Populate initially
         return view_content
 
     # --- Floating Action Button (FAB) ---
     def fab_clicked(e):
+        # Use app_state here
+        current_view = app_state["current_view"]
         print(f"FAB clicked on view: {current_view}")
-        if current_view in YEARS: open_add_game_dialog()
-        elif current_view == "Backlog": open_add_backlog_dialog()
-        else: print(f"Warning: FAB clicked in an unexpected view '{current_view}' where it should be hidden."); page.show_snack_bar(ft.SnackBar(ft.Text("No action available here."), open=True))
+        if current_view in YEARS:
+            open_add_game_dialog()
+        elif current_view == "Backlog":
+            open_add_backlog_dialog()
+        else:
+            print(f"Warning: FAB clicked in an unexpected view '{current_view}' where it should be hidden.")
+            show_snackbar("No action available here.") # Use helper
 
-    fab = ft.FloatingActionButton( icon=ft.icons.ADD, tooltip="Add Item", visible=False, on_click=fab_clicked )
+    fab = ft.FloatingActionButton(
+        icon=ft.icons.ADD,
+        tooltip="Add Item",
+        visible=False, # Initially hidden, shown/hidden by update_main_content
+        on_click=fab_clicked
+    )
     page.floating_action_button = fab
     page.floating_action_button_location = ft.FloatingActionButtonLocation.END_CONTAINED
 
 
     # --- Navigation Rail ---
-    try: initial_index = YEARS.index(current_view)
+    # Use app_state here
+    try:
+        initial_index = YEARS.index(app_state["current_view"])
     except ValueError:
-        if current_view == "Stats": initial_index = len(YEARS)
-        elif current_view == "Backlog": initial_index = len(YEARS) + 1
-        else: initial_index = 0
+        if app_state["current_view"] == "Stats":
+            initial_index = len(YEARS)
+        elif app_state["current_view"] == "Backlog":
+            initial_index = len(YEARS) + 1
+        else: # Default to first year if state is somehow invalid
+            initial_index = 0
+            app_state["current_view"] = YEARS[0] if YEARS else "Stats" # Reset state
+
 
     rail = ft.NavigationRail(
-        selected_index=initial_index, label_type=ft.NavigationRailLabelType.ALL, min_width=100, min_extended_width=200, group_alignment=-0.9,
+        selected_index=initial_index,
+        label_type=ft.NavigationRailLabelType.ALL,
+        min_width=100,
+        min_extended_width=200,
+        group_alignment=-0.9,
         destinations=(
             [ft.NavigationRailDestination(icon=ft.icons.CALENDAR_MONTH_OUTLINED, selected_icon=ft.icons.CALENDAR_MONTH, label=y) for y in YEARS] +
             [ft.NavigationRailDestination(icon=ft.icons.QUERY_STATS_OUTLINED, selected_icon=ft.icons.QUERY_STATS, label="Stats"),
              ft.NavigationRailDestination(icon=ft.icons.LIST_ALT_OUTLINED, selected_icon=ft.icons.LIST_ALT, label="Backlog")]
         ),
+        # on_change handled below
     )
 
     # --- Main Content Area ---
@@ -798,49 +882,99 @@ def main(page: ft.Page):
 
     # ------ Navigation and Content Update Logic -------
     def update_main_content(view_id):
-        nonlocal current_view
+        # NO nonlocal needed, uses app_state dictionary
         print(f"Updating main content to display view: {view_id}")
-        current_view = view_id
+        app_state["current_view"] = view_id
         main_content_area.controls.clear()
         show_fab, fab_tooltip, content = False, "Add Item", None
 
-        if view_id in YEARS: content = build_year_view(view_id); show_fab = True; fab_tooltip = f"Add Game to {view_id}"
-        elif view_id == "Stats": content = build_stats_view(); show_fab = False
-        elif view_id == "Backlog": content = build_backlog_view(); show_fab = True; fab_tooltip = "Add to Backlog"
-        else: content = ft.Container(content=ft.Text(f"Error: Unknown view '{view_id}' selected.", color=ft.Colors.ERROR), padding=20); show_fab = False # <--- FIX: Use ft.Colors
+        current_view = app_state["current_view"] # Read from state
 
-        if content: main_content_area.controls.append(content)
-        fab.visible = show_fab; fab.tooltip = fab_tooltip
-        if page: main_content_area.update(); fab.update()
-        else: print("Warning: Page context lost during view update.")
+        if current_view in YEARS:
+            content = build_year_view(current_view)
+            show_fab = True
+            fab_tooltip = f"Add Game to {current_view}"
+        elif current_view == "Stats":
+            content = build_stats_view()
+            show_fab = False
+        elif current_view == "Backlog":
+            content = build_backlog_view()
+            show_fab = True
+            fab_tooltip = "Add to Backlog"
+        else:
+            content = ft.Container(content=ft.Text(f"Error: Unknown view '{current_view}' selected.", color=ft.Colors.ERROR), padding=20)
+            show_fab = False
+
+        if content:
+            main_content_area.controls.append(content)
+
+        fab.visible = show_fab
+        fab.tooltip = fab_tooltip
+
+        if page:
+            main_content_area.update()
+            fab.update()
+        else:
+            print("Warning: Page context lost during view update.")
 
     def refresh_current_view():
-        print(f"Refreshing current view: {current_view}")
-        update_main_content(current_view)
+        # Use app_state here
+        print(f"Refreshing current view: {app_state['current_view']}")
+        update_main_content(app_state["current_view"])
 
     def navigation_change(e):
         idx = e.control.selected_index
         new_view = "Unknown"
-        if 0 <= idx < len(YEARS): new_view = YEARS[idx]
-        elif idx == len(YEARS): new_view = "Stats"
-        elif idx == len(YEARS) + 1: new_view = "Backlog"
-        else: print(f"Warning: Invalid navigation index {idx}")
-        print(f"Navigation changed. Index: {idx}, New View: {new_view}")
-        if 'main_stack' in locals() and manual_dialog_container.current and manual_dialog_container.current in main_stack.controls: close_manual_dialog()
-        if new_view != "Unknown": update_main_content(new_view)
-        else: page.show_snack_bar(ft.SnackBar(ft.Text(f"Could not navigate to index {idx}."), open=True))
+        if 0 <= idx < len(YEARS):
+            new_view = YEARS[idx]
+        elif idx == len(YEARS):
+            new_view = "Stats"
+        elif idx == len(YEARS) + 1:
+            new_view = "Backlog"
+        else:
+            print(f"Warning: Invalid navigation index {idx}")
 
-    rail.on_change = navigation_change
+        print(f"Navigation changed. Index: {idx}, New View: {new_view}")
+
+        # Close dialog if open before navigating
+        # This check needs main_stack to be defined
+        if 'main_stack' in locals() or 'main_stack' in globals():
+            if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls:
+                 close_manual_dialog() # Attempt to close
+        else:
+             print("WARN: main_stack not found during navigation change check for dialog.")
+
+        if new_view != "Unknown":
+            update_main_content(new_view) # Update content based on new view
+        else:
+            show_snackbar(f"Could not navigate to index {idx}.") # Use helper
+
+    rail.on_change = navigation_change # Assign the handler
 
     # ----- Main layout Structure -----
-    main_layout = ft.Row( controls=[ rail, ft.VerticalDivider(width=1), main_content_area ], expand=True, vertical_alignment=ft.CrossAxisAlignment.START )
-    main_stack = ft.Stack( controls=[ main_layout ], expand=True )
-    page.add(main_stack)
+    # Define main_stack here so it's accessible by dialog functions potentially
+    main_layout = ft.Row(
+        controls=[
+            rail,
+            ft.VerticalDivider(width=1),
+            main_content_area
+        ],
+        expand=True,
+        vertical_alignment=ft.CrossAxisAlignment.START
+    )
+    main_stack = ft.Stack(
+        controls=[
+            main_layout,
+            # Dialog overlays will be added here dynamically
+        ],
+        expand=True
+    )
+    page.add(main_stack) # Add the stack to the page
 
     # ----- Load initial view -----
-    print(f"Loading initial view: {current_view}")
-    update_main_content(current_view)
-    page.update()
+    print(f"Loading initial view: {app_state['current_view']}")
+    update_main_content(app_state["current_view"]) # Load content for the initial view
+    # No need for page.update() here, the initial page.add() handles the first draw
 
 # --- Entry Point ---
 if __name__ == "__main__":
