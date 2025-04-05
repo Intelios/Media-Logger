@@ -1,4 +1,4 @@
-# main.py (Final Version)
+# main.py (Final Version with Platform Colors)
 import flet as ft
 import sqlite3
 import csv
@@ -131,6 +131,38 @@ def delete_game_db(game_id):
         if conn:
             conn.close()
 
+def update_game_db(game_id, name, platform, completion_date_str, score, is_replay):
+    """Updates an existing game entry in the database."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        year_completed = None
+        if completion_date_str:
+            try:
+                year_completed = datetime.strptime(completion_date_str, '%Y-%m-%d').year
+            except (ValueError, TypeError) as e:
+                print(f"Warning: Invalid completion date format '{completion_date_str}' for game ID {game_id}. Updating date as is, year might be null. Error: {e}")
+
+        replay_int = 1 if is_replay else 0
+        score_to_db = score if score is not None else None # Ensure None is stored as NULL
+
+        cursor.execute("""
+            UPDATE games
+            SET name = ?, platform = ?, completion_date = ?, review_score = ?, year_completed = ?, is_replay = ?
+            WHERE id = ?
+        """, (name, platform if platform else None, completion_date_str, score_to_db, year_completed, replay_int, game_id))
+        conn.commit()
+        print(f"Game updated: ID {game_id} - {name}")
+        if cursor.rowcount == 0:
+             print(f"Warning: No rows updated for game ID {game_id}. ID might be invalid.")
+
+    except sqlite3.Error as e:
+        print(f"Database error updating game ID {game_id}: {e}")
+    finally:
+        if conn:
+            conn.close()
+
 def add_backlog_item_db(name, platform):
     """Adds a game to the backlog table."""
     conn = None
@@ -247,8 +279,8 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK # Or ft.ThemeMode.LIGHT
     page.theme = ft.Theme(color_scheme_seed=ft.Colors.BLUE_GREY)
     # Set initial window size
-    page.window_width = 1920
-    page.window_height = 1080
+    page.window_width = 1400
+    page.window_height = 900
 
     init_db()
     # Use a dictionary to manage mutable app state like the current view
@@ -291,28 +323,29 @@ def main(page: ft.Page):
     main_stack = ft.Stack(expand=True)
 
     # -------------- DatePicker Setup --------------------------------------------
-    def handle_date_change(e):
-        """Updates the date field when a date is selected in the DatePicker."""
+    # This is the picker for the ADD dialog
+    def handle_add_date_change(e):
+        """Updates the date field when a date is selected in the ADD DatePicker."""
         selected_date = e.control.value
         if add_game_date_display_field.current and selected_date:
             formatted_date = selected_date.strftime('%Y-%m-%d')
             add_game_date_display_field.current.value = formatted_date
             add_game_date_display_field.current.update()
 
-    date_picker = ft.DatePicker(
-        on_change=handle_date_change,
+    add_date_picker = ft.DatePicker(
+        on_change=handle_add_date_change,
         help_text="Select Completion Date",
     )
-    page.overlay.append(date_picker) # Add DatePicker to page overlay
+    page.overlay.append(add_date_picker) # Add DatePicker to page overlay
 
-    # --- Helper Function to Open Date Picker ---
-    def open_the_date_picker(e=None):
-        """Opens the DatePicker dialog."""
-        if date_picker:
-            date_picker.open = True
+    # --- Helper Function to Open ADD Date Picker ---
+    def open_add_date_picker(e=None):
+        """Opens the ADD DatePicker dialog."""
+        if add_date_picker:
+            add_date_picker.open = True
             page.update()
         else:
-            print("Error: DatePicker object not found.")
+            print("Error: ADD DatePicker object not found.")
             show_snackbar("Could not open date picker.", color=ft.Colors.ERROR)
 
     # --- File Picker for CSV Import ---
@@ -472,13 +505,11 @@ def main(page: ft.Page):
         refresh_current_view() # Refresh the currently active view
 
         # Refresh stats view in the background if it might have changed
-        # A more robust way would be to check if the stats view is currently displayed
-        # or always trigger the recalculation
         current_stats_filter = "All Time" # Default
         if 'stats_year_filter' in locals() or 'stats_year_filter' in globals(): # Check if control exists
              if stats_year_filter.current and stats_year_filter.current.selected: # Check if Ref is valid and selection exists
                   current_stats_filter = list(stats_year_filter.current.selected)[0]
-             elif stats_year_filter.selected: # Fallback check if Ref isn't used/ready but variable is
+             elif hasattr(stats_year_filter, 'selected') and stats_year_filter.selected: # Fallback check if Ref isn't used/ready but variable is
                   current_stats_filter = list(stats_year_filter.selected)[0]
 
         print(f"Triggering background stats recalculation for: {current_stats_filter}")
@@ -490,8 +521,17 @@ def main(page: ft.Page):
     def close_manual_dialog(e=None):
         """Closes the currently open manual input dialog."""
         print("Attempting to close manual dialog...")
+        # Check if the ref has a value and if that value is in the stack's controls
         if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls:
             try:
+                # Remove the specific DatePicker associated with the Edit dialog if it exists
+                if hasattr(manual_dialog_container.current, '_edit_date_picker_ref'):
+                    edit_picker = manual_dialog_container.current._edit_date_picker_ref
+                    if edit_picker in page.overlay:
+                        page.overlay.remove(edit_picker)
+                        print("Removed edit date picker from overlay.")
+
+                # Remove the dialog overlay itself
                 main_stack.controls.remove(manual_dialog_container.current)
                 manual_dialog_container.current = None # Clear the ref
                 print("Manual dialog container removed.")
@@ -501,7 +541,8 @@ def main(page: ft.Page):
         else:
             print("Could not close manual dialog: Not open or ref is broken.")
 
-    def create_dialog_overlay(title_text, content_controls, action_buttons):
+
+    def create_dialog_overlay(title_text, content_controls, action_buttons, associated_picker=None):
         """Creates the standard overlay container for manual input dialogs."""
         dialog_content = ft.Container(
             content=ft.Column(
@@ -541,6 +582,10 @@ def main(page: ft.Page):
             # Close dialog if clicking outside it (on the scrim)
             on_click=close_manual_dialog
         )
+        # Store the associated picker ref on the scrim container for cleanup if needed
+        if associated_picker:
+             overlay_scrim._edit_date_picker_ref = associated_picker
+
         return overlay_scrim
 
     # --- View Building Functions ---
@@ -589,7 +634,7 @@ def main(page: ft.Page):
             if 'stats_year_filter' in locals() or 'stats_year_filter' in globals():
                  if stats_year_filter.current and stats_year_filter.current.selected:
                       current_stats_filter = list(stats_year_filter.current.selected)[0]
-                 elif stats_year_filter.selected:
+                 elif hasattr(stats_year_filter, 'selected') and stats_year_filter.selected:
                       current_stats_filter = list(stats_year_filter.selected)[0]
             page.run_thread(calculate_and_update_stats_display, current_stats_filter)
 
@@ -609,6 +654,10 @@ def main(page: ft.Page):
                     ft.Icon(name=ft.icons.REPLAY, size=18, tooltip="Replay")
                 )
 
+            # --- Add the 'Edit' action ---
+            def handle_edit_click(e):
+                open_edit_game_dialog(game_data) # Pass the game data to the edit dialog function
+
             return ft.ListTile(
                 leading=create_rating_badge(score),
                 title=ft.Row(
@@ -621,7 +670,12 @@ def main(page: ft.Page):
                     icon=ft.icons.MORE_VERT,
                     tooltip="Options",
                     items=[
-                        # ft.PopupMenuItem(text="Edit", icon=ft.icons.EDIT), # Future enhancement?
+                        # Add Edit option
+                        ft.PopupMenuItem(
+                            text="Edit",
+                            icon=ft.icons.EDIT_OUTLINED,
+                            on_click=handle_edit_click # Call the handler
+                        ),
                         ft.PopupMenuItem(), # Divider
                         ft.PopupMenuItem(
                             text="Delete", icon=ft.icons.DELETE_OUTLINE,
@@ -648,6 +702,12 @@ def main(page: ft.Page):
             ref=add_game_date_display_field, label="Completion Date",
             read_only=True, hint_text="Click calendar to select..."
         )
+        # Reset add game date field value when opening dialog
+        add_game_date_display_field.current.value = ""
+        add_game_date_display_field.current.error_text = None
+        if add_game_date_display_field.current.page: # Update if already on page
+             add_game_date_display_field.current.update()
+
         score_dropdown = ft.Dropdown(
             label="Score", width=110,
             options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)],
@@ -698,14 +758,15 @@ def main(page: ft.Page):
             if 'stats_year_filter' in locals() or 'stats_year_filter' in globals():
                  if stats_year_filter.current and stats_year_filter.current.selected:
                       current_stats_filter = list(stats_year_filter.current.selected)[0]
-                 elif stats_year_filter.selected:
+                 elif hasattr(stats_year_filter, 'selected') and stats_year_filter.selected:
                       current_stats_filter = list(stats_year_filter.selected)[0]
             page.run_thread(calculate_and_update_stats_display, current_stats_filter)
 
         # Assemble dialog content and actions
         content_controls = [
             name_field, platform_field,
-            ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_the_date_picker)], alignment=ft.MainAxisAlignment.START),
+            # Use the specific date picker opener for the ADD dialog
+            ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_add_date_picker)], alignment=ft.MainAxisAlignment.START),
             score_dropdown, replay_check
         ]
         action_buttons = [
@@ -722,6 +783,173 @@ def main(page: ft.Page):
         main_stack.update()
         print("...stack updated to show dialog.")
 
+    def open_edit_game_dialog(game_data_to_edit):
+        """Opens the dialog for editing an existing completed game."""
+        game_id = game_data_to_edit['id']
+        print(f"Opening EDIT game dialog for ID: {game_id}, Name: {game_data_to_edit['name']}")
+
+        # --- Create Refs specific to the Edit Dialog ---
+        edit_name_field = ft.Ref[ft.TextField]()
+        edit_platform_field = ft.Ref[ft.TextField]()
+        edit_date_display_field = ft.Ref[ft.TextField]()
+        edit_score_dropdown = ft.Ref[ft.Dropdown]()
+        edit_replay_check = ft.Ref[ft.Checkbox]()
+        # --- End Edit Refs ---
+
+        # Create dialog input fields and PRE-POPULATE them
+        name_field = ft.TextField(
+            ref=edit_name_field,
+            label="Game Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS,
+            value=game_data_to_edit.get('name', '') # Pre-populate
+        )
+        platform_field = ft.TextField(
+            ref=edit_platform_field,
+            label="Platform", capitalization=ft.TextCapitalization.WORDS,
+            value=game_data_to_edit.get('platform', '') or '' # Pre-populate, handle None
+        )
+        # Pre-populate date field
+        initial_date_str = game_data_to_edit.get('completion_date', '')
+        date_display = ft.TextField(
+            ref=edit_date_display_field, label="Completion Date",
+            read_only=True, hint_text="Click calendar to select...",
+            value=initial_date_str # Pre-populate
+        )
+
+        # Pre-populate score dropdown
+        initial_score = game_data_to_edit.get('review_score')
+        score_value_str = str(initial_score) if initial_score is not None else "N/A"
+        score_dropdown = ft.Dropdown(
+            ref=edit_score_dropdown,
+            label="Score", width=110,
+            options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)],
+            value=score_value_str # Pre-populate
+        )
+
+        # Pre-populate replay checkbox
+        initial_replay = game_data_to_edit.get('is_replay') == 1
+        replay_check = ft.Checkbox(
+            ref=edit_replay_check,
+            label="This was a Replay",
+            value=initial_replay # Pre-populate
+        )
+
+        # --- Date Picker specific setup for Edit ---
+        # Try to set the initial date for the picker itself
+        initial_picker_date = None
+        if initial_date_str:
+            try:
+                initial_picker_date = datetime.strptime(initial_date_str, '%Y-%m-%d')
+            except ValueError:
+                pass # Ignore if date is invalid format
+
+        # Create a NEW DatePicker instance specifically for this edit dialog
+        edit_date_picker = ft.DatePicker(
+            on_change=lambda e: handle_edit_date_change(e, edit_date_display_field), # Use specific handler
+            help_text="Select Completion Date",
+            value=initial_picker_date # Set initial displayed date in picker
+        )
+        page.overlay.append(edit_date_picker) # Add this specific picker instance to overlay
+
+        def handle_edit_date_change(e, target_field_ref):
+            """Updates the edit date field when the edit DatePicker changes."""
+            selected_date = e.control.value
+            if target_field_ref.current and selected_date:
+                formatted_date = selected_date.strftime('%Y-%m-%d')
+                target_field_ref.current.value = formatted_date
+                target_field_ref.current.update()
+
+        def open_edit_date_picker(e):
+             """Opens the specific DatePicker for editing."""
+             edit_date_picker.open = True
+             page.update()
+        # --- End Date Picker Setup for Edit ---
+
+
+        def save_edited_game(e):
+            """Validates input and saves the edited game to the database."""
+            # Read values from the EDIT fields using their Refs
+            name = edit_name_field.current.value.strip()
+            platform = edit_platform_field.current.value.strip()
+            date_str = edit_date_display_field.current.value.strip()
+            score_str = edit_score_dropdown.current.value
+            is_replay = edit_replay_check.current.value
+            errors = []
+
+            # --- Input Validation (same as add, but use edit refs) ---
+            edit_name_field.current.error_text = None
+            edit_date_display_field.current.error_text = None
+            edit_score_dropdown.current.error_text = None # Reset errors
+
+            if not name: errors.append("Game Title is required."); edit_name_field.current.error_text = "Required"
+            if not date_str: errors.append("Completion Date is required."); edit_date_display_field.current.error_text = "Required"
+            else:
+                try: datetime.strptime(date_str, '%Y-%m-%d')
+                except ValueError: errors.append("Invalid date format (YYYY-MM-DD)."); edit_date_display_field.current.error_text = "Invalid Format"
+
+            score_int = None
+            if score_str and score_str != "N/A":
+                try:
+                    score_int = int(score_str)
+                    if not (0 <= score_int <= 10): errors.append("Score must be 0-10."); edit_score_dropdown.current.error_text = "0-10"
+                except ValueError: errors.append("Invalid score."); edit_score_dropdown.current.error_text = "Invalid"
+            # --- End Validation ---
+
+            # Update fields to show potential errors
+            edit_name_field.current.update(); edit_platform_field.current.update()
+            edit_date_display_field.current.update(); edit_score_dropdown.current.update()
+
+            if errors:
+                show_snackbar("Please fix errors: " + " ".join(errors), color=ft.Colors.ERROR_CONTAINER)
+                return
+
+            # --- Call the UPDATE database function ---
+            update_game_db(game_id, name, platform, date_str, score_int, is_replay)
+            # --- ---
+
+            show_snackbar(f"Updated '{name}'")
+            # Cleanup: Remove the specific edit date picker from overlay *before* closing dialog
+            # Note: close_manual_dialog now handles this cleanup via _edit_date_picker_ref
+            close_manual_dialog()
+            refresh_current_view()
+
+            # Trigger stats recalculation
+            current_stats_filter = "All Time"
+            if 'stats_year_filter' in locals() or 'stats_year_filter' in globals():
+                 if stats_year_filter.current and stats_year_filter.current.selected:
+                      current_stats_filter = list(stats_year_filter.current.selected)[0]
+                 elif hasattr(stats_year_filter, 'selected') and stats_year_filter.selected:
+                      current_stats_filter = list(stats_year_filter.selected)[0]
+            page.run_thread(calculate_and_update_stats_display, current_stats_filter)
+
+
+        # Assemble dialog content and actions
+        content_controls = [
+            name_field, platform_field,
+            # Use the specific date picker opener for the edit dialog
+            ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_edit_date_picker)], alignment=ft.MainAxisAlignment.START),
+            score_dropdown, replay_check
+        ]
+        action_buttons = [
+            ft.TextButton("Cancel", on_click=close_manual_dialog),
+            ft.ElevatedButton("Save Changes", on_click=save_edited_game), # Changed button text
+        ]
+
+        # Create and display the dialog overlay using the generic overlay creator
+        # Pass the specific edit_date_picker so it can be cleaned up
+        manual_dialog = create_dialog_overlay(
+            f"Edit Game: {game_data_to_edit['name']}",
+            content_controls,
+            action_buttons,
+            associated_picker=edit_date_picker # Pass picker for cleanup reference
+        )
+        if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls:
+            close_manual_dialog() # Close existing dialog first
+        main_stack.controls.append(manual_dialog)
+        print("Manual edit game dialog added to stack.")
+        main_stack.update()
+        print("...stack updated to show edit dialog.")
+
+
     # --- Stats View ---
     stats_year_filter = ft.SegmentedButton(
         segments=[ft.Segment(value="All Time", label=ft.Text("Overall"))] + [ft.Segment(value=year, label=ft.Text(year)) for year in YEARS],
@@ -730,11 +958,30 @@ def main(page: ft.Page):
     )
 
     def calculate_and_update_stats_display(filter_year="All Time"):
-        """Calculates statistics based on the filter and updates the UI."""
+        """Calculates statistics based on the filter and updates the UI, with platform colors."""
         print(f"Calculating stats for display filter: {filter_year}")
         games_data = []
         total_games, average_score, total_replays, unique_platforms = 0, 0.0, 0, 0 # Sensible defaults
         pie_sections_data, legend_items_data = [], []
+
+        # --- Define Platform Specific Colors (using lowercase keys/checks) ---
+        platform_specific_colors = {
+            "xbox": ft.Colors.GREEN_600,         # Standard Xbox Green
+            "playstation": ft.Colors.INDIGO_500, # PlayStation Blue/Indigo
+            "switch": ft.Colors.RED_600,         # Nintendo Red
+            "pc": ft.Colors.ORANGE_600,        # Orange for PC
+            # Add more specific platforms here if needed (e.g., "mobile", "vr")
+        }
+        # --- Fallback colors for other platforms ---
+        fallback_platform_colors = [
+            ft.Colors.BLUE_500, ft.Colors.PURPLE_500, ft.Colors.TEAL_500,
+            ft.Colors.PINK_500, ft.Colors.CYAN_500, ft.Colors.LIGHT_BLUE_500,
+            ft.Colors.LIME_500, ft.Colors.AMBER_500, ft.Colors.DEEP_ORANGE_500,
+            ft.Colors.LIGHT_GREEN_500, ft.Colors.DEEP_PURPLE_500, ft.Colors.BROWN_400,
+            ft.Colors.BLUE_GREY_500, ft.Colors.YELLOW_800 # Added a few more
+        ]
+        # --- ---
+
         try:
             # Fetch data based on filter
             if filter_year == "All Time":
@@ -749,35 +996,54 @@ def main(page: ft.Page):
             total_replays = sum(1 for g in games_data if g.get('is_replay') == 1)
             valid_scores = [g['review_score'] for g in games_data if g.get('review_score') is not None and isinstance(g['review_score'], (int, float))]
             average_score = (sum(valid_scores) / len(valid_scores)) if valid_scores else 0.0
+            # Normalize platform names slightly for counting (e.g., handle leading/trailing spaces, 'Unknown')
             platform_counts = Counter((g.get('platform', "Unknown") or "Unknown").strip() for g in games_data)
             unique_platforms = len(platform_counts)
 
             # --- Prepare Pie Chart Data ---
-            platform_colors = [
-                ft.Colors.BLUE_500, ft.Colors.GREEN_500, ft.Colors.RED_500, ft.Colors.ORANGE_500,
-                ft.Colors.PURPLE_500, ft.Colors.TEAL_500, ft.Colors.PINK_500, ft.Colors.CYAN_500,
-                ft.Colors.LIGHT_BLUE_500, ft.Colors.LIME_500, ft.Colors.AMBER_500, ft.Colors.INDIGO_500,
-                ft.Colors.DEEP_ORANGE_500, ft.Colors.LIGHT_GREEN_500, ft.Colors.DEEP_PURPLE_500
-            ] # Cycle through colors
-            color_index = 0
+            fallback_color_index = 0 # Index for the fallback color list
             sorted_platforms = platform_counts.most_common() # Sort for consistent coloring/display
+
             for platform, count in sorted_platforms:
                 percentage = (count / total_games * 100) if total_games > 0 else 0
-                color = platform_colors[color_index % len(platform_colors)]
-                # Create PieChartSection (tooltip removed as it's not supported here)
+                platform_lower = platform.lower() # Use lowercase for checks
+                assigned_color = None
+
+                # --- Check for specific platform keywords ---
+                # Use 'in' for broader matching (e.g., "Xbox Series X", "PlayStation 5")
+                if "xbox" in platform_lower:
+                    assigned_color = platform_specific_colors["xbox"]
+                elif "playstation" in platform_lower or "ps" in platform_lower.split(): # Check for PS too
+                     assigned_color = platform_specific_colors["playstation"]
+                elif "switch" in platform_lower:
+                     assigned_color = platform_specific_colors["switch"]
+                elif "pc" == platform_lower or "windows" in platform_lower or "steam" in platform_lower: # Common PC terms
+                     assigned_color = platform_specific_colors["pc"]
+                # --- End specific checks ---
+
+                # If no specific color was assigned, use the fallback rotation
+                if assigned_color is None:
+                    # Use Unknown's color if platform is Unknown, otherwise rotate fallback
+                    if platform == "Unknown":
+                         assigned_color = ft.Colors.with_opacity(0.5, ft.Colors.ON_SURFACE_VARIANT) # Same as N/A badge
+                    else:
+                         assigned_color = fallback_platform_colors[fallback_color_index % len(fallback_platform_colors)]
+                         fallback_color_index += 1 # IMPORTANT: Only increment index for other fallback colors
+
+                # Create PieChartSection
                 pie_sections_data.append( ft.PieChartSection(
                     value=percentage,
                     title=f"{percentage:.0f}%" if percentage >= 5 else "", # Show % only if >= 5%
                     title_style=ft.TextStyle(size=10, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
-                    color=color, radius=60
+                    color=assigned_color, # Use the determined color
+                    radius=60
                 ))
                 # Create Legend item
                 legend_items_data.append( ft.Row(
-                    [ ft.Container(width=16, height=16, bgcolor=color, border_radius=3),
+                    [ ft.Container(width=16, height=16, bgcolor=assigned_color, border_radius=3),
                       ft.Text(f"{platform} ({count})") ],
                     spacing=10
                 ))
-                color_index += 1
             # --- End Pie Chart Prep ---
 
         except Exception as e:
@@ -800,6 +1066,7 @@ def main(page: ft.Page):
         if platform_pie_chart.current: platform_pie_chart.current.sections = pie_sections_data; platform_pie_chart.current.update()
         if platform_legend.current: platform_legend.current.controls = legend_items_data; platform_legend.current.update()
         print(f"Stats UI update complete for {filter_year}.")
+
 
     def on_stats_filter_change(e):
         """Callback when the statistics year filter changes."""
