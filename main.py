@@ -3,13 +3,27 @@ import flet as ft
 import sqlite3
 import csv
 from datetime import datetime
+import sys
 import os
 from collections import Counter
 import math
 # import time # Not used
 
-# --- Constants ---
-DB_FILE = "game_log.db"
+# --- Determine the base path ---
+# If running as a PyInstaller bundle, use the executable's directory
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    # Running in a PyInstaller bundle (frozen)
+    base_path = os.path.dirname(sys.executable)
+    print(f"Running frozen, base path: {base_path}")
+else:
+    # Running as a normal script
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    print(f"Running script, base path: {base_path}")
+
+# Construct the full path to the database file
+DB_FILE = os.path.join(base_path, "game_log.db") # <--- MODIFIED LINE
+print(f"Database file path: {DB_FILE}")
+
 APP_TITLE = "My Game Logger"
 YEARS = ["2023", "2024", "2025"] # Adjust years as needed
 
@@ -1017,7 +1031,11 @@ def main(page: ft.Page):
                      assigned_color = platform_specific_colors["playstation"]
                 elif "switch" in platform_lower:
                      assigned_color = platform_specific_colors["switch"]
-                elif "pc" == platform_lower or "windows" in platform_lower or "steam" in platform_lower: # Common PC terms
+                # --- ADDED STEAM DECK CHECK ---
+                elif "steam deck" in platform_lower: # Check specifically for Steam Deck
+                    assigned_color = ft.Colors.PURPLE_500 # Assign purple!
+                # --- END ADDED CHECK ---
+                elif "pc" == platform_lower or "windows" in platform_lower or "steam" in platform_lower: # Common PC terms (excluding steam deck now)
                      assigned_color = platform_specific_colors["pc"]
                 # --- End specific checks ---
 
