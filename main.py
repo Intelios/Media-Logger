@@ -341,6 +341,7 @@ def main(page: ft.Page):
     platform_pie_chart = ft.Ref[ft.PieChart]()
     platform_legend = ft.Ref[ft.Column]()
     backlog_list_view_content = ft.Ref[ft.ListView]()
+    stats_monthly_barchart = ft.Ref[ft.BarChart]()
 
     # --- Main Stack ---
     main_stack = ft.Stack(expand=True)
@@ -746,60 +747,119 @@ def main(page: ft.Page):
     )
 
     def calculate_and_update_stats_display(filter_year="All Time"):
+        """Calculates statistics based on the filter and updates the UI, including monthly bar chart.""" # MODIFIED DOCSTRING
         print(f"Calculating stats for display filter: {filter_year}")
         games_data = []
         total_games, average_score, total_replays, unique_platforms = 0, 0.0, 0, 0
         pie_sections_data, legend_items_data = [], []
+        bar_chart_groups = [] # <<< Initialize list for bar chart data
+        max_monthly_count = 0 # <<< Initialize max count for Y-axis scaling
+
+        # ... (Platform color definitions remain the same) ...
         platform_specific_colors = {"xbox": ft.Colors.GREEN_600, "playstation": ft.Colors.INDIGO_500, "switch": ft.Colors.RED_600, "pc": ft.Colors.ORANGE_600, "steam deck": ft.Colors.PURPLE_500,}
         fallback_platform_colors = [ft.Colors.BLUE_500, ft.Colors.PURPLE_500, ft.Colors.TEAL_500, ft.Colors.PINK_500, ft.Colors.CYAN_500, ft.Colors.LIGHT_BLUE_500, ft.Colors.LIME_500, ft.Colors.AMBER_500, ft.Colors.DEEP_ORANGE_500, ft.Colors.LIGHT_GREEN_500, ft.Colors.DEEP_PURPLE_500, ft.Colors.BROWN_400, ft.Colors.BLUE_GREY_500, ft.Colors.YELLOW_800]
         unknown_color = ft.Colors.with_opacity(0.5, ft.Colors.ON_SURFACE_VARIANT)
+
         try:
-            if filter_year == "All Time": games_data = get_all_games_db()
+            # Fetch data based on filter
+            if filter_year == "All Time":
+                games_data = get_all_games_db()
             else:
                 try: year_int = int(filter_year); games_data = get_games_by_year_db(year_int)
                 except ValueError: print(f"Error: Invalid year '{filter_year}' for stats filter."); games_data = []
             games_data = games_data or []
+
+            # --- Calculations for Summary Cards & Pie Chart ---
             total_games = len(games_data)
             total_replays = sum(1 for g in games_data if g.get('is_replay') == 1)
             valid_scores = [g['review_score'] for g in games_data if g.get('review_score') is not None and isinstance(g['review_score'], (int, float))]
             average_score = (sum(valid_scores) / len(valid_scores)) if valid_scores else 0.0
             platform_counts = Counter( (g.get('platform', "Unknown") or "Unknown").strip().title() for g in games_data )
             unique_platforms = len(platform_counts)
+
+            # --- Prepare Pie Chart Data ---
             fallback_color_index = 0
             sorted_platforms = platform_counts.most_common()
             for platform, count in sorted_platforms:
                 percentage = (count / total_games * 100) if total_games > 0 else 0
                 platform_lower = platform.lower(); assigned_color = None
                 if platform == "Unknown": assigned_color = unknown_color
-                else:
+                else: # ... (color assignment logic remains same) ...
                     if "steam deck" == platform_lower: assigned_color = platform_specific_colors["steam deck"]
                     elif "xbox" in platform_lower: assigned_color = platform_specific_colors["xbox"]
                     elif "playstation" in platform_lower or "ps" in platform_lower.split(): assigned_color = platform_specific_colors["playstation"]
                     elif "switch" in platform_lower: assigned_color = platform_specific_colors["switch"]
                     elif "pc" == platform_lower or "windows" in platform_lower or "steam" in platform_lower: assigned_color = platform_specific_colors["pc"]
-                if assigned_color is None:
-                    assigned_color = fallback_platform_colors[fallback_color_index % len(fallback_platform_colors)]
-                    fallback_color_index += 1
-                pie_sections_data.append( ft.PieChartSection(
-                    value=percentage, title=f"{percentage:.0f}%" if percentage >= 5 else "",
-                    title_style=ft.TextStyle(size=10, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
-                    color=assigned_color, radius=70
-                ))
-                display_platform = "PC" if platform == "Pc" else platform # Fix 'Pc' display
-                legend_items_data.append( ft.Row(
-                    [ ft.Container(width=16, height=16, bgcolor=assigned_color, border_radius=3), ft.Text(f"{display_platform} ({count})") ], spacing=10
-                ))
+                if assigned_color is None: assigned_color = fallback_platform_colors[fallback_color_index % len(fallback_platform_colors)]; fallback_color_index += 1
+                pie_sections_data.append(ft.PieChartSection(value=percentage, title=f"{percentage:.0f}%" if percentage >= 5 else "", title_style=ft.TextStyle(size=10, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD), color=assigned_color, radius=70))
+                display_platform = "PC" if platform == "Pc" else platform
+                legend_items_data.append(ft.Row([ft.Container(width=16, height=16, bgcolor=assigned_color, border_radius=3), ft.Text(f"{display_platform} ({count})")], spacing=10))
+
+            # <<< --- CALCULATE MONTHLY COMPLETIONS --- >>>
+            monthly_counts = {month: 0 for month in range(1, 13)}
+            month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+            for game in games_data:
+                date_str = game.get('completion_date')
+                if date_str:
+                    try:
+                        completion_dt = datetime.strptime(date_str, '%Y-%m-%d')
+                        month = completion_dt.month
+                        monthly_counts[month] += 1
+                    except (ValueError, TypeError):
+                        print(f"Warning: Could not parse date '{date_str}' for game '{game.get('name')}' during monthly calculation.")
+
+            # --- Prepare Bar Chart Data ---
+            bar_chart_color = ft.colors.BLUE_GREY_400 # Choose a color for bars
+            for month_num in range(1, 13):
+                count = monthly_counts[month_num]
+                if count > max_monthly_count:
+                    max_monthly_count = count # Track max count for Y-axis
+
+                tooltip_text = f"{month_names[month_num-1]}: {count} game{'s' if count != 1 else ''}"
+                bar_rod = ft.BarChartRod(
+                    to_y=count,
+                    width=18, # Adjust bar width
+                    color=bar_chart_color,
+                    tooltip=tooltip_text,
+                    border_radius=ft.border_radius.only(top_left=5, top_right=5) # Rounded tops
+                )
+                bar_group = ft.BarChartGroup(
+                    x=month_num - 1, # 0-based index for chart groups
+                    bar_rods=[bar_rod]
+                )
+                bar_chart_groups.append(bar_group)
+
+            # Set Y-axis max value (add a small buffer, ensure minimum scale)
+            dynamic_max_y = max(5, max_monthly_count + 2) # Minimum scale of 5, or max count + 2
+
+            # <<< --- END MONTHLY CALCULATIONS --- >>>
+
         except Exception as e:
+             # ... (Existing error handling remains the same) ...
              print(f"!!!!!!!!! ERROR DURING STATS CALCULATION !!!!!!!!!\n{e}"); traceback.print_exc(); print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
              total_games, average_score, total_replays, unique_platforms = "Error", "N/A", "Error", "Error"
              pie_sections_data, legend_items_data = [], [ft.Text("Error loading data.", color=ft.Colors.ERROR)]
+             bar_chart_groups = [] # Clear bar chart data on error
+             dynamic_max_y = 5 # Default scale on error
+
+        # --- Update UI elements using Refs ---
         if page:
+            # Update summary cards and pie chart (existing code)
             if stats_total_games_text.current: stats_total_games_text.current.value = str(total_games); stats_total_games_text.current.update()
             if stats_avg_score_text.current: stats_avg_score_text.current.value = f"{average_score:.1f}" if isinstance(average_score, float) else average_score; stats_avg_score_text.current.update()
             if stats_total_replays_text.current: stats_total_replays_text.current.value = str(total_replays); stats_total_replays_text.current.update()
             if stats_unique_platforms_text.current: stats_unique_platforms_text.current.value = str(unique_platforms); stats_unique_platforms_text.current.update()
             if platform_pie_chart.current: platform_pie_chart.current.sections = pie_sections_data; platform_pie_chart.current.update()
             if platform_legend.current: platform_legend.current.controls = legend_items_data; platform_legend.current.update()
+
+            # <<< --- UPDATE BAR CHART --- >>>
+            if stats_monthly_barchart.current:
+                stats_monthly_barchart.current.bar_groups = bar_chart_groups
+                stats_monthly_barchart.current.max_y = dynamic_max_y # Set dynamic Y-axis max
+                stats_monthly_barchart.current.update()
+            # <<< --- END BAR CHART UPDATE --- >>>
+
         print(f"Stats UI update complete for {filter_year}.")
 
     def on_stats_filter_change(e):
@@ -817,29 +877,74 @@ def main(page: ft.Page):
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=5)))
 
     def build_stats_view():
+        """Builds the content for the Statistics view."""
         print("Building stats view")
-        stats_year_filter.on_change = on_stats_filter_change
-        initial_filter = list(stats_year_filter.selected)[0] if stats_year_filter.selected else "All Time"
-        if page: page.run_thread(calculate_and_update_stats_display, initial_filter)
+
+        # --- Define Month Labels for X-Axis ---
+        # (Month labels definition remains the same)
+        month_labels = [
+            ft.ChartAxisLabel(value=i, label=ft.Text(month, size=10))
+            for i, month in enumerate(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
+        ]
+
+        # --- Structure the view (Create controls FIRST) ---
         controls_list = [
-            ft.Text("Statistics", style=ft.TextThemeStyle.HEADLINE_MEDIUM), stats_year_filter,
+            ft.Text("Statistics", style=ft.TextThemeStyle.HEADLINE_MEDIUM),
+            stats_year_filter, # Filter itself
+
+            # Summary GridView
             ft.Container(content=ft.Text("Summary", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
             ft.GridView(runs_count=4, max_extent=200, child_aspect_ratio=1.0, spacing=10, run_spacing=10, controls=[
-                create_summary_card(ft.icons.VIDEOGAME_ASSET_ROUNDED, stats_total_games_text, "Total Games Logged"),
+                create_summary_card(ft.icons.VIDEOGAME_ASSET_ROUNDED, stats_total_games_text, "Total Games Logged"), # Refs assigned here
                 create_summary_card(ft.icons.STAR_RATE_ROUNDED, stats_avg_score_text, "Average Rating"),
                 create_summary_card(ft.icons.REPLAY_ROUNDED, stats_total_replays_text, "Replays Logged"),
                 create_summary_card(ft.icons.DEVICES_OTHER_ROUNDED, stats_unique_platforms_text, "Unique Platforms"),
             ]),
+
+            # Platform Breakdown Card
             ft.Container(content=ft.Text("Platform Breakdown", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
             ft.Card(content=ft.Container(padding=20, content=ft.Row([
-                ft.Column([ft.PieChart(ref=platform_pie_chart, sections=[], center_space_radius=40, expand=True,)], expand=3, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                ft.Column([ft.Text("Platforms", weight=ft.FontWeight.BOLD), ft.Column(ref=platform_legend, controls=[ft.ProgressRing(width=20, height=20)], spacing=8, scroll=ft.ScrollMode.ADAPTIVE, expand=True)], expand=2, horizontal_alignment=ft.CrossAxisAlignment.START, scroll=ft.ScrollMode.ADAPTIVE, height=250),
+                ft.Column([ft.PieChart(ref=platform_pie_chart, sections=[], center_space_radius=40, expand=True,)], expand=3, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER), # Ref assigned here
+                ft.Column([ft.Text("Platforms", weight=ft.FontWeight.BOLD), ft.Column(ref=platform_legend, controls=[ft.ProgressRing(width=20, height=20)], spacing=8, scroll=ft.ScrollMode.ADAPTIVE, expand=True)], expand=2, horizontal_alignment=ft.CrossAxisAlignment.START, scroll=ft.ScrollMode.ADAPTIVE, height=250), # Ref assigned here
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER))),
+
+            # Monthly Completions Chart
+            ft.Container(content=ft.Text("Completions per Month", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
+            ft.Card(content=ft.Container(
+                    content=ft.BarChart(
+                        ref=stats_monthly_barchart, # Ref assigned here
+                        bar_groups=[], bottom_axis=ft.ChartAxis(labels=month_labels), tooltip_bgcolor=ft.colors.with_opacity(0.8, ft.colors.BLUE_GREY_700),
+                        left_axis=ft.ChartAxis(labels_size=40), border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.OUTLINE)),
+                        horizontal_grid_lines=ft.ChartGridLines(interval=2, color=ft.colors.with_opacity(0.1, ft.colors.OUTLINE)),
+                        interactive=True, expand=True
+                    ),
+                    padding=20, height=300
+            )),
+
+            # Import/Export section
             ft.Container(content=ft.Text("Import / Export", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
             ft.Row([ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog)], spacing=10),
             ft.Text("CSV Format: 'Title' (Req), 'Platform', 'Rating', 'DateCompleted' (Req, YYYY-MM-DD), 'IsReplay'.", italic=True, size=11, color=ft.Colors.with_opacity(0.6, ft.Colors.ON_SURFACE))
         ]
-        return ft.ListView(expand=True, spacing=20, padding=ft.padding.symmetric(horizontal=20, vertical=10), controls=controls_list)
+
+        # --- Create the final ListView ---
+        stats_view_content = ft.ListView(
+            expand=True, spacing=20,
+            padding=ft.padding.symmetric(horizontal=20, vertical=10),
+            controls=controls_list # Add the already created controls
+        )
+
+        # --- Assign handlers and trigger calculation AFTER controls are created ---
+        stats_year_filter.on_change = on_stats_filter_change
+        initial_filter = list(stats_year_filter.selected)[0] if stats_year_filter.selected else "All Time"
+
+        # <<< MODIFICATION: Start thread LATER >>>
+        # We don't start the thread here anymore. It will be started AFTER
+        # the stats_view_content is added to the page in update_main_content.
+        # if page:
+        #     page.run_thread(calculate_and_update_stats_display, initial_filter)
+
+        return stats_view_content # Return the complete view
 
 
     # --- Backlog View ---
@@ -1051,19 +1156,47 @@ def main(page: ft.Page):
 
     # ------ Navigation and Content Update Logic -------
     # (update_main_content remains the same)
+    # ------ Navigation and Content Update Logic -------
     def update_main_content(view_id):
+        """Clears the main content area and loads the selected view."""
         print(f"Updating main content to display view: {view_id}")
         app_state["current_view"] = view_id
         main_content_area.controls.clear()
         show_fab, fab_tooltip, content = False, "Add Item", None
-        if view_id in YEARS: content = build_year_view(view_id); show_fab = True; fab_tooltip = f"Add Game to {view_id}"
-        elif view_id == "Stats": content = build_stats_view(); show_fab = False
-        elif view_id == "Backlog": content = build_backlog_view(); show_fab = True; fab_tooltip = "Add to Backlog"
-        else: content = ft.Container(content=ft.Text(f"Error: Unknown view '{view_id}'.", color=ft.Colors.ERROR), padding=20)
-        if content: main_content_area.controls.append(content)
+
+        # Build the appropriate view content
+        if view_id in YEARS:
+            content = build_year_view(view_id)
+            show_fab = True; fab_tooltip = f"Add Game to {view_id}"
+        elif view_id == "Stats":
+            content = build_stats_view() # Builds the layout, but doesn't start calc thread
+            show_fab = False
+        elif view_id == "Backlog":
+            content = build_backlog_view()
+            show_fab = True; fab_tooltip = "Add to Backlog"
+        else:
+            content = ft.Container(content=ft.Text(f"Error: Unknown view '{view_id}'.", color=ft.Colors.ERROR), padding=20)
+
+        # Add the new content and update FAB visibility/tooltip
+        if content:
+            main_content_area.controls.append(content)
         fab.visible = show_fab; fab.tooltip = fab_tooltip
-        if page: main_content_area.update(); fab.update()
-        else: print("Warning: Page context lost during view update.")
+
+        # Update the UI parts that changed
+        if page:
+            # Update the main area FIRST to add the controls to the page
+            main_content_area.update()
+            fab.update()
+
+            # <<< MODIFICATION: Start calculation thread AFTER adding content >>>
+            if view_id == "Stats":
+                initial_filter = list(stats_year_filter.selected)[0] if stats_year_filter.selected else "All Time"
+                print(f"Triggering stats calculation for {initial_filter} AFTER adding view to page.")
+                page.run_thread(calculate_and_update_stats_display, initial_filter)
+            # <<< END MODIFICATION >>>
+
+        else:
+            print("Warning: Page context lost during view update.")
 
     # (refresh_current_view closes manual dialog only)
     def refresh_current_view():
