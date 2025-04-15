@@ -361,11 +361,20 @@ def main(page: ft.Page):
     add_date_picker = ft.DatePicker(on_change=handle_add_date_change, help_text="Select Completion Date")
     page.overlay.append(add_date_picker)
 
+    # <<< --- FIX HERE (Add Game Picker Trigger) --- >>>
     def open_add_date_picker(e=None):
         if add_date_picker:
-            if page: add_date_picker.pick_date()
-            else: print("Error: Page context lost before opening date picker.")
-        else: print("Error: ADD DatePicker object not found.")
+            if page:
+                # Use open = True and page.update() when picker is in overlay
+                add_date_picker.open = True # CHANGED from pick_date()
+                page.update()             # ADDED page.update()
+                print("Add date picker opened.") # Optional: Added for debugging
+            else:
+                print("Error: Page context lost before opening date picker.")
+        else:
+            print("Error: ADD DatePicker object not found.")
+            show_snackbar("Could not open date picker.", color=ft.Colors.ERROR) # Added snackbar on error
+    # <<< --- END FIX --- >>>
 
     # --- File Picker Setup ---
     # (File Picker setup remains the same)
@@ -690,11 +699,20 @@ def main(page: ft.Page):
                 formatted_date = selected_date.strftime('%Y-%m-%d'); target_field_ref.current.value = formatted_date
                 target_field_ref.current.update()
 
+        # <<< --- FIX HERE (Edit Game Picker Trigger) --- >>>
         def open_edit_date_picker(e):
-             if edit_date_picker:
-                 if page: edit_date_picker.pick_date()
-                 else: print("Page context lost before opening edit date picker.")
-             else: show_snackbar("Edit date picker not available.", color=ft.Colors.ERROR)
+             if edit_date_picker: # Use the picker created for *this* dialog
+                 if page:
+                     # Use open = True and page.update()
+                     edit_date_picker.open = True # CHANGED from pick_date()
+                     page.update()             # ADDED page.update()
+                     print("Edit date picker opened.") # Optional: Added for debugging
+                 else:
+                    print("Page context lost before opening edit date picker.")
+             else:
+                 print("Error: Edit date picker object not found or not created.")
+                 show_snackbar("Edit date picker not available.", color=ft.Colors.ERROR) # Added snackbar on error
+        # <<< --- END FIX --- >>>
 
         def save_edited_game(e):
             name = edit_name_field.current.value.strip() if edit_name_field.current else ""
