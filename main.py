@@ -1061,11 +1061,11 @@ def main(page: ft.Page):
     # --- Navigation Rail ---
     # Determine initial_index based on app_state["current_view"]
     # The order of destinations must match this logic.
-    # Destinations: YEARS, then Search, then Stats, then Backlog
+    # Destinations: YEARS, then Stats, then Backlog, THEN Search (at the bottom)
     nav_destinations_config = [(year, ft.icons.CALENDAR_MONTH_OUTLINED, ft.icons.CALENDAR_MONTH) for year in YEARS]
-    nav_destinations_config.append(("Search", ft.icons.SEARCH_OUTLINED, ft.icons.SEARCH_ROUNDED)) # NEW Search
     nav_destinations_config.append(("Stats", ft.icons.QUERY_STATS_OUTLINED, ft.icons.QUERY_STATS))
     nav_destinations_config.append(("Backlog", ft.icons.LIST_ALT_OUTLINED, ft.icons.LIST_ALT))
+    nav_destinations_config.append(("Search", ft.icons.SEARCH_OUTLINED, ft.icons.SEARCH_ROUNDED)) # Search is now last
 
     initial_index = 0 # Default to first year
     for i, (view_name, _, _) in enumerate(nav_destinations_config):
@@ -1073,7 +1073,9 @@ def main(page: ft.Page):
             initial_index = i
             break
     if app_state["current_view"] not in [cfg[0] for cfg in nav_destinations_config]: # Fallback if default view is bad
-        app_state["current_view"] = YEARS[0] if YEARS else "Search" # Default to first year or Search
+        # If default view was "Search", it will now correctly find its new index.
+        # If default view was something else and not found, default to first year or first item in config.
+        app_state["current_view"] = nav_destinations_config[0][0] if nav_destinations_config else "2024" # Default to first configured item
         initial_index = 0
 
 
@@ -1082,7 +1084,8 @@ def main(page: ft.Page):
         label_type=ft.NavigationRailLabelType.ALL,
         min_width=100,
         min_extended_width=200,
-        group_alignment=-0.9,
+        group_alignment=-0.9, # This aligns the group of destinations towards the top.
+                              # The last item in the `destinations` list will appear at the bottom of this group.
         destinations=[
             ft.NavigationRailDestination(icon=icon_outlined, selected_icon=icon_selected, label=label)
             for label, icon_outlined, icon_selected in nav_destinations_config
