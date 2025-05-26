@@ -1,4 +1,3 @@
-# main.py
 import flet as ft
 import sqlite3
 import csv
@@ -7,7 +6,9 @@ import sys
 import os
 from collections import Counter
 import math
-import traceback # For detailed error logging
+import traceback # Import for detailed error logging
+import shutil # Already imported
+import uuid # Already imported
 
 # --- Determine the base path ---
 if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
@@ -17,1161 +18,1673 @@ else:
     base_path = os.path.dirname(os.path.abspath(__file__))
     print(f"Running script, base path: {base_path}")
 
-DB_FILE = os.path.join(base_path, "game_log.db")
+DB_FILE = os.path.join(base_path, "jav_log.db")
+ASSETS_DIR = os.path.join(base_path, "assets")
+IMAGES_DIR = os.path.join(ASSETS_DIR, "images")
 print(f"Database file path: {DB_FILE}")
+print(f"Assets directory: {ASSETS_DIR}")
+print(f"Images directory: {IMAGES_DIR}")
 
-APP_TITLE = "My Game Logger"
-YEARS = ["2023", "2024", "2025"] # Adjust years as needed
 
+APP_TITLE = "Media Logger"
+YEARS = ["2025"] # TODO: Consider making this dynamic or configurable
+GENRE_SEPARATOR = ", "
+DEFAULT_IMAGE_URL = "https://via.placeholder.com/300x150.png?text=No+Image"
+
+# --- Theme Definitions ---
+THEMES = {
+    "Deep Purple (Dark)": {"seed": ft.colors.DEEP_PURPLE, "mode": ft.ThemeMode.DARK},
+    "Ocean Blue (Dark)": {"seed": ft.colors.BLUE, "mode": ft.ThemeMode.DARK},
+    "Forest Green (Dark)": {"seed": ft.colors.GREEN, "mode": ft.ThemeMode.DARK},
+    "Sunny Amber (Dark)": {"seed": ft.colors.AMBER, "mode": ft.ThemeMode.DARK},
+    "Crimson Red (Dark)": {"seed": ft.colors.RED, "mode": ft.ThemeMode.DARK},
+    "Indigo Night (Dark)": {"seed": ft.colors.INDIGO, "mode": ft.ThemeMode.DARK},
+    "Teal Waters (Dark)": {"seed": ft.colors.TEAL, "mode": ft.ThemeMode.DARK},
+    "Slate Grey (Dark)": {"seed": ft.colors.BLUE_GREY, "mode": ft.ThemeMode.DARK},
+    "Classic Light": {"seed": ft.colors.BLUE_GREY, "mode": ft.ThemeMode.LIGHT},
+    "Minty Light": {"seed": ft.colors.GREEN_ACCENT, "mode": ft.ThemeMode.LIGHT},
+    "Sky Blue Light": {"seed": ft.colors.LIGHT_BLUE, "mode": ft.ThemeMode.LIGHT},
+}
+DEFAULT_THEME_NAME = "Deep Purple (Dark)"
+
+ENTRY_TYPE_OPTIONS = [
+    ft.dropdown.Option("Movie"), ft.dropdown.Option("Show"), ft.dropdown.Option("Anime"),
+    ft.dropdown.Option("K-Drama"), ft.dropdown.Option("JAV"), ft.dropdown.Option("Hentai"),
+    ft.dropdown.Option("Other"), ft.dropdown.Option("Game"),
+]
+ALL_ENTRY_TYPES_STR = [opt.key for opt in ENTRY_TYPE_OPTIONS if opt.key]
+
+
+# --- Database Handling ---
 def init_db():
-    # (init_db remains the same)
     conn = None
     try:
+        if not os.path.exists(ASSETS_DIR):
+            os.makedirs(ASSETS_DIR)
+            print(f"Created assets directory: {ASSETS_DIR}")
+        if not os.path.exists(IMAGES_DIR):
+            os.makedirs(IMAGES_DIR)
+            print(f"Created images directory: {IMAGES_DIR}")
+        
+        print(f"Attempting to connect to database: {DB_FILE}")
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
+        print("Database connection successful.")
+        # Main log table
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS games (
+            CREATE TABLE IF NOT EXISTS javs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                platform TEXT,
-                completion_date TEXT, 
-                review_score INTEGER, 
-                year_completed INTEGER, 
-                is_replay INTEGER DEFAULT 0 NOT NULL CHECK(is_replay IN (0, 1))
+                genre TEXT,
+                completion_date TEXT,
+                review_score INTEGER,
+                description TEXT,
+                year_completed INTEGER,
+                is_rewatch INTEGER DEFAULT 0 NOT NULL CHECK(is_rewatch IN (0, 1)),
+                is_h INTEGER DEFAULT 0 NOT NULL CHECK(is_h IN (0, 1)),
+                own_local_copy INTEGER DEFAULT 0 NOT NULL CHECK(own_local_copy IN (0, 1)),
+                image_url TEXT, -- Will store URL or relative path like "images/filename.jpg"
+                entry_type TEXT
             )
         """)
+        # App Settings table
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS backlog (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                platform TEXT, 
-                added_date TEXT, 
-                is_playing INTEGER DEFAULT 0 NOT NULL CHECK(is_playing IN (0, 1))
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
             )
         """)
-        cursor.execute("PRAGMA table_info(backlog)")
-        columns = [info[1] for info in cursor.fetchall()]
-        if 'is_playing' not in columns:
-            print("Adding 'is_playing' column to backlog table...")
-            cursor.execute("ALTER TABLE backlog ADD COLUMN is_playing INTEGER DEFAULT 0 NOT NULL CHECK(is_playing IN (0, 1))")
-            print("'is_playing' column added.")
+
+        table_info = cursor.execute("PRAGMA table_info(javs)").fetchall()
+        column_names = [info[1] for info in table_info]
+
+        if 'is_h' not in column_names:
+            print("Adding column 'is_h' to 'javs' table.")
+            cursor.execute("ALTER TABLE javs ADD COLUMN is_h INTEGER DEFAULT 0 NOT NULL CHECK(is_h IN (0, 1))")
+        if 'own_local_copy' not in column_names:
+            print("Adding column 'own_local_copy' to 'javs' table.")
+            cursor.execute("ALTER TABLE javs ADD COLUMN own_local_copy INTEGER DEFAULT 0 NOT NULL CHECK(own_local_copy IN (0, 1))")
+        if 'image_url' not in column_names:
+            print("Adding column 'image_url' to 'javs' table.")
+            cursor.execute("ALTER TABLE javs ADD COLUMN image_url TEXT")
+        if 'entry_type' not in column_names:
+            print("Adding column 'entry_type' to 'javs' table.")
+            cursor.execute("ALTER TABLE javs ADD COLUMN entry_type TEXT")
+
         conn.commit()
         print("Database initialized successfully.")
     except sqlite3.Error as e:
         print(f"Database initialization error: {e}")
+        traceback.print_exc()
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
-def add_game_db(name, platform, completion_date_str, score, is_replay):
-    # (add_game_db remains the same)
+def get_setting_db(key, default_value=None):
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM app_settings WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        return row[0] if row else default_value
+    except sqlite3.Error as e: print(f"Error getting setting '{key}': {e}"); return default_value
+    finally:
+        if conn: conn.close()
+
+def set_setting_db(key, value):
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", (key, value))
+        conn.commit()
+    except sqlite3.Error as e: print(f"Error saving setting '{key}' = '{value}': {e}")
+    finally:
+        if conn: conn.close()
+
+
+def add_jav_db(name, genre_str, completion_date_str, score, description, is_rewatch, is_h, own_local_copy, image_ref_for_db, entry_type):
     conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         year_completed = None
         if completion_date_str:
-            try:
-                year_completed = datetime.strptime(completion_date_str, '%Y-%m-%d').year
-            except (ValueError, TypeError) as e:
-                print(f"Warning: Invalid completion date format '{completion_date_str}' for game '{name}'. Storing date as is, year might be null. Error: {e}")
-        replay_int = 1 if is_replay else 0
+            try: year_completed = datetime.strptime(completion_date_str, '%Y-%m-%d').year
+            except (ValueError, TypeError): pass
+        rewatch_int = 1 if is_rewatch else 0
+        h_int = 1 if is_h else 0
+        own_local_copy_int = 1 if own_local_copy else 0
         score_to_db = score if score is not None else None
+        genre_to_db = genre_str.strip() if genre_str and genre_str.strip() else None
+        description_to_db = description.strip() if description and description.strip() else None
+        image_to_db = image_ref_for_db.strip() if image_ref_for_db and image_ref_for_db.strip() else None
+        entry_type_to_db = entry_type.strip() if entry_type and entry_type.strip() else None
+
         cursor.execute(
-            "INSERT INTO games (name, platform, completion_date, review_score, year_completed, is_replay) VALUES (?, ?, ?, ?, ?, ?)",
-            (name, platform if platform else None, completion_date_str, score_to_db, year_completed, replay_int)
+            "INSERT INTO javs (name, genre, completion_date, review_score, description, year_completed, is_rewatch, is_h, own_local_copy, image_url, entry_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, h_int, own_local_copy_int, image_to_db, entry_type_to_db)
         )
         conn.commit()
-        print(f"Game added: {name}")
-    except sqlite3.Error as e:
-        print(f"Database error adding game '{name}': {e}")
+        print(f"Entry added: {name}")
+    except sqlite3.Error as e: print(f"Database error adding entry '{name}': {e}")
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
-def get_games_by_year_db(year): # REVERTED: Removed search_term
-    """Retrieves all completed games for a specific year, sorted chronologically."""
-    conn = None
-    games = []
+def get_javs_by_year_db(year):
+    conn = None; javs = []
     try:
-        conn = sqlite3.connect(DB_FILE)
-        conn.row_factory = sqlite3.Row
+        conn = sqlite3.connect(DB_FILE); conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, platform, completion_date, review_score, is_replay FROM games WHERE year_completed = ? ORDER BY completion_date ASC, id ASC",
-            (year,)
+            "SELECT id, name, genre, completion_date, review_score, description, year_completed, is_rewatch, is_h, own_local_copy, image_url, entry_type FROM javs WHERE year_completed = ? ORDER BY completion_date ASC, id ASC", (year,)
         )
-        games = [dict(row) for row in cursor.fetchall()]
-    except sqlite3.Error as e:
-        print(f"Database Error getting games for year {year}: {e}")
+        javs = [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e: print(f"Database Error getting entries for year {year}: {e}")
     finally:
-        if conn:
-            conn.close()
-    return games
+        if conn: conn.close()
+    return javs
 
-def get_all_games_db():
-    # (get_all_games_db remains the same)
-    conn = None
-    games = []
+def get_all_javs_db():
+    conn = None; javs = []
     try:
-        conn = sqlite3.connect(DB_FILE)
-        conn.row_factory = sqlite3.Row
+        conn = sqlite3.connect(DB_FILE); conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, platform, completion_date, review_score, year_completed, is_replay FROM games ORDER BY completion_date DESC, id DESC"
+            "SELECT id, name, genre, completion_date, review_score, description, year_completed, is_rewatch, is_h, own_local_copy, image_url, entry_type FROM javs ORDER BY completion_date DESC, id DESC"
         )
-        games = [dict(row) for row in cursor.fetchall()]
-    except sqlite3.Error as e:
-        print(f"Database Error getting all games: {e}")
+        javs = [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e: print(f"Database Error getting all entries: {e}")
     finally:
-        if conn:
-            conn.close()
-    return games
+        if conn: conn.close()
+    return javs
 
-def delete_game_db(game_id):
-    # (delete_game_db remains the same)
+def delete_jav_db(jav_id):
     conn = None
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM games WHERE id = ?", (game_id,))
-        conn.commit()
-        print(f"Game deleted: ID {game_id}")
-    except sqlite3.Error as e:
-        print(f"Database error deleting game ID {game_id}: {e}")
+        conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
+        cursor.execute("DELETE FROM javs WHERE id = ?", (jav_id,)); conn.commit()
+        print(f"Entry deleted: ID {jav_id}")
+    except sqlite3.Error as e: print(f"Database error deleting entry ID {jav_id}: {e}")
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
-def update_game_db(game_id, name, platform, completion_date_str, score, is_replay):
-    # (update_game_db remains the same)
+def update_jav_db(jav_id, name, genre_str, completion_date_str, score, description, is_rewatch, is_h, own_local_copy, image_ref_for_db, entry_type):
     conn = None
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
+        conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
         year_completed = None
         if completion_date_str:
-            try:
-                year_completed = datetime.strptime(completion_date_str, '%Y-%m-%d').year
-            except (ValueError, TypeError) as e:
-                print(f"Warning: Invalid completion date format '{completion_date_str}' for game ID {game_id}. Updating date as is, year might be null. Error: {e}")
-        replay_int = 1 if is_replay else 0
+            try: year_completed = datetime.strptime(completion_date_str, '%Y-%m-%d').year
+            except (ValueError, TypeError): pass
+        rewatch_int = 1 if is_rewatch else 0
+        h_int = 1 if is_h else 0
+        own_local_copy_int = 1 if own_local_copy else 0
         score_to_db = score if score is not None else None
+        genre_to_db = genre_str.strip() if genre_str and genre_str.strip() else None
+        description_to_db = description.strip() if description and description.strip() else None
+        image_to_db = image_ref_for_db.strip() if image_ref_for_db and image_ref_for_db.strip() else None
+        entry_type_to_db = entry_type.strip() if entry_type and entry_type.strip() else None
+
         cursor.execute("""
-            UPDATE games
-            SET name = ?, platform = ?, completion_date = ?, review_score = ?, year_completed = ?, is_replay = ?
+            UPDATE javs SET name = ?, genre = ?, completion_date = ?, review_score = ?, description = ?, year_completed = ?, is_rewatch = ?, is_h = ?, own_local_copy = ?, image_url = ?, entry_type = ?
             WHERE id = ?
-        """, (name, platform if platform else None, completion_date_str, score_to_db, year_completed, replay_int, game_id))
+        """, (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, h_int, own_local_copy_int, image_to_db, entry_type_to_db, jav_id))
         conn.commit()
-        print(f"Game updated: ID {game_id} - {name}")
-        if cursor.rowcount == 0:
-             print(f"Warning: No rows updated for game ID {game_id}. ID might be invalid.")
-    except sqlite3.Error as e:
-        print(f"Database error updating game ID {game_id}: {e}")
+        print(f"Entry updated: ID {jav_id} - {name}")
+    except sqlite3.Error as e: print(f"Database error updating entry ID {jav_id}: {e}")
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
-# --- NEW: Database function for global search ---
-def search_completed_games_db(search_term, target_years=None):
-    """
-    Searches completed games by name or platform, optionally filtered by a list of years.
-    Args:
-        search_term (str): The term to search for.
-        target_years (list, optional): A list of integer years to filter by.
-                                     If None or empty, searches all years.
-    Returns:
-        list: A list of game dictionaries.
-    """
-    conn = None
-    games = []
-    if not search_term or not search_term.strip():
-        return games # Return empty if search term is blank
+# --- Helper Functions ---
+def parse_genres(genre_str):
+    if not genre_str or not genre_str.strip(): return []
+    return [genre.strip() for genre in genre_str.split(',') if genre.strip()]
 
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-
-        query_parts = ["SELECT id, name, platform, completion_date, review_score, year_completed, is_replay FROM games"]
-        conditions = []
-        params = []
-
-        # Search term condition (name or platform)
-        like_term = f"%{search_term.strip()}%"
-        conditions.append("(LOWER(name) LIKE LOWER(?) OR LOWER(COALESCE(platform, '')) LIKE LOWER(?))")
-        params.extend([like_term, like_term])
-
-        # Year condition
-        if target_years and isinstance(target_years, list) and len(target_years) > 0:
-            year_placeholders = ','.join(['?'] * len(target_years))
-            conditions.append(f"year_completed IN ({year_placeholders})")
-            params.extend(target_years)
-
-        if conditions:
-            query_parts.append("WHERE " + " AND ".join(conditions))
-
-        query_parts.append("ORDER BY year_completed DESC, completion_date DESC, id DESC") # Show most recent first
-
-        final_query = " ".join(query_parts)
-        # print(f"Search Query: {final_query} with params: {params}") # For debugging
-        cursor.execute(final_query, tuple(params))
-        games = [dict(row) for row in cursor.fetchall()]
-
-    except sqlite3.Error as e:
-        print(f"Database Error searching games (term: '{search_term}', years: {target_years}): {e}")
-    finally:
-        if conn:
-            conn.close()
-    return games
-
-
-def add_backlog_item_db(name, platform):
-    # (add_backlog_item_db remains the same)
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        added_date = datetime.now().strftime('%Y-%m-%d')
-        cursor.execute(
-            "INSERT INTO backlog (name, platform, added_date) VALUES (?, ?, ?)",
-            (name, platform if platform else None, added_date)
-        )
-        conn.commit()
-        print(f"Backlog item added: {name}")
-    except sqlite3.Error as e:
-        print(f"Database error adding backlog item '{name}': {e}")
-    finally:
-        if conn:
-            conn.close()
-
-def get_backlog_db(): # REVERTED: Removed search_term
-    """Retrieves all backlog items, sorted by playing status then name."""
-    conn = None
-    items = []
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, name, platform, added_date, is_playing FROM backlog ORDER BY is_playing DESC, name ASC")
-        items = [dict(row) for row in cursor.fetchall()]
-    except sqlite3.Error as e:
-        print(f"Database Error getting backlog: {e}")
-    finally:
-        if conn:
-            conn.close()
-    return items
-
-def delete_backlog_item_db(item_id):
-    # (delete_backlog_item_db remains the same)
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM backlog WHERE id = ?", (item_id,))
-        conn.commit()
-        print(f"Backlog item deleted: ID {item_id}")
-    except sqlite3.Error as e:
-        print(f"Database error deleting backlog item ID {item_id}: {e}")
-    finally:
-        if conn:
-            conn.close()
-
-def toggle_backlog_playing_status_db(item_id):
-    # (toggle_backlog_playing_status_db remains the same)
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("UPDATE backlog SET is_playing = CASE WHEN is_playing = 1 THEN 0 ELSE 1 END WHERE id = ?", (item_id,))
-        conn.commit()
-        print(f"Toggled playing status for backlog item ID {item_id}")
-        if cursor.rowcount == 0:
-             print(f"Warning: No rows updated for backlog item ID {item_id}. ID might be invalid.")
-    except sqlite3.Error as e:
-        print(f"Database error toggling playing status for backlog item ID {item_id}: {e}")
-    finally:
-        if conn:
-            conn.close()
+def format_genres(genre_list):
+    if not genre_list: return ""
+    return GENRE_SEPARATOR.join(sorted([str(g).strip() for g in genre_list if str(g).strip()]))
 
 # --- UI Helper Functions ---
 def create_rating_badge(score):
-    # (create_rating_badge remains the same)
-    score_text = "N/A"
-    bgcolor = ft.Colors.with_opacity(0.5, ft.Colors.ON_SURFACE_VARIANT)
-    text_color = ft.Colors.WHITE
+    score_text = "N/A"; bgcolor = ft.colors.with_opacity(0.5, ft.colors.ON_SURFACE_VARIANT); text_color = ft.colors.WHITE
     if score is not None:
         try:
-            score_val = int(score)
-            score_text = str(score_val)
+            score_val = int(score); score_text = str(score_val)
             if 0 <= score_val <= 10:
-                if score_val == 10:
-                    bgcolor = ft.Colors.LIGHT_GREEN_ACCENT_400; text_color = ft.Colors.BLACK
-                elif score_val >= 7:
-                    bgcolor = ft.Colors.GREEN_600; text_color = ft.Colors.WHITE
-                elif score_val >= 5:
-                    bgcolor = ft.Colors.YELLOW_700; text_color = ft.Colors.BLACK
-                elif score_val >= 2:
-                    bgcolor = ft.Colors.RED_700; text_color = ft.Colors.WHITE
-                else: 
-                    bgcolor = ft.Colors.RED_500; text_color = ft.Colors.WHITE
+                if score_val == 10: bgcolor = ft.colors.LIGHT_GREEN_ACCENT_400; text_color = ft.colors.BLACK
+                elif score_val >= 7: bgcolor = ft.colors.GREEN_600; text_color = ft.colors.WHITE
+                elif score_val >= 5: bgcolor = ft.colors.YELLOW_700; text_color = ft.colors.BLACK
+                elif score_val >= 2: bgcolor = ft.colors.RED_700; text_color = ft.colors.WHITE
+                else: bgcolor = ft.colors.RED_500; text_color = ft.colors.WHITE
         except (ValueError, TypeError): pass
     return ft.Container(
         content=ft.Text(score_text, size=12, weight=ft.FontWeight.BOLD, color=text_color, text_align=ft.TextAlign.CENTER),
-        width=30, height=30, shape=ft.BoxShape.CIRCLE, bgcolor=bgcolor,
-        alignment=ft.alignment.center,
+        width=30, height=30, shape=ft.BoxShape.CIRCLE, bgcolor=bgcolor, alignment=ft.alignment.center,
         tooltip=f"Score: {score_text}" if score is not None else "Score: Not Rated"
     )
+
+
+def get_entry_type_icon_name(entry_type_str: str) -> str:
+    entry_type_str_lower = (entry_type_str or "media").lower()
+    if "movie" in entry_type_str_lower: return ft.icons.MOVIE_OUTLINED
+    if "show" in entry_type_str_lower: return ft.icons.TV_OUTLINED
+    if "anime" in entry_type_str_lower: return ft.icons.ANIMATION_OUTLINED
+    if "k-drama" in entry_type_str_lower: return ft.icons.LIVE_TV_OUTLINED
+    if "jav" in entry_type_str_lower: return ft.icons.VIDEO_CAMERA_BACK_OUTLINED
+    if "hentai" in entry_type_str_lower: return ft.icons.FILTER_FRAMES_OUTLINED
+    if "game" in entry_type_str_lower: return ft.icons.SPORTS_ESPORTS_OUTLINED # <--- ADDED HERE
+    return ft.icons.LABEL_OUTLINED
+
+def get_genre_icon_name(genre_str: str) -> str:
+    genre_str_lower = (genre_str or "").lower()
+    if "action" in genre_str_lower: return ft.icons.BOLT_OUTLINED
+    if "drama" in genre_str_lower: return ft.icons.THEATER_COMEDY_OUTLINED
+    if "sci-fi" in genre_str_lower or "science fiction" in genre_str_lower : return ft.icons.ROCKET_LAUNCH_OUTLINED
+    if "war" in genre_str_lower: return ft.icons.SHIELD_OUTLINED
+    if "mystery" in genre_str_lower: return ft.icons.QUESTION_MARK_OUTLINED
+    if "thriller" in genre_str_lower: return ft.icons.FLASHLIGHT_ON_OUTLINED
+    if "horror" in genre_str_lower: return ft.icons.SICK_OUTLINED
+    if "comedy" in genre_str_lower: return ft.icons.SENTIMENT_VERY_SATISFIED_OUTLINED
+    if "romance" in genre_str_lower: return ft.icons.FAVORITE_BORDER_OUTLINED
+    if "fantasy" in genre_str_lower: return ft.icons.AUTO_FIX_HIGH_OUTLINED
+    if "adventure" in genre_str_lower: return ft.icons.EXPLORE_OUTLINED
+    if "slice of life" in genre_str_lower: return ft.icons.CAKE_OUTLINED
+    if "supernatural" in genre_str_lower: return ft.icons.AUTO_STORIES_OUTLINED
+    if "sports" in genre_str_lower: return ft.icons.SPORTS_VOLLEYBALL_OUTLINED
+    if "music" in genre_str_lower: return ft.icons.MUSIC_NOTE_OUTLINED
+    if "historical" in genre_str_lower: return ft.icons.ACCOUNT_BALANCE_OUTLINED
+    if "school" in genre_str_lower: return ft.icons.SCHOOL_OUTLINED
+    return ft.icons.LOCAL_OFFER_OUTLINED
+
+def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_desc_callback):
+    name = jav_item.get('name', 'Unknown Title')
+    db_image_value = jav_item.get('image_url')
+    image_src_for_flet = DEFAULT_IMAGE_URL
+
+    if db_image_value:
+        if db_image_value.lower().startswith("http://") or db_image_value.lower().startswith("https://"):
+            image_src_for_flet = db_image_value
+        else:
+            # Ensure the path is constructed correctly for Flet assets
+            # Flet expects relative paths from the assets directory if not a full URL
+            # If db_image_value is already "images/filename.jpg", it's fine.
+            # If it's an absolute path from import, it should have been copied to assets/images
+            # and db_image_value should be the relative "images/filename.jpg" path.
+            full_local_path_check = os.path.join(ASSETS_DIR, db_image_value) # Check against full path
+            if os.path.exists(full_local_path_check):
+                # For Flet Image src, if it's a local asset, it's relative to the assets dir.
+                # So, if db_image_value is "images/filename.jpg", it's already correct.
+                image_src_for_flet = db_image_value 
+            # else: image_src_for_flet remains DEFAULT_IMAGE_URL if local file not found
+
+    entry_type_str = jav_item.get('entry_type', 'Media')
+    genres_str = jav_item.get('genre', '')
+    
+    completion_date_str_db = jav_item.get('completion_date', 'N/A') # Get DB format (YYYY-MM-DD)
+    display_completion_date = 'N/A' # Default display
+
+    if completion_date_str_db and completion_date_str_db != 'N/A':
+        try:
+            date_obj = datetime.strptime(completion_date_str_db, '%Y-%m-%d')
+            day = date_obj.day
+            if 4 <= day <= 20 or 24 <= day <= 30:
+                suffix = "th"
+            else:
+                suffix = ["st", "nd", "rd"][day % 10 - 1]
+            
+            # Cross-platform day formatting (no leading zero)
+            if os.name == 'nt': # Windows
+                day_format_char = '#' 
+            else: # Linux/macOS
+                day_format_char = '-'
+            display_completion_date = date_obj.strftime(f'%{day_format_char}d{suffix} %B %Y')
+
+        except ValueError:
+            display_completion_date = completion_date_str_db # Fallback to DB format if parsing fails
+            print(f"Warning: Could not parse date '{completion_date_str_db}' for display in gallery card for '{name}'.")
+
+
+    score = jav_item.get('review_score')
+    description_value = jav_item.get('description')
+    has_description = bool(description_value and description_value.strip())
+
+    is_rewatch = jav_item.get('is_rewatch') == 1
+    owns_local_copy = jav_item.get('own_local_copy') == 1
+    is_h = jav_item.get('is_h') == 1
+
+    parsed_genres = parse_genres(genres_str)
+    
+    content_padding_val = ft.padding.symmetric(horizontal=12, vertical=10)
+    main_content_spacing = 10
+    tag_text_size = 11
+    tag_padding = ft.padding.symmetric(horizontal=8, vertical=4)
+    tag_border_radius = ft.border_radius.all(5)
+    date_text_size = 11
+    image_height = 130 # You can adjust this
+
+    h_badge_widget = None
+    if is_h:
+        h_badge_widget = ft.Container(
+            content=ft.Text("H", size=tag_text_size -1, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE),
+            bgcolor=ft.colors.ERROR_CONTAINER, # Or a custom color for H
+            padding=ft.padding.symmetric(horizontal=6, vertical=2),
+            border_radius=4,
+            tooltip="H-Content",
+            margin=ft.margin.only(left=8)
+        )
+
+    title_text_widget = ft.Text(
+        name, weight=ft.FontWeight.W_500, size=15, max_lines=2,
+        overflow=ft.TextOverflow.ELLIPSIS, expand=True
+    )
+    title_row_controls = [title_text_widget]
+    if h_badge_widget:
+        title_row_controls.append(h_badge_widget)
+    title_and_badge_row = ft.Row(
+        controls=title_row_controls, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+    )
+
+    entry_type_icon_name = get_entry_type_icon_name(entry_type_str)
+    entry_type_tag_bgcolor = ft.colors.PRIMARY_CONTAINER # Theme dependent
+    entry_type_tag_fgcolor = ft.colors.ON_PRIMARY_CONTAINER # Theme dependent
+
+    entry_type_widget = ft.Container(
+        content=ft.Row(
+            [
+                ft.Icon(entry_type_icon_name, size=tag_text_size + 1, color=entry_type_tag_fgcolor, opacity=0.9),
+                ft.Text(entry_type_str, size=tag_text_size, color=entry_type_tag_fgcolor, weight=ft.FontWeight.NORMAL)
+            ],
+            spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        ),
+        bgcolor=entry_type_tag_bgcolor, padding=tag_padding, border_radius=tag_border_radius,
+        width=float('inf'), alignment=ft.alignment.center # Make it take full width
+    )
+    
+    rating_badge = create_rating_badge(score)
+
+    genre_widgets_row = ft.Row(wrap=True, spacing=5, run_spacing=5)
+    if parsed_genres:
+        for genre_text in parsed_genres:
+            genre_widgets_row.controls.append(
+                ft.Container(
+                    content=ft.Text(
+                        genre_text, size=tag_text_size, color=ft.colors.ON_SURFACE_VARIANT # Theme dependent
+                    ),
+                    bgcolor=ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE), # Subtle background
+                    padding=ft.padding.symmetric(horizontal=7, vertical=3),
+                    border_radius=tag_border_radius,
+                )
+            )
+
+    indicator_icon_size_bottom = 14
+    indicator_icon_opacity_bottom = 0.7
+    bottom_indicators_list = []
+    if is_rewatch:
+        bottom_indicators_list.append(ft.Icon(
+            ft.icons.REPLAY_ROUNDED, size=indicator_icon_size_bottom, tooltip="Rewatched",
+            color=ft.colors.ON_SURFACE_VARIANT, opacity=indicator_icon_opacity_bottom
+        ))
+    if owns_local_copy:
+        bottom_indicators_list.append(ft.Icon(
+            ft.icons.DOWNLOAD_DONE_ROUNDED, size=indicator_icon_size_bottom, tooltip="Owns Local Copy",
+            color=ft.colors.ON_SURFACE_VARIANT, opacity=indicator_icon_opacity_bottom
+        ))
+    bottom_indicators_row = ft.Row(controls=bottom_indicators_list, spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
+    options_button = ft.PopupMenuButton(
+        content=ft.Icon(ft.icons.MORE_HORIZ_ROUNDED, color=ft.colors.WHITE, size=18, opacity=0.85), # Icon on the card image
+        tooltip="Options",
+        items=[
+            ft.PopupMenuItem(text="Edit", icon=ft.icons.EDIT_OUTLINED, on_click=lambda _, item=jav_item: edit_callback(item)),
+            ft.PopupMenuItem(text="View Description", icon=ft.icons.DESCRIPTION_OUTLINED, on_click=lambda _, item=jav_item: show_desc_callback(item), disabled=not has_description),
+            ft.PopupMenuItem(), # Divider
+            ft.PopupMenuItem(text="Delete", icon=ft.icons.DELETE_OUTLINE, on_click=lambda _, item_id=jav_item['id'], item_name=jav_item['name']: delete_callback(item_id, item_name))
+        ]
+    )
+
+    image_stack = ft.Stack(
+        [
+            ft.Image(
+                src=image_src_for_flet, height=image_height, width=float('inf'), fit=ft.ImageFit.COVER,
+                border_radius=ft.border_radius.only(top_left=6, top_right=6),
+                error_content=ft.Container( # Placeholder for broken image
+                    content=ft.Column(
+                        [ft.Icon(ft.icons.BROKEN_IMAGE, size=30, color=ft.colors.ON_SURFACE_VARIANT),
+                         ft.Text("Image Error", size=10, color=ft.colors.ON_SURFACE_VARIANT)],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=3,
+                    ),
+                    height=image_height, width=float('inf'), bgcolor=ft.colors.SURFACE_VARIANT,
+                    border_radius=ft.border_radius.only(top_left=6, top_right=6), alignment=ft.alignment.center
+                )
+            ),
+            ft.Container( # Container for the options button for better positioning and background
+                content=options_button,
+                top=5, right=5, # Position top-right
+                bgcolor=ft.colors.with_opacity(0.25, ft.colors.BLACK87), # Semi-transparent background
+                padding=ft.padding.all(2), # Small padding around the icon button
+                border_radius=100 # Make it circular
+            )
+        ]
+    )
+
+    # Assemble the content part of the card (below the image)
+    card_content_column_controls = [
+        title_and_badge_row,
+        entry_type_widget, # Full width type tag
+        rating_badge, # Rating badge
+    ]
+    if genre_widgets_row.controls: # Only add if there are genres
+        card_content_column_controls.append(genre_widgets_row)
+    
+    # Bottom row with indicators and date
+    card_content_column_controls.append(
+        ft.Row(
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[
+                bottom_indicators_row if bottom_indicators_list else ft.Container(), # Show indicators or empty container
+                ft.Text(f"{display_completion_date}", size=date_text_size, color=ft.colors.ON_SURFACE_VARIANT, opacity=0.75), # USE THE FORMATTED DATE
+            ]
+        )
+    )
+    
+    card_content_column = ft.Column(
+        controls=card_content_column_controls,
+        spacing=main_content_spacing, # Consistent spacing between elements in this column
+    )
+
+    return ft.Card(
+        content=ft.Column(
+            [
+                image_stack,
+                ft.Container(content=card_content_column, padding=content_padding_val) # Add padding around the text content
+            ],
+            spacing=0 # No space between image and content area
+        ),
+        elevation=1, # Subtle shadow
+        margin=ft.margin.all(7), # Margin around each card
+        shape=ft.RoundedRectangleBorder(radius=6), # Rounded corners for the card
+    )
+
+# --- Helper function to create entry type filter UI (Button + BottomSheet) ---
+def create_entry_type_filter_button_with_sheet(
+    page_ref: ft.Page,
+    available_types: list[str],
+    selected_types_set: set[str], 
+    on_change_callback: callable,
+    button_label_prefix: str = "Filter Types"
+):
+    filter_button_ref = ft.Ref[ft.OutlinedButton]()
+
+    def get_button_text():
+        count = len(selected_types_set)
+        if count == len(available_types):
+            return f"{button_label_prefix} (All)"
+        elif count == 0:
+            return f"{button_label_prefix} (None)"
+        else:
+            return f"{button_label_prefix} ({count} selected)"
+
+    all_types_checkbox_bs_ref = ft.Ref[ft.Checkbox]()
+    individual_checkbox_bs_refs = {type_name: ft.Ref[ft.Checkbox]() for type_name in available_types}
+
+    def update_button_and_all_cb_state():
+        if filter_button_ref.current:
+            filter_button_ref.current.text = get_button_text()
+            if filter_button_ref.current.page: 
+                try: filter_button_ref.current.update()
+                except: pass 
+
+        if all_types_checkbox_bs_ref.current:
+            all_selected = len(selected_types_set) == len(available_types)
+            if all_types_checkbox_bs_ref.current.value != all_selected:
+                 all_types_checkbox_bs_ref.current.value = all_selected
+                 if all_types_checkbox_bs_ref.current.page: 
+                     try: all_types_checkbox_bs_ref.current.update()
+                     except: pass
+
+    def on_all_types_bs_change(e):
+        is_checked = e.control.value
+        if is_checked:
+            selected_types_set.update(available_types)
+        else:
+            selected_types_set.clear()
+        
+        for type_name, cb_ref in individual_checkbox_bs_refs.items():
+            if cb_ref.current:
+                if cb_ref.current.value != is_checked:
+                    cb_ref.current.value = is_checked
+                    if cb_ref.current.page: 
+                        try: cb_ref.current.update()
+                        except: pass
+        update_button_and_all_cb_state()
+
+    def on_individual_type_bs_change(e):
+        type_name = e.control.data
+        is_checked = e.control.value
+        if is_checked:
+            selected_types_set.add(type_name)
+        else:
+            selected_types_set.discard(type_name)
+        update_button_and_all_cb_state()
+
+    bs_checkbox_controls = []
+    all_types_cb_bs = ft.Checkbox(
+        ref=all_types_checkbox_bs_ref, label="All Types",
+        value=len(selected_types_set) == len(available_types),
+        on_change=on_all_types_bs_change, adaptive=True
+    )
+    bs_checkbox_controls.append(all_types_cb_bs)
+    bs_checkbox_controls.append(ft.Divider(height=5, thickness=0.5))
+
+
+    for type_name_str in available_types:
+        cb = ft.Checkbox(
+            ref=individual_checkbox_bs_refs[type_name_str], label=type_name_str,
+            value=type_name_str in selected_types_set, data=type_name_str,
+            on_change=on_individual_type_bs_change, adaptive=True
+        )
+        bs_checkbox_controls.append(cb)
+
+    filter_bottom_sheet_ref = ft.Ref[ft.BottomSheet]()
+
+    def close_bs_and_apply(e=None):
+        if filter_bottom_sheet_ref.current:
+            filter_bottom_sheet_ref.current.open = False
+            if filter_bottom_sheet_ref.current.page:
+                try: filter_bottom_sheet_ref.current.update()
+                except: pass
+        on_change_callback() 
+
+    filter_bottom_sheet = ft.BottomSheet(
+        ref=filter_bottom_sheet_ref,
+        content=ft.Container(
+            ft.Column(
+                [
+                    ft.Text("Select Entry Types", weight=ft.FontWeight.BOLD, size=16),
+                    ft.Divider(height=10),
+                    ft.Column(bs_checkbox_controls, scroll=ft.ScrollMode.ADAPTIVE, spacing=0, tight=True, expand=True),
+                    ft.Divider(height=10),
+                    ft.Row(
+                        [ft.ElevatedButton("Done", on_click=close_bs_and_apply, expand=True, style=ft.ButtonStyle(padding=12))],
+                        alignment=ft.MainAxisAlignment.CENTER
+                    )
+                ],
+                tight=True, spacing=5,
+            ),
+            padding=ft.padding.only(left=20, right=20, top=10, bottom=20),
+            height=page_ref.window_height * 0.6 if page_ref and page_ref.window_height else 400,
+        ),
+        open=False,
+        on_dismiss=lambda e: on_change_callback(), # Call main callback on dismiss as well
+        enable_drag=True,
+        show_drag_handle=True,
+    )
+    if filter_bottom_sheet not in page_ref.overlay:
+        page_ref.overlay.append(filter_bottom_sheet)
+
+    def open_filter_bottom_sheet(e):
+        # Sync checkbox states before showing
+        if all_types_checkbox_bs_ref.current:
+            all_types_checkbox_bs_ref.current.value = (len(selected_types_set) == len(available_types))
+        for type_name, cb_ref in individual_checkbox_bs_refs.items():
+            if cb_ref.current:
+                cb_ref.current.value = (type_name in selected_types_set)
+        
+        if filter_bottom_sheet_ref.current and filter_bottom_sheet_ref.current.page:
+            for ctrl in bs_checkbox_controls: # Iterate over controls in the sheet
+                if hasattr(ctrl, 'page') and ctrl.page: # Check if control is still part of a page
+                    try: ctrl.update()
+                    except: pass
+        
+        if filter_bottom_sheet_ref.current:
+            filter_bottom_sheet_ref.current.open = True
+            page_ref.update()
+
+    filter_button = ft.OutlinedButton(
+        ref=filter_button_ref,
+        text=get_button_text(),
+        icon=ft.icons.FILTER_LIST_ROUNDED,
+        on_click=open_filter_bottom_sheet,
+        tooltip="Filter by entry type"
+    )
+    return filter_button
+
 
 # --- Main Application ---
 def main(page: ft.Page):
     page.title = APP_TITLE
-    page.theme_mode = ft.ThemeMode.DARK
-    page.theme = ft.Theme(color_scheme_seed=ft.Colors.BLUE_GREY)
     page.window_width = 1400
     page.window_height = 900
 
     init_db()
-    app_state = {"current_view": "2024"} # Default view
+
+    current_theme_name = get_setting_db("current_theme", DEFAULT_THEME_NAME)
+    selected_theme_config = THEMES.get(current_theme_name, THEMES[DEFAULT_THEME_NAME])
+    page.theme_mode = selected_theme_config["mode"]
+    page.theme = ft.Theme(color_scheme_seed=selected_theme_config["seed"])
+
+    app_state = {
+        "current_view": YEARS[0] if YEARS else "Stats",
+        "year_view_selected_entry_types": set(ALL_ENTRY_TYPES_STR),
+        "stats_view_selected_entry_types": set(ALL_ENTRY_TYPES_STR),
+    }
+    
+    add_jav_date_display_field = ft.Ref[ft.TextField]()
+    manual_dialog_container = ft.Ref[ft.Container]()
+    stats_total_javs_text = ft.Ref[ft.Text]()
+    stats_avg_score_text = ft.Ref[ft.Text]()
+    stats_total_rewatches_text = ft.Ref[ft.Text]()
+    stats_unique_genres_text = ft.Ref[ft.Text]()
+    genre_pie_chart = ft.Ref[ft.PieChart]()
+    genre_legend = ft.Ref[ft.Column]()
+    stats_total_h_text = ft.Ref[ft.Text]()
+    main_stack = ft.Stack(expand=True)
+    stats_year_filter = ft.Ref[ft.SegmentedButton]()
+
+
+    _target_image_field_for_picker = None
+
+    def handle_image_file_pick(e: ft.FilePickerResultEvent):
+        nonlocal _target_image_field_for_picker
+        if _target_image_field_for_picker is None:
+            show_snackbar("Internal error: Target field for image not set.", color=ft.colors.ERROR_CONTAINER)
+            return
+
+        if e.files and e.files[0].path:
+            selected_file_path = e.files[0].path
+            _target_image_field_for_picker.value = selected_file_path
+            _target_image_field_for_picker.error_text = None
+            if hasattr(_target_image_field_for_picker, 'page') and _target_image_field_for_picker.page: _target_image_field_for_picker.update()
+            show_snackbar(f"Image selected: {os.path.basename(selected_file_path)}", duration=2500)
+        elif not e.files and not e.path:
+            show_snackbar("Image selection cancelled.", duration=2000)
+        
+        _target_image_field_for_picker = None
+
+    image_file_picker = ft.FilePicker(on_result=handle_image_file_pick)
+    page.overlay.append(image_file_picker)
 
     def show_snackbar(message: str, color: str = None, duration: int = 4000):
-        # (show_snackbar remains the same)
         if not page: print(f"Snackbar Error: Page context lost. Message: {message}"); return
         try:
-            snackbar_control = ft.SnackBar(content=ft.Text(message, max_lines=3, overflow=ft.TextOverflow.ELLIPSIS), bgcolor=color, duration=duration, open=True)
+            snackbar_control = ft.SnackBar(
+                content=ft.Text(message, max_lines=3, overflow=ft.TextOverflow.ELLIPSIS),
+                bgcolor=color, duration=duration, open=True
+            )
             page.snack_bar = snackbar_control
-            page.update()
-            print(f"Showing snackbar: {message}")
+            if page: page.update()
         except Exception as e: print(f"Error displaying snackbar '{message}': {e}")
 
-    # --- Refs ---
-    add_game_date_display_field = ft.Ref[ft.TextField]()
-    manual_dialog_container = ft.Ref[ft.Container]()
-    stats_total_games_text = ft.Ref[ft.Text]()
-    stats_avg_score_text = ft.Ref[ft.Text]()
-    stats_total_replays_text = ft.Ref[ft.Text]()
-    stats_unique_platforms_text = ft.Ref[ft.Text]()
-    platform_pie_chart = ft.Ref[ft.PieChart]()
-    platform_legend = ft.Ref[ft.Column]()
-    backlog_list_view_content = ft.Ref[ft.ListView]()
-    stats_monthly_barchart = ft.Ref[ft.BarChart]()
-    # Refs for Search View
-    search_query_field = ft.Ref[ft.TextField]()
-    search_all_years_checkbox = ft.Ref[ft.Checkbox]()
-    search_year_checkboxes_refs = {year: ft.Ref[ft.Checkbox]() for year in YEARS} # Dict of refs
-    search_results_listview = ft.Ref[ft.ListView]()
-
-
-    main_stack = ft.Stack(expand=True)
-
-    def handle_add_date_change(e):
-        # (handle_add_date_change remains the same)
-        selected_date = e.control.value
-        if add_game_date_display_field.current and selected_date:
-            formatted_date = selected_date.strftime('%Y-%m-%d')
-            add_game_date_display_field.current.value = formatted_date
-            add_game_date_display_field.current.update()
-    add_date_picker = ft.DatePicker(on_change=handle_add_date_change, help_text="Select Completion Date")
+    add_date_picker = ft.DatePicker(on_change=lambda e: handle_add_date_change(e), help_text="Select Completion Date")
     page.overlay.append(add_date_picker)
-
+    def handle_add_date_change(e):
+        selected_date = e.control.value
+        if add_jav_date_display_field.current and selected_date:
+            add_jav_date_display_field.current.value = selected_date.strftime('%Y-%m-%d')
+            if hasattr(add_jav_date_display_field.current, 'page') and add_jav_date_display_field.current.page: add_jav_date_display_field.current.update()
     def open_add_date_picker(e=None):
-        # (open_add_date_picker remains the same)
-        if add_date_picker:
-            if page: add_date_picker.open = True; page.update(); print("Add date picker opened.")
-            else: print("Error: Page context lost before opening date picker.")
-        else: print("Error: ADD DatePicker object not found."); show_snackbar("Could not open date picker.", color=ft.Colors.ERROR)
+        if add_date_picker: 
+            add_date_picker.open = True 
+            page.update()
+        else: show_snackbar("Could not open date picker.", color=ft.colors.ERROR_CONTAINER)
 
+
+    import_dialog = ft.FilePicker(on_result=lambda e: handle_import_result(e)); page.overlay.append(import_dialog)
     def handle_import_result(e: ft.FilePickerResultEvent):
-        # (handle_import_result remains the same)
+        page.dialog = None
         if e.files and e.files[0].path:
             selected_file = e.files[0].path; print(f"CSV file selected: {selected_file}")
             progress_dialog = ft.AlertDialog(modal=True, title=ft.Text("Importing CSV"), content=ft.Row([ft.ProgressRing(), ft.Text("Processing...")], alignment=ft.MainAxisAlignment.CENTER))
-            if page: page.dialog = progress_dialog; progress_dialog.open = True; page.update(); page.run_thread(import_csv_data, selected_file)
-            else: print("Error: Page context lost before starting CSV import thread.")
+            page.dialog = progress_dialog; progress_dialog.open = True; page.update()
+            page.run_thread(import_csv_data, selected_file)
         else: show_snackbar("CSV Import Cancelled or No File Selected")
-    import_dialog = ft.FilePicker(on_result=handle_import_result)
-    page.overlay.append(import_dialog)
-
-    def open_import_dialog(e):
-        # (open_import_dialog remains the same)
-        if page: import_dialog.pick_files(dialog_title="Select CSV Game Log", allow_multiple=False, allowed_extensions=["csv"])
-        else: print("Error: Page context lost before opening import dialog.")
-
+    def open_import_dialog(e): import_dialog.pick_files(dialog_title="Select CSV Log", allow_multiple=False, allowed_extensions=["csv"])
+    
     def import_csv_data(file_path):
-        # (import_csv_data remains the same)
-        expected_headers_lower = ["title", "platform", "rating", "datecompleted", "isreplay"]
-        header_map = {"title": "name", "platform": "platform", "rating": "score", "datecompleted": "completion_date_str", "isreplay": "is_replay"}
+        # ... (keep existing expected_headers_lower and header_map) ...
+        expected_headers_lower = [
+            "name", "genre", "review_score", "completion_date", "description", 
+            "isrewatch", "ish", "ownlocalcopy", "entrytype", "imageurl"
+        ]
+        header_map = {
+            "name": "name",
+            "genre": "genre_str",
+            "review_score": "score",
+            "completion_date": "completion_date_str",
+            "description": "description",
+            "isrewatch": "is_rewatch_csv",
+            "ish": "is_h_csv",
+            "ownlocalcopy": "own_local_copy_csv",
+            "entrytype": "entry_type_csv",
+            "imageurl": "image_url_csv"
+        }
         added_count, skipped_count = 0, 0; error_messages, warning_messages = [], []
+        print(f"--- Starting CSV Import from: {file_path} ---")
         try:
             with open(file_path, mode='r', encoding='utf-8-sig') as csvfile:
                 reader = csv.DictReader(csvfile)
-                if not reader.fieldnames: raise ValueError("CSV file is empty or has no header row.")
-                csv_headers_lower = [h.lower().strip() for h in reader.fieldnames]
-                if "title" not in csv_headers_lower or "datecompleted" not in csv_headers_lower: raise ValueError("CSV Header Missing Required Columns: 'Title' and 'DateCompleted'.")
-                missing_optional = [eh for eh in expected_headers_lower if eh not in csv_headers_lower and eh not in ["title", "datecompleted"]]
-                if missing_optional: warning_messages.append(f"Info: Missing optional columns: {', '.join(missing_optional)}.")
-                original_header_lookup = {h.lower().strip(): h for h in reader.fieldnames}
-                current_header_map = {eh_lower: header_map[eh_lower] for eh_lower in expected_headers_lower if eh_lower in csv_headers_lower}
+                csv_headers_lower_normalized = [h.lower().strip().replace(" ", "") for h in reader.fieldnames or []]
+                
+                if not csv_headers_lower_normalized: 
+                    raise ValueError("CSV file is empty or has no header row.")
+                
+                print(f"Normalized CSV Headers: {csv_headers_lower_normalized}")
+
+                if "name" not in csv_headers_lower_normalized or "completion_date" not in csv_headers_lower_normalized:
+                    raise ValueError("CSV Header Missing Required Columns: 'Name' and 'Completion_Date' (or similar) are mandatory.")
+
+                normalized_expected_headers_map_to_original = {eh.replace(" ", ""): eh for eh in expected_headers_lower}
+                current_header_to_internal_var_map = {}
+                for norm_expected_h, original_expected_h in normalized_expected_headers_map_to_original.items():
+                    if norm_expected_h in csv_headers_lower_normalized:
+                        current_header_to_internal_var_map[norm_expected_h] = header_map[original_expected_h]
+
+                missing_optional = [
+                    eh for eh in expected_headers_lower 
+                    if eh.replace(" ", "") not in csv_headers_lower_normalized and eh not in ["name", "completion_date"]
+                ]
+                if missing_optional: 
+                    warning_messages.append(f"Info: Missing optional columns: {', '.join(missing_optional)}. Defaults/blanks will be used.")
+                
+                original_csv_header_lookup = {h.lower().strip().replace(" ", ""): h for h in reader.fieldnames}
+
                 for row_num, row in enumerate(reader, start=2):
-                    game_data = {}; valid_row, row_errors, row_warnings = True, [], []
+                    jav_data_for_db = {} 
+                    valid_row = True; row_errors, row_warnings = [], []
+                    print(f"\nProcessing CSV Row {row_num}: {row}")
                     try:
-                        for csv_key_lower, db_arg in current_header_map.items():
-                            original_header = original_header_lookup.get(csv_key_lower)
-                            game_data[db_arg] = row.get(original_header, "").strip() if original_header else None
-                        name = game_data.get("name"); date_str = game_data.get("completion_date_str"); score_str = game_data.get("score")
-                        replay_str = game_data.get("is_replay", "false"); platform = game_data.get("platform")
-                        if not name: row_errors.append("Missing 'Title'"); valid_row = False
-                        if not date_str: row_errors.append("Missing 'DateCompleted'"); valid_row = False
+                        for norm_csv_h, internal_var_key in current_header_to_internal_var_map.items():
+                            original_csv_header_str = original_csv_header_lookup.get(norm_csv_h)
+                            if original_csv_header_str:
+                                jav_data_for_db[internal_var_key] = row.get(original_csv_header_str, "").strip()
+                            else:
+                                jav_data_for_db[internal_var_key] = None
+
+                        name_val = jav_data_for_db.get("name")
+                        date_input_str = jav_data_for_db.get("completion_date_str")
+                        score_str = jav_data_for_db.get("score")
+                        rewatch_csv_str = jav_data_for_db.get("is_rewatch_csv", "false")
+                        h_csv_str = jav_data_for_db.get("is_h_csv", "false")
+                        own_local_copy_csv_str = jav_data_for_db.get("own_local_copy_csv", "false")
+                        genre_str_from_csv = jav_data_for_db.get("genre_str")
+                        description_val = jav_data_for_db.get("description")
+                        entry_type_from_csv = jav_data_for_db.get("entry_type_csv") # Get original value
+                        image_url_from_csv = jav_data_for_db.get("image_url_csv")
+
+                        # --- MODIFICATION FOR ENTRY TYPE ---
+                        if not entry_type_from_csv or not entry_type_from_csv.strip():
+                            entry_type_from_csv = "Other" # Default to "Other"
+                            row_warnings.append(f"Missing or blank Entry Type. Defaulted to 'Other'.")
+                            print(f"Row {row_num} ('{name_val}'): EntryType was blank, defaulted to 'Other'.")
+                        elif entry_type_from_csv not in ALL_ENTRY_TYPES_STR:
+                            # Keep the non-standard type but warn the user.
+                            row_warnings.append(f"Entry Type '{entry_type_from_csv}' is not a standard option. It will be stored, but may not appear in filters unless you add it to ENTRY_TYPE_OPTIONS.")
+                            print(f"Row {row_num} ('{name_val}'): Non-standard EntryType '{entry_type_from_csv}'.")
+                        # --- END MODIFICATION ---
+
+                        if not name_val: row_errors.append("Missing 'Name' value"); valid_row = False
+                        
+                        db_date_str = None
+                        year_for_db = None # For logging
+                        if date_input_str:
+                            parsed_date_obj = None
+                            common_date_formats = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%Y/%m/%d', '%d-%m-%Y', '%m-%d-%Y']
+                            for fmt in common_date_formats:
+                                try:
+                                    parsed_date_obj = datetime.strptime(date_input_str, fmt)
+                                    db_date_str = parsed_date_obj.strftime('%Y-%m-%d')
+                                    year_for_db = parsed_date_obj.year
+                                    break
+                                except ValueError:
+                                    continue
+                            if not parsed_date_obj:
+                                row_errors.append(f"Invalid Date Format '{date_input_str}'. Use YYYY-MM-DD or common variations. Item will have no year_completed."); 
+                                # valid_row = False # Allow import without date, year_completed will be NULL
+                                print(f"Row {row_num} ('{name_val}'): Invalid date '{date_input_str}'. year_completed will be NULL.")
                         else:
-                            try: datetime.strptime(date_str, '%Y-%m-%d')
-                            except ValueError: row_errors.append(f"Invalid Date Format '{date_str}'"); valid_row = False
+                            row_errors.append("Missing 'Completion_Date' value. Item will have no year_completed."); 
+                            # valid_row = False # Allow import without date
+                            print(f"Row {row_num} ('{name_val}'): Missing Completion_Date. year_completed will be NULL.")
+                        
                         score_int = None
                         if score_str and score_str.lower() != 'n/a' and score_str.strip() != '':
                             try:
                                 score_float = float(score_str); score_int = int(round(score_float))
-                                if not (0 <= score_int <= 10): row_warnings.append(f"Score '{score_str}' invalid (0-10). Setting N/A."); score_int = None
-                            except (ValueError, TypeError): row_warnings.append(f"Invalid Score '{score_str}'. Setting N/A.")
-                        is_replay = replay_str.lower() in ['true', '1', 'yes', 't', 'y']
+                                if not (0 <= score_int <= 10): row_warnings.append(f"Score '{score_str}' rounded to {score_int}, outside 0-10 range. Setting to N/A."); score_int = None
+                            except (ValueError, TypeError): row_warnings.append(f"Invalid Score '{score_str}'. Setting to N/A."); score_int = None
+                        
+                        is_rewatch = rewatch_csv_str.lower() in ['true', '1', 'yes', 't', 'y']
+                        is_h = h_csv_str.lower() in ['true', '1', 'yes', 't', 'y']
+                        own_local_copy = own_local_copy_csv_str.lower() in ['true', '1', 'yes', 't', 'y']
+                        
                         if valid_row:
-                            add_game_db(name, platform, date_str, score_int, is_replay); added_count += 1
-                            if row_warnings: warning_messages.extend([f"Row {row_num} ('{name}'): {w}" for w in row_warnings])
-                        else: skipped_count += 1; error_messages.append(f"Row {row_num} ('{name or '?'}'): Skipped - {' | '.join(row_errors)}")
-                    except Exception as e: skipped_count += 1; error_messages.append(f"Row {row_num}: Skipped - Error: {e}")
-        except FileNotFoundError: error_messages.append(f"Error: File not found: {file_path}")
+                            print(f"Row {row_num} ('{name_val}'): Adding to DB. Date for DB: {db_date_str} (Year: {year_for_db}), EntryType: {entry_type_from_csv}")
+                            add_jav_db(name_val, genre_str_from_csv, db_date_str, score_int, description_val, is_rewatch, is_h, own_local_copy, image_url_from_csv, entry_type_from_csv); added_count += 1
+                            if row_warnings: warning_messages.extend([f"Row {row_num} ('{name_val}'): {w}" for w in row_warnings])
+                        else: 
+                            skipped_count += 1; error_messages.append(f"Row {row_num} ('{name_val or '<?>'}'): Skipped - {' | '.join(row_errors)}")
+                            print(f"Row {row_num} ('{name_val or '<?>'}'): SKIPPED. Errors: {' | '.join(row_errors)}")
+                    except Exception as e: 
+                        skipped_count += 1; error_messages.append(f"Row {row_num}: Skipped - Unexpected error processing row: {e} - {traceback.format_exc(limit=1)}")
+                        print(f"Row {row_num}: SKIPPED due to unexpected error: {e}")
+        # ... (rest of the import_csv_data function, summary, etc.)
+        except FileNotFoundError: error_messages.append(f"Error: File not found at path: {file_path}")
         except ValueError as ve: error_messages.append(f"Error reading CSV structure: {ve}")
-        except Exception as e: error_messages.append(f"An unexpected error occurred: {e}")
+        except Exception as e: error_messages.append(f"An unexpected error occurred during import: {e}"); traceback.print_exc()
+        
+        print(f"--- CSV Import Finished. Added: {added_count}, Skipped: {skipped_count} ---")
         summary_lines = [f"CSV Import Finished. Added: {added_count}, Skipped: {skipped_count}."]
-        if warning_messages: summary_lines.append("\nWarnings:"); summary_lines.extend(warning_messages[:5]); print("\n--- Import Warnings ---\n" + "\n".join(warning_messages) + "\n---")
-        if error_messages: summary_lines.append("\nErrors:"); summary_lines.extend(error_messages[:5]); print("\n--- Import Errors ---\n" + "\n".join(error_messages) + "\n---")
-        if page: page.run_thread(show_import_summary_and_refresh, "\n".join(summary_lines), bool(error_messages))
-        else: print("Import finished, but page context lost.")
+        if warning_messages: summary_lines.append("\nWarnings (Max 5 shown):"); summary_lines.extend(warning_messages[:5]); print("\n--- Import Warnings ---\n" + "\n".join(warning_messages) + "\n-----------------------\n")
+        if error_messages: summary_lines.append("\nErrors (Max 5 shown):"); summary_lines.extend(error_messages[:5]); print("\n--- Import Errors ---\n" + "\n".join(error_messages) + "\n---------------------\n")
+        
+        if page: page.run_thread(show_import_summary_and_refresh, "\n".join(summary_lines), bool(error_messages or (skipped_count > 0 and added_count == 0)))
+        else: print("Import process finished, but page context was lost. UI not updated.")
+
 
     def show_import_summary_and_refresh(message, had_errors):
-        # (show_import_summary_and_refresh remains the same)
         if not page: return
-        if page.dialog and isinstance(page.dialog, ft.AlertDialog): page.dialog.open = False; page.update()
-        snackbar_color = ft.Colors.ERROR_CONTAINER if had_errors else ft.Colors.GREEN_700
-        show_snackbar(message, color=snackbar_color, duration=10000)
-        print("Refreshing views after import...")
+        if hasattr(page, 'dialog') and page.dialog and isinstance(page.dialog, ft.AlertDialog) and page.dialog.title and hasattr(page.dialog.title, 'value') and page.dialog.title.value == "Importing CSV":
+            page.dialog.open = False; page.update()
+        snackbar_color = ft.colors.ERROR_CONTAINER if had_errors else ft.colors.GREEN_700
+        show_snackbar(message, color=snackbar_color, duration=10000); print("Refreshing views after import...")
         refresh_current_view()
         current_stats_filter = "All Time"
         try:
-            if stats_year_filter.current and stats_year_filter.current.selected: current_stats_filter = list(stats_year_filter.current.selected)[0]
-        except Exception: pass
-        if page: page.run_thread(calculate_and_update_stats_display, current_stats_filter)
+            if stats_year_filter.current and stats_year_filter.current.selected: # Check if selected is not None
+                current_stats_filter = list(stats_year_filter.current.selected)[0]
+        except Exception as stats_e: print(f"Warning: Error accessing stats_year_filter selection after import: {stats_e}")
+        print(f"Triggering background stats recalculation for: {current_stats_filter}")
+        page.run_thread(calculate_and_update_stats_display, current_stats_filter); page.update()
+
 
     def close_manual_dialog(e=None):
-        # (close_manual_dialog remains the same)
-        print("Attempting to close manual dialog...")
         if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls:
             try:
                 if hasattr(manual_dialog_container.current, '_edit_date_picker_ref'):
                     edit_picker = manual_dialog_container.current._edit_date_picker_ref
-                    if edit_picker and edit_picker in page.overlay:
-                        try: page.overlay.remove(edit_picker)
-                        except (ValueError, AttributeError): pass 
-                main_stack.controls.remove(manual_dialog_container.current)
-                manual_dialog_container.current = None; print("Manual dialog container removed.")
-                if page: main_stack.update()
-            except (ValueError, AttributeError): print("Manual dialog container was already removed or page closed.")
+                    if edit_picker in page.overlay: page.overlay.remove(edit_picker);
+                main_stack.controls.remove(manual_dialog_container.current); manual_dialog_container.current = None; main_stack.update()
             except Exception as remove_e: print(f"Error removing manual dialog from stack: {remove_e}")
 
     def create_dialog_overlay(title_text, content_controls, action_buttons, associated_picker=None):
-        # (create_dialog_overlay remains the same)
         dialog_content = ft.Container(
-            content=ft.Column([
-                ft.Text(title_text, style=ft.TextThemeStyle.TITLE_LARGE), ft.Divider(height=10, thickness=1),
-                ft.Container(content=ft.Column(content_controls, spacing=15, tight=True, scroll=ft.ScrollMode.ADAPTIVE), expand=True),
-                ft.Divider(height=10, thickness=1), ft.Row(action_buttons, alignment=ft.MainAxisAlignment.END)
-            ], spacing=10, tight=True),
-            width=450, padding=20,
-            bgcolor=ft.colors.with_opacity(0.98, ft.colors.SURFACE if page.theme_mode == ft.ThemeMode.LIGHT else ft.colors.BACKGROUND),
-            border_radius=10, border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.OUTLINE)),
-            shadow=ft.BoxShadow(spread_radius=1, blur_radius=15, color=ft.Colors.with_opacity(0.2, ft.Colors.BLACK), offset=ft.Offset(0, 5)),
+            content=ft.Column(
+                [
+                    ft.Text(title_text, style=ft.TextThemeStyle.TITLE_LARGE),
+                    ft.Divider(height=10, thickness=1),
+                    ft.Container(
+                        content=ft.Column(content_controls, spacing=12, tight=True, scroll=ft.ScrollMode.ADAPTIVE),
+                        expand=True,
+                    ),
+                    ft.Divider(height=10, thickness=1),
+                    ft.Row(action_buttons, alignment=ft.MainAxisAlignment.END)
+                ],
+                spacing=10, tight=True,
+            ),
+            width=550, padding=20, bgcolor=ft.colors.with_opacity(0.98, ft.colors.SURFACE),
+            border_radius=10, border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.OUTLINE)),
+            shadow=ft.BoxShadow(spread_radius=1, blur_radius=15, color=ft.colors.with_opacity(0.2, ft.colors.BLACK), offset=ft.Offset(0, 5)),
         )
-        overlay_scrim = ft.Container(ref=manual_dialog_container, content=dialog_content, alignment=ft.alignment.center, bgcolor=ft.Colors.with_opacity(0.6, ft.Colors.BLACK), expand=True, on_click=close_manual_dialog)
+        dialog_content.constraints = ft.BoxConstraints(max_height=page.window_height * 0.85 if page and page.window_height else 700)
+        overlay_scrim = ft.Container(
+            ref=manual_dialog_container, content=dialog_content, alignment=ft.alignment.center,
+            bgcolor=ft.colors.with_opacity(0.6, ft.colors.BLACK), expand=True,
+        )
         if associated_picker: overlay_scrim._edit_date_picker_ref = associated_picker
         return overlay_scrim
 
-    # --- View Building Functions ---
-
-    # --- Year View (Search Bar Removed) ---
-    def build_year_view(year_str):
-        print(f"Building year view for: {year_str}")
-        year_list_view = ft.ListView(
-            expand=True, spacing=8,
-            padding=ft.padding.only(left=15, right=15, top=10, bottom=70) # Adjusted top padding
-        )
-
-        def refresh_list_content(): # No search query needed here anymore
-            print(f"Refreshing year list controls for {year_str}")
-            year_list_view.controls.clear()
-            try:
-                games = get_games_by_year_db(int(year_str)) # Uses reverted DB function
-                if not games:
-                    year_list_view.controls.append(
-                        ft.Container(content=ft.Text(f"No games logged for {year_str} yet.", italic=True, text_align=ft.TextAlign.CENTER), padding=20)
-                    )
-                else:
-                    for game in games:
-                        year_list_view.controls.append(create_game_log_tile(game, delete_game_action_for_year_view)) # Use specific delete action
-            except ValueError: year_list_view.controls.append(ft.Text(f"Invalid year: {year_str}", color=ft.Colors.ERROR))
-            except Exception as e: year_list_view.controls.append(ft.Text(f"Error loading games: {e}", color=ft.Colors.ERROR))
+    def show_description_dialog(jav_data):
+        if hasattr(page, '_dialog_is_opening') and page._dialog_is_opening:
+            print("INFO: Dialog operation already in progress. Ignoring click.")
+            return
+        page._dialog_is_opening = True
+        dialog_instance_ref = ft.Ref[ft.AlertDialog]()
+        try:
+            if hasattr(page, 'dialog') and page.dialog is not None and page.dialog.open:
+                page._dialog_is_opening = False 
+                return
+            description_text = jav_data.get('description') or "No description provided."
+            dialog_title = f"Description: {jav_data.get('name', 'Entry')}"
+            description_content_container = ft.Container(
+                content=ft.Text(description_text, selectable=True),
+                padding=ft.padding.only(top=5, bottom=10),
+            )
+            description_content_container.scroll = ft.ScrollMode.ADAPTIVE
+            description_content_container.constraints = ft.BoxConstraints(max_height=300)
             
-            if year_list_view.page: # Ensure page context before update
-                try: year_list_view.update()
-                except Exception as update_err: print(f"Error updating year_list_view: {update_err}")
+            dialog_instance = ft.AlertDialog(
+                ref=dialog_instance_ref, modal=True, title=ft.Text(dialog_title),
+                content=description_content_container, actions_alignment=ft.MainAxisAlignment.END,
+            )
+            def handle_dialog_dismiss(dismissed_dialog_instance):
+                 if hasattr(page, 'dialog') and page.dialog == dismissed_dialog_instance: page.dialog = None
+                 if hasattr(dismissed_dialog_instance, 'open'): dismissed_dialog_instance.open = False
+                 if dismissed_dialog_instance in page.overlay:
+                     try: page.overlay.remove(dismissed_dialog_instance)
+                     except ValueError: pass
+                 if page: page.update() # Ensure page updates
+            dialog_instance.on_dismiss = lambda e, inst=dialog_instance: handle_dialog_dismiss(inst) # Pass instance
+            def close_dialog_action(e):
+                instance_to_close = dialog_instance 
+                if instance_to_close: instance_to_close.open = False
+                if page: page.update() # Ensure page updates
+            dialog_instance.actions = [ft.TextButton("Close", on_click=close_dialog_action)]
+            if dialog_instance not in page.overlay: page.overlay.append(dialog_instance)
+            dialog_instance.open = True; page.dialog = dialog_instance
+            if page: page.update()
+        except Exception as e: print(f"Error in show_description_dialog: {e}"); traceback.print_exc()
+        finally: page._dialog_is_opening = False
 
+    def process_and_copy_image(image_source_path_or_url: str) -> str | None:
+        if not image_source_path_or_url or not image_source_path_or_url.strip():
+            return None
+        source_str = image_source_path_or_url.strip()
 
-        def delete_game_action_for_year_view(game_id, game_name): # Specific delete for year view
-            print(f"Deleting game ID {game_id}, Name {game_name} from Year View")
-            try:
-                delete_game_db(game_id)
-                show_snackbar(f"Deleted '{game_name}'")
-                refresh_list_content() # Refresh this year's list
-                # Trigger stats recalc
-                current_stats_filter = "All Time"
-                try:
-                    if stats_year_filter.current and stats_year_filter.current.selected:
-                        current_stats_filter = list(stats_year_filter.current.selected)[0]
-                except Exception: pass
-                if page: page.run_thread(calculate_and_update_stats_display, current_stats_filter)
-            except Exception as e:
-                print(f"Error during game deletion or refresh: {e}")
-                show_snackbar(f"Error deleting '{game_name}'.", color=ft.Colors.ERROR)
+        if source_str.lower().startswith("http://") or source_str.lower().startswith("https://"):
+            return source_str
 
-        refresh_list_content()
-        # Year view now directly returns the ListView, no surrounding Column for search
-        return year_list_view
+        if not os.path.exists(source_str):
+            print(f"Warning: Local image path does not exist: {source_str}")
+            return None 
 
+        try:
+            if not os.path.exists(IMAGES_DIR):
+                os.makedirs(IMAGES_DIR)
+                print(f"Created images directory during processing: {IMAGES_DIR}")
 
-    # --- Game Log Tile (used by Year View and Search View) ---
-    def create_game_log_tile(game_data, delete_callback_func): # Takes a generic delete_callback_func
-        platform_str = game_data.get('platform', 'N/A') or 'N/A'
-        date_str = game_data.get('completion_date', 'Unknown Date') or 'Unknown Date'
-        score = game_data.get('review_score')
-        is_replay = game_data.get('is_replay') == 1
-        
-        title_text = game_data['name']
-        # For search results, it's good to show the year if it's not obvious from context
-        if app_state["current_view"] == "Search": # Check if we are in search view
-            year_completed = game_data.get('year_completed')
-            if year_completed:
-                title_text = f"{game_data['name']} ({year_completed})"
+            _, extension = os.path.splitext(source_str)
+            extension = extension.lower() if extension else ".png"
+            if not extension.startswith("."): extension = "." + extension
+            if len(extension) > 10: extension = ".dat" # Basic sanity check for extension length
 
-        title_row_controls = [ft.Text(title_text, weight=ft.FontWeight.BOLD)]
-        if is_replay: title_row_controls.append(ft.Icon(name=ft.icons.REPLAY, size=18, tooltip="Replay"))
+            unique_filename = f"{uuid.uuid4()}{extension}"
+            destination_path = os.path.join(IMAGES_DIR, unique_filename)
+            
+            shutil.copy2(source_str, destination_path)
+            print(f"Image copied from '{source_str}' to '{destination_path}'")
+            
+            # Return the relative path for Flet and DB storage
+            relative_path_for_flet = os.path.join("images", unique_filename).replace("\\", "/")
+            return relative_path_for_flet
+        except Exception as e:
+            print(f"Error copying image from '{source_str}': {e}")
+            traceback.print_exc()
+            show_snackbar(f"Error copying image: {os.path.basename(source_str)}", color=ft.colors.ERROR_CONTAINER)
+            return None
 
-        def handle_edit_click(e):
-            close_manual_dialog() 
-            open_edit_game_dialog(game_data) # open_edit_game_dialog will handle refresh
-
-        list_tile_content = ft.ListTile(
-            leading=create_rating_badge(score),
-            title=ft.Row(controls=title_row_controls, spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            subtitle=ft.Text(f"{platform_str}  |  Completed: {date_str}"),
-            trailing=ft.PopupMenuButton(
-                icon=ft.icons.MORE_VERT, tooltip="Options",
-                items=[
-                    ft.PopupMenuItem(text="Edit", icon=ft.icons.EDIT_OUTLINED, on_click=handle_edit_click),
-                    ft.PopupMenuItem(),
-                    ft.PopupMenuItem(
-                        text="Delete", icon=ft.icons.DELETE_OUTLINE,
-                        on_click=lambda _: delete_callback_func(game_data['id'], game_data['name']) # Use passed callback
-                    ),
-                ]
-            ),
-        )
-        return ft.Card(content=list_tile_content, margin=ft.margin.only(bottom=2))
-
-    def open_add_game_dialog(e=None):
-        # (open_add_game_dialog remains mostly the same, refresh logic is fine)
-        close_manual_dialog() 
+    def open_add_jav_dialog(e=None):
+        nonlocal _target_image_field_for_picker
         target_year = app_state["current_view"] if app_state["current_view"] in YEARS else str(datetime.now().year)
-        print(f"Opening MANUAL add game dialog for target year: {target_year}")
-        name_field = ft.TextField(label="Game Title *", autofocus=True, capitalization=ft.TextCapitalization.WORDS)
-        platform_field = ft.TextField(label="Platform", capitalization=ft.TextCapitalization.WORDS)
-        date_display = ft.TextField(ref=add_game_date_display_field, label="Completion Date *", read_only=True, hint_text="Click calendar...")
-        if add_game_date_display_field.current: add_game_date_display_field.current.value = ""; add_game_date_display_field.current.error_text = None; # ...
+        
+        name_field = ft.TextField(label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS)
+        entry_type_dropdown = ft.Dropdown(label="Entry Type", options=ENTRY_TYPE_OPTIONS, hint_text="Select the type of media")
+        
+        image_source_field = ft.TextField(
+            label="Image Source (URL or Local Path)", 
+            hint_text="e.g., https://... or C:\\path\\to\\image.jpg",
+            expand=True
+        )
+        def browse_for_image_add(e):
+            nonlocal _target_image_field_for_picker
+            _target_image_field_for_picker = image_source_field
+            image_file_picker.pick_files(
+                dialog_title="Select Image", allow_multiple=False,
+                allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"]
+            )
+        image_source_row = ft.Row(
+            [ image_source_field, ft.IconButton(icon=ft.icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_add) ], 
+            vertical_alignment=ft.CrossAxisAlignment.END
+        )
+
+        genre_field = ft.TextField(label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS)
+        date_display = ft.TextField(ref=add_jav_date_display_field, label="Completion Date", read_only=True, hint_text="Click calendar to select...")
+        
+        if add_jav_date_display_field.current: # Reset field if dialog is reopened
+            add_jav_date_display_field.current.value = ""
+            add_jav_date_display_field.current.error_text = None
+        
+        description_field = ft.TextField(label="Description / Notes", multiline=True, min_lines=2, max_lines=4, capitalization=ft.TextCapitalization.SENTENCES)
         score_dropdown = ft.Dropdown(label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value="N/A")
-        replay_check = ft.Checkbox(label="This was a Replay", value=False)
-        def save_new_game(e):
-            name = name_field.value.strip(); platform = platform_field.value.strip()
-            date_str = add_game_date_display_field.current.value.strip() if add_game_date_display_field.current else ""
-            score_str = score_dropdown.value; is_replay = replay_check.value; errors = []
-            name_field.error_text = None; date_display.error_text = None; score_dropdown.error_text = None
-            if not name: errors.append("Title required."); name_field.error_text = "Required"
-            if not date_str: errors.append("Date required."); date_display.error_text = "Required"
+        rewatch_check = ft.Checkbox(label="This was a Rewatch", value=False)
+        h_check = ft.Checkbox(label="Is H?", value=False)
+        own_local_copy_check = ft.Checkbox(label="Own Local Copy?", value=False)
+
+        def save_new_jav(e):
+            name = name_field.value.strip()
+            entry_type_val = entry_type_dropdown.value
+            image_source_input = image_source_field.value.strip()
+            genre_input_str = genre_field.value.strip()
+            date_str = add_jav_date_display_field.current.value.strip() if add_jav_date_display_field.current else ""
+            score_str = score_dropdown.value
+            description = description_field.value.strip()
+            is_rewatch = rewatch_check.value
+            is_h = h_check.value
+            own_local_copy = own_local_copy_check.value
+            errors = []
+
+            # Reset previous errors
+            name_field.error_text = None; date_display.error_text = None; score_dropdown.error_text = None; entry_type_dropdown.error_text = None; image_source_field.error_text = None
+
+            if not name: errors.append("Title is required."); name_field.error_text = "Required"
+            if not entry_type_val: errors.append("Entry Type is required."); entry_type_dropdown.error_text = "Required"
+            if not date_str: errors.append("Completion Date is required."); date_display.error_text = "Required"
             else:
                 try: datetime.strptime(date_str, '%Y-%m-%d')
-                except ValueError: errors.append("Invalid date."); date_display.error_text = "Invalid Format"
+                except ValueError: errors.append("Invalid date format (YYYY-MM-DD)."); date_display.error_text = "Invalid Format"
+            
+            if image_source_input and not (image_source_input.lower().startswith("http://") or image_source_input.lower().startswith("https://")):
+                if not os.path.exists(image_source_input): # Check if local file exists
+                    errors.append("Local image file not found."); image_source_field.error_text = "File not found"
+
             score_int = None
             if score_str and score_str != "N/A":
                 try:
-                    score_int = int(score_str)
-                    if not (0 <= score_int <= 10): errors.append("Score 0-10."); score_dropdown.error_text = "0-10"
+                    score_int = int(score_str);
+                    if not (0 <= score_int <= 10): errors.append("Score must be 0-10."); score_dropdown.error_text = "0-10"
                 except ValueError: errors.append("Invalid score."); score_dropdown.error_text = "Invalid"
-            name_field.update(); platform_field.update(); date_display.update(); score_dropdown.update()
-            if errors: show_snackbar("Please fix errors: " + " ".join(errors), color=ft.Colors.ERROR_CONTAINER); return
-            add_game_db(name, platform, date_str, score_int, is_replay)
+
+            # Update UI for all fields to show errors
+            if hasattr(name_field, 'page') and name_field.page: name_field.update()
+            if hasattr(entry_type_dropdown, 'page') and entry_type_dropdown.page: entry_type_dropdown.update()
+            if hasattr(image_source_field, 'page') and image_source_field.page: image_source_field.update()
+            # genre_field doesn't have validation here, but good practice if it did
+            if hasattr(date_display, 'page') and date_display.page: date_display.update()
+            if hasattr(score_dropdown, 'page') and score_dropdown.page: score_dropdown.update()
+            # description_field doesn't have validation here
+
+            if errors: show_snackbar("Please fix errors: " + " ".join(errors), color=ft.colors.ERROR_CONTAINER); return
+
+            final_image_ref_for_db = process_and_copy_image(image_source_input)
+
+            add_jav_db(name, genre_input_str, date_str, score_int, description, is_rewatch, is_h, own_local_copy, final_image_ref_for_db, entry_type_val)
             show_snackbar(f"Added '{name}' to {target_year}")
             close_manual_dialog()
-            refresh_current_view() # This will refresh the current year view or search view
+            refresh_current_view()
             current_stats_filter = "All Time"
             try:
-                if stats_year_filter.current and stats_year_filter.current.selected: current_stats_filter = list(stats_year_filter.current.selected)[0]
-            except Exception: pass
-            if page: page.run_thread(calculate_and_update_stats_display, current_stats_filter)
-        content_controls = [name_field, platform_field, ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_add_date_picker)], alignment=ft.MainAxisAlignment.START), score_dropdown, replay_check]
-        action_buttons = [ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Game", on_click=save_new_game)]
-        manual_dialog = create_dialog_overlay(f"Add Game to {target_year}", content_controls, action_buttons)
-        if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls: close_manual_dialog()
-        main_stack.controls.append(manual_dialog)
-        if page: main_stack.update()
+                if stats_year_filter.current and stats_year_filter.current.selected:
+                    current_stats_filter = list(stats_year_filter.current.selected)[0]
+            except Exception as stats_e: print(f"Warning: Error accessing stats_year_filter selection after add: {stats_e}")
+            page.run_thread(calculate_and_update_stats_display, current_stats_filter)
 
-    def open_edit_game_dialog(game_data_to_edit):
-        # (open_edit_game_dialog remains mostly the same, refresh logic is fine)
-        close_manual_dialog() 
-        game_id = game_data_to_edit['id']; print(f"Opening EDIT game dialog for ID: {game_id}, Name: {game_data_to_edit['name']}")
-        edit_name_field = ft.Ref[ft.TextField](); edit_platform_field = ft.Ref[ft.TextField]()
-        edit_date_display_field = ft.Ref[ft.TextField](); edit_score_dropdown = ft.Ref[ft.Dropdown]()
-        edit_replay_check = ft.Ref[ft.Checkbox]()
-        name_field = ft.TextField(ref=edit_name_field, label="Game Title *", autofocus=True, capitalization=ft.TextCapitalization.WORDS, value=game_data_to_edit.get('name', ''))
-        platform_field = ft.TextField(ref=edit_platform_field, label="Platform", capitalization=ft.TextCapitalization.WORDS, value=game_data_to_edit.get('platform', '') or '')
-        initial_date_str = game_data_to_edit.get('completion_date', '')
-        date_display = ft.TextField(ref=edit_date_display_field, label="Completion Date *", read_only=True, hint_text="Click calendar...", value=initial_date_str)
-        initial_score = game_data_to_edit.get('review_score'); score_value_str = str(initial_score) if initial_score is not None else "N/A"
-        score_dropdown = ft.Dropdown(ref=edit_score_dropdown, label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value=score_value_str)
-        initial_replay = game_data_to_edit.get('is_replay') == 1
-        replay_check = ft.Checkbox(ref=edit_replay_check, label="This was a Replay", value=initial_replay)
-        edit_date_picker = None
-        if page:
-            try:
-                initial_picker_date = None
-                if initial_date_str:
-                    try: initial_picker_date = datetime.strptime(initial_date_str, '%Y-%m-%d')
-                    except ValueError: pass
-                edit_date_picker = ft.DatePicker(on_change=lambda e: handle_edit_date_change(e, edit_date_display_field), help_text="Select Date", value=initial_picker_date)
-                page.overlay.append(edit_date_picker)
-            except Exception as dp_err: print(f"Error creating edit date picker: {dp_err}")
-        def handle_edit_date_change(e, target_field_ref):
+        content_controls = [
+            name_field, entry_type_dropdown, image_source_row, genre_field,
+            ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_add_date_picker)], alignment=ft.MainAxisAlignment.START),
+            score_dropdown, description_field, rewatch_check, h_check, own_local_copy_check
+        ]
+        action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Entry", on_click=save_new_jav), ]
+        manual_dialog = create_dialog_overlay(f"Add Entry to {target_year}", content_controls, action_buttons);
+        if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls: close_manual_dialog() # Close existing if any
+        main_stack.controls.append(manual_dialog); main_stack.update()
+
+    def open_edit_jav_dialog(jav_data_to_edit, list_refresh_callback):
+        nonlocal _target_image_field_for_picker
+        jav_id = jav_data_to_edit['id']
+        
+        edit_name_field_ref = ft.Ref[ft.TextField](); edit_genre_field_ref = ft.Ref[ft.TextField](); edit_date_display_field_ref = ft.Ref[ft.TextField](); edit_score_dropdown_ref = ft.Ref[ft.Dropdown](); edit_description_field_ref = ft.Ref[ft.TextField](); edit_rewatch_check_ref = ft.Ref[ft.Checkbox](); edit_h_check_ref = ft.Ref[ft.Checkbox](); edit_own_local_copy_check_ref = ft.Ref[ft.Checkbox]()
+        edit_entry_type_dropdown_ref = ft.Ref[ft.Dropdown]()
+        
+        name_field = ft.TextField(ref=edit_name_field_ref, label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('name', ''))
+        entry_type_dropdown = ft.Dropdown(ref=edit_entry_type_dropdown_ref, label="Entry Type", options=ENTRY_TYPE_OPTIONS, value=jav_data_to_edit.get('entry_type'))
+        
+        _edit_image_source_tf = ft.TextField( # Define Ref for this field if needed for direct manipulation
+            label="Image Source (URL or Local Path)", 
+            value=jav_data_to_edit.get('image_url', ''), # This could be a URL or a relative path like "images/file.jpg"
+            expand=True,
+            hint_text="e.g., https://... or C:\\path\\to\\image.jpg or images/file.jpg"
+        )
+        def browse_for_image_edit(e):
+            nonlocal _target_image_field_for_picker
+            _target_image_field_for_picker = _edit_image_source_tf # Target this specific text field
+            image_file_picker.pick_files(
+                dialog_title="Select Image", allow_multiple=False,
+                allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"]
+            )
+        edit_image_source_row = ft.Row(
+            [ _edit_image_source_tf, ft.IconButton(icon=ft.icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_edit) ],
+            vertical_alignment=ft.CrossAxisAlignment.END
+        )
+
+        genre_field = ft.TextField(ref=edit_genre_field_ref, label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('genre', '') or '')
+        initial_date_str = jav_data_to_edit.get('completion_date', ''); date_display = ft.TextField(ref=edit_date_display_field_ref, label="Completion Date", read_only=True, hint_text="Click calendar to select...", value=initial_date_str)
+        initial_score = jav_data_to_edit.get('review_score'); score_value_str = str(initial_score) if initial_score is not None else "N/A"; score_dropdown = ft.Dropdown(ref=edit_score_dropdown_ref, label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value=score_value_str)
+        description_field = ft.TextField(ref=edit_description_field_ref, label="Description / Notes", multiline=True, min_lines=2, max_lines=4, capitalization=ft.TextCapitalization.SENTENCES, value=jav_data_to_edit.get('description', '') or '')
+        initial_rewatch = jav_data_to_edit.get('is_rewatch') == 1; rewatch_check = ft.Checkbox(ref=edit_rewatch_check_ref, label="This was a Rewatch", value=initial_rewatch)
+        initial_h = jav_data_to_edit.get('is_h') == 1; h_check = ft.Checkbox(ref=edit_h_check_ref, label="Is H?", value=initial_h)
+        initial_own_local_copy = jav_data_to_edit.get('own_local_copy') == 1; own_local_copy_check = ft.Checkbox(ref=edit_own_local_copy_check_ref, label="Own Local Copy?", value=initial_own_local_copy)
+
+        initial_picker_date = None
+        if initial_date_str:
+            try: initial_picker_date = datetime.strptime(initial_date_str, '%Y-%m-%d')
+            except ValueError: pass
+        
+        _edit_date_picker_instance = ft.DatePicker( 
+            on_change=lambda e: handle_edit_date_change(e, edit_date_display_field_ref), 
+            help_text="Select Completion Date", value=initial_picker_date
+        )
+        if _edit_date_picker_instance not in page.overlay: # Add if not already there
+            page.overlay.append(_edit_date_picker_instance)
+        
+        def handle_edit_date_change(e, target_field_ref): # Pass target field ref
             selected_date = e.control.value
-            if target_field_ref.current and selected_date: formatted_date = selected_date.strftime('%Y-%m-%d'); target_field_ref.current.value = formatted_date; target_field_ref.current.update()
-        def open_edit_date_picker(e):
-             if edit_date_picker: 
-                 if page: edit_date_picker.open = True; page.update(); print("Edit date picker opened.")
-                 else: print("Page context lost before opening edit date picker.")
-             else: print("Error: Edit date picker object not found or not created."); show_snackbar("Edit date picker not available.", color=ft.Colors.ERROR)
-        def save_edited_game(e):
-            name = edit_name_field.current.value.strip() if edit_name_field.current else ""
-            platform = edit_platform_field.current.value.strip() if edit_platform_field.current else ""
-            date_str = edit_date_display_field.current.value.strip() if edit_date_display_field.current else ""
-            score_str = edit_score_dropdown.current.value if edit_score_dropdown.current else "N/A"
-            is_replay = edit_replay_check.current.value if edit_replay_check.current else False; errors = []
-            if edit_name_field.current: edit_name_field.current.error_text = None
-            if edit_date_display_field.current: edit_date_display_field.current.error_text = None
-            if edit_score_dropdown.current: edit_score_dropdown.current.error_text = None
-            if not name: errors.append("Title required."); edit_name_field.current.error_text = "Required"
-            if not date_str: errors.append("Date required."); edit_date_display_field.current.error_text = "Required"
+            if target_field_ref.current and selected_date: 
+                target_field_ref.current.value = selected_date.strftime('%Y-%m-%d')
+                if hasattr(target_field_ref.current, 'page') and target_field_ref.current.page: target_field_ref.current.update()
+        def open_edit_date_picker(e): 
+            _edit_date_picker_instance.open = True
+            page.update()
+
+        def save_edited_jav(e):
+            name = edit_name_field_ref.current.value.strip()
+            entry_type_val = edit_entry_type_dropdown_ref.current.value
+            image_source_input = _edit_image_source_tf.value.strip() # Get value from the text field
+            genre_input_str = edit_genre_field_ref.current.value.strip()
+            date_str = edit_date_display_field_ref.current.value.strip()
+            score_str = edit_score_dropdown_ref.current.value
+            description = edit_description_field_ref.current.value.strip()
+            is_rewatch = edit_rewatch_check_ref.current.value
+            is_h = edit_h_check_ref.current.value
+            own_local_copy = edit_own_local_copy_check_ref.current.value
+            errors = []
+
+            # Reset previous errors
+            edit_name_field_ref.current.error_text = None; edit_date_display_field_ref.current.error_text = None; edit_score_dropdown_ref.current.error_text = None; edit_entry_type_dropdown_ref.current.error_text = None; _edit_image_source_tf.error_text = None
+
+            if not name: errors.append("Title is required."); edit_name_field_ref.current.error_text = "Required"
+            if not entry_type_val: errors.append("Entry Type is required."); edit_entry_type_dropdown_ref.current.error_text = "Required"
+            if not date_str: errors.append("Completion Date is required."); edit_date_display_field_ref.current.error_text = "Required"
             else:
                 try: datetime.strptime(date_str, '%Y-%m-%d')
-                except ValueError: errors.append("Invalid date."); edit_date_display_field.current.error_text = "Invalid Format"
+                except ValueError: errors.append("Invalid date format (YYYY-MM-DD)."); edit_date_display_field_ref.current.error_text = "Invalid Format"
+
+            # Validate image source if it's a local path and not an existing relative "images/..." path
+            if image_source_input and \
+               not (image_source_input.lower().startswith("http://") or image_source_input.lower().startswith("https://")) and \
+               not (image_source_input.startswith("images/") and os.path.exists(os.path.join(ASSETS_DIR, image_source_input))): # Check if it's an existing asset
+                if not os.path.exists(image_source_input): # If it's a new local path, check existence
+                    errors.append("Local image file not found."); _edit_image_source_tf.error_text = "File not found"
+            
             score_int = None
             if score_str and score_str != "N/A":
                 try:
-                    score_int = int(score_str)
-                    if not (0 <= score_int <= 10): errors.append("Score 0-10."); edit_score_dropdown.current.error_text = "0-10"
-                except ValueError: errors.append("Invalid score."); edit_score_dropdown.current.error_text = "Invalid"
-            if edit_name_field.current: edit_name_field.current.update() # ... more updates
-            if edit_platform_field.current: edit_platform_field.current.update()
-            if edit_date_display_field.current: edit_date_display_field.current.update()
-            if edit_score_dropdown.current: edit_score_dropdown.current.update()
-            if errors: show_snackbar("Please fix errors: " + " ".join(errors), color=ft.Colors.ERROR_CONTAINER); return
-            update_game_db(game_id, name, platform, date_str, score_int, is_replay)
+                    score_int = int(score_str);
+                    if not (0 <= score_int <= 10): errors.append("Score must be 0-10."); edit_score_dropdown_ref.current.error_text = "0-10"
+                except ValueError: errors.append("Invalid score."); edit_score_dropdown_ref.current.error_text = "Invalid"
+
+            # Update UI for all fields
+            if hasattr(edit_name_field_ref.current, 'page') and edit_name_field_ref.current.page: edit_name_field_ref.current.update()
+            if hasattr(edit_entry_type_dropdown_ref.current, 'page') and edit_entry_type_dropdown_ref.current.page: edit_entry_type_dropdown_ref.current.update()
+            if hasattr(_edit_image_source_tf, 'page') and _edit_image_source_tf.page: _edit_image_source_tf.update()
+            if hasattr(edit_genre_field_ref.current, 'page') and edit_genre_field_ref.current.page: edit_genre_field_ref.current.update()
+            if hasattr(edit_date_display_field_ref.current, 'page') and edit_date_display_field_ref.current.page: edit_date_display_field_ref.current.update()
+            if hasattr(edit_score_dropdown_ref.current, 'page') and edit_score_dropdown_ref.current.page: edit_score_dropdown_ref.current.update()
+            # description field no validation
+
+            if errors: show_snackbar("Please fix errors: " + " ".join(errors), color=ft.colors.ERROR_CONTAINER); return
+
+            final_image_ref_for_db = jav_data_to_edit.get('image_url') # Default to original
+            original_db_image_url = jav_data_to_edit.get('image_url')
+
+            if image_source_input != original_db_image_url: # Image source has changed
+                if not image_source_input: # Cleared image
+                    final_image_ref_for_db = None
+                elif (image_source_input.lower().startswith("http://") or image_source_input.lower().startswith("https://")): # New URL
+                    final_image_ref_for_db = image_source_input
+                # If it's not a URL and not an existing "images/..." relative path, process it as a new local file
+                elif not image_source_input.startswith("images/"): 
+                    final_image_ref_for_db = process_and_copy_image(image_source_input)
+                else: # It's an "images/..." path, assume it's valid if it passed validation or is unchanged
+                    final_image_ref_for_db = image_source_input 
+            
+            # TODO: Consider deleting the old local image if it was changed and was a local file.
+            # This requires careful handling to not delete if it's still used elsewhere or if the new image processing failed.
+            # For now, old images are not deleted automatically on edit.
+
+            update_jav_db(jav_id, name, genre_input_str, date_str, score_int, description, is_rewatch, is_h, own_local_copy, final_image_ref_for_db, entry_type_val)
             show_snackbar(f"Updated '{name}'")
-            close_manual_dialog()
-            refresh_current_view() # This will refresh the current year view or search view
+            close_manual_dialog() # This should also handle removing the _edit_date_picker_instance from overlay
+            list_refresh_callback()
             current_stats_filter = "All Time"
             try:
-                if stats_year_filter.current and stats_year_filter.current.selected: current_stats_filter = list(stats_year_filter.current.selected)[0]
-            except Exception: pass
-            if page: page.run_thread(calculate_and_update_stats_display, current_stats_filter)
-        content_controls = [name_field, platform_field, ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_edit_date_picker)], alignment=ft.MainAxisAlignment.START), score_dropdown, replay_check]
-        action_buttons = [ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Changes", on_click=save_edited_game)]
-        manual_dialog = create_dialog_overlay(f"Edit Game: {game_data_to_edit['name']}", content_controls, action_buttons, associated_picker=edit_date_picker)
-        if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls: close_manual_dialog()
-        main_stack.controls.append(manual_dialog)
-        if page: main_stack.update()
+                if stats_year_filter.current and stats_year_filter.current.selected:
+                    current_stats_filter = list(stats_year_filter.current.selected)[0]
+            except Exception as stats_e: print(f"Warning: Error accessing stats_year_filter selection after edit: {stats_e}")
+            page.run_thread(calculate_and_update_stats_display, current_stats_filter)
 
-    # --- Stats View ---
-    stats_year_filter = ft.SegmentedButton(
-        segments=[ft.Segment(value="All Time", label=ft.Text("Overall"))] + [ft.Segment(value=year, label=ft.Text(year)) for year in YEARS],
-        selected={"All Time"}, allow_empty_selection=False, show_selected_icon=False,
-    )
-    def calculate_and_update_stats_display(filter_year="All Time"):
-        # (calculate_and_update_stats_display remains the same)
-        print(f"Calculating stats for display filter: {filter_year}"); games_data = []
-        total_games, average_score, total_replays, unique_platforms = 0, 0.0, 0, 0
-        pie_sections_data, legend_items_data = [], []; bar_chart_groups = []; max_monthly_count = 0
-        platform_specific_colors = {"xbox": ft.Colors.GREEN_600, "playstation": ft.Colors.INDIGO_500, "switch": ft.Colors.RED_600, "pc": ft.Colors.ORANGE_600, "steam deck": ft.Colors.PURPLE_500,}
-        fallback_platform_colors = [ft.Colors.BLUE_500, ft.Colors.PURPLE_500, ft.Colors.TEAL_500, ft.Colors.PINK_500, ft.Colors.CYAN_500, ft.Colors.LIGHT_BLUE_500, ft.Colors.LIME_500, ft.Colors.AMBER_500, ft.Colors.DEEP_ORANGE_500, ft.Colors.LIGHT_GREEN_500, ft.Colors.DEEP_PURPLE_500, ft.Colors.BROWN_400, ft.Colors.BLUE_GREY_500, ft.Colors.YELLOW_800]
-        unknown_color = ft.Colors.with_opacity(0.5, ft.Colors.ON_SURFACE_VARIANT)
-        try:
-            if filter_year == "All Time": games_data = get_all_games_db()
-            else:
-                try: year_int = int(filter_year); games_data = get_games_by_year_db(year_int)
-                except ValueError: print(f"Error: Invalid year '{filter_year}' for stats filter."); games_data = []
-            games_data = games_data or []
-            total_games = len(games_data)
-            total_replays = sum(1 for g in games_data if g.get('is_replay') == 1)
-            valid_scores = [g['review_score'] for g in games_data if g.get('review_score') is not None and isinstance(g['review_score'], (int, float))]
-            average_score = (sum(valid_scores) / len(valid_scores)) if valid_scores else 0.0
-            platform_counts = Counter( (g.get('platform', "Unknown") or "Unknown").strip().title() for g in games_data )
-            unique_platforms = len(platform_counts); fallback_color_index = 0
-            sorted_platforms = platform_counts.most_common()
-            for platform, count in sorted_platforms:
-                percentage = (count / total_games * 100) if total_games > 0 else 0; platform_lower = platform.lower(); assigned_color = None
-                if platform == "Unknown": assigned_color = unknown_color
-                else: 
-                    if "steam deck" == platform_lower: assigned_color = platform_specific_colors["steam deck"]
-                    elif "xbox" in platform_lower: assigned_color = platform_specific_colors["xbox"]
-                    elif "playstation" in platform_lower or "ps" in platform_lower.split(): assigned_color = platform_specific_colors["playstation"]
-                    elif "switch" in platform_lower: assigned_color = platform_specific_colors["switch"]
-                    elif "pc" == platform_lower or "windows" in platform_lower or "steam" in platform_lower: assigned_color = platform_specific_colors["pc"]
-                if assigned_color is None: assigned_color = fallback_platform_colors[fallback_color_index % len(fallback_platform_colors)]; fallback_color_index += 1
-                pie_sections_data.append(ft.PieChartSection(value=percentage, title=f"{percentage:.0f}%" if percentage >= 5 else "", title_style=ft.TextStyle(size=10, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD), color=assigned_color, radius=70))
-                display_platform = "PC" if platform == "Pc" else platform
-                legend_items_data.append(ft.Row([ft.Container(width=16, height=16, bgcolor=assigned_color, border_radius=3), ft.Text(f"{display_platform} ({count})")], spacing=10))
-            monthly_counts = {month: 0 for month in range(1, 13)}
-            month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-            for game in games_data:
-                date_str = game.get('completion_date')
-                if date_str:
-                    try: completion_dt = datetime.strptime(date_str, '%Y-%m-%d'); month = completion_dt.month; monthly_counts[month] += 1
-                    except (ValueError, TypeError): print(f"Warning: Could not parse date '{date_str}' for game '{game.get('name')}' during monthly calculation.")
-            bar_chart_color = ft.colors.BLUE_GREY_400 
-            for month_num in range(1, 13):
-                count = monthly_counts[month_num]
-                if count > max_monthly_count: max_monthly_count = count 
-                tooltip_text = f"{month_names[month_num-1]}: {count} game{'s' if count != 1 else ''}"
-                bar_rod = ft.BarChartRod(to_y=count, width=18, color=bar_chart_color, tooltip=tooltip_text, border_radius=ft.border_radius.only(top_left=5, top_right=5))
-                bar_group = ft.BarChartGroup(x=month_num - 1, bar_rods=[bar_rod]); bar_chart_groups.append(bar_group)
-            dynamic_max_y = max(5, max_monthly_count + 2) 
-        except Exception as e:
-             print(f"!!!!!!!!! ERROR DURING STATS CALCULATION !!!!!!!!!\n{e}"); traceback.print_exc(); print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-             total_games, average_score, total_replays, unique_platforms = "Error", "N/A", "Error", "Error"
-             pie_sections_data, legend_items_data = [], [ft.Text("Error loading data.", color=ft.Colors.ERROR)]; bar_chart_groups = []; dynamic_max_y = 5 
-        if page:
-            if stats_total_games_text.current: stats_total_games_text.current.value = str(total_games); stats_total_games_text.current.update()
-            if stats_avg_score_text.current: stats_avg_score_text.current.value = f"{average_score:.1f}" if isinstance(average_score, float) else average_score; stats_avg_score_text.current.update()
-            if stats_total_replays_text.current: stats_total_replays_text.current.value = str(total_replays); stats_total_replays_text.current.update()
-            if stats_unique_platforms_text.current: stats_unique_platforms_text.current.value = str(unique_platforms); stats_unique_platforms_text.current.update()
-            if platform_pie_chart.current: platform_pie_chart.current.sections = pie_sections_data; platform_pie_chart.current.update()
-            if platform_legend.current: platform_legend.current.controls = legend_items_data; platform_legend.current.update()
-            if stats_monthly_barchart.current: stats_monthly_barchart.current.bar_groups = bar_chart_groups; stats_monthly_barchart.current.max_y = dynamic_max_y; stats_monthly_barchart.current.update()
-        print(f"Stats UI update complete for {filter_year}.")
-    def on_stats_filter_change(e):
-        selected_year = list(e.control.selected)[0] if e.control.selected else "All Time"
-        print(f"Stats filter changed to: {selected_year}")
-        if page: page.run_thread(calculate_and_update_stats_display, selected_year)
-    def create_summary_card(icon, value_ref, label):
-        # (create_summary_card remains the same)
-        theme_primary = ft.Colors.BLUE
-        if page and page.theme and page.theme.color_scheme: theme_primary = page.theme.color_scheme.primary or ft.Colors.BLUE
-        return ft.Card(content=ft.Container(padding=15, content=ft.Column([
-            ft.Icon(icon, size=24, color=ft.Colors.with_opacity(0.8, theme_primary)),
-            ft.Text(ref=value_ref, value="...", size=20, weight=ft.FontWeight.BOLD),
-            ft.Text(label, size=12, color=ft.Colors.with_opacity(0.7, ft.Colors.ON_SURFACE), text_align=ft.TextAlign.CENTER)
-        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=5)))
-    def build_stats_view():
-        # (build_stats_view remains the same)
-        print("Building stats view")
-        month_labels = [ft.ChartAxisLabel(value=i, label=ft.Text(month, size=10)) for i, month in enumerate(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])]
-        controls_list = [
-            ft.Text("Statistics", style=ft.TextThemeStyle.HEADLINE_MEDIUM), stats_year_filter, 
-            ft.Container(content=ft.Text("Summary", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
-            ft.GridView(runs_count=4, max_extent=200, child_aspect_ratio=1.0, spacing=10, run_spacing=10, controls=[
-                create_summary_card(ft.icons.VIDEOGAME_ASSET_ROUNDED, stats_total_games_text, "Total Games Logged"), create_summary_card(ft.icons.STAR_RATE_ROUNDED, stats_avg_score_text, "Average Rating"),
-                create_summary_card(ft.icons.REPLAY_ROUNDED, stats_total_replays_text, "Replays Logged"), create_summary_card(ft.icons.DEVICES_OTHER_ROUNDED, stats_unique_platforms_text, "Unique Platforms"),
-            ]),
-            ft.Container(content=ft.Text("Platform Breakdown", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
-            ft.Card(content=ft.Container(padding=20, content=ft.Row([
-                ft.Column([ft.PieChart(ref=platform_pie_chart, sections=[], center_space_radius=40, expand=True,)], expand=3, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER), 
-                ft.Column([ft.Text("Platforms", weight=ft.FontWeight.BOLD), ft.Column(ref=platform_legend, controls=[ft.ProgressRing(width=20, height=20)], spacing=8, scroll=ft.ScrollMode.ADAPTIVE, expand=True)], expand=2, horizontal_alignment=ft.CrossAxisAlignment.START, scroll=ft.ScrollMode.ADAPTIVE, height=250), 
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER))),
-            ft.Container(content=ft.Text("Completions per Month", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
-            ft.Card(content=ft.Container(
-                    content=ft.BarChart(ref=stats_monthly_barchart, bar_groups=[], bottom_axis=ft.ChartAxis(labels=month_labels), tooltip_bgcolor=ft.colors.with_opacity(0.8, ft.colors.BLUE_GREY_700),
-                        left_axis=ft.ChartAxis(labels_size=40), border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.OUTLINE)),
-                        horizontal_grid_lines=ft.ChartGridLines(interval=2, color=ft.colors.with_opacity(0.1, ft.colors.OUTLINE)), interactive=True, expand=True),
-                    padding=20, height=300)),
-            ft.Container(content=ft.Text("Import / Export", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
-            ft.Row([ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog)], spacing=10),
-            ft.Text("CSV Format: 'Title' (Req), 'Platform', 'Rating', 'DateCompleted' (Req, YYYY-MM-DD), 'IsReplay'.", italic=True, size=11, color=ft.Colors.with_opacity(0.6, ft.Colors.ON_SURFACE))
+        content_controls = [
+            name_field, entry_type_dropdown, edit_image_source_row, genre_field,
+            ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_edit_date_picker)], alignment=ft.MainAxisAlignment.START),
+            score_dropdown, description_field, rewatch_check, h_check, own_local_copy_check
         ]
-        stats_view_content = ft.ListView(expand=True, spacing=20, padding=ft.padding.symmetric(horizontal=20, vertical=10), controls=controls_list)
-        stats_year_filter.on_change = on_stats_filter_change
-        return stats_view_content
+        action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Changes", on_click=save_edited_jav), ]
+        manual_dialog = create_dialog_overlay(f"Edit Entry: {jav_data_to_edit['name']}", content_controls, action_buttons, associated_picker=_edit_date_picker_instance)
+        if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls: close_manual_dialog() # Close existing if any
+        main_stack.controls.append(manual_dialog); main_stack.update()
 
-    # --- Backlog View (Search Bar Removed) ---
-    def refresh_backlog_view_list(): # No search query needed
-        print("Refreshing backlog list view controls")
-        if not backlog_list_view_content.current: print("Warning: Backlog ListView ref not set."); return
-        list_view = backlog_list_view_content.current; list_view.controls.clear()
-        items = get_backlog_db() # Uses reverted DB function
-        if not items: list_view.controls.append(ft.Container(content=ft.Text("Backlog empty.", italic=True, text_align=ft.TextAlign.CENTER), padding=20))
-        else:
-            for item in items:
-                list_view.controls.append(create_backlog_tile(item, delete_backlog_action, toggle_backlog_playing_action))
-        if page and list_view.page:
-             try: list_view.update()
-             except Exception as update_err: print(f"Error updating backlog list view: {update_err}")
-    def delete_backlog_action(item_id, item_name):
-        # (delete_backlog_action remains the same)
-        print(f"Deleting backlog item ID {item_id}, Name {item_name}")
-        try:
-            delete_backlog_item_db(item_id); show_snackbar(f"Removed '{item_name}' from backlog")
-            refresh_backlog_view_list()
-        except Exception as e: print(f"Error during backlog deletion or refresh: {e}"); show_snackbar(f"Error removing '{item_name}'.", color=ft.Colors.ERROR)
-    def toggle_backlog_playing_action(item_id, item_name, current_status):
-        # (toggle_backlog_playing_action remains the same)
-        print(f"Toggling playing status for: ID {item_id}, Name {item_name}")
-        try:
-            toggle_backlog_playing_status_db(item_id)
-            new_status_text = "Now Playing" if not current_status else "Stopped Playing"
-            show_snackbar(f"'{item_name}': {new_status_text}")
-            refresh_backlog_view_list()
-        except Exception as e: print(f"Error toggling playing status or refreshing: {e}"); show_snackbar(f"Error updating '{item_name}' status.", color=ft.Colors.ERROR)
-    def create_backlog_tile(item_data, delete_callback, toggle_play_callback):
-        # (create_backlog_tile remains the same)
-        platform_str = item_data.get('platform', 'Any Platform') or 'Any Platform'; added_date_str = item_data.get('added_date', 'Unknown Date') or 'Unknown Date'
-        is_playing = item_data.get('is_playing') == 1; leading_widget = None; theme_primary = ft.Colors.BLUE 
-        if page and page.theme and page.theme.color_scheme: theme_primary = page.theme.color_scheme.primary or ft.Colors.BLUE
-        if is_playing: leading_widget = ft.Container(content=ft.Icon(name=ft.icons.PLAY_CIRCLE_FILLED_OUTLINED, color=theme_primary, tooltip="Currently Playing"), padding=ft.padding.only(right=12, left=4))
-        else: leading_widget = ft.Container(width=30, padding=ft.padding.only(right=12, left=4)) 
-        title_text = ft.Text(item_data['name'], weight=ft.FontWeight.BOLD, overflow=ft.TextOverflow.ELLIPSIS, no_wrap=True)
-        subtitle_text = ft.Text(f"Platform: {platform_str} | Added: {added_date_str}", size=12, color=ft.colors.with_opacity(0.7, ft.colors.ON_SURFACE), overflow=ft.TextOverflow.ELLIPSIS, no_wrap=True)
-        text_content = ft.Column([title_text, subtitle_text], spacing=2, alignment=ft.MainAxisAlignment.CENTER, expand=True)
-        toggle_icon = ft.icons.PLAY_ARROW_ROUNDED if not is_playing else ft.icons.STOP_ROUNDED
-        toggle_tooltip = "Mark as Currently Playing" if not is_playing else "Mark as Not Playing"
-        trailing_actions = ft.Row([
-                ft.IconButton(icon=toggle_icon, tooltip=toggle_tooltip, icon_size=20, on_click=lambda _: toggle_play_callback(item_data['id'], item_data['name'], is_playing)),
-                ft.IconButton(icon=ft.icons.DELETE_OUTLINE, tooltip="Remove from Backlog", icon_color=ft.Colors.ERROR, icon_size=20, on_click=lambda _: delete_callback(item_data['id'], item_data['name'])),
-            ], spacing=0, alignment=ft.MainAxisAlignment.END)
-        manual_tile = ft.Container(content=ft.Row([leading_widget, text_content, trailing_actions], vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            padding=ft.padding.symmetric(vertical=8, horizontal=5), border_radius=ft.border_radius.all(4),
-            border=ft.border.only(bottom=ft.border.BorderSide(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE))))
-        return manual_tile
-    def open_add_backlog_dialog(e=None):
-        # (open_add_backlog_dialog remains the same)
-        close_manual_dialog(); print("Opening MANUAL add backlog dialog")
-        name_field = ft.TextField(label="Game Title *", autofocus=True, capitalization=ft.TextCapitalization.WORDS)
-        platform_field = ft.TextField(label="Platform (Optional)", capitalization=ft.TextCapitalization.WORDS)
-        def save_new_backlog(e):
-            name = name_field.value.strip(); platform = platform_field.value.strip()
-            if not name: name_field.error_text = "Required."; name_field.update(); show_snackbar("Title required.", color=ft.Colors.ERROR_CONTAINER); return
-            else: name_field.error_text = None; name_field.update()
-            add_backlog_item_db(name, platform if platform else None)
-            show_snackbar(f"Added '{name}' to backlog"); close_manual_dialog(); refresh_backlog_view_list()
-        content_controls = [name_field, platform_field]
-        action_buttons = [ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Add to Backlog", on_click=save_new_backlog)]
-        manual_dialog = create_dialog_overlay("Add Game to Backlog", content_controls, action_buttons)
-        if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls: close_manual_dialog()
-        main_stack.controls.append(manual_dialog)
-        if page: main_stack.update()
-    def build_backlog_view():
-        print("Building backlog view")
-        # Backlog view now directly returns the ListView
-        view_content = ft.ListView(
-            ref=backlog_list_view_content, expand=True, spacing=5,
-            padding=ft.padding.only(left=15, right=15, top=10, bottom=70) # Adjusted top padding
-        )
-        refresh_backlog_view_list() 
-        return view_content
+    def build_year_view(year_str):
+        print(f"Building year view (Gallery) for: {year_str}")
+        year_grid_view_ref = ft.Ref[ft.GridView]() 
 
-    # --- NEW: Search View ---
-    def build_search_view():
-        print("Building search view")
+        def refresh_view_content():
+            grid_view = year_grid_view_ref.current
+            if not grid_view: return
 
-        # --- Helper to run search and update list ---
-        def perform_search_and_update_list(e=None): # Can be triggered by button or Enter key
-            term = search_query_field.current.value if search_query_field.current else ""
-            if not term.strip():
-                show_snackbar("Please enter a search term.", color=ft.Colors.WARNING)
-                if search_results_listview.current:
-                    search_results_listview.current.controls.clear()
-                    search_results_listview.current.controls.append(
-                        ft.Container(content=ft.Text("Enter a term above and click Search.", italic=True, text_align=ft.TextAlign.CENTER), padding=30)
+            grid_view.controls.clear()
+            try:
+                javs = get_javs_by_year_db(int(year_str))
+                current_selected_types = app_state["year_view_selected_entry_types"]
+                filtered_javs = []
+
+                if not current_selected_types: # No types selected, show nothing or a message
+                    filtered_javs = []
+                else:
+                    filtered_javs = [
+                        jav for jav in javs
+                        if jav.get('entry_type') in current_selected_types
+                    ]
+
+                if not javs: # No entries for the year at all
+                    grid_view.controls.append(
+                        ft.Container(
+                            content=ft.Text(f"No entries logged for {year_str} yet. Use the '+' button to add one!", italic=True, text_align=ft.TextAlign.CENTER, size=16),
+                            alignment=ft.alignment.center, padding=30, expand=True 
+                        )
                     )
-                    search_results_listview.current.update()
-                return
-
-            selected_years_for_search = []
-            if search_all_years_checkbox.current and search_all_years_checkbox.current.value:
-                selected_years_for_search = None # Signal to search_completed_games_db to search all
-            else:
-                for year_str, cb_ref in search_year_checkboxes_refs.items():
-                    if cb_ref.current and cb_ref.current.value:
-                        try: selected_years_for_search.append(int(year_str))
-                        except ValueError: print(f"Warning: Invalid year string '{year_str}' in checkboxes.")
-                if not selected_years_for_search: # No specific years checked, and "All Years" is off
-                    show_snackbar("Please select 'Search All Years' or at least one specific year.", color=ft.Colors.WARNING)
-                    return
-
-
-            print(f"Performing search for: '{term}', Years: {selected_years_for_search}")
-            results = search_completed_games_db(term, selected_years_for_search)
-
-            if search_results_listview.current:
-                search_results_listview.current.controls.clear()
-                if not results:
-                    search_results_listview.current.controls.append(
-                        ft.Container(content=ft.Text(f"No games found matching '{term}'.", italic=True, text_align=ft.TextAlign.CENTER), padding=30)
+                elif not filtered_javs: # Entries exist for the year, but none match current type filter
+                    grid_view.controls.append(
+                        ft.Container(
+                            content=ft.Text(
+                                f"No entries for {year_str} match the selected type filters." if app_state["year_view_selected_entry_types"] else f"No entry types selected. Please select types to view for {year_str}.", # Should not hit the else here due to outer check
+                                italic=True, text_align=ft.TextAlign.CENTER, size=16
+                            ),
+                            alignment=ft.alignment.center, padding=30, expand=True 
+                        )
                     )
                 else:
-                    for game in results:
-                        # Use a specific delete action for search results
-                        search_results_listview.current.controls.append(create_game_log_tile(game, delete_game_action_for_search_view))
-                search_results_listview.current.update()
-            else:
-                print("Error: Search results ListView ref not available.")
-
-        # --- Delete action specific to search view ---
-        def delete_game_action_for_search_view(game_id, game_name):
-            print(f"Deleting game ID {game_id}, Name {game_name} from Search View")
-            try:
-                delete_game_db(game_id)
-                show_snackbar(f"Deleted '{game_name}'")
-                perform_search_and_update_list() # Re-run the current search to refresh results
-                # Trigger stats recalc
-                current_stats_filter = "All Time"
-                try:
-                    if stats_year_filter.current and stats_year_filter.current.selected:
-                        current_stats_filter = list(stats_year_filter.current.selected)[0]
-                except Exception: pass
-                if page: page.run_thread(calculate_and_update_stats_display, current_stats_filter)
+                    for jav_item in filtered_javs:
+                        try:
+                            card = create_gallery_card(page, jav_item, delete_jav_action, open_edit_jav_dialog_wrapper, show_description_dialog)
+                            if card: grid_view.controls.append(card)
+                        except Exception as card_error:
+                            print(f"ERROR CREATING CARD for entry ID {jav_item.get('id', '???')}: {card_error}"); traceback.print_exc()
+                            grid_view.controls.append(
+                                ft.Card(content=ft.Container(padding=20, content=ft.Column([
+                                    ft.Icon(ft.icons.ERROR_OUTLINE, color=ft.colors.ERROR, size=30),
+                                    ft.Text(f"Error loading: {jav_item.get('name', 'Unknown')}", color=ft.colors.ERROR),
+                                    ft.Text(f"{card_error}", size=10, color=ft.colors.ERROR, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS)
+                                ])))
+                            )
+            except ValueError: grid_view.controls.append(ft.Text(f"Invalid year: {year_str}", color=ft.colors.ERROR))
             except Exception as e:
-                print(f"Error during game deletion or refresh from search: {e}")
-                show_snackbar(f"Error deleting '{game_name}'.", color=ft.Colors.ERROR)
+                print(f"OVERALL ERROR loading entries for {year_str}: {e}"); traceback.print_exc()
+                grid_view.controls.append(ft.Text(f"Error loading entries: {e}", color=ft.colors.ERROR))
+            
+            if hasattr(grid_view, 'page') and grid_view.page: 
+                try: grid_view.update()
+                except: pass
 
+        def on_year_view_filter_change():
+            refresh_view_content()
 
-        # --- Handler for "All Years" checkbox ---
-        def on_all_years_toggle(e):
-            is_all_years = e.control.value
-            for year_str_key in YEARS: # Iterate through defined YEARS
-                cb_ref = search_year_checkboxes_refs.get(year_str_key)
-                if cb_ref and cb_ref.current:
-                    cb_ref.current.disabled = is_all_years
-                    if is_all_years: # If "All Years" is checked, uncheck individual years
-                        cb_ref.current.value = False
-                    cb_ref.current.update()
-            # If "All Years" is unchecked, and no specific year is checked, maybe check the first one? Or leave as is.
-            # For now, leave as is. User must explicitly check a year if "All Years" is off.
+        def delete_jav_action(jav_id, jav_name):
+            # Fetch the item before deleting to get its image_url
+            jav_to_delete = next((j for j in get_all_javs_db() if j['id'] == jav_id), None) # inefficient but ensures we get latest
+            
+            delete_jav_db(jav_id) # Delete from DB first
 
-        # --- UI Controls for Search View ---
-        _search_input = ft.TextField(
-            ref=search_query_field,
-            label="Search Completed Games (Name or Platform)",
-            hint_text="e.g., Zelda, PS5, RPG...",
-            autofocus=True,
-            on_submit=perform_search_and_update_list, # Allow Enter key to search
-            border_radius=8,
-            # border_color=ft.colors.with_opacity(0.3, ft.colors.OUTLINE),
-            # height=40, text_size=14,
-            # content_padding=ft.padding.symmetric(horizontal=15),
-            prefix_icon=ft.icons.SEARCH,
-        )
+            if jav_to_delete:
+                image_to_delete_ref = jav_to_delete.get('image_url')
+                # Check if it's a local file (starts with "images/") and not a URL
+                if image_to_delete_ref and image_to_delete_ref.startswith("images/") and \
+                   not (image_to_delete_ref.lower().startswith("http://") or image_to_delete_ref.lower().startswith("https://")):
+                    full_image_path_to_delete = os.path.join(ASSETS_DIR, image_to_delete_ref)
+                    if os.path.exists(full_image_path_to_delete):
+                        try:
+                            os.remove(full_image_path_to_delete)
+                            print(f"Deleted local image: {full_image_path_to_delete}")
+                            show_snackbar(f"Deleted '{jav_name}' and its local image.", duration=2500)
+                        except OSError as e:
+                            print(f"Error deleting local image {full_image_path_to_delete}: {e}")
+                            show_snackbar(f"Deleted '{jav_name}', but failed to delete its local image: {e}", color=ft.colors.WARNING_CONTAINER, duration=3000)
+                    else:
+                        # Image ref was there but file missing, already handled by snackbar below
+                        show_snackbar(f"Deleted '{jav_name}'. Local image file not found for deletion.", color=ft.colors.WARNING_CONTAINER, duration=3000)
+                else:
+                     show_snackbar(f"Deleted '{jav_name}'", duration=2500) # URL or no image
+            else:
+                show_snackbar(f"Deleted entry (ID: {jav_id})", duration=2500) # Fallback if item not found before delete
+            
+            refresh_view_content() # Refresh the current year view
+            current_stats_filter = "All Time"
+            try:
+                if stats_year_filter.current and stats_year_filter.current.selected:
+                    current_stats_filter = list(stats_year_filter.current.selected)[0]
+            except Exception as stats_e: print(f"Warning: Error accessing stats_year_filter selection after delete: {stats_e}")
+            page.run_thread(calculate_and_update_stats_display, current_stats_filter) # Recalculate stats
 
-        _all_years_cb = ft.Checkbox(
-            ref=search_all_years_checkbox,
-            label="Search All Years",
-            value=True, # Default to searching all years
-            on_change=on_all_years_toggle
-        )
-
-        _year_checkbox_controls = [
-            ft.Checkbox(
-                ref=search_year_checkboxes_refs[year_str], # Assign ref from dict
-                label=year_str,
-                value=False, # Initially unchecked
-                disabled=True # Initially disabled because "All Years" is true
-            ) for year_str in YEARS
-        ]
-
-        _search_button = ft.ElevatedButton(
-            text="Search",
-            icon=ft.icons.SEARCH_ROUNDED,
-            on_click=perform_search_and_update_list,
-            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
+        def open_edit_jav_dialog_wrapper(jav_item_data):
+            open_edit_jav_dialog(jav_item_data, refresh_view_content)
+        
+        filter_button_ui = create_entry_type_filter_button_with_sheet(
+            page, ALL_ENTRY_TYPES_STR, app_state["year_view_selected_entry_types"], 
+            on_year_view_filter_change, button_label_prefix="Filter Entries"
         )
         
-        _results_lv = ft.ListView(
-            ref=search_results_listview,
+        year_grid_view = ft.GridView(
+            ref=year_grid_view_ref,
+            expand=True, runs_count=5, max_extent=270, child_aspect_ratio=0.67, # Adjust as needed
+            spacing=10, run_spacing=10, padding=ft.padding.all(10)
+        )
+
+        refresh_view_content() # Initial population
+
+        return ft.Column( # This Column should expand
             expand=True,
-            spacing=5,
-            padding=ft.padding.only(top=10, bottom=70) # Add some padding
-        )
-        # Initial message in results list
-        _results_lv.controls.append(
-             ft.Container(content=ft.Text("Enter a term above and click Search.", italic=True, text_align=ft.TextAlign.CENTER), padding=30)
-        )
-
-
-        # --- Layout for Search View ---
-        search_options_row = ft.Row(
-            [_all_years_cb] + _year_checkbox_controls,
-            spacing=10,
-            wrap=True, # Allow checkboxes to wrap if many years
-            alignment=ft.MainAxisAlignment.START
-        )
-
-        return ft.Column(
             controls=[
                 ft.Container(
-                    content=ft.Column(
-                        [
-                            _search_input,
-                            ft.Container(search_options_row, padding=ft.padding.only(top=5, bottom=10)),
-                            _search_button,
-                        ],
-                        spacing=10
-                    ),
-                    padding=ft.padding.all(15) # Padding around search controls
+                    content=ft.Row([filter_button_ui], alignment=ft.MainAxisAlignment.END),
+                    padding=ft.padding.only(left=10, right=10, top=10, bottom=5),
                 ),
-                ft.Divider(height=1, thickness=1),
-                _results_lv # The list view for results
-            ],
-            expand=True,
-            spacing=0 # No space between controls container and list
+                year_grid_view # This GridView should be what expands within the Column
+            ]
         )
 
+    def calculate_and_update_stats_display(filter_year="All Time"):
+        print(f"Calculating stats for display filter: {filter_year}")
+        base_jav_data = []; total_javs, average_score, total_rewatches, total_h_count, unique_genres_count = 0, 0.0, 0, 0, 0; pie_sections_data, legend_items_data = [], []
+        genre_specific_colors = { # Define more colors or a better generation scheme if many genres
+            "action": ft.colors.RED_600, "drama": ft.colors.INDIGO_500, "comedy": ft.colors.ORANGE_600,
+            "school": ft.colors.GREEN_600, "romance": ft.colors.PINK_400, "slice of life": ft.colors.CYAN_700,
+            "fantasy": ft.colors.PURPLE_400, "sci-fi": ft.colors.BLUE_GREY_500, "thriller": ft.colors.DEEP_ORANGE_800,
+            "horror": ft.colors.BLACK, "mystery": ft.colors.TEAL_700, "adventure": ft.colors.AMBER_700,
+            "supernatural": ft.colors.DEEP_PURPLE_400, "sports": ft.colors.LIGHT_GREEN_700,
+            "historical": ft.colors.BROWN_500, "music": ft.colors.LIGHT_BLUE_500,
+            # Add more as common genres are identified
+            "jav": ft.colors.RED_ACCENT_700, "anime": ft.colors.BLUE_ACCENT_700, "movie": ft.colors.GREEN_ACCENT_700,
+            "show": ft.colors.PURPLE_ACCENT_700, "k-drama": ft.colors.ORANGE_ACCENT_700, "hentai": ft.colors.PINK_ACCENT_400,
+            "game": ft.colors.CYAN_ACCENT_700, # <--- ADDED HERE (Example color)
+            # You might also add common game genres like "rpg", "fps", "strategy" etc.
+            "rpg": ft.colors.DEEP_PURPLE_ACCENT_200,
+            "strategy": ft.colors.INDIGO_ACCENT_100,
+        }
+        fallback_genre_colors = [ft.colors.BLUE_500, ft.colors.PURPLE_500, ft.colors.TEAL_500, ft.colors.CYAN_500, ft.colors.LIGHT_BLUE_500, ft.colors.LIME_500, ft.colors.AMBER_500, ft.colors.DEEP_ORANGE_500, ft.colors.LIGHT_GREEN_500, ft.colors.DEEP_PURPLE_500, ft.colors.BROWN_400, ft.colors.BLUE_GREY_500, ft.colors.YELLOW_800]
+        unknown_genre_color = ft.colors.with_opacity(0.5, ft.colors.ON_SURFACE_VARIANT)
 
-    # --- Floating Action Button (FAB) ---
+        try:
+            if filter_year == "All Time": base_jav_data = get_all_javs_db()
+            else:
+                try: year_int = int(filter_year); base_jav_data = get_javs_by_year_db(year_int)
+                except ValueError: base_jav_data = [] # Should not happen with SegmentedButton
+            base_jav_data = base_jav_data or [] # Ensure it's a list
+
+            current_selected_stat_types = app_state["stats_view_selected_entry_types"]
+            jav_data = []
+            if not current_selected_stat_types: # If no types selected for stats, show zero/empty
+                jav_data = []
+            else:
+                jav_data = [
+                    jav for jav in base_jav_data
+                    if jav.get('entry_type') in current_selected_stat_types
+                ]
+            
+            total_javs = len(jav_data);
+            total_rewatches = sum(1 for g in jav_data if g.get('is_rewatch') == 1)
+            total_h_count = sum(1 for g in jav_data if g.get('is_h') == 1) 
+            valid_scores = [g['review_score'] for g in jav_data if g.get('review_score') is not None and isinstance(g['review_score'], (int, float))]
+            average_score = (sum(valid_scores) / len(valid_scores)) if valid_scores else 0.0
+
+            genre_counts = Counter()
+            total_genre_instances = 0 # Count of all genre tags, not unique genres
+            if jav_data:
+                for g in jav_data:
+                    genre_str = g.get('genre')
+                    genres_in_entry = parse_genres(genre_str) # Uses comma separator
+                    if genres_in_entry:
+                        genre_counts.update(genres_in_entry)
+                        total_genre_instances += len(genres_in_entry)
+                    else: # Entry has no genres listed
+                        genre_counts.update(["Unknown Genre"]) # Count items with no genre tag
+                        total_genre_instances += 1 # Each "Unknown Genre" is one instance
+            unique_genres_count = len(genre_counts) # Number of unique genre strings found
+
+            fallback_color_index = 0; sorted_genres = genre_counts.most_common() # Get (genre, count) pairs
+            
+            # Handle empty states for chart and legend
+            if not sorted_genres and total_javs > 0 and not total_genre_instances : # Has items, but no genre data at all
+                 legend_items_data.append(ft.Text("No genre data for selected items."))
+            elif not sorted_genres and total_javs == 0: # No items match filters
+                 legend_items_data.append(ft.Text("No items match current filters."))
+
+
+            for genre, count in sorted_genres:
+                percentage = (count / total_genre_instances * 100) if total_genre_instances > 0 else 0
+                genre_lower = genre.lower().strip() # For color matching
+                
+                assigned_color = unknown_genre_color if genre == "Unknown Genre" else None
+                if assigned_color is None: # Try specific match
+                    assigned_color = genre_specific_colors.get(genre_lower)
+                if assigned_color is None: # Try partial match (e.g., "action comedy" gets "action" color)
+                     for specific_genre_key, color_val in genre_specific_colors.items():
+                        if specific_genre_key in genre_lower:
+                            assigned_color = color_val
+                            break
+                if assigned_color is None: # Fallback color
+                    assigned_color = fallback_genre_colors[fallback_color_index % len(fallback_genre_colors)]
+                    fallback_color_index += 1
+
+                pie_sections_data.append(
+                    ft.PieChartSection(
+                        value=percentage, # Pie chart expects percentages that sum to 100 (or values that it normalizes)
+                        title=f"{percentage:.0f}%" if percentage >= 5 else "", # Show title for larger sections
+                        title_style=ft.TextStyle(size=10, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD), # Adjust color based on theme
+                        color=assigned_color, radius=60 # Adjust radius as needed
+                    )
+                )
+                legend_items_data.append( ft.Row([ ft.Container(width=16, height=16, bgcolor=assigned_color, border_radius=3), ft.Text(f"{genre} ({count})") ], spacing=10))
+            
+            # If no genre data but items exist, show a placeholder in pie chart
+            if not pie_sections_data and total_javs > 0 :
+                 pie_sections_data.append(ft.PieChartSection(value=100, title="", color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE)))
+                 if not legend_items_data: legend_items_data.append(ft.Text("No genre data to display."))
+            elif not pie_sections_data and total_javs == 0: # No data at all
+                 pie_sections_data.append(ft.PieChartSection(value=100, title="N/A", color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE)))
+                 if not legend_items_data: legend_items_data.append(ft.Text("No data for chart."))
+
+
+        except Exception as e: print(f"ERROR DURING STATS CALCULATION: {e}"); traceback.print_exc(); total_javs, average_score, total_rewatches, total_h_count, unique_genres_count = "Error", "N/A", "Error", "Error", "Error"; pie_sections_data, legend_items_data = [], [ft.Text("Error loading genre data.", color=ft.colors.ERROR)]
+
+        # Safely update UI elements, checking if they are still part of the page
+        def safe_update(control_ref, value_attr, new_value, default_value_for_empty_list=None):
+            if control_ref.current and hasattr(control_ref.current, 'page') and control_ref.current.page:
+                if (value_attr == "sections" or value_attr == "controls") and not new_value and default_value_for_empty_list is not None:
+                    setattr(control_ref.current, value_attr, default_value_for_empty_list)
+                else:
+                    setattr(control_ref.current, value_attr, new_value)
+                try: control_ref.current.update()
+                except Exception as update_err: print(f"Error updating control {control_ref}: {update_err}")
+
+
+        safe_update(stats_total_javs_text, "value", str(total_javs))
+        safe_update(stats_avg_score_text, "value", f"{average_score:.1f}" if isinstance(average_score, float) else str(average_score))
+        safe_update(stats_total_rewatches_text, "value", str(total_rewatches))
+        safe_update(stats_total_h_text, "value", str(total_h_count))
+        safe_update(stats_unique_genres_text, "value", str(unique_genres_count))
+        
+        # Ensure pie chart always has at least one section for placeholder if empty
+        pie_placeholder = [ft.PieChartSection(value=1, title="N/A", color=ft.colors.SURFACE_VARIANT)]
+        safe_update(genre_pie_chart, "sections", pie_sections_data if pie_sections_data else pie_placeholder)
+        
+        legend_placeholder = [ft.Text("No genre data.")]
+        safe_update(genre_legend, "controls", legend_items_data if legend_items_data else legend_placeholder)
+        
+        print(f"Stats UI update complete for {filter_year}.")
+
+    def on_stats_filter_change(e): 
+        selected_year = list(e.control.selected)[0] if e.control.selected else "All Time" # Should always have a selection
+        if page: page.run_thread(calculate_and_update_stats_display, selected_year)
+
+    def create_summary_card(icon_name, value_ref, label):
+        return ft.Card(
+            content=ft.Container(
+                padding=15,
+                content=ft.Column(
+                    [
+                        ft.Icon(name=icon_name, size=24),
+                        ft.Text(ref=value_ref, value="...", size=20, weight=ft.FontWeight.BOLD),
+                        ft.Text(label, size=12, color=ft.colors.with_opacity(0.7, ft.colors.ON_SURFACE))
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    alignment=ft.MainAxisAlignment.CENTER, spacing=5,
+                )
+            )
+        )
+    
+    def on_theme_change(e):
+        new_theme_name = e.control.value
+        if new_theme_name and new_theme_name in THEMES:
+            theme_config = THEMES[new_theme_name]
+            page.theme_mode = theme_config["mode"]
+            page.theme.color_scheme_seed = theme_config["seed"]
+            page.update()
+            set_setting_db("current_theme", new_theme_name)
+            show_snackbar(f"Theme changed to {new_theme_name}", duration=2000)
+            # Refresh stats view as colors might need to update based on theme (e.g. pie chart section titles)
+            if app_state["current_view"] == "Stats" and stats_year_filter.current:
+                current_stats_filter = list(stats_year_filter.current.selected)[0] if stats_year_filter.current.selected else "All Time"
+                page.run_thread(calculate_and_update_stats_display, current_stats_filter)
+
+    theme_dropdown = ft.Dropdown(
+        label="App Theme",
+        options=[ft.dropdown.Option(name) for name in THEMES.keys()],
+        value=get_setting_db("current_theme", DEFAULT_THEME_NAME),
+        on_change=on_theme_change, width=250
+    )
+
+    def build_stats_view():
+        print("Building stats view")
+        
+        # Initialize SegmentedButton if it doesn't exist or re-assign on_change
+        if not stats_year_filter.current:
+            stats_year_filter.current = ft.SegmentedButton(
+                segments=[ft.Segment(value="All Time", label=ft.Text("Overall"))] + [ft.Segment(value=year, label=ft.Text(year)) for year in YEARS],
+                selected={"All Time"}, # Default selection
+                allow_empty_selection=False, 
+                show_selected_icon=False, # No checkmark needed
+                on_change=on_stats_filter_change
+            )
+        else: # Ensure on_change is correctly set if rebuilding view
+            stats_year_filter.current.on_change = on_stats_filter_change
+
+        initial_filter = "All Time"
+        if stats_year_filter.current and stats_year_filter.current.selected: # Check if selected is not None
+             initial_filter = list(stats_year_filter.current.selected)[0]
+        
+        def on_stats_entry_type_filter_change():
+            current_year_filter_for_stats = "All Time" # Default
+            if stats_year_filter.current and stats_year_filter.current.selected:
+                current_year_filter_for_stats = list(stats_year_filter.current.selected)[0]
+            page.run_thread(calculate_and_update_stats_display, current_year_filter_for_stats)
+
+        stats_entry_type_filter_button = create_entry_type_filter_button_with_sheet(
+            page, ALL_ENTRY_TYPES_STR, app_state["stats_view_selected_entry_types"], 
+            on_stats_entry_type_filter_change, button_label_prefix="Filter Stats"
+        )
+        
+        # Initial calculation for the stats view
+        page.run_thread(calculate_and_update_stats_display, initial_filter)
+        theme_dropdown.value = get_setting_db("current_theme", DEFAULT_THEME_NAME) # Ensure theme dropdown is current
+
+        controls_list = [
+            ft.Text("Statistics", style=ft.TextThemeStyle.HEADLINE_MEDIUM), 
+            ft.Row([stats_year_filter.current, stats_entry_type_filter_button], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Container(content=ft.Text("Summary", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
+            ft.GridView( runs_count=5, max_extent=180, child_aspect_ratio=1.1, spacing=10, run_spacing=10, controls=[
+                create_summary_card(ft.icons.MOVIE_FILTER_ROUNDED, stats_total_javs_text, "Total Entries Logged"),
+                create_summary_card(ft.icons.STAR_RATE_ROUNDED, stats_avg_score_text, "Average Rating"),
+                create_summary_card(ft.icons.REPLAY_CIRCLE_FILLED_ROUNDED, stats_total_rewatches_text, "Rewatches Logged"),
+                create_summary_card(ft.icons.FLAG_ROUNDED, stats_total_h_text, "Total H Entries"),
+                create_summary_card(ft.icons.CATEGORY_ROUNDED, stats_unique_genres_text, "Unique Genres"),
+            ] ),
+            ft.Container(content=ft.Text("Genre Breakdown", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
+            ft.Card( content=ft.Container( padding=20, content=ft.Row( [ ft.Column( [ ft.PieChart( ref=genre_pie_chart, sections=[], center_space_radius=40, expand=True, sections_space=1, ) ], expand=3, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER ), ft.Column( [ ft.Text("Genres", weight=ft.FontWeight.BOLD), ft.Column( ref=genre_legend, controls=[ft.ProgressRing(width=20, height=20)], spacing=8, scroll=ft.ScrollMode.ADAPTIVE, expand=True) ], expand=2, horizontal_alignment=ft.CrossAxisAlignment.START, scroll=ft.ScrollMode.ADAPTIVE, height=250 ), ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER, ) ) ),
+            ft.Divider(height=20, thickness=1),
+            ft.Text("Settings", style=ft.TextThemeStyle.TITLE_MEDIUM),
+            ft.Row([ft.Text("Theme:"), theme_dropdown], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Divider(height=20, thickness=1),
+            ft.Container(content=ft.Text("Import / Export", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
+            ft.Row( [ ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog), ], spacing=10 ),
+            ft.Text( "CSV Format: Header row required. Columns: Name (Req), Genre, Review_Score, Completion_Date (Req, YYYY-MM-DD or common variations), Description, IsRewatch, IsH, OwnLocalCopy, EntryType, ImageURL (URL or local path - no copying on import). Case insensitive for headers (spaces removed, underscores kept).", italic=True, size=11, color=ft.colors.with_opacity(0.6, ft.colors.ON_SURFACE), max_lines=4 )
+        ]
+        return ft.ListView( expand=True, spacing=20, padding=ft.padding.symmetric(horizontal=20, vertical=10), controls=controls_list )
+
     def fab_clicked(e):
-        # (fab_clicked remains the same, but Search view won't show FAB)
         current_view = app_state["current_view"]
-        print(f"FAB clicked on view: {current_view}")
-        if current_view in YEARS: open_add_game_dialog()
-        elif current_view == "Backlog": open_add_backlog_dialog()
-        else: print(f"Warning: FAB clicked in unexpected view '{current_view}'")
-    fab = ft.FloatingActionButton(icon=ft.icons.ADD, tooltip="Add Item", visible=False, on_click=fab_clicked)
-    page.floating_action_button = fab
-    page.floating_action_button_location = ft.FloatingActionButtonLocation.END_CONTAINED
+        if current_view in YEARS: open_add_jav_dialog()
+        else: show_snackbar("No action available here.") # Should not happen if FAB is hidden
+    fab = ft.FloatingActionButton(icon=ft.icons.ADD, tooltip="Add Entry", visible=False, on_click=fab_clicked)
+    page.floating_action_button = fab; page.floating_action_button_location = ft.FloatingActionButtonLocation.END_CONTAINED
 
-    # --- Navigation Rail ---
-    # Determine initial_index based on app_state["current_view"]
-    # The order of destinations must match this logic.
-    # Destinations: YEARS, then Stats, then Backlog, THEN Search (at the bottom)
-    nav_destinations_config = [(year, ft.icons.CALENDAR_MONTH_OUTLINED, ft.icons.CALENDAR_MONTH) for year in YEARS]
-    nav_destinations_config.append(("Stats", ft.icons.QUERY_STATS_OUTLINED, ft.icons.QUERY_STATS))
-    nav_destinations_config.append(("Backlog", ft.icons.LIST_ALT_OUTLINED, ft.icons.LIST_ALT))
-    nav_destinations_config.append(("Search", ft.icons.SEARCH_OUTLINED, ft.icons.SEARCH_ROUNDED)) # Search is now last
-
-    initial_index = 0 # Default to first year
-    for i, (view_name, _, _) in enumerate(nav_destinations_config):
-        if app_state["current_view"] == view_name:
-            initial_index = i
-            break
-    if app_state["current_view"] not in [cfg[0] for cfg in nav_destinations_config]: # Fallback if default view is bad
-        # If default view was "Search", it will now correctly find its new index.
-        # If default view was something else and not found, default to first year or first item in config.
-        app_state["current_view"] = nav_destinations_config[0][0] if nav_destinations_config else "2024" # Default to first configured item
-        initial_index = 0
-
+    # Determine initial selected index for NavigationRail
+    try:
+        initial_index = YEARS.index(app_state["current_view"])
+    except ValueError: # If current_view is not in YEARS (e.g., "Stats")
+        if app_state["current_view"] == "Stats": initial_index = len(YEARS)
+        else: # Default to first year or Stats if no years
+            initial_index = 0
+            app_state["current_view"] = YEARS[0] if YEARS else "Stats"
 
     rail = ft.NavigationRail(
-        selected_index=initial_index,
-        label_type=ft.NavigationRailLabelType.ALL,
-        min_width=100,
-        min_extended_width=200,
-        group_alignment=-0.9, # This aligns the group of destinations towards the top.
-                              # The last item in the `destinations` list will appear at the bottom of this group.
-        destinations=[
-            ft.NavigationRailDestination(icon=icon_outlined, selected_icon=icon_selected, label=label)
-            for label, icon_outlined, icon_selected in nav_destinations_config
-        ],
+        selected_index=initial_index, label_type=ft.NavigationRailLabelType.ALL,
+        min_width=100, min_extended_width=200, group_alignment=-0.9,
+        destinations=(
+            [ft.NavigationRailDestination(icon=ft.icons.CALENDAR_MONTH_OUTLINED, selected_icon=ft.icons.CALENDAR_MONTH, label=y) for y in YEARS] +
+            [ft.NavigationRailDestination(icon=ft.icons.QUERY_STATS_OUTLINED, selected_icon=ft.icons.QUERY_STATS, label="Stats")]
+        ),
     )
+    main_content_area = ft.Column(expand=True, controls=[]) # This should expand to fill space
 
-    # --- Main Content Area ---
-    main_content_area = ft.Column(expand=True, controls=[])
-
-    # ------ Navigation and Content Update Logic -------
     def update_main_content(view_id):
-        print(f"Updating main content to display view: {view_id}")
         app_state["current_view"] = view_id
-        main_content_area.controls.clear()
-        show_fab, fab_tooltip, content = False, "Add Item", None
-
-        if view_id in YEARS:
-            content = build_year_view(view_id)
-            show_fab = True; fab_tooltip = f"Add Game to {view_id}"
-        elif view_id == "Search": # NEW Search View
-            content = build_search_view()
-            show_fab = False # No FAB on search page
-        elif view_id == "Stats":
-            content = build_stats_view()
-            show_fab = False
-        elif view_id == "Backlog":
-            content = build_backlog_view()
-            show_fab = True; fab_tooltip = "Add to Backlog"
-        else:
-            content = ft.Container(content=ft.Text(f"Error: Unknown view '{view_id}'.", color=ft.Colors.ERROR), padding=20)
-
+        main_content_area.controls.clear(); show_fab, fab_tooltip, content = False, "Add Entry", None
+        if view_id in YEARS: content = build_year_view(view_id); show_fab = True; fab_tooltip = f"Add Entry to {view_id}"
+        elif view_id == "Stats": content = build_stats_view(); show_fab = False
+        else: content = ft.Container(content=ft.Text(f"Error: Unknown view '{view_id}' selected.", color=ft.colors.ERROR), padding=20); show_fab = False
+        
         if content: main_content_area.controls.append(content)
+        
         fab.visible = show_fab; fab.tooltip = fab_tooltip
-
-        if page:
-            main_content_area.update(); fab.update()
-            if view_id == "Stats":
-                initial_filter = list(stats_year_filter.selected)[0] if stats_year_filter.selected else "All Time"
-                print(f"Triggering stats calculation for {initial_filter} AFTER adding view to page.")
-                page.run_thread(calculate_and_update_stats_display, initial_filter)
-        else: print("Warning: Page context lost during view update.")
-
-    def refresh_current_view():
-        print(f"Refreshing current view: {app_state['current_view']}")
-        close_manual_dialog()
-        # If current view is Search, re-trigger the search instead of full rebuild
-        if app_state['current_view'] == "Search":
-            if search_query_field.current: # Check if search view elements are available
-                 # Find the search button or directly call the search function
-                 # For simplicity, let's assume the search function can be called directly
-                 # This requires the search function to be accessible or part of the search view's context
-                 # The `perform_search_and_update_list` is defined within `build_search_view`
-                 # A direct call here is tricky. Instead, `update_main_content` will rebuild it.
-                 # This is simpler and ensures state is fresh.
-                 print("Search view refresh: Rebuilding search view via update_main_content.")
-                 update_main_content(app_state['current_view'])
-            else: # Fallback if search view isn't fully built yet
-                update_main_content(app_state['current_view'])
-
-        else: # For other views, standard refresh
-            update_main_content(app_state['current_view'])
+        if page: 
+            try:
+                main_content_area.update(); fab.update()
+            except Exception as e: print(f"Error updating main content/fab: {e}")
 
 
+    def refresh_current_view(): update_main_content(app_state['current_view'])
     def navigation_change(e):
-        idx = e.control.selected_index
-        new_view = "Unknown"
-        # Logic based on nav_destinations_config order
-        if 0 <= idx < len(nav_destinations_config):
-            new_view = nav_destinations_config[idx][0] # Get the label (view_id)
-        else:
-            print(f"Warning: Invalid navigation index {idx}")
+        idx = e.control.selected_index; new_view = "Unknown"
+        if 0 <= idx < len(YEARS): new_view = YEARS[idx]
+        elif idx == len(YEARS): new_view = "Stats" # Stats is after all year destinations
+        
+        close_manual_dialog() # Close any open custom dialogs
+        # Close any standard AlertDialogs
+        if hasattr(page, 'dialog') and page.dialog is not None and page.dialog.open:
+             page.dialog.open = False
+             if hasattr(page.dialog, 'on_dismiss') and callable(page.dialog.on_dismiss):
+                 page.dialog.on_dismiss(None) # Manually trigger dismiss if needed
+             else: # Fallback if on_dismiss is not standard
+                 if page.dialog in page.overlay: page.overlay.remove(page.dialog)
+                 page.dialog = None
+             if page: page.update()
 
-        print(f"Navigation changed. Index: {idx}, New View: {new_view}")
-        close_manual_dialog()
         if new_view != "Unknown": update_main_content(new_view)
         else: show_snackbar(f"Could not navigate to index {idx}.")
-
     rail.on_change = navigation_change
-    main_layout = ft.Row(
-        controls=[rail, ft.VerticalDivider(width=1), main_content_area],
-        expand=True, vertical_alignment=ft.CrossAxisAlignment.START
-    )
+
+    main_layout = ft.Row(controls=[rail, ft.VerticalDivider(width=1), main_content_area], expand=True, vertical_alignment=ft.CrossAxisAlignment.START)
     main_stack.controls.append(main_layout)
     page.add(main_stack)
-    print(f"Loading initial view: {app_state['current_view']}")
-    update_main_content(app_state["current_view"])
+    update_main_content(app_state["current_view"]) # Initial view load
 
 if __name__ == "__main__":
     ft.app(target=main)
