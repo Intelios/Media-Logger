@@ -85,7 +85,6 @@ def init_db():
                 description TEXT,
                 year_completed INTEGER,
                 is_rewatch INTEGER DEFAULT 0 NOT NULL CHECK(is_rewatch IN (0, 1)),
-                is_h INTEGER DEFAULT 0 NOT NULL CHECK(is_h IN (0, 1)),
                 own_local_copy INTEGER DEFAULT 0 NOT NULL CHECK(own_local_copy IN (0, 1)),
                 image_url TEXT, -- Will store URL or relative path like "images/filename.jpg"
                 entry_type TEXT
@@ -102,9 +101,7 @@ def init_db():
         table_info = cursor.execute("PRAGMA table_info(javs)").fetchall()
         column_names = [info[1] for info in table_info]
 
-        if 'is_h' not in column_names:
-            print("Adding column 'is_h' to 'javs' table.")
-            cursor.execute("ALTER TABLE javs ADD COLUMN is_h INTEGER DEFAULT 0 NOT NULL CHECK(is_h IN (0, 1))")
+        # Note: 'is_h' column and its migration logic have been removed.
         if 'own_local_copy' not in column_names:
             print("Adding column 'own_local_copy' to 'javs' table.")
             cursor.execute("ALTER TABLE javs ADD COLUMN own_local_copy INTEGER DEFAULT 0 NOT NULL CHECK(own_local_copy IN (0, 1))")
@@ -147,7 +144,7 @@ def set_setting_db(key, value):
         if conn: conn.close()
 
 
-def add_jav_db(name, genre_str, completion_date_str, score, description, is_rewatch, is_h, own_local_copy, image_ref_for_db, entry_type):
+def add_jav_db(name, genre_str, completion_date_str, score, description, is_rewatch, own_local_copy, image_ref_for_db, entry_type):
     conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
@@ -157,7 +154,6 @@ def add_jav_db(name, genre_str, completion_date_str, score, description, is_rewa
             try: year_completed = datetime.strptime(completion_date_str, '%Y-%m-%d').year
             except (ValueError, TypeError): pass
         rewatch_int = 1 if is_rewatch else 0
-        h_int = 1 if is_h else 0
         own_local_copy_int = 1 if own_local_copy else 0
         score_to_db = score if score is not None else None
         genre_to_db = genre_str.strip() if genre_str and genre_str.strip() else None
@@ -166,8 +162,8 @@ def add_jav_db(name, genre_str, completion_date_str, score, description, is_rewa
         entry_type_to_db = entry_type.strip() if entry_type and entry_type.strip() else None
 
         cursor.execute(
-            "INSERT INTO javs (name, genre, completion_date, review_score, description, year_completed, is_rewatch, is_h, own_local_copy, image_url, entry_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, h_int, own_local_copy_int, image_to_db, entry_type_to_db)
+            "INSERT INTO javs (name, genre, completion_date, review_score, description, year_completed, is_rewatch, own_local_copy, image_url, entry_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, own_local_copy_int, image_to_db, entry_type_to_db)
         )
         conn.commit()
         print(f"Entry added: {name}")
@@ -181,7 +177,7 @@ def get_javs_by_year_db(year):
         conn = sqlite3.connect(DB_FILE); conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, genre, completion_date, review_score, description, year_completed, is_rewatch, is_h, own_local_copy, image_url, entry_type FROM javs WHERE year_completed = ? ORDER BY completion_date ASC, id ASC", (year,)
+            "SELECT id, name, genre, completion_date, review_score, description, year_completed, is_rewatch, own_local_copy, image_url, entry_type FROM javs WHERE year_completed = ? ORDER BY completion_date ASC, id ASC", (year,)
         )
         javs = [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e: print(f"Database Error getting entries for year {year}: {e}")
@@ -195,7 +191,7 @@ def get_all_javs_db():
         conn = sqlite3.connect(DB_FILE); conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, genre, completion_date, review_score, description, year_completed, is_rewatch, is_h, own_local_copy, image_url, entry_type FROM javs ORDER BY completion_date DESC, id DESC"
+            "SELECT id, name, genre, completion_date, review_score, description, year_completed, is_rewatch, own_local_copy, image_url, entry_type FROM javs ORDER BY completion_date DESC, id DESC"
         )
         javs = [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e: print(f"Database Error getting all entries: {e}")
@@ -213,7 +209,7 @@ def delete_jav_db(jav_id):
     finally:
         if conn: conn.close()
 
-def update_jav_db(jav_id, name, genre_str, completion_date_str, score, description, is_rewatch, is_h, own_local_copy, image_ref_for_db, entry_type):
+def update_jav_db(jav_id, name, genre_str, completion_date_str, score, description, is_rewatch, own_local_copy, image_ref_for_db, entry_type):
     conn = None
     try:
         conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
@@ -222,7 +218,6 @@ def update_jav_db(jav_id, name, genre_str, completion_date_str, score, descripti
             try: year_completed = datetime.strptime(completion_date_str, '%Y-%m-%d').year
             except (ValueError, TypeError): pass
         rewatch_int = 1 if is_rewatch else 0
-        h_int = 1 if is_h else 0
         own_local_copy_int = 1 if own_local_copy else 0
         score_to_db = score if score is not None else None
         genre_to_db = genre_str.strip() if genre_str and genre_str.strip() else None
@@ -231,9 +226,9 @@ def update_jav_db(jav_id, name, genre_str, completion_date_str, score, descripti
         entry_type_to_db = entry_type.strip() if entry_type and entry_type.strip() else None
 
         cursor.execute("""
-            UPDATE javs SET name = ?, genre = ?, completion_date = ?, review_score = ?, description = ?, year_completed = ?, is_rewatch = ?, is_h = ?, own_local_copy = ?, image_url = ?, entry_type = ?
+            UPDATE javs SET name = ?, genre = ?, completion_date = ?, review_score = ?, description = ?, year_completed = ?, is_rewatch = ?, own_local_copy = ?, image_url = ?, entry_type = ?
             WHERE id = ?
-        """, (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, h_int, own_local_copy_int, image_to_db, entry_type_to_db, jav_id))
+        """, (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, own_local_copy_int, image_to_db, entry_type_to_db, jav_id))
         conn.commit()
         print(f"Entry updated: ID {jav_id} - {name}")
     except sqlite3.Error as e: print(f"Database error updating entry ID {jav_id}: {e}")
@@ -345,58 +340,44 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
 
     is_rewatch = jav_item.get('is_rewatch') == 1
     owns_local_copy = jav_item.get('own_local_copy') == 1
-    is_h = jav_item.get('is_h') == 1
+    # is_h removed
 
     parsed_genres = parse_genres(genres_str)
     
-    # Updated spacing and sizing for better hierarchy
     content_padding_val = ft.padding.symmetric(horizontal=14, vertical=12)
     main_content_spacing = 12
-    tag_text_size = 12  # Increased from 11
-    tag_padding = ft.padding.symmetric(horizontal=10, vertical=5)  # More padding
-    tag_border_radius = ft.border_radius.all(6)  # Slightly more rounded
-    date_text_size = 12  # Increased from 11
-    image_height = 140  # Slightly taller
-    title_text_size = 18  # Significantly larger title
+    tag_text_size = 12 
+    tag_padding = ft.padding.symmetric(horizontal=10, vertical=5) 
+    tag_border_radius = ft.border_radius.all(6) 
+    date_text_size = 12 
+    image_height = 140 
+    title_text_size = 18 
 
-    h_badge_widget = None
-    if is_h:
-        h_badge_widget = ft.Container(
-            content=ft.Text("H", size=tag_text_size, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE),
-            bgcolor=ft.colors.ERROR, 
-            padding=ft.padding.symmetric(horizontal=8, vertical=4),  # More padding
-            border_radius=6,
-            tooltip="H-Content",
-            margin=ft.margin.only(left=10)
-        )
+    # h_badge_widget removed
 
-    # Enhanced title with better hierarchy
     title_text_widget = ft.Text(
         name, 
-        weight=ft.FontWeight.W_600,  # Bolder weight
-        size=title_text_size,  # Larger size
+        weight=ft.FontWeight.W_600, 
+        size=title_text_size, 
         max_lines=2,
         overflow=ft.TextOverflow.ELLIPSIS, 
         expand=True,
-        color=ft.colors.ON_SURFACE  # Ensure good contrast
+        color=ft.colors.ON_SURFACE 
     )
     title_row_controls = [title_text_widget]
-    if h_badge_widget:
-        title_row_controls.append(h_badge_widget)
-    title_and_badge_row = ft.Row(
+    # if h_badge_widget: # This logic removed
+    #     title_row_controls.append(h_badge_widget)
+    title_and_badge_row = ft.Row( # Renamed from title_and_badge_row, but effectively just title row now
         controls=title_row_controls, 
         vertical_alignment=ft.CrossAxisAlignment.CENTER,
     )
 
     entry_type_icon_name = get_entry_type_icon_name(entry_type_str)
-    entry_type_tag_bgcolor = ft.colors.PRIMARY_CONTAINER 
-    entry_type_tag_fgcolor = ft.colors.ON_PRIMARY_CONTAINER 
-
-    # Genre-specific color coding for entry types
+    
     entry_type_colors = {
         'Game': (ft.colors.BLUE_700, ft.colors.WHITE),
         'Movie': (ft.colors.RED_700, ft.colors.WHITE),
-        'TV Show': (ft.colors.PURPLE_700, ft.colors.WHITE),
+        'TV Show': (ft.colors.PURPLE_700, ft.colors.WHITE), # Assuming "Show" means "TV Show" for coloring
         'K-Drama': (ft.colors.GREEN_700, ft.colors.WHITE),
         'Anime': (ft.colors.PINK_700, ft.colors.WHITE),
         'Hentai': (ft.colors.DEEP_PURPLE_700, ft.colors.WHITE),
@@ -406,7 +387,6 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     
     entry_type_bg, entry_type_fg = entry_type_colors.get(entry_type_str, (ft.colors.PRIMARY_CONTAINER, ft.colors.ON_PRIMARY_CONTAINER))
 
-    # Enhanced entry type widget with better visual weight and proper sizing
     entry_type_widget = ft.Container(
         content=ft.Row(
             [
@@ -415,7 +395,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
             ],
             spacing=6, 
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            tight=True,  # Prevent overflow
+            tight=True, 
         ),
         bgcolor=entry_type_bg, 
         padding=tag_padding, 
@@ -425,35 +405,32 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     
     rating_badge = create_rating_badge(score)
 
-    # Enhanced genre tags with better visual distinction and overflow protection
     genre_widgets_row = ft.Row(
         wrap=True, 
         spacing=4, 
         run_spacing=4,
-        tight=True,  # Prevent overflow
-        scroll=ft.ScrollMode.AUTO  # Allow horizontal scroll if needed
+        tight=True, 
+        scroll=ft.ScrollMode.AUTO 
     )
     if parsed_genres:
-        # Limit to first 4 genres to prevent overflow
         display_genres = parsed_genres[:4]
         for genre_text in display_genres:
             genre_widgets_row.controls.append(
                 ft.Container(
                     content=ft.Text(
                         genre_text, 
-                        size=tag_text_size - 2,  # Smaller to fit better
+                        size=tag_text_size - 2, 
                         color=ft.colors.ON_SURFACE_VARIANT,
                         weight=ft.FontWeight.W_400,
                         max_lines=1,
                         overflow=ft.TextOverflow.ELLIPSIS
                     ),
                     bgcolor=ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE),
-                    padding=ft.padding.symmetric(horizontal=6, vertical=3),  # Reduced padding
+                    padding=ft.padding.symmetric(horizontal=6, vertical=3), 
                     border_radius=tag_border_radius,
                     border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE))
                 )
             )
-        # Add "..." indicator if there are more genres with tooltip
         if len(parsed_genres) > 4:
             remaining_genres = parsed_genres[4:]
             tooltip_text = ", ".join(remaining_genres)
@@ -468,27 +445,27 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
                     bgcolor=ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE),
                     padding=ft.padding.symmetric(horizontal=6, vertical=3),
                     border_radius=tag_border_radius,
-                    tooltip=tooltip_text,  # Show remaining genres on hover
+                    tooltip=tooltip_text, 
                 )
             )
 
-    indicator_icon_size_bottom = 16  # Slightly larger
-    indicator_icon_opacity_bottom = 0.8  # More visible
+    indicator_icon_size_bottom = 16 
+    indicator_icon_opacity_bottom = 0.8 
     bottom_indicators_list = []
     if is_rewatch:
         bottom_indicators_list.append(ft.Icon(
             ft.icons.REPLAY_ROUNDED, size=indicator_icon_size_bottom, tooltip="Rewatched",
-            color=ft.colors.PRIMARY, opacity=indicator_icon_opacity_bottom  # Use primary color
+            color=ft.colors.PRIMARY, opacity=indicator_icon_opacity_bottom 
         ))
     if owns_local_copy:
         bottom_indicators_list.append(ft.Icon(
             ft.icons.DOWNLOAD_DONE_ROUNDED, size=indicator_icon_size_bottom, tooltip="Owns Local Copy",
-            color=ft.colors.SECONDARY, opacity=indicator_icon_opacity_bottom  # Use secondary color
+            color=ft.colors.SECONDARY, opacity=indicator_icon_opacity_bottom 
         ))
     bottom_indicators_row = ft.Row(controls=bottom_indicators_list, spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
     options_button = ft.PopupMenuButton(
-        content=ft.Icon(ft.icons.MORE_VERT_ROUNDED, color=ft.colors.WHITE, size=20, opacity=0.9),  # Vertical dots, larger
+        content=ft.Icon(ft.icons.MORE_VERT_ROUNDED, color=ft.colors.WHITE, size=20, opacity=0.9), 
         tooltip="Options",
         items=[
             ft.PopupMenuItem(text="Edit", icon=ft.icons.EDIT_OUTLINED, on_click=lambda _, item=jav_item: edit_callback(item)),
@@ -502,7 +479,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         [
             ft.Image(
                 src=image_src_for_flet, height=image_height, width=float('inf'), fit=ft.ImageFit.COVER,
-                border_radius=ft.border_radius.only(top_left=8, top_right=8),  # More rounded
+                border_radius=ft.border_radius.only(top_left=8, top_right=8), 
                 error_content=ft.Container( 
                     content=ft.Column(
                         [ft.Icon(ft.icons.BROKEN_IMAGE, size=32, color=ft.colors.ON_SURFACE_VARIANT),
@@ -515,35 +492,33 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
             ),
             ft.Container( 
                 content=options_button,
-                top=8, right=8,  # More spacing from edges
+                top=8, right=8, 
                 bgcolor=ft.colors.with_opacity(0.3, ft.colors.BLACK87), 
-                padding=ft.padding.all(4),  # More padding
+                padding=ft.padding.all(4), 
                 border_radius=100 
             )
         ]
     )
 
-    # Create a row for entry type and rating to better integrate the rating
     entry_type_and_rating_row = ft.Row(
         controls=[
             ft.Container(
                 content=entry_type_widget,
-                expand=True  # This is the correct way in Flet
+                expand=True 
             ),
-            rating_badge  # Rating badge on the right
+            rating_badge 
         ],
         spacing=8,
         vertical_alignment=ft.CrossAxisAlignment.CENTER
     )
 
     card_content_column_controls = [
-        title_and_badge_row,
-        entry_type_and_rating_row,  # Combined row instead of separate elements
+        title_and_badge_row, # Now just title_row
+        entry_type_and_rating_row, 
     ]
     if genre_widgets_row.controls: 
         card_content_column_controls.append(genre_widgets_row)
     
-    # Enhanced bottom row with better spacing and typography
     card_content_column_controls.append(
         ft.Row(
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN, 
@@ -554,7 +529,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
                     f"{display_completion_date}", 
                     size=date_text_size, 
                     color=ft.colors.ON_SURFACE_VARIANT, 
-                    opacity=0.85,  # More visible
+                    opacity=0.85, 
                     weight=ft.FontWeight.W_400
                 ), 
             ]
@@ -564,8 +539,8 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     card_content_column = ft.Column(
         controls=card_content_column_controls,
         spacing=main_content_spacing,
-        tight=True,  # Prevent overflow
-        scroll=ft.ScrollMode.HIDDEN,  # Hide scroll but allow content to be accessible
+        tight=True, 
+        scroll=ft.ScrollMode.HIDDEN, 
     )
 
     return ft.Card(
@@ -576,9 +551,9 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
                     ft.Container(content=card_content_column, padding=content_padding_val) 
                 ],
                 spacing=0,
-                tight=True  # Prevent overflow
+                tight=True 
             ),
-            clip_behavior=ft.ClipBehavior.HARD_EDGE,  # Clip content that overflows
+            clip_behavior=ft.ClipBehavior.HARD_EDGE, 
         ),
         elevation=2,
         margin=ft.margin.all(8),
@@ -769,7 +744,7 @@ def main(page: ft.Page):
     stats_unique_genres_text = ft.Ref[ft.Text]()
     genre_pie_chart = ft.Ref[ft.PieChart]()
     genre_legend = ft.Ref[ft.Column]()
-    stats_total_h_text = ft.Ref[ft.Text]()
+    # stats_total_h_text ref removed
     main_stack = ft.Stack(expand=True)
     stats_year_filter = ft.Ref[ft.SegmentedButton]()
 
@@ -833,9 +808,9 @@ def main(page: ft.Page):
     def open_import_dialog(e): import_dialog.pick_files(dialog_title="Select CSV Log", allow_multiple=False, allowed_extensions=["csv"])
     
     def import_csv_data(file_path):
-        expected_headers_lower = [
+        expected_headers_lower = [ # "ish" removed
             "name", "genre", "review_score", "completion_date", "description", 
-            "isrewatch", "ish", "ownlocalcopy", "entrytype", "imageurl"
+            "isrewatch", "ownlocalcopy", "entrytype", "imageurl"
         ]
         header_map = {
             "name": "name",
@@ -844,7 +819,7 @@ def main(page: ft.Page):
             "completion_date": "completion_date_str",
             "description": "description",
             "isrewatch": "is_rewatch_csv",
-            "ish": "is_h_csv",
+            # "ish": "is_h_csv", # Removed
             "ownlocalcopy": "own_local_copy_csv",
             "entrytype": "entry_type_csv",
             "imageurl": "image_url_csv"
@@ -895,7 +870,7 @@ def main(page: ft.Page):
                         date_input_str = jav_data_for_db.get("completion_date_str")
                         score_str = jav_data_for_db.get("score")
                         rewatch_csv_str = jav_data_for_db.get("is_rewatch_csv", "false")
-                        h_csv_str = jav_data_for_db.get("is_h_csv", "false")
+                        # h_csv_str removed
                         own_local_copy_csv_str = jav_data_for_db.get("own_local_copy_csv", "false")
                         genre_str_from_csv = jav_data_for_db.get("genre_str")
                         description_val = jav_data_for_db.get("description")
@@ -940,12 +915,12 @@ def main(page: ft.Page):
                             except (ValueError, TypeError): row_warnings.append(f"Invalid Score '{score_str}'. Setting to N/A."); score_int = None
                         
                         is_rewatch = rewatch_csv_str.lower() in ['true', '1', 'yes', 't', 'y']
-                        is_h = h_csv_str.lower() in ['true', '1', 'yes', 't', 'y']
+                        # is_h removed
                         own_local_copy = own_local_copy_csv_str.lower() in ['true', '1', 'yes', 't', 'y']
                         
                         if valid_row:
                             print(f"Row {row_num} ('{name_val}'): Adding to DB. Date for DB: {db_date_str} (Year: {year_for_db}), EntryType: {entry_type_from_csv}")
-                            add_jav_db(name_val, genre_str_from_csv, db_date_str, score_int, description_val, is_rewatch, is_h, own_local_copy, image_url_from_csv, entry_type_from_csv); added_count += 1
+                            add_jav_db(name_val, genre_str_from_csv, db_date_str, score_int, description_val, is_rewatch, own_local_copy, image_url_from_csv, entry_type_from_csv); added_count += 1 # is_h removed from call
                             if row_warnings: warning_messages.extend([f"Row {row_num} ('{name_val}'): {w}" for w in row_warnings])
                         else: 
                             skipped_count += 1; error_messages.append(f"Row {row_num} ('{name_val or '<?>'}'): Skipped - {' | '.join(row_errors)}")
@@ -1130,7 +1105,7 @@ def main(page: ft.Page):
         description_field = ft.TextField(label="Description / Notes", multiline=True, min_lines=2, max_lines=4, capitalization=ft.TextCapitalization.SENTENCES)
         score_dropdown = ft.Dropdown(label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value="N/A")
         rewatch_check = ft.Checkbox(label="This was a Rewatch", value=False)
-        h_check = ft.Checkbox(label="Is H?", value=False)
+        # h_check removed
         own_local_copy_check = ft.Checkbox(label="Own Local Copy?", value=False)
 
         def save_new_jav(e):
@@ -1142,7 +1117,7 @@ def main(page: ft.Page):
             score_str = score_dropdown.value
             description = description_field.value.strip()
             is_rewatch = rewatch_check.value
-            is_h = h_check.value
+            # is_h removed
             own_local_copy = own_local_copy_check.value
             errors = []
 
@@ -1176,7 +1151,7 @@ def main(page: ft.Page):
 
             final_image_ref_for_db = process_and_copy_image(image_source_input)
 
-            add_jav_db(name, genre_input_str, date_str, score_int, description, is_rewatch, is_h, own_local_copy, final_image_ref_for_db, entry_type_val)
+            add_jav_db(name, genre_input_str, date_str, score_int, description, is_rewatch, own_local_copy, final_image_ref_for_db, entry_type_val) # is_h removed from call
             show_snackbar(f"Added '{name}' to {target_year}")
             close_manual_dialog()
             refresh_current_view()
@@ -1190,7 +1165,7 @@ def main(page: ft.Page):
         content_controls = [
             name_field, entry_type_dropdown, image_source_row, genre_field,
             ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_add_date_picker)], alignment=ft.MainAxisAlignment.START),
-            score_dropdown, description_field, rewatch_check, h_check, own_local_copy_check
+            score_dropdown, description_field, rewatch_check, own_local_copy_check # h_check removed
         ]
         action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Entry", on_click=save_new_jav), ]
         manual_dialog = create_dialog_overlay(f"Add Entry to {target_year}", content_controls, action_buttons);
@@ -1201,7 +1176,7 @@ def main(page: ft.Page):
         nonlocal _target_image_field_for_picker
         jav_id = jav_data_to_edit['id']
         
-        edit_name_field_ref = ft.Ref[ft.TextField](); edit_genre_field_ref = ft.Ref[ft.TextField](); edit_date_display_field_ref = ft.Ref[ft.TextField](); edit_score_dropdown_ref = ft.Ref[ft.Dropdown](); edit_description_field_ref = ft.Ref[ft.TextField](); edit_rewatch_check_ref = ft.Ref[ft.Checkbox](); edit_h_check_ref = ft.Ref[ft.Checkbox](); edit_own_local_copy_check_ref = ft.Ref[ft.Checkbox]()
+        edit_name_field_ref = ft.Ref[ft.TextField](); edit_genre_field_ref = ft.Ref[ft.TextField](); edit_date_display_field_ref = ft.Ref[ft.TextField](); edit_score_dropdown_ref = ft.Ref[ft.Dropdown](); edit_description_field_ref = ft.Ref[ft.TextField](); edit_rewatch_check_ref = ft.Ref[ft.Checkbox](); edit_own_local_copy_check_ref = ft.Ref[ft.Checkbox]() # edit_h_check_ref removed
         edit_entry_type_dropdown_ref = ft.Ref[ft.Dropdown]()
         
         name_field = ft.TextField(ref=edit_name_field_ref, label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('name', ''))
@@ -1230,7 +1205,7 @@ def main(page: ft.Page):
         initial_score = jav_data_to_edit.get('review_score'); score_value_str = str(initial_score) if initial_score is not None else "N/A"; score_dropdown = ft.Dropdown(ref=edit_score_dropdown_ref, label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value=score_value_str)
         description_field = ft.TextField(ref=edit_description_field_ref, label="Description / Notes", multiline=True, min_lines=2, max_lines=4, capitalization=ft.TextCapitalization.SENTENCES, value=jav_data_to_edit.get('description', '') or '')
         initial_rewatch = jav_data_to_edit.get('is_rewatch') == 1; rewatch_check = ft.Checkbox(ref=edit_rewatch_check_ref, label="This was a Rewatch", value=initial_rewatch)
-        initial_h = jav_data_to_edit.get('is_h') == 1; h_check = ft.Checkbox(ref=edit_h_check_ref, label="Is H?", value=initial_h)
+        # initial_h and h_check removed
         initial_own_local_copy = jav_data_to_edit.get('own_local_copy') == 1; own_local_copy_check = ft.Checkbox(ref=edit_own_local_copy_check_ref, label="Own Local Copy?", value=initial_own_local_copy)
 
         initial_picker_date = None
@@ -1263,7 +1238,7 @@ def main(page: ft.Page):
             score_str = edit_score_dropdown_ref.current.value
             description = edit_description_field_ref.current.value.strip()
             is_rewatch = edit_rewatch_check_ref.current.value
-            is_h = edit_h_check_ref.current.value
+            # is_h removed
             own_local_copy = edit_own_local_copy_check_ref.current.value
             errors = []
 
@@ -1311,7 +1286,7 @@ def main(page: ft.Page):
                 else: 
                     final_image_ref_for_db = image_source_input 
             
-            update_jav_db(jav_id, name, genre_input_str, date_str, score_int, description, is_rewatch, is_h, own_local_copy, final_image_ref_for_db, entry_type_val)
+            update_jav_db(jav_id, name, genre_input_str, date_str, score_int, description, is_rewatch, own_local_copy, final_image_ref_for_db, entry_type_val) # is_h removed from call
             show_snackbar(f"Updated '{name}'")
             close_manual_dialog() 
             list_refresh_callback()
@@ -1325,7 +1300,7 @@ def main(page: ft.Page):
         content_controls = [
             name_field, entry_type_dropdown, edit_image_source_row, genre_field,
             ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_edit_date_picker)], alignment=ft.MainAxisAlignment.START),
-            score_dropdown, description_field, rewatch_check, h_check, own_local_copy_check
+            score_dropdown, description_field, rewatch_check, own_local_copy_check # h_check removed
         ]
         action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Changes", on_click=save_edited_jav), ]
         manual_dialog = create_dialog_overlay(f"Edit Entry: {jav_data_to_edit['name']}", content_controls, action_buttons, associated_picker=_edit_date_picker_instance)
@@ -1464,7 +1439,8 @@ def main(page: ft.Page):
 
     def calculate_and_update_stats_display(filter_year="All Time"):
         print(f"Calculating stats for display filter: {filter_year}")
-        base_jav_data = []; total_javs, average_score, total_rewatches, total_h_count, unique_genres_count = 0, 0.0, 0, 0, 0; pie_sections_data, legend_items_data = [], []
+        base_jav_data = []; total_javs, average_score, total_rewatches, unique_genres_count = 0, 0.0, 0, 0 # total_h_count removed
+        pie_sections_data, legend_items_data = [], []
         genre_specific_colors = { 
             "action": ft.colors.RED_600, "drama": ft.colors.INDIGO_500, "comedy": ft.colors.ORANGE_600,
             "school": ft.colors.GREEN_600, "romance": ft.colors.PINK_400, "slice of life": ft.colors.CYAN_700,
@@ -1500,7 +1476,7 @@ def main(page: ft.Page):
             
             total_javs = len(jav_data);
             total_rewatches = sum(1 for g in jav_data if g.get('is_rewatch') == 1)
-            total_h_count = sum(1 for g in jav_data if g.get('is_h') == 1) 
+            # total_h_count calculation removed
             valid_scores = [g['review_score'] for g in jav_data if g.get('review_score') is not None and isinstance(g['review_score'], (int, float))]
             average_score = (sum(valid_scores) / len(valid_scores)) if valid_scores else 0.0
 
@@ -1560,7 +1536,7 @@ def main(page: ft.Page):
                  if not legend_items_data: legend_items_data.append(ft.Text("No data for chart."))
 
 
-        except Exception as e: print(f"ERROR DURING STATS CALCULATION: {e}"); traceback.print_exc(); total_javs, average_score, total_rewatches, total_h_count, unique_genres_count = "Error", "N/A", "Error", "Error", "Error"; pie_sections_data, legend_items_data = [], [ft.Text("Error loading genre data.", color=ft.colors.ERROR)]
+        except Exception as e: print(f"ERROR DURING STATS CALCULATION: {e}"); traceback.print_exc(); total_javs, average_score, total_rewatches, unique_genres_count = "Error", "N/A", "Error", "Error"; pie_sections_data, legend_items_data = [], [ft.Text("Error loading genre data.", color=ft.colors.ERROR)] # total_h_count removed
 
         def safe_update(control_ref, value_attr, new_value, default_value_for_empty_list=None):
             if control_ref.current and hasattr(control_ref.current, 'page') and control_ref.current.page:
@@ -1575,7 +1551,7 @@ def main(page: ft.Page):
         safe_update(stats_total_javs_text, "value", str(total_javs))
         safe_update(stats_avg_score_text, "value", f"{average_score:.1f}" if isinstance(average_score, float) else str(average_score))
         safe_update(stats_total_rewatches_text, "value", str(total_rewatches))
-        safe_update(stats_total_h_text, "value", str(total_h_count))
+        # safe_update for stats_total_h_text removed
         safe_update(stats_unique_genres_text, "value", str(unique_genres_count))
         
         pie_placeholder = [ft.PieChartSection(value=1, title="N/A", color=ft.colors.SURFACE_VARIANT)]
@@ -1671,7 +1647,7 @@ def main(page: ft.Page):
                 create_summary_card(ft.icons.MOVIE_FILTER_ROUNDED, stats_total_javs_text, "Total Entries Logged"),
                 create_summary_card(ft.icons.STAR_RATE_ROUNDED, stats_avg_score_text, "Average Rating"),
                 create_summary_card(ft.icons.REPLAY_CIRCLE_FILLED_ROUNDED, stats_total_rewatches_text, "Rewatches Logged"),
-                create_summary_card(ft.icons.FLAG_ROUNDED, stats_total_h_text, "Total H Entries"),
+                # create_summary_card for "Total H Entries" removed
                 create_summary_card(ft.icons.CATEGORY_ROUNDED, stats_unique_genres_text, "Unique Genres"),
             ] ),
             ft.Container(content=ft.Text("Genre Breakdown", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
@@ -1682,7 +1658,7 @@ def main(page: ft.Page):
             ft.Divider(height=20, thickness=1),
             ft.Container(content=ft.Text("Import / Export", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
             ft.Row( [ ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog), ], spacing=10 ),
-            ft.Text( "CSV Format: Header row required. Columns: Name (Req), Genre, Review_Score, Completion_Date (Req, YYYY-MM-DD or common variations), Description, IsRewatch, IsH, OwnLocalCopy, EntryType, ImageURL (URL or local path - no copying on import). Case insensitive for headers (spaces removed, underscores kept).", italic=True, size=11, color=ft.colors.with_opacity(0.6, ft.colors.ON_SURFACE), max_lines=4 )
+            ft.Text( "CSV Format: Header row required. Columns: Name (Req), Genre, Review_Score, Completion_Date (Req, YYYY-MM-DD or common variations), Description, IsRewatch, OwnLocalCopy, EntryType, ImageURL (URL or local path - no copying on import). Case insensitive for headers (spaces removed, underscores kept).", italic=True, size=11, color=ft.colors.with_opacity(0.6, ft.colors.ON_SURFACE), max_lines=4 ) # "IsH" removed from CSV format description
         ]
         return ft.ListView( expand=True, spacing=20, padding=ft.padding.symmetric(horizontal=20, vertical=10), controls=controls_list )
 
