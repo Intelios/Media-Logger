@@ -399,8 +399,8 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         'TV Show': (ft.colors.PURPLE_700, ft.colors.WHITE),
         'K-Drama': (ft.colors.GREEN_700, ft.colors.WHITE),
         'Anime': (ft.colors.PINK_700, ft.colors.WHITE),
-        'Hentai': (ft.colors.ORANGE_700, ft.colors.WHITE),
-        'JAV': (ft.colors.CYAN_700, ft.colors.WHITE),
+        'Hentai': (ft.colors.DEEP_PURPLE_700, ft.colors.WHITE),
+        'JAV': (ft.colors.INDIGO_700, ft.colors.WHITE),
         'Other': (ft.colors.BROWN_700, ft.colors.WHITE),
     }
     
