@@ -339,7 +339,6 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
             display_completion_date = completion_date_str_db 
             print(f"Warning: Could not parse date '{completion_date_str_db}' for display in gallery card for '{name}'.")
 
-
     score = jav_item.get('review_score')
     description_value = jav_item.get('description')
     has_description = bool(description_value and description_value.strip())
@@ -350,85 +349,146 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
 
     parsed_genres = parse_genres(genres_str)
     
-    content_padding_val = ft.padding.symmetric(horizontal=12, vertical=10)
-    main_content_spacing = 10
-    tag_text_size = 11
-    tag_padding = ft.padding.symmetric(horizontal=8, vertical=4)
-    tag_border_radius = ft.border_radius.all(5)
-    date_text_size = 11
-    image_height = 130 
+    # Updated spacing and sizing for better hierarchy
+    content_padding_val = ft.padding.symmetric(horizontal=14, vertical=12)
+    main_content_spacing = 12
+    tag_text_size = 12  # Increased from 11
+    tag_padding = ft.padding.symmetric(horizontal=10, vertical=5)  # More padding
+    tag_border_radius = ft.border_radius.all(6)  # Slightly more rounded
+    date_text_size = 12  # Increased from 11
+    image_height = 140  # Slightly taller
+    title_text_size = 18  # Significantly larger title
 
     h_badge_widget = None
     if is_h:
         h_badge_widget = ft.Container(
-            content=ft.Text("H", size=tag_text_size -1, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE),
-            bgcolor=ft.colors.ERROR_CONTAINER, 
-            padding=ft.padding.symmetric(horizontal=6, vertical=2),
-            border_radius=4,
+            content=ft.Text("H", size=tag_text_size, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE),
+            bgcolor=ft.colors.ERROR, 
+            padding=ft.padding.symmetric(horizontal=8, vertical=4),  # More padding
+            border_radius=6,
             tooltip="H-Content",
-            margin=ft.margin.only(left=8)
+            margin=ft.margin.only(left=10)
         )
 
+    # Enhanced title with better hierarchy
     title_text_widget = ft.Text(
-        name, weight=ft.FontWeight.W_500, size=15, max_lines=2,
-        overflow=ft.TextOverflow.ELLIPSIS, expand=True
+        name, 
+        weight=ft.FontWeight.W_600,  # Bolder weight
+        size=title_text_size,  # Larger size
+        max_lines=2,
+        overflow=ft.TextOverflow.ELLIPSIS, 
+        expand=True,
+        color=ft.colors.ON_SURFACE  # Ensure good contrast
     )
     title_row_controls = [title_text_widget]
     if h_badge_widget:
         title_row_controls.append(h_badge_widget)
     title_and_badge_row = ft.Row(
-        controls=title_row_controls, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        controls=title_row_controls, 
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
     )
 
     entry_type_icon_name = get_entry_type_icon_name(entry_type_str)
     entry_type_tag_bgcolor = ft.colors.PRIMARY_CONTAINER 
     entry_type_tag_fgcolor = ft.colors.ON_PRIMARY_CONTAINER 
 
+    # Genre-specific color coding for entry types
+    entry_type_colors = {
+        'Game': (ft.colors.BLUE_700, ft.colors.WHITE),
+        'Movie': (ft.colors.RED_700, ft.colors.WHITE),
+        'TV Show': (ft.colors.PURPLE_700, ft.colors.WHITE),
+        'K-Drama': (ft.colors.GREEN_700, ft.colors.WHITE),
+        'Anime': (ft.colors.PINK_700, ft.colors.WHITE),
+        'Hentai': (ft.colors.ORANGE_700, ft.colors.WHITE),
+        'JAV': (ft.colors.CYAN_700, ft.colors.WHITE),
+        'Other': (ft.colors.BROWN_700, ft.colors.WHITE),
+    }
+    
+    entry_type_bg, entry_type_fg = entry_type_colors.get(entry_type_str, (ft.colors.PRIMARY_CONTAINER, ft.colors.ON_PRIMARY_CONTAINER))
+
+    # Enhanced entry type widget with better visual weight and proper sizing
     entry_type_widget = ft.Container(
         content=ft.Row(
             [
-                ft.Icon(entry_type_icon_name, size=tag_text_size + 1, color=entry_type_tag_fgcolor, opacity=0.9),
-                ft.Text(entry_type_str, size=tag_text_size, color=entry_type_tag_fgcolor, weight=ft.FontWeight.NORMAL)
+                ft.Icon(entry_type_icon_name, size=tag_text_size + 1, color=entry_type_fg),
+                ft.Text(entry_type_str, size=tag_text_size, color=entry_type_fg, weight=ft.FontWeight.W_500)
             ],
-            spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=6, 
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            tight=True,  # Prevent overflow
         ),
-        bgcolor=entry_type_tag_bgcolor, padding=tag_padding, border_radius=tag_border_radius,
-        width=float('inf'), alignment=ft.alignment.center 
+        bgcolor=entry_type_bg, 
+        padding=tag_padding, 
+        border_radius=tag_border_radius,
+        alignment=ft.alignment.center
     )
     
     rating_badge = create_rating_badge(score)
 
-    genre_widgets_row = ft.Row(wrap=True, spacing=5, run_spacing=5)
+    # Enhanced genre tags with better visual distinction and overflow protection
+    genre_widgets_row = ft.Row(
+        wrap=True, 
+        spacing=4, 
+        run_spacing=4,
+        tight=True,  # Prevent overflow
+        scroll=ft.ScrollMode.AUTO  # Allow horizontal scroll if needed
+    )
     if parsed_genres:
-        for genre_text in parsed_genres:
+        # Limit to first 4 genres to prevent overflow
+        display_genres = parsed_genres[:4]
+        for genre_text in display_genres:
             genre_widgets_row.controls.append(
                 ft.Container(
                     content=ft.Text(
-                        genre_text, size=tag_text_size, color=ft.colors.ON_SURFACE_VARIANT 
+                        genre_text, 
+                        size=tag_text_size - 2,  # Smaller to fit better
+                        color=ft.colors.ON_SURFACE_VARIANT,
+                        weight=ft.FontWeight.W_400,
+                        max_lines=1,
+                        overflow=ft.TextOverflow.ELLIPSIS
                     ),
-                    bgcolor=ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE), 
-                    padding=ft.padding.symmetric(horizontal=7, vertical=3),
+                    bgcolor=ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE),
+                    padding=ft.padding.symmetric(horizontal=6, vertical=3),  # Reduced padding
                     border_radius=tag_border_radius,
+                    border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE))
+                )
+            )
+        # Add "..." indicator if there are more genres with tooltip
+        if len(parsed_genres) > 4:
+            remaining_genres = parsed_genres[4:]
+            tooltip_text = ", ".join(remaining_genres)
+            genre_widgets_row.controls.append(
+                ft.Container(
+                    content=ft.Text(
+                        f"+{len(parsed_genres) - 4}", 
+                        size=tag_text_size - 2,
+                        color=ft.colors.ON_SURFACE_VARIANT,
+                        weight=ft.FontWeight.W_500
+                    ),
+                    bgcolor=ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE),
+                    padding=ft.padding.symmetric(horizontal=6, vertical=3),
+                    border_radius=tag_border_radius,
+                    tooltip=tooltip_text,  # Show remaining genres on hover
                 )
             )
 
-    indicator_icon_size_bottom = 14
-    indicator_icon_opacity_bottom = 0.7
+    indicator_icon_size_bottom = 16  # Slightly larger
+    indicator_icon_opacity_bottom = 0.8  # More visible
     bottom_indicators_list = []
     if is_rewatch:
         bottom_indicators_list.append(ft.Icon(
             ft.icons.REPLAY_ROUNDED, size=indicator_icon_size_bottom, tooltip="Rewatched",
-            color=ft.colors.ON_SURFACE_VARIANT, opacity=indicator_icon_opacity_bottom
+            color=ft.colors.PRIMARY, opacity=indicator_icon_opacity_bottom  # Use primary color
         ))
     if owns_local_copy:
         bottom_indicators_list.append(ft.Icon(
             ft.icons.DOWNLOAD_DONE_ROUNDED, size=indicator_icon_size_bottom, tooltip="Owns Local Copy",
-            color=ft.colors.ON_SURFACE_VARIANT, opacity=indicator_icon_opacity_bottom
+            color=ft.colors.SECONDARY, opacity=indicator_icon_opacity_bottom  # Use secondary color
         ))
-    bottom_indicators_row = ft.Row(controls=bottom_indicators_list, spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+    bottom_indicators_row = ft.Row(controls=bottom_indicators_list, spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
     options_button = ft.PopupMenuButton(
-        content=ft.Icon(ft.icons.MORE_HORIZ_ROUNDED, color=ft.colors.WHITE, size=18, opacity=0.85), 
+        content=ft.Icon(ft.icons.MORE_VERT_ROUNDED, color=ft.colors.WHITE, size=20, opacity=0.9),  # Vertical dots, larger
         tooltip="Options",
         items=[
             ft.PopupMenuItem(text="Edit", icon=ft.icons.EDIT_OUTLINED, on_click=lambda _, item=jav_item: edit_callback(item)),
@@ -442,61 +502,87 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         [
             ft.Image(
                 src=image_src_for_flet, height=image_height, width=float('inf'), fit=ft.ImageFit.COVER,
-                border_radius=ft.border_radius.only(top_left=6, top_right=6),
+                border_radius=ft.border_radius.only(top_left=8, top_right=8),  # More rounded
                 error_content=ft.Container( 
                     content=ft.Column(
-                        [ft.Icon(ft.icons.BROKEN_IMAGE, size=30, color=ft.colors.ON_SURFACE_VARIANT),
-                         ft.Text("Image Error", size=10, color=ft.colors.ON_SURFACE_VARIANT)],
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=3,
+                        [ft.Icon(ft.icons.BROKEN_IMAGE, size=32, color=ft.colors.ON_SURFACE_VARIANT),
+                         ft.Text("Image Error", size=11, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500)],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=4,
                     ),
                     height=image_height, width=float('inf'), bgcolor=ft.colors.SURFACE_VARIANT,
-                    border_radius=ft.border_radius.only(top_left=6, top_right=6), alignment=ft.alignment.center
+                    border_radius=ft.border_radius.only(top_left=8, top_right=8), alignment=ft.alignment.center
                 )
             ),
             ft.Container( 
                 content=options_button,
-                top=5, right=5, 
-                bgcolor=ft.colors.with_opacity(0.25, ft.colors.BLACK87), 
-                padding=ft.padding.all(2), 
+                top=8, right=8,  # More spacing from edges
+                bgcolor=ft.colors.with_opacity(0.3, ft.colors.BLACK87), 
+                padding=ft.padding.all(4),  # More padding
                 border_radius=100 
             )
         ]
     )
 
+    # Create a row for entry type and rating to better integrate the rating
+    entry_type_and_rating_row = ft.Row(
+        controls=[
+            ft.Container(
+                content=entry_type_widget,
+                expand=True  # This is the correct way in Flet
+            ),
+            rating_badge  # Rating badge on the right
+        ],
+        spacing=8,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER
+    )
+
     card_content_column_controls = [
         title_and_badge_row,
-        entry_type_widget, 
-        rating_badge, 
+        entry_type_and_rating_row,  # Combined row instead of separate elements
     ]
     if genre_widgets_row.controls: 
         card_content_column_controls.append(genre_widgets_row)
     
+    # Enhanced bottom row with better spacing and typography
     card_content_column_controls.append(
         ft.Row(
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN, 
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
             controls=[
                 bottom_indicators_row if bottom_indicators_list else ft.Container(), 
-                ft.Text(f"{display_completion_date}", size=date_text_size, color=ft.colors.ON_SURFACE_VARIANT, opacity=0.75), 
+                ft.Text(
+                    f"{display_completion_date}", 
+                    size=date_text_size, 
+                    color=ft.colors.ON_SURFACE_VARIANT, 
+                    opacity=0.85,  # More visible
+                    weight=ft.FontWeight.W_400
+                ), 
             ]
         )
     )
     
     card_content_column = ft.Column(
         controls=card_content_column_controls,
-        spacing=main_content_spacing, 
+        spacing=main_content_spacing,
+        tight=True,  # Prevent overflow
+        scroll=ft.ScrollMode.HIDDEN,  # Hide scroll but allow content to be accessible
     )
 
     return ft.Card(
-        content=ft.Column(
-            [
-                image_stack,
-                ft.Container(content=card_content_column, padding=content_padding_val) 
-            ],
-            spacing=0 
+        content=ft.Container(
+            content=ft.Column(
+                [
+                    image_stack,
+                    ft.Container(content=card_content_column, padding=content_padding_val) 
+                ],
+                spacing=0,
+                tight=True  # Prevent overflow
+            ),
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,  # Clip content that overflows
         ),
-        elevation=1, 
-        margin=ft.margin.all(7), 
-        shape=ft.RoundedRectangleBorder(radius=6), 
+        elevation=2,
+        margin=ft.margin.all(8),
+        shape=ft.RoundedRectangleBorder(radius=8),
     )
 
 # --- Helper function to create entry type filter UI (Button + BottomSheet) ---
