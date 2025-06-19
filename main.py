@@ -1647,7 +1647,7 @@ def main(page: ft.Page):
         
         year_grid_view = ft.GridView(
             ref=year_grid_view_ref,
-            expand=True, runs_count=5, max_extent=270, child_aspect_ratio=0.72, 
+            expand=True, runs_count=5, max_extent=270, child_aspect_ratio=0.68, 
             spacing=10, run_spacing=10, padding=ft.padding.all(10)
         )
 
