@@ -49,8 +49,9 @@ DEFAULT_THEME_NAME = "Deep Purple (Dark)"
 
 ENTRY_TYPE_OPTIONS = [
     ft.dropdown.Option("Movie"), ft.dropdown.Option("Show"), ft.dropdown.Option("Anime"),
+    ft.dropdown.Option("Book"), # Added
     ft.dropdown.Option("K-Drama"), ft.dropdown.Option("JAV"), ft.dropdown.Option("Hentai"),
-    ft.dropdown.Option("Game"), ft.dropdown.Option("Adult Visual Novel"), # Added
+    ft.dropdown.Option("Game"), ft.dropdown.Option("Adult Visual Novel"),
     ft.dropdown.Option("Other"),
 ]
 ALL_ENTRY_TYPES_STR = [opt.key for opt in ENTRY_TYPE_OPTIONS if opt.key]
@@ -87,8 +88,13 @@ def init_db():
                 year_completed INTEGER,
                 is_rewatch INTEGER DEFAULT 0 NOT NULL CHECK(is_rewatch IN (0, 1)),
                 own_local_copy INTEGER DEFAULT 0 NOT NULL CHECK(own_local_copy IN (0, 1)),
-                image_url TEXT, -- Will store URL or relative path like "images/filename.jpg"
-                entry_type TEXT
+                image_url TEXT,
+                entry_type TEXT,
+                platform TEXT,
+                author TEXT,
+                director TEXT,
+                actress TEXT,
+                update_version TEXT
             )
         """)
         # App Settings table
@@ -102,7 +108,7 @@ def init_db():
         table_info = cursor.execute("PRAGMA table_info(javs)").fetchall()
         column_names = [info[1] for info in table_info]
 
-        # Note: 'is_h' column and its migration logic have been removed.
+        # Migration for older versions
         if 'own_local_copy' not in column_names:
             print("Adding column 'own_local_copy' to 'javs' table.")
             cursor.execute("ALTER TABLE javs ADD COLUMN own_local_copy INTEGER DEFAULT 0 NOT NULL CHECK(own_local_copy IN (0, 1))")
@@ -112,6 +118,21 @@ def init_db():
         if 'entry_type' not in column_names:
             print("Adding column 'entry_type' to 'javs' table.")
             cursor.execute("ALTER TABLE javs ADD COLUMN entry_type TEXT")
+        if 'platform' not in column_names:
+            print("Adding column 'platform' to 'javs' table.")
+            cursor.execute("ALTER TABLE javs ADD COLUMN platform TEXT")
+        if 'author' not in column_names:
+            print("Adding column 'author' to 'javs' table.")
+            cursor.execute("ALTER TABLE javs ADD COLUMN author TEXT")
+        if 'director' not in column_names:
+            print("Adding column 'director' to 'javs' table.")
+            cursor.execute("ALTER TABLE javs ADD COLUMN director TEXT")
+        if 'actress' not in column_names:
+            print("Adding column 'actress' to 'javs' table.")
+            cursor.execute("ALTER TABLE javs ADD COLUMN actress TEXT")
+        if 'update_version' not in column_names:
+            print("Adding column 'update_version' to 'javs' table.")
+            cursor.execute("ALTER TABLE javs ADD COLUMN update_version TEXT")
 
         conn.commit()
         print("Database initialized successfully.")
@@ -145,7 +166,7 @@ def set_setting_db(key, value):
         if conn: conn.close()
 
 
-def add_jav_db(name, genre_str, completion_date_str, score, description, is_rewatch, own_local_copy, image_ref_for_db, entry_type):
+def add_jav_db(name, genre_str, completion_date_str, score, description, is_rewatch, own_local_copy, image_ref_for_db, entry_type, conditional_data: dict):
     conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
@@ -161,10 +182,16 @@ def add_jav_db(name, genre_str, completion_date_str, score, description, is_rewa
         description_to_db = description.strip() if description and description.strip() else None
         image_to_db = image_ref_for_db.strip() if image_ref_for_db and image_ref_for_db.strip() else None
         entry_type_to_db = entry_type.strip() if entry_type and entry_type.strip() else None
+        
+        platform_to_db = conditional_data.get("platform", "").strip() or None
+        author_to_db = conditional_data.get("author", "").strip() or None
+        director_to_db = conditional_data.get("director", "").strip() or None
+        actress_to_db = conditional_data.get("actress", "").strip() or None
+        version_to_db = conditional_data.get("update_version", "").strip() or None
 
         cursor.execute(
-            "INSERT INTO javs (name, genre, completion_date, review_score, description, year_completed, is_rewatch, own_local_copy, image_url, entry_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, own_local_copy_int, image_to_db, entry_type_to_db)
+            "INSERT INTO javs (name, genre, completion_date, review_score, description, year_completed, is_rewatch, own_local_copy, image_url, entry_type, platform, author, director, actress, update_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, own_local_copy_int, image_to_db, entry_type_to_db, platform_to_db, author_to_db, director_to_db, actress_to_db, version_to_db)
         )
         conn.commit()
         print(f"Entry added: {name}")
@@ -178,7 +205,7 @@ def get_javs_by_year_db(year):
         conn = sqlite3.connect(DB_FILE); conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, genre, completion_date, review_score, description, year_completed, is_rewatch, own_local_copy, image_url, entry_type FROM javs WHERE year_completed = ? ORDER BY completion_date ASC, id ASC", (year,)
+            "SELECT * FROM javs WHERE year_completed = ? ORDER BY completion_date ASC, id ASC", (year,)
         )
         javs = [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e: print(f"Database Error getting entries for year {year}: {e}")
@@ -192,7 +219,7 @@ def get_all_javs_db():
         conn = sqlite3.connect(DB_FILE); conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, genre, completion_date, review_score, description, year_completed, is_rewatch, own_local_copy, image_url, entry_type FROM javs ORDER BY completion_date DESC, id DESC"
+            "SELECT * FROM javs ORDER BY completion_date DESC, id DESC"
         )
         javs = [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e: print(f"Database Error getting all entries: {e}")
@@ -210,7 +237,7 @@ def delete_jav_db(jav_id):
     finally:
         if conn: conn.close()
 
-def update_jav_db(jav_id, name, genre_str, completion_date_str, score, description, is_rewatch, own_local_copy, image_ref_for_db, entry_type):
+def update_jav_db(jav_id, name, genre_str, completion_date_str, score, description, is_rewatch, own_local_copy, image_ref_for_db, entry_type, conditional_data: dict):
     conn = None
     try:
         conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
@@ -225,11 +252,17 @@ def update_jav_db(jav_id, name, genre_str, completion_date_str, score, descripti
         description_to_db = description.strip() if description and description.strip() else None
         image_to_db = image_ref_for_db.strip() if image_ref_for_db and image_ref_for_db.strip() else None
         entry_type_to_db = entry_type.strip() if entry_type and entry_type.strip() else None
+        
+        platform_to_db = conditional_data.get("platform", "").strip() or None
+        author_to_db = conditional_data.get("author", "").strip() or None
+        director_to_db = conditional_data.get("director", "").strip() or None
+        actress_to_db = conditional_data.get("actress", "").strip() or None
+        version_to_db = conditional_data.get("update_version", "").strip() or None
 
         cursor.execute("""
-            UPDATE javs SET name = ?, genre = ?, completion_date = ?, review_score = ?, description = ?, year_completed = ?, is_rewatch = ?, own_local_copy = ?, image_url = ?, entry_type = ?
+            UPDATE javs SET name = ?, genre = ?, completion_date = ?, review_score = ?, description = ?, year_completed = ?, is_rewatch = ?, own_local_copy = ?, image_url = ?, entry_type = ?, platform = ?, author = ?, director = ?, actress = ?, update_version = ?
             WHERE id = ?
-        """, (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, own_local_copy_int, image_to_db, entry_type_to_db, jav_id))
+        """, (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, own_local_copy_int, image_to_db, entry_type_to_db, platform_to_db, author_to_db, director_to_db, actress_to_db, version_to_db, jav_id))
         conn.commit()
         print(f"Entry updated: ID {jav_id} - {name}")
     except sqlite3.Error as e: print(f"Database error updating entry ID {jav_id}: {e}")
@@ -270,11 +303,12 @@ def get_entry_type_icon_name(entry_type_str: str) -> str:
     if "movie" in entry_type_str_lower: return ft.icons.MOVIE_OUTLINED
     if "show" in entry_type_str_lower: return ft.icons.TV_OUTLINED
     if "anime" in entry_type_str_lower: return ft.icons.ANIMATION_OUTLINED
+    if "book" in entry_type_str_lower: return ft.icons.BOOK_OUTLINED
     if "k-drama" in entry_type_str_lower: return ft.icons.LIVE_TV_OUTLINED
     if "jav" in entry_type_str_lower: return ft.icons.VIDEO_CAMERA_BACK_OUTLINED
     if "hentai" in entry_type_str_lower: return ft.icons.FILTER_FRAMES_OUTLINED
     if "game" in entry_type_str_lower: return ft.icons.SPORTS_ESPORTS_OUTLINED
-    if "adult visual novel" in entry_type_str_lower: return ft.icons.MENU_BOOK_OUTLINED # Added
+    if "adult visual novel" in entry_type_str_lower: return ft.icons.MENU_BOOK_OUTLINED
     return ft.icons.LABEL_OUTLINED
 
 def get_genre_icon_name(genre_str: str) -> str:
@@ -374,13 +408,14 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     entry_type_colors = {
         'Game': (ft.colors.BLUE_700, ft.colors.WHITE),
         'Movie': (ft.colors.RED_700, ft.colors.WHITE),
-        'Show': (ft.colors.PURPLE_700, ft.colors.WHITE), # Assuming "Show" means "TV Show" for coloring
+        'Show': (ft.colors.PURPLE_700, ft.colors.WHITE),
         'K-Drama': (ft.colors.GREEN_700, ft.colors.WHITE),
         'Anime': (ft.colors.PINK_700, ft.colors.WHITE),
+        'Book': (ft.colors.BROWN_500, ft.colors.WHITE),
         'Hentai': (ft.colors.DEEP_PURPLE_700, ft.colors.WHITE),
         'JAV': (ft.colors.INDIGO_700, ft.colors.WHITE),
-        'Adult Visual Novel': (ft.colors.DEEP_ORANGE_ACCENT_700, ft.colors.WHITE), # Added
-        'Other': (ft.colors.BROWN_700, ft.colors.WHITE),
+        'Adult Visual Novel': (ft.colors.DEEP_ORANGE_ACCENT_700, ft.colors.WHITE),
+        'Other': (ft.colors.BLUE_GREY_700, ft.colors.WHITE),
     }
     
     entry_type_bg, entry_type_fg = entry_type_colors.get(entry_type_str, (ft.colors.PRIMARY_CONTAINER, ft.colors.ON_PRIMARY_CONTAINER))
@@ -514,6 +549,39 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         title_and_badge_row,
         entry_type_and_rating_row, 
     ]
+
+    # --- Type-specific info ---
+    type_specific_info_container = ft.Row(wrap=True, spacing=8, run_spacing=4)
+
+    def create_info_chip(icon, text, tooltip_prefix):
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Icon(icon, size=tag_text_size, color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Text(text, size=tag_text_size - 1, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
+                ],
+                spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True,
+            ),
+            bgcolor=ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE),
+            padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            border_radius=tag_border_radius,
+            tooltip=f"{tooltip_prefix}: {text}"
+        )
+
+    if jav_item.get('platform'):
+        type_specific_info_container.controls.append(create_info_chip(ft.icons.VIDEOGAME_ASSET_OUTLINED, jav_item['platform'], "Platform"))
+    if jav_item.get('author'):
+        type_specific_info_container.controls.append(create_info_chip(ft.icons.PERSON_OUTLINE, jav_item['author'], "Author"))
+    if jav_item.get('director'):
+        type_specific_info_container.controls.append(create_info_chip(ft.icons.CAMERA_ROLL_OUTLINED, jav_item['director'], "Director"))
+    if jav_item.get('actress'):
+        type_specific_info_container.controls.append(create_info_chip(ft.icons.WOMAN_2_OUTLINED, jav_item['actress'], "Actress"))
+    if jav_item.get('update_version'):
+        type_specific_info_container.controls.append(create_info_chip(ft.icons.INFO_OUTLINE, jav_item['update_version'], "Version"))
+
+    if type_specific_info_container.controls:
+        card_content_column_controls.append(type_specific_info_container)
+
     if genre_widgets_row.controls: 
         card_content_column_controls.append(genre_widgets_row)
     
@@ -557,6 +625,61 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         margin=ft.margin.all(8),
         shape=ft.RoundedRectangleBorder(radius=8),
     )
+
+# --- Helper Functions for Dynamic Forms ---
+def update_conditional_fields(selected_type: str, container: ft.Column, initial_data: dict | None = None):
+    """Dynamically adds form fields based on the selected entry type."""
+    container.controls.clear()
+    
+    if selected_type == "Game":
+        platform_options = [
+            ft.dropdown.Option("PC"), ft.dropdown.Option("PlayStation"), ft.dropdown.Option("Xbox"),
+            ft.dropdown.Option("Nintendo Switch"), ft.dropdown.Option("Mobile"), ft.dropdown.Option("Other"),
+        ]
+        container.controls.append(ft.Dropdown(
+            label="Platform", options=platform_options, hint_text="Select the game platform",
+            value=initial_data.get('platform') if initial_data else None,
+            data="platform"
+        ))
+    elif selected_type == "Book":
+        container.controls.append(ft.TextField(
+            label="Author", capitalization=ft.TextCapitalization.WORDS,
+            value=initial_data.get('author') if initial_data else None,
+            data="author"
+        ))
+    elif selected_type == "JAV":
+        container.controls.extend([
+            ft.TextField(
+                label="Director", capitalization=ft.TextCapitalization.WORDS,
+                value=initial_data.get('director') if initial_data else None,
+                data="director"
+            ),
+            ft.TextField(
+                label="Actress(es)", capitalization=ft.TextCapitalization.WORDS,
+                value=initial_data.get('actress') if initial_data else None,
+                data="actress"
+            )
+        ])
+    elif selected_type == "Adult Visual Novel":
+        container.controls.append(ft.TextField(
+            label="Update / Version",
+            value=initial_data.get('update_version') if initial_data else None,
+            data="update_version"
+        ))
+
+    if container.page:
+        try:
+            container.update()
+        except Exception:
+            pass
+
+def get_data_from_conditional_fields(container: ft.Column) -> dict:
+    """Extracts data from the dynamically generated fields by looking at their 'data' property."""
+    data = {}
+    for control in container.controls:
+        if hasattr(control, 'data') and control.data:
+            data[control.data] = control.value
+    return data
 
 # --- Helper function to create entry type filter UI (Button + BottomSheet) ---
 def create_entry_type_filter_button_with_sheet(
@@ -807,18 +930,16 @@ def main(page: ft.Page):
     def import_csv_data(file_path):
         expected_headers_lower = [ 
             "name", "genre", "review_score", "completion_date", "description", 
-            "isrewatch", "ownlocalcopy", "entrytype", "imageurl"
+            "isrewatch", "ownlocalcopy", "entrytype", "imageurl", "platform",
+            "author", "director", "actress", "updateversion"
         ]
         header_map = {
-            "name": "name",
-            "genre": "genre_str",
-            "review_score": "score",
-            "completion_date": "completion_date_str",
-            "description": "description",
-            "isrewatch": "is_rewatch_csv",
-            "ownlocalcopy": "own_local_copy_csv",
-            "entrytype": "entry_type_csv",
-            "imageurl": "image_url_csv"
+            "name": "name", "genre": "genre_str", "review_score": "score",
+            "completion_date": "completion_date_str", "description": "description",
+            "isrewatch": "is_rewatch_csv", "ownlocalcopy": "own_local_copy_csv",
+            "entrytype": "entry_type_csv", "imageurl": "image_url_csv",
+            "platform": "platform_csv", "author": "author_csv", "director": "director_csv",
+            "actress": "actress_csv", "updateversion": "update_version_csv"
         }
         added_count, skipped_count = 0, 0; error_messages, warning_messages = [], []
         print(f"--- Starting CSV Import from: {file_path} ---")
@@ -871,6 +992,14 @@ def main(page: ft.Page):
                         description_val = jav_data_for_db.get("description")
                         entry_type_from_csv = jav_data_for_db.get("entry_type_csv") 
                         image_url_from_csv = jav_data_for_db.get("image_url_csv")
+                        
+                        conditional_data_from_csv = {
+                            "platform": jav_data_for_db.get("platform_csv"),
+                            "author": jav_data_for_db.get("author_csv"),
+                            "director": jav_data_for_db.get("director_csv"),
+                            "actress": jav_data_for_db.get("actress_csv"),
+                            "update_version": jav_data_for_db.get("update_version_csv"),
+                        }
 
                         if not entry_type_from_csv or not entry_type_from_csv.strip():
                             entry_type_from_csv = "Other" 
@@ -914,7 +1043,7 @@ def main(page: ft.Page):
                         
                         if valid_row:
                             print(f"Row {row_num} ('{name_val}'): Adding to DB. Date for DB: {db_date_str} (Year: {year_for_db}), EntryType: {entry_type_from_csv}")
-                            add_jav_db(name_val, genre_str_from_csv, db_date_str, score_int, description_val, is_rewatch, own_local_copy, image_url_from_csv, entry_type_from_csv); added_count += 1
+                            add_jav_db(name_val, genre_str_from_csv, db_date_str, score_int, description_val, is_rewatch, own_local_copy, image_url_from_csv, entry_type_from_csv, conditional_data_from_csv); added_count += 1
                             if row_warnings: warning_messages.extend([f"Row {row_num} ('{name_val}'): {w}" for w in row_warnings])
                         else: 
                             skipped_count += 1; error_messages.append(f"Row {row_num} ('{name_val or '<?>'}'): Skipped - {' | '.join(row_errors)}")
@@ -1070,7 +1199,15 @@ def main(page: ft.Page):
         target_year = app_state["current_view"] if app_state["current_view"] in YEARS else str(datetime.now().year)
         
         name_field = ft.TextField(label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS)
-        entry_type_dropdown = ft.Dropdown(label="Entry Type", options=ENTRY_TYPE_OPTIONS, hint_text="Select the type of media")
+        
+        conditional_fields_container = ft.Column(spacing=12, tight=True)
+        def on_type_change_add(e):
+            update_conditional_fields(e.control.value, conditional_fields_container)
+
+        entry_type_dropdown = ft.Dropdown(
+            label="Entry Type", options=ENTRY_TYPE_OPTIONS, 
+            hint_text="Select the type of media", on_change=on_type_change_add
+        )
         
         image_source_field = ft.TextField(
             label="Image Source (URL or Local Path)", 
@@ -1142,8 +1279,10 @@ def main(page: ft.Page):
             if errors: show_snackbar("Please fix errors: " + " ".join(errors), color=ft.colors.ERROR_CONTAINER); return
 
             final_image_ref_for_db = process_and_copy_image(image_source_input)
+            
+            conditional_data = get_data_from_conditional_fields(conditional_fields_container)
 
-            add_jav_db(name, genre_input_str, date_str, score_int, description, is_rewatch, own_local_copy, final_image_ref_for_db, entry_type_val)
+            add_jav_db(name, genre_input_str, date_str, score_int, description, is_rewatch, own_local_copy, final_image_ref_for_db, entry_type_val, conditional_data)
             show_snackbar(f"Added '{name}' to {target_year}")
             close_manual_dialog()
             refresh_current_view()
@@ -1155,7 +1294,7 @@ def main(page: ft.Page):
             page.run_thread(calculate_and_update_stats_display, current_stats_filter)
 
         content_controls = [
-            name_field, entry_type_dropdown, image_source_row, genre_field,
+            name_field, entry_type_dropdown, conditional_fields_container, image_source_row, genre_field,
             ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_add_date_picker)], alignment=ft.MainAxisAlignment.START),
             score_dropdown, description_field, rewatch_check, own_local_copy_check
         ]
@@ -1172,8 +1311,22 @@ def main(page: ft.Page):
         edit_entry_type_dropdown_ref = ft.Ref[ft.Dropdown]()
         
         name_field = ft.TextField(ref=edit_name_field_ref, label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('name', ''))
-        entry_type_dropdown = ft.Dropdown(ref=edit_entry_type_dropdown_ref, label="Entry Type", options=ENTRY_TYPE_OPTIONS, value=jav_data_to_edit.get('entry_type'))
         
+        conditional_fields_container = ft.Column(spacing=12, tight=True)
+        def on_type_change_edit(e):
+            update_conditional_fields(e.control.value, conditional_fields_container)
+
+        entry_type_dropdown = ft.Dropdown(
+            ref=edit_entry_type_dropdown_ref, label="Entry Type", options=ENTRY_TYPE_OPTIONS, 
+            value=jav_data_to_edit.get('entry_type'), on_change=on_type_change_edit
+        )
+        
+        update_conditional_fields(
+            jav_data_to_edit.get('entry_type'), 
+            conditional_fields_container, 
+            initial_data=jav_data_to_edit
+        )
+
         _edit_image_source_tf = ft.TextField( 
             label="Image Source (URL or Local Path)", 
             value=jav_data_to_edit.get('image_url', ''), 
@@ -1276,7 +1429,9 @@ def main(page: ft.Page):
                 else: 
                     final_image_ref_for_db = image_source_input 
             
-            update_jav_db(jav_id, name, genre_input_str, date_str, score_int, description, is_rewatch, own_local_copy, final_image_ref_for_db, entry_type_val)
+            conditional_data = get_data_from_conditional_fields(conditional_fields_container)
+
+            update_jav_db(jav_id, name, genre_input_str, date_str, score_int, description, is_rewatch, own_local_copy, final_image_ref_for_db, entry_type_val, conditional_data)
             show_snackbar(f"Updated '{name}'")
             close_manual_dialog() 
             list_refresh_callback()
@@ -1288,7 +1443,7 @@ def main(page: ft.Page):
             page.run_thread(calculate_and_update_stats_display, current_stats_filter)
 
         content_controls = [
-            name_field, entry_type_dropdown, edit_image_source_row, genre_field,
+            name_field, entry_type_dropdown, conditional_fields_container, edit_image_source_row, genre_field,
             ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_edit_date_picker)], alignment=ft.MainAxisAlignment.START),
             score_dropdown, description_field, rewatch_check, own_local_copy_check
         ]
@@ -1410,7 +1565,7 @@ def main(page: ft.Page):
         
         year_grid_view = ft.GridView(
             ref=year_grid_view_ref,
-            expand=True, runs_count=5, max_extent=270, child_aspect_ratio=0.67, 
+            expand=True, runs_count=5, max_extent=270, child_aspect_ratio=0.72, 
             spacing=10, run_spacing=10, padding=ft.padding.all(10)
         )
 
@@ -1645,7 +1800,7 @@ def main(page: ft.Page):
             ft.Divider(height=20, thickness=1),
             ft.Container(content=ft.Text("Import / Export", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
             ft.Row( [ ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog), ], spacing=10 ),
-            ft.Text( "CSV Format: Header row required. Columns: Name (Req), Genre, Review_Score, Completion_Date (Req, YYYY-MM-DD or common variations), Description, IsRewatch, OwnLocalCopy, EntryType, ImageURL (URL or local path - no copying on import). Case insensitive for headers (spaces removed, underscores kept).", italic=True, size=11, color=ft.colors.with_opacity(0.6, ft.colors.ON_SURFACE), max_lines=4 )
+            ft.Text( "CSV Format: Header row required. Columns: Name (Req), Genre, Review_Score, Completion_Date (Req), Description, IsRewatch, OwnLocalCopy, EntryType, ImageURL, Platform, Author, Director, Actress, UpdateVersion. Case insensitive for headers.", italic=True, size=11, color=ft.colors.with_opacity(0.6, ft.colors.ON_SURFACE), max_lines=4 )
         ]
         return ft.ListView( expand=True, spacing=20, padding=ft.padding.symmetric(horizontal=20, vertical=10), controls=controls_list )
 
