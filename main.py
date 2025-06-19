@@ -9,6 +9,7 @@ import math
 import traceback # Import for detailed error logging
 import shutil # Already imported
 import uuid # Already imported
+import re
 
 # --- Determine the base path ---
 if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
@@ -274,6 +275,18 @@ def parse_genres(genre_str):
     if not genre_str or not genre_str.strip(): return []
     return [genre.strip() for genre in genre_str.split(',') if genre.strip()]
 
+def parse_multi_value_field(field_str: str) -> list[str]:
+    """
+    Parses a string that might contain multiple values separated by
+    commas, semicolons, or slashes.
+    """
+    if not field_str or not field_str.strip():
+        return []
+    # Use regex to split by comma, semicolon, or slash, ignoring surrounding whitespace
+    items = re.split(r'\s*[,;/]\s*', field_str)
+    # Return a clean list with no empty items
+    return [item.strip() for item in items if item and item.strip()]
+
 def format_genres(genre_list):
     if not genre_list: return ""
     return GENRE_SEPARATOR.join(sorted([str(g).strip() for g in genre_list if str(g).strip()]))
@@ -295,9 +308,10 @@ def _generate_pie_data_from_list(items_list: list, fallback_colors: list):
     pie_sections = []
     legend_controls = []
     color_index = 0
-
-    # Display top 10 items and group the rest as "Other"
-    for item, count in counts.most_common(10):
+    
+    # --- New Unlimited Logic ---
+    # Loop through every single unique item, sorted by most common
+    for item, count in counts.most_common():
         percentage = (count / total_items * 100) if total_items > 0 else 0
         color = fallback_colors[color_index % len(fallback_colors)]
         color_index += 1
@@ -317,26 +331,6 @@ def _generate_pie_data_from_list(items_list: list, fallback_colors: list):
                 ft.Text(f"{item} ({count})", max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, tooltip=item)
             ], spacing=10)
         )
-    
-    if len(counts) > 10:
-        other_count = sum(c for i, c in counts.most_common()[10:])
-        percentage = (other_count / total_items * 100) if total_items > 0 else 0
-        if percentage > 0:
-            pie_sections.append(
-                ft.PieChartSection(
-                    value=percentage,
-                    title=f"{percentage:.0f}%",
-                    title_style=ft.TextStyle(size=10, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD),
-                    color=ft.colors.BLUE_GREY_800,
-                    radius=60
-                )
-            )
-            legend_controls.append(
-                ft.Row([
-                    ft.Container(width=16, height=16, bgcolor=ft.colors.BLUE_GREY_800, border_radius=3),
-                    ft.Text(f"Other ({other_count})")
-                ], spacing=10)
-            )
 
     return pie_sections, legend_controls
 
@@ -1965,9 +1959,9 @@ def main(page: ft.Page):
             fallback_color_index = 0; sorted_genres = genre_counts.most_common() 
             
             if not sorted_genres and total_javs > 0 and not total_genre_instances : 
-                 legend_items_data.append(ft.Text("No genre data for selected items."))
+                legend_items_data.append(ft.Text("No genre data for selected items."))
             elif not sorted_genres and total_javs == 0: 
-                 legend_items_data.append(ft.Text("No items match current filters."))
+                legend_items_data.append(ft.Text("No items match current filters."))
 
 
             for genre, count in sorted_genres:
@@ -1978,7 +1972,7 @@ def main(page: ft.Page):
                 if assigned_color is None: 
                     assigned_color = genre_specific_colors.get(genre_lower)
                 if assigned_color is None: 
-                     for specific_genre_key, color_val in genre_specific_colors.items():
+                    for specific_genre_key, color_val in genre_specific_colors.items():
                         if specific_genre_key in genre_lower:
                             assigned_color = color_val
                             break
@@ -1997,13 +1991,13 @@ def main(page: ft.Page):
                 legend_items_data.append( ft.Row([ ft.Container(width=16, height=16, bgcolor=assigned_color, border_radius=3), ft.Text(f"{genre} ({count})") ], spacing=10))
             
             if not pie_sections_data and total_javs > 0 :
-                 pie_sections_data.append(ft.PieChartSection(value=100, title="", color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE)))
-                 if not legend_items_data: legend_items_data.append(ft.Text("No genre data to display."))
+                pie_sections_data.append(ft.PieChartSection(value=100, title="", color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE)))
+                if not legend_items_data: legend_items_data.append(ft.Text("No genre data to display."))
             elif not pie_sections_data and total_javs == 0: 
-                 pie_sections_data.append(ft.PieChartSection(value=100, title="N/A", color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE)))
-                 if not legend_items_data: legend_items_data.append(ft.Text("No data for chart."))
+                pie_sections_data.append(ft.PieChartSection(value=100, title="N/A", color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE)))
+                if not legend_items_data: legend_items_data.append(ft.Text("No data for chart."))
 
-            # --- NEW: Type-Specific Chart Data Calculation ---
+            # --- Type-Specific Chart Data Calculation ---
             platforms, authors, directors, actresses, versions = [], [], [], [], []
             
             show_platform_chart = "Game" in current_selected_stat_types
@@ -2017,10 +2011,13 @@ def main(page: ft.Page):
                     if show_platform_chart and entry_type == 'Game' and jav.get('platform'):
                         platforms.append(jav['platform'])
                     if show_book_chart and entry_type == 'Book' and jav.get('author'):
-                        authors.append(jav['author'])
+                        authors.extend(parse_multi_value_field(jav['author']))
                     if show_jav_charts and entry_type == 'JAV':
-                        if jav.get('director'): directors.append(jav['director'])
-                        if jav.get('actress'): actresses.extend(parse_genres(jav['actress']))
+                        # --- THE FIX IS HERE ---
+                        if jav.get('director'): 
+                            directors.extend(parse_multi_value_field(jav['director']))
+                        if jav.get('actress'): 
+                            actresses.extend(parse_multi_value_field(jav['actress']))
                     if show_avn_chart and entry_type == 'Adult Visual Novel' and jav.get('update_version'):
                         versions.append(jav['update_version'])
 
