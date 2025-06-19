@@ -278,6 +278,68 @@ def format_genres(genre_list):
     if not genre_list: return ""
     return GENRE_SEPARATOR.join(sorted([str(g).strip() for g in genre_list if str(g).strip()]))
 
+def _generate_pie_data_from_list(items_list: list, fallback_colors: list):
+    """Helper to generate pie chart sections and legend controls from a list of strings."""
+    if not items_list:
+        pie_sections = [ft.PieChartSection(value=1, title="N/A", color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE))]
+        legend_controls = [ft.Text("No data for this category.")]
+        return pie_sections, legend_controls
+
+    counts = Counter(item for item in items_list if item and str(item).strip())
+    if not counts:
+        pie_sections = [ft.PieChartSection(value=1, title="N/A", color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE))]
+        legend_controls = [ft.Text("No data for this category.")]
+        return pie_sections, legend_controls
+
+    total_items = sum(counts.values())
+    pie_sections = []
+    legend_controls = []
+    color_index = 0
+
+    # Display top 10 items and group the rest as "Other"
+    for item, count in counts.most_common(10):
+        percentage = (count / total_items * 100) if total_items > 0 else 0
+        color = fallback_colors[color_index % len(fallback_colors)]
+        color_index += 1
+
+        pie_sections.append(
+            ft.PieChartSection(
+                value=percentage,
+                title=f"{percentage:.0f}%" if percentage >= 5 else "",
+                title_style=ft.TextStyle(size=10, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD),
+                color=color,
+                radius=60
+            )
+        )
+        legend_controls.append(
+            ft.Row([
+                ft.Container(width=16, height=16, bgcolor=color, border_radius=3),
+                ft.Text(f"{item} ({count})", max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, tooltip=item)
+            ], spacing=10)
+        )
+    
+    if len(counts) > 10:
+        other_count = sum(c for i, c in counts.most_common()[10:])
+        percentage = (other_count / total_items * 100) if total_items > 0 else 0
+        if percentage > 0:
+            pie_sections.append(
+                ft.PieChartSection(
+                    value=percentage,
+                    title=f"{percentage:.0f}%",
+                    title_style=ft.TextStyle(size=10, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD),
+                    color=ft.colors.BLUE_GREY_800,
+                    radius=60
+                )
+            )
+            legend_controls.append(
+                ft.Row([
+                    ft.Container(width=16, height=16, bgcolor=ft.colors.BLUE_GREY_800, border_radius=3),
+                    ft.Text(f"Other ({other_count})")
+                ], spacing=10)
+            )
+
+    return pie_sections, legend_controls
+
 # --- UI Helper Functions ---
 def create_rating_badge(score):
     score_text = "N/A"; bgcolor = ft.colors.with_opacity(0.5, ft.colors.ON_SURFACE_VARIANT); text_color = ft.colors.WHITE
@@ -868,6 +930,26 @@ def main(page: ft.Page):
     main_stack = ft.Stack(expand=True)
     stats_year_filter = ft.Ref[ft.SegmentedButton]()
 
+    # --- Refs for new stats charts ---
+    platform_chart_container = ft.Ref[ft.Card]()
+    platform_pie_chart = ft.Ref[ft.PieChart]()
+    platform_legend = ft.Ref[ft.Column]()
+
+    author_chart_container = ft.Ref[ft.Card]()
+    author_pie_chart = ft.Ref[ft.PieChart]()
+    author_legend = ft.Ref[ft.Column]()
+
+    director_chart_container = ft.Ref[ft.Card]()
+    director_pie_chart = ft.Ref[ft.PieChart]()
+    director_legend = ft.Ref[ft.Column]()
+
+    actress_chart_container = ft.Ref[ft.Card]()
+    actress_pie_chart = ft.Ref[ft.PieChart]()
+    actress_legend = ft.Ref[ft.Column]()
+
+    version_chart_container = ft.Ref[ft.Card]()
+    version_pie_chart = ft.Ref[ft.PieChart]()
+    version_legend = ft.Ref[ft.Column]()
 
     _target_image_field_for_picker = None
 
@@ -1600,7 +1682,21 @@ def main(page: ft.Page):
             "strategy": ft.colors.INDIGO_ACCENT_100,
         }
         fallback_genre_colors = [ft.colors.BLUE_500, ft.colors.PURPLE_500, ft.colors.TEAL_500, ft.colors.CYAN_500, ft.colors.LIGHT_BLUE_500, ft.colors.LIME_500, ft.colors.AMBER_500, ft.colors.DEEP_ORANGE_500, ft.colors.LIGHT_GREEN_500, ft.colors.DEEP_PURPLE_500, ft.colors.BROWN_400, ft.colors.BLUE_GREY_500, ft.colors.YELLOW_800]
+        
+        # New color palettes for variety
+        platform_colors = [ft.colors.CYAN_700, ft.colors.INDIGO_400, ft.colors.GREEN_700, ft.colors.RED_700, ft.colors.ORANGE_ACCENT_700, ft.colors.BLUE_GREY_600]
+        person_colors = [ft.colors.TEAL_400, ft.colors.AMBER_600, ft.colors.LIGHT_BLUE_400, ft.colors.LIME_700, ft.colors.DEEP_PURPLE_300, ft.colors.PINK_300]
+        version_colors = [ft.colors.BROWN_400, ft.colors.BLUE_GREY_500, ft.colors.GREEN_300, ft.colors.INDIGO_200, ft.colors.DEEP_ORANGE_300]
+        
         unknown_genre_color = ft.colors.with_opacity(0.5, ft.colors.ON_SURFACE_VARIANT)
+
+        # Chart data placeholders
+        platform_pie_sections, platform_legend_items = [], []
+        author_pie_sections, author_legend_items = [], []
+        director_pie_sections, director_legend_items = [], []
+        actress_pie_sections, actress_legend_items = [], []
+        version_pie_sections, version_legend_items = [], []
+        show_platform_chart, show_book_chart, show_jav_charts, show_avn_chart = False, False, False, False
 
         try:
             if filter_year == "All Time": base_jav_data = get_all_javs_db()
@@ -1679,8 +1775,43 @@ def main(page: ft.Page):
                  pie_sections_data.append(ft.PieChartSection(value=100, title="N/A", color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE)))
                  if not legend_items_data: legend_items_data.append(ft.Text("No data for chart."))
 
+            # --- NEW: Type-Specific Chart Data Calculation ---
+            platforms, authors, directors, actresses, versions = [], [], [], [], []
+            
+            show_platform_chart = "Game" in current_selected_stat_types
+            show_book_chart = "Book" in current_selected_stat_types
+            show_jav_charts = "JAV" in current_selected_stat_types
+            show_avn_chart = "Adult Visual Novel" in current_selected_stat_types
 
-        except Exception as e: print(f"ERROR DURING STATS CALCULATION: {e}"); traceback.print_exc(); total_javs, average_score, total_rewatches, unique_genres_count = "Error", "N/A", "Error", "Error"; pie_sections_data, legend_items_data = [], [ft.Text("Error loading genre data.", color=ft.colors.ERROR)]
+            if show_platform_chart or show_book_chart or show_jav_charts or show_avn_chart:
+                for jav in jav_data:
+                    entry_type = jav.get('entry_type')
+                    if show_platform_chart and entry_type == 'Game' and jav.get('platform'):
+                        platforms.append(jav['platform'])
+                    if show_book_chart and entry_type == 'Book' and jav.get('author'):
+                        authors.append(jav['author'])
+                    if show_jav_charts and entry_type == 'JAV':
+                        if jav.get('director'): directors.append(jav['director'])
+                        if jav.get('actress'): actresses.extend(parse_genres(jav['actress']))
+                    if show_avn_chart and entry_type == 'Adult Visual Novel' and jav.get('update_version'):
+                        versions.append(jav['update_version'])
+
+            platform_pie_sections, platform_legend_items = _generate_pie_data_from_list(platforms, platform_colors)
+            author_pie_sections, author_legend_items = _generate_pie_data_from_list(authors, person_colors)
+            director_pie_sections, director_legend_items = _generate_pie_data_from_list(directors, person_colors)
+            actress_pie_sections, actress_legend_items = _generate_pie_data_from_list(actresses, person_colors[::-1])
+            version_pie_sections, version_legend_items = _generate_pie_data_from_list(versions, version_colors)
+
+        except Exception as e: 
+            print(f"ERROR DURING STATS CALCULATION: {e}"); traceback.print_exc(); 
+            total_javs, average_score, total_rewatches, unique_genres_count = "Error", "N/A", "Error", "Error"
+            pie_sections_data, legend_items_data = [], [ft.Text("Error loading genre data.", color=ft.colors.ERROR)]
+            platform_pie_sections, platform_legend_items = [], [ft.Text("Error", color=ft.colors.ERROR)]
+            author_pie_sections, author_legend_items = [], [ft.Text("Error", color=ft.colors.ERROR)]
+            director_pie_sections, director_legend_items = [], [ft.Text("Error", color=ft.colors.ERROR)]
+            actress_pie_sections, actress_legend_items = [], [ft.Text("Error", color=ft.colors.ERROR)]
+            version_pie_sections, version_legend_items = [], [ft.Text("Error", color=ft.colors.ERROR)]
+            show_platform_chart = show_book_chart = show_jav_charts = show_avn_chart = False
 
         def safe_update(control_ref, value_attr, new_value, default_value_for_empty_list=None):
             if control_ref.current and hasattr(control_ref.current, 'page') and control_ref.current.page:
@@ -1703,6 +1834,32 @@ def main(page: ft.Page):
         legend_placeholder = [ft.Text("No genre data.")]
         safe_update(genre_legend, "controls", legend_items_data if legend_items_data else legend_placeholder)
         
+        # --- NEW: Update visibility and data for new charts ---
+        safe_update(platform_chart_container, "visible", show_platform_chart)
+        if show_platform_chart:
+            safe_update(platform_pie_chart, "sections", platform_pie_sections)
+            safe_update(platform_legend, "controls", platform_legend_items)
+
+        safe_update(author_chart_container, "visible", show_book_chart)
+        if show_book_chart:
+            safe_update(author_pie_chart, "sections", author_pie_sections)
+            safe_update(author_legend, "controls", author_legend_items)
+
+        safe_update(director_chart_container, "visible", show_jav_charts)
+        if show_jav_charts:
+            safe_update(director_pie_chart, "sections", director_pie_sections)
+            safe_update(director_legend, "controls", director_legend_items)
+
+        safe_update(actress_chart_container, "visible", show_jav_charts)
+        if show_jav_charts:
+            safe_update(actress_pie_chart, "sections", actress_pie_sections)
+            safe_update(actress_legend, "controls", actress_legend_items)
+
+        safe_update(version_chart_container, "visible", show_avn_chart)
+        if show_avn_chart:
+            safe_update(version_pie_chart, "sections", version_pie_sections)
+            safe_update(version_legend, "controls", version_legend_items)
+
         print(f"Stats UI update complete for {filter_year}.")
 
     def on_stats_filter_change(e): 
@@ -1782,6 +1939,31 @@ def main(page: ft.Page):
         page.run_thread(calculate_and_update_stats_display, initial_filter)
         theme_dropdown.value = get_setting_db("current_theme", DEFAULT_THEME_NAME) 
 
+        def _create_breakdown_card(container_ref, chart_ref, legend_ref, title):
+            return ft.Card(
+                ref=container_ref,
+                visible=False, # Initially hidden
+                content=ft.Container(
+                    padding=20,
+                    content=ft.Row([
+                        ft.Column([
+                            ft.Text(title, style=ft.TextThemeStyle.TITLE_MEDIUM),
+                            ft.PieChart(
+                                ref=chart_ref, sections=[], center_space_radius=40,
+                                sections_space=1,
+                            )
+                        ], expand=3, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                        ft.Column([
+                            ft.Text("Top Entries", weight=ft.FontWeight.BOLD),
+                            ft.Column(
+                                ref=legend_ref, controls=[], spacing=8,
+                                scroll=ft.ScrollMode.ADAPTIVE
+                            )
+                        ], expand=2, horizontal_alignment=ft.CrossAxisAlignment.START, scroll=ft.ScrollMode.ADAPTIVE, height=250),
+                    ], alignment=ft.MainAxisAlignment.SPACE_AROUND, vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=20, height=260)
+                )
+            )
+
         controls_list = [
             ft.Text("Statistics", style=ft.TextThemeStyle.HEADLINE_MEDIUM), 
             ft.Row([stats_year_filter.current, stats_entry_type_filter_button], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
@@ -1793,7 +1975,16 @@ def main(page: ft.Page):
                 create_summary_card(ft.icons.CATEGORY_ROUNDED, stats_unique_genres_text, "Unique Genres"),
             ] ),
             ft.Container(content=ft.Text("Genre Breakdown", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
-            ft.Card( content=ft.Container( padding=20, content=ft.Row( [ ft.Column( [ ft.PieChart( ref=genre_pie_chart, sections=[], center_space_radius=40, expand=True, sections_space=1, ) ], expand=3, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER ), ft.Column( [ ft.Text("Genres", weight=ft.FontWeight.BOLD), ft.Column( ref=genre_legend, controls=[ft.ProgressRing(width=20, height=20)], spacing=8, scroll=ft.ScrollMode.ADAPTIVE, expand=True) ], expand=2, horizontal_alignment=ft.CrossAxisAlignment.START, scroll=ft.ScrollMode.ADAPTIVE, height=250 ), ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER, ) ) ),
+            ft.Card( content=ft.Container( padding=20, content=ft.Row( [ ft.Column( [ ft.PieChart( ref=genre_pie_chart, sections=[], center_space_radius=40, sections_space=1, ) ], expand=3, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER ), ft.Column( [ ft.Text("Genres", weight=ft.FontWeight.BOLD), ft.Column( ref=genre_legend, controls=[ft.ProgressRing(width=20, height=20)], spacing=8, scroll=ft.ScrollMode.ADAPTIVE) ], expand=2, horizontal_alignment=ft.CrossAxisAlignment.START, scroll=ft.ScrollMode.ADAPTIVE, height=250 ), ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER, height=260 ) ) ),
+            
+            # --- New Type-Specific Charts ---
+            ft.Container(content=ft.Text("Type-Specific Breakdowns", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
+            _create_breakdown_card(platform_chart_container, platform_pie_chart, platform_legend, "Platform Breakdown (Games)"),
+            _create_breakdown_card(author_chart_container, author_pie_chart, author_legend, "Author Breakdown (Books)"),
+            _create_breakdown_card(director_chart_container, director_pie_chart, director_legend, "Director Breakdown (JAV)"),
+            _create_breakdown_card(actress_chart_container, actress_pie_chart, actress_legend, "Actress Breakdown (JAV)"),
+            _create_breakdown_card(version_chart_container, version_pie_chart, version_legend, "Version Breakdown (AVN)"),
+
             ft.Divider(height=20, thickness=1),
             ft.Text("Settings", style=ft.TextThemeStyle.TITLE_MEDIUM),
             ft.Row([ft.Text("Theme:"), theme_dropdown], vertical_alignment=ft.CrossAxisAlignment.CENTER),
@@ -1802,7 +1993,16 @@ def main(page: ft.Page):
             ft.Row( [ ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog), ], spacing=10 ),
             ft.Text( "CSV Format: Header row required. Columns: Name (Req), Genre, Review_Score, Completion_Date (Req), Description, IsRewatch, OwnLocalCopy, EntryType, ImageURL, Platform, Author, Director, Actress, UpdateVersion. Case insensitive for headers.", italic=True, size=11, color=ft.colors.with_opacity(0.6, ft.colors.ON_SURFACE), max_lines=4 )
         ]
-        return ft.ListView( expand=True, spacing=20, padding=ft.padding.symmetric(horizontal=20, vertical=10), controls=controls_list )
+        return ft.Container(
+    content=ft.Column(
+        expand=True,
+        spacing=20,
+        controls=controls_list,
+        scroll=ft.ScrollMode.ADAPTIVE
+    ),
+    padding=ft.padding.symmetric(horizontal=20, vertical=10),
+    expand=True
+)
 
     def fab_clicked(e):
         current_view = app_state["current_view"]
