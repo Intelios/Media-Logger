@@ -2381,8 +2381,18 @@ def main(page: ft.Page):
         }
         fallback_genre_colors = [ft.colors.BLUE_500, ft.colors.PURPLE_500, ft.colors.TEAL_500, ft.colors.CYAN_500, ft.colors.LIGHT_BLUE_500, ft.colors.LIME_500, ft.colors.AMBER_500, ft.colors.DEEP_ORANGE_500, ft.colors.LIGHT_GREEN_500, ft.colors.DEEP_PURPLE_500, ft.colors.BROWN_400, ft.colors.BLUE_GREY_500, ft.colors.YELLOW_800]
         
-        # New color palettes for variety
-        platform_colors = [ft.colors.CYAN_700, ft.colors.INDIGO_400, ft.colors.GREEN_700, ft.colors.RED_700, ft.colors.ORANGE_ACCENT_700, ft.colors.BLUE_GREY_600]
+        # --- START OF CHANGE ---
+        # Define specific brand colors for platforms
+        specific_platform_colors = {
+            "pc": ft.colors.ORANGE_700,
+            "playstation": ft.colors.BLUE_700,
+            "xbox": ft.colors.GREEN_700,
+            "nintendo switch": ft.colors.RED_700,
+        }
+        # Define fallback colors for other platforms like "Mobile"
+        fallback_platform_colors = [ft.colors.CYAN_700, ft.colors.INDIGO_400, ft.colors.BLUE_GREY_600]
+        # --- END OF CHANGE ---
+
         person_colors = [ft.colors.TEAL_400, ft.colors.AMBER_600, ft.colors.LIGHT_BLUE_400, ft.colors.LIME_700, ft.colors.DEEP_PURPLE_300, ft.colors.PINK_300]
         version_colors = [ft.colors.BROWN_400, ft.colors.BLUE_GREY_500, ft.colors.GREEN_300, ft.colors.INDIGO_200, ft.colors.DEEP_ORANGE_300]
         
@@ -2489,7 +2499,6 @@ def main(page: ft.Page):
                     if show_book_chart and entry_type == 'Book' and jav.get('author'):
                         authors.extend(parse_multi_value_field(jav['author']))
                     if show_jav_charts and entry_type == 'JAV':
-                        # --- THE FIX IS HERE ---
                         if jav.get('director'): 
                             directors.extend(parse_multi_value_field(jav['director']))
                         if jav.get('actress'): 
@@ -2497,7 +2506,51 @@ def main(page: ft.Page):
                     if show_avn_chart and entry_type == 'Adult Visual Novel' and jav.get('update_version'):
                         versions.append(jav['update_version'])
 
-            platform_pie_sections, platform_legend_items = _generate_pie_data_from_list(platforms, platform_colors)
+            # --- START OF CHANGE ---
+            # Platform Chart Data (Custom Color Logic)
+            if show_platform_chart:
+                if not platforms:
+                    platform_pie_sections, platform_legend_items = _generate_pie_data_from_list([], [])
+                else:
+                    platform_counts = Counter(p for p in platforms if p and p.strip())
+                    total_platforms = sum(platform_counts.values())
+                    temp_pie_sections = []
+                    temp_legend_items = []
+                    fallback_color_idx = 0
+                    
+                    for platform_name, count in platform_counts.most_common():
+                        percentage = (count / total_platforms * 100) if total_platforms > 0 else 0
+                        
+                        # Assign color based on our specific map, or use a fallback
+                        platform_lower = platform_name.lower()
+                        color = specific_platform_colors.get(platform_lower)
+                        if color is None:
+                            color = fallback_platform_colors[fallback_color_idx % len(fallback_platform_colors)]
+                            fallback_color_idx += 1
+
+                        # Create pie section
+                        temp_pie_sections.append(
+                            ft.PieChartSection(
+                                value=percentage,
+                                title=f"{percentage:.0f}%" if percentage >= 5 else "",
+                                title_style=ft.TextStyle(size=10, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD),
+                                color=color,
+                                radius=60
+                            )
+                        )
+                        # Create legend item
+                        temp_legend_items.append(
+                            ft.Row([
+                                ft.Container(width=16, height=16, bgcolor=color, border_radius=3),
+                                ft.Text(f"{platform_name} ({count})", max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, tooltip=platform_name)
+                            ], spacing=10)
+                        )
+                    platform_pie_sections = temp_pie_sections
+                    platform_legend_items = temp_legend_items
+            else:
+                platform_pie_sections, platform_legend_items = [], []
+            # --- END OF CHANGE ---
+
             author_pie_sections, author_legend_items = _generate_pie_data_from_list(authors, person_colors)
             director_pie_sections, director_legend_items = _generate_pie_data_from_list(directors, person_colors)
             actress_pie_sections, actress_legend_items = _generate_pie_data_from_list(actresses, person_colors[::-1])
