@@ -10,6 +10,7 @@ import traceback # Import for detailed error logging
 import shutil # Already imported
 import uuid # Already imported
 import re
+import asyncio
 
 # --- Determine the base path ---
 if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
@@ -1333,7 +1334,7 @@ def create_search_fields_filter_button_with_sheet(
 
 
 # --- Main Application ---
-def main(page: ft.Page):
+async def main(page: ft.Page):
     page.title = APP_TITLE
     page.window_width = 1400
     page.window_height = 900
@@ -2129,16 +2130,36 @@ def main(page: ft.Page):
     def build_search_view():
         print("Building search view")
         
+        # --- DEBOUNCER STATE ---
+        # This task will hold our waiting search job
+        search_task = None
+
+        async def on_search_text_change(e):
+            nonlocal search_task
+            # If there's an old search task waiting, cancel it
+            if search_task:
+                search_task.cancel()
+
+            # This is our new search job
+            async def debounced_search_job():
+                try:
+                    # Wait for 400ms of inactivity
+                    await asyncio.sleep(0.4)
+                    # After the wait, perform the actual search
+                    perform_search()
+                except asyncio.CancelledError:
+                    # This is expected if the user keeps typing
+                    print("Search task cancelled.")
+            
+            # Schedule the new search job to run
+            search_task = asyncio.create_task(debounced_search_job())
+
         def perform_search():
             search_term = search_text_field.current.value.strip() if search_text_field.current else ""
             
-            if not search_term:
-                app_state["search_results"] = []
-                app_state["current_search_term"] = ""
-                refresh_search_results()
-                return
-            
-            print(f"Performing search for: '{search_term}' in fields: {app_state['search_selected_fields']}")
+            # The console log is very noisy, let's only print if there's a term
+            if search_term:
+                print(f"Performing search for: '{search_term}' in fields: {app_state['search_selected_fields']}")
             
             # Get selected entry types for filtering
             selected_entry_types = list(app_state["search_view_selected_entry_types"]) if app_state["search_view_selected_entry_types"] else None
@@ -2167,8 +2188,10 @@ def main(page: ft.Page):
             
             # Update results count
             if count_text:
-                count_text.value = f"Found {len(results)} result{'s' if len(results) != 1 else ''}"
-                if search_term:
+                if not search_term:
+                    count_text.value = "Enter a search term to find entries"
+                else:
+                    count_text.value = f"Found {len(results)} result{'s' if len(results) != 1 else ''}"
                     count_text.value += f" for '{search_term}'"
                 try:
                     count_text.update()
@@ -2232,7 +2255,7 @@ def main(page: ft.Page):
             if jav_to_delete:
                 image_to_delete_ref = jav_to_delete.get('image_url')
                 if image_to_delete_ref and image_to_delete_ref.startswith("images/") and \
-                   not (image_to_delete_ref.lower().startswith("http://") or image_to_delete_ref.lower().startswith("https://")):
+                    not (image_to_delete_ref.lower().startswith("http://") or image_to_delete_ref.lower().startswith("https://")):
                     full_image_path_to_delete = os.path.join(ASSETS_DIR, image_to_delete_ref)
                     if os.path.exists(full_image_path_to_delete):
                         try:
@@ -2245,12 +2268,11 @@ def main(page: ft.Page):
                     else:
                         show_snackbar(f"Deleted '{jav_name}'. Local image file not found for deletion.", color=ft.colors.WARNING_CONTAINER, duration=3000)
                 else:
-                     show_snackbar(f"Deleted '{jav_name}'", duration=2500) 
+                        show_snackbar(f"Deleted '{jav_name}'", duration=2500) 
             else:
                 show_snackbar(f"Deleted entry (ID: {jav_id})", duration=2500) 
             
-            # Refresh search results and other views
-            perform_search()  # Re-run the current search to update results
+            perform_search()
             current_stats_filter = "All Time"
             try:
                 if stats_year_filter.current and stats_year_filter.current.selected:
@@ -2261,24 +2283,18 @@ def main(page: ft.Page):
 
         def open_edit_jav_dialog_wrapper_search(jav_item_data):
             def refresh_search_after_edit():
-                perform_search()  # Re-run the current search to update results
+                perform_search()
             open_edit_jav_dialog(jav_item_data, refresh_search_after_edit)
 
-        def on_search_text_change(e):
-            # Auto-search as user types (with small delay to avoid too many searches)
-            perform_search()
-
         def on_search_entry_type_filter_change():
-            perform_search()  # Re-run search with new filters
-            # Save the current search view filter selection
+            perform_search()
             filter_str_to_save = ",".join(sorted(list(app_state["search_view_selected_entry_types"])))
             set_setting_db(SAVED_SEARCH_VIEW_FILTER_KEY, filter_str_to_save)
             print(f"Saved search view filter: {filter_str_to_save}")
 
         def on_search_fields_filter_change():
-            perform_search()  # Re-run search with new field selection
+            perform_search()
 
-        # Create filter buttons
         search_entry_type_filter_button = create_entry_type_filter_button_with_sheet(
             page, ALL_ENTRY_TYPES_STR, app_state["search_view_selected_entry_types"], 
             on_search_entry_type_filter_change, button_label_prefix="Filter Types"
@@ -2289,13 +2305,18 @@ def main(page: ft.Page):
             on_search_fields_filter_change, button_label_prefix="Search In"
         )
 
-        # Create UI components
+        def clear_search():
+            if search_text_field.current:
+                search_text_field.current.value = ""
+                search_text_field.current.update()
+            perform_search()
+
         search_text_field_widget = ft.TextField(
             ref=search_text_field,
             label="Search entries...",
             hint_text="Enter title, author, platform, etc.",
             prefix_icon=ft.icons.SEARCH_ROUNDED,
-            on_change=on_search_text_change,
+            on_change=on_search_text_change, # This now points to our async debouncer
             expand=True,
             autofocus=True
         )
@@ -2318,13 +2339,11 @@ def main(page: ft.Page):
             padding=ft.padding.all(10)
         )
 
-        # Initialize the search results display
         refresh_search_results()
 
         return ft.Column(
             expand=True,
             controls=[
-                # Search input row
                 ft.Container(
                     content=ft.Row([
                         search_text_field_widget,
@@ -2336,7 +2355,6 @@ def main(page: ft.Page):
                     ], spacing=10),
                     padding=ft.padding.symmetric(horizontal=10, vertical=10),
                 ),
-                # Filter buttons row
                 ft.Container(
                     content=ft.Row([
                         search_fields_filter_button,
@@ -2344,23 +2362,13 @@ def main(page: ft.Page):
                     ], alignment=ft.MainAxisAlignment.START, spacing=10),
                     padding=ft.padding.only(left=10, right=10, bottom=5),
                 ),
-                # Results count
                 ft.Container(
                     content=search_results_count_widget,
                     padding=ft.padding.symmetric(horizontal=10),
                 ),
-                # Results grid
                 search_grid
             ]
         )
-
-        def clear_search():
-            if search_text_field.current:
-                search_text_field.current.value = ""
-                search_text_field.current.update()
-            app_state["search_results"] = []
-            app_state["current_search_term"] = ""
-            refresh_search_results()
 
     def calculate_and_update_stats_display(filter_year="All Time"):
         print(f"Calculating stats for display filter: {filter_year}")
