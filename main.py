@@ -67,7 +67,7 @@ SEARCH_FIELD_OPTIONS = [
     {"key": "name", "label": "Title/Name"},
     {"key": "author", "label": "Author"},
     {"key": "platform", "label": "Platform"},
-    {"key": "director", "label": "Director"},
+    {"key": "director", "label": "Studio"}, # Changed "Director" to "Studio"
     {"key": "actress", "label": "Actress"},
     {"key": "update_version", "label": "Version"},
     {"key": "genre", "label": "Genre"},
@@ -909,12 +909,14 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         )
     if jav_item.get('director'):
         type_specific_info_container.controls.append(
-            create_info_chip(ft.icons.CAMERA_ROLL_OUTLINED, jav_item['director'], "Director")
+            create_info_chip(ft.icons.BUSINESS_OUTLINED, jav_item['director'], "Studio")
         )
     if jav_item.get('actress'):
-        type_specific_info_container.controls.append(
-            create_info_chip(ft.icons.WOMAN_2_OUTLINED, jav_item['actress'], "Actress")
-        )
+        actress_list = parse_multi_value_field(jav_item['actress'])
+        for actress_name in actress_list:
+            type_specific_info_container.controls.append(
+                create_info_chip(ft.icons.WOMAN_2_OUTLINED, actress_name, f"Actress: {actress_name}")
+            )
     if jav_item.get('update_version'):
         type_specific_info_container.controls.append(
             create_info_chip(ft.icons.INFO_OUTLINE, jav_item['update_version'], "Version")
@@ -1013,7 +1015,7 @@ def update_conditional_fields(selected_type: str, container: ft.Column, initial_
     elif selected_type == "JAV":
         container.controls.extend([
             ft.TextField(
-                label="Director", capitalization=ft.TextCapitalization.WORDS,
+                label="Studio", capitalization=ft.TextCapitalization.WORDS,
                 value=initial_data.get('director') if initial_data else None,
                 data="director"
             ),
@@ -1471,14 +1473,14 @@ def main(page: ft.Page):
         expected_headers_lower = [ 
             "name", "genre", "review_score", "completion_date", "description", 
             "isrewatch", "ownlocalcopy", "entrytype", "imageurl", "platform",
-            "author", "director", "actress", "updateversion"
+            "author", "studio", "actress", "updateversion" # Changed director to studio
         ]
         header_map = {
             "name": "name", "genre": "genre_str", "review_score": "score",
             "completion_date": "completion_date_str", "description": "description",
             "isrewatch": "is_rewatch_csv", "ownlocalcopy": "own_local_copy_csv",
             "entrytype": "entry_type_csv", "imageurl": "image_url_csv",
-            "platform": "platform_csv", "author": "author_csv", "director": "director_csv",
+            "platform": "platform_csv", "author": "author_csv", "studio": "director_csv", # Changed director to studio
             "actress": "actress_csv", "updateversion": "update_version_csv"
         }
         added_count, skipped_count = 0, 0; error_messages, warning_messages = [], []
@@ -2680,7 +2682,7 @@ def main(page: ft.Page):
             ft.Container(content=ft.Text("Type-Specific Breakdowns", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
             _create_breakdown_card(platform_chart_container, platform_pie_chart, platform_legend, "Platform Breakdown (Games)"),
             _create_breakdown_card(author_chart_container, author_pie_chart, author_legend, "Author Breakdown (Books)"),
-            _create_breakdown_card(director_chart_container, director_pie_chart, director_legend, "Director Breakdown (JAV)"),
+            _create_breakdown_card(director_chart_container, director_pie_chart, director_legend, "Studio Breakdown (JAV)"),
             _create_breakdown_card(actress_chart_container, actress_pie_chart, actress_legend, "Actress Breakdown (JAV)"),
             _create_breakdown_card(version_chart_container, version_pie_chart, version_legend, "Version Breakdown (AVN)"),
 
@@ -2690,7 +2692,7 @@ def main(page: ft.Page):
             ft.Divider(height=20, thickness=1),
             ft.Container(content=ft.Text("Import / Export", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
             ft.Row( [ ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog), ], spacing=10 ),
-            ft.Text( "CSV Format: Header row required. Columns: Name (Req), Genre, Review_Score, Completion_Date (Req), Description, IsRewatch, OwnLocalCopy, EntryType, ImageURL, Platform, Author, Director, Actress, UpdateVersion. Case insensitive for headers.", italic=True, size=11, color=ft.colors.with_opacity(0.6, ft.colors.ON_SURFACE), max_lines=4 )
+            ft.Text( "CSV Format: Header row required. Columns: Name (Req), Genre, Review_Score, Completion_Date (Req), Description, IsRewatch, OwnLocalCopy, EntryType, ImageURL, Platform, Author, Studio, Actress, UpdateVersion. Case insensitive for headers.", italic=True, size=11, color=ft.colors.with_opacity(0.6, ft.colors.ON_SURFACE), max_lines=4 )
         ]
         return ft.Container(
     content=ft.Column(
