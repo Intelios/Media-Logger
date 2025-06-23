@@ -60,7 +60,19 @@ ALL_ENTRY_TYPES_STR = [opt.key for opt in ENTRY_TYPE_OPTIONS if opt.key]
 # --- Saved Preferences Keys ---
 SAVED_YEAR_VIEW_FILTER_KEY = "year_view_last_filter_v2"
 SAVED_STATS_VIEW_FILTER_KEY = "stats_view_last_filter_v2"
+SAVED_SEARCH_VIEW_FILTER_KEY = "search_view_last_filter_v2"
 
+# --- Search Field Options ---
+SEARCH_FIELD_OPTIONS = [
+    {"key": "name", "label": "Title/Name"},
+    {"key": "author", "label": "Author"},
+    {"key": "platform", "label": "Platform"},
+    {"key": "director", "label": "Director"},
+    {"key": "actress", "label": "Actress"},
+    {"key": "update_version", "label": "Version"},
+    {"key": "genre", "label": "Genre"},
+    {"key": "description", "label": "Description"},
+]
 
 # --- Database Handling ---
 def init_db():
@@ -226,6 +238,74 @@ def get_all_javs_db():
     except sqlite3.Error as e: print(f"Database Error getting all entries: {e}")
     finally:
         if conn: conn.close()
+    return javs
+
+def search_javs_db(search_term, search_fields, entry_types=None):
+    """
+    Search for entries based on search term and specified fields.
+    
+    Args:
+        search_term: The term to search for
+        search_fields: List of field keys to search in
+        entry_types: Optional list of entry types to filter by
+    
+    Returns:
+        List of matching entries
+    """
+    conn = None
+    javs = []
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        if not search_term or not search_term.strip():
+            return []
+        
+        search_term_lower = search_term.strip().lower()
+        
+        # Build WHERE conditions for search fields
+        where_conditions = []
+        params = []
+        
+        # All searchable fields are text-based and can be handled with the same logic.
+        # The `IFNULL` function makes the query robust against NULL values in the database,
+        # treating them as empty strings for the purpose of the search.
+        # The `LIKE` operator with wildcards ('%') allows for substring matching. This will
+        # correctly find "name2" within a field containing "name1, name2, name3".
+        valid_db_columns = {opt["key"] for opt in SEARCH_FIELD_OPTIONS}
+        
+        for field in search_fields:
+            if field in valid_db_columns:
+                where_conditions.append(f"LOWER(IFNULL({field}, '')) LIKE ?")
+                params.append(f"%{search_term_lower}%")
+        
+        if not where_conditions:
+            return []
+        
+        # Combine search conditions with OR
+        search_where = " OR ".join(where_conditions)
+        
+        # Add entry type filter if specified
+        if entry_types:
+            entry_type_placeholders = ",".join("?" * len(entry_types))
+            full_where = f"({search_where}) AND entry_type IN ({entry_type_placeholders})"
+            params.extend(entry_types)
+        else:
+            full_where = search_where
+        
+        query = f"SELECT * FROM javs WHERE {full_where} ORDER BY completion_date DESC, id DESC"
+        
+        cursor.execute(query, params)
+        javs = [dict(row) for row in cursor.fetchall()]
+        
+    except sqlite3.Error as e:
+        print(f"Database error during search: {e}")
+        traceback.print_exc()
+    finally:
+        if conn:
+            conn.close()
+    
     return javs
 
 def delete_jav_db(jav_id):
@@ -1107,6 +1187,148 @@ def create_entry_type_filter_button_with_sheet(
     )
     return filter_button
 
+# --- Helper function to create search field selection UI ---
+def create_search_fields_filter_button_with_sheet(
+    page_ref: ft.Page,
+    available_fields: list[dict],
+    selected_fields_set: set[str], 
+    on_change_callback: callable,
+    button_label_prefix: str = "Search In"
+):
+    filter_button_ref = ft.Ref[ft.OutlinedButton]()
+
+    def get_button_text():
+        count = len(selected_fields_set)
+        if count == len(available_fields):
+            return f"{button_label_prefix} (All Fields)"
+        elif count == 0:
+            return f"{button_label_prefix} (No Fields)"
+        else:
+            return f"{button_label_prefix} ({count} fields)"
+
+    all_fields_checkbox_bs_ref = ft.Ref[ft.Checkbox]()
+    individual_checkbox_bs_refs = {field["key"]: ft.Ref[ft.Checkbox]() for field in available_fields}
+
+    def update_button_and_all_cb_state():
+        if filter_button_ref.current:
+            filter_button_ref.current.text = get_button_text()
+            if filter_button_ref.current.page: 
+                try: filter_button_ref.current.update()
+                except: pass 
+
+        if all_fields_checkbox_bs_ref.current:
+            all_selected = len(selected_fields_set) == len(available_fields)
+            if all_fields_checkbox_bs_ref.current.value != all_selected:
+                 all_fields_checkbox_bs_ref.current.value = all_selected
+                 if all_fields_checkbox_bs_ref.current.page: 
+                     try: all_fields_checkbox_bs_ref.current.update()
+                     except: pass
+
+    def on_all_fields_bs_change(e):
+        is_checked = e.control.value
+        if is_checked:
+            selected_fields_set.update([field["key"] for field in available_fields])
+        else:
+            selected_fields_set.clear()
+        
+        for field_key, cb_ref in individual_checkbox_bs_refs.items():
+            if cb_ref.current:
+                if cb_ref.current.value != is_checked:
+                    cb_ref.current.value = is_checked
+                    if cb_ref.current.page: 
+                        try: cb_ref.current.update()
+                        except: pass
+        update_button_and_all_cb_state()
+
+    def on_individual_field_bs_change(e):
+        field_key = e.control.data
+        is_checked = e.control.value
+        if is_checked:
+            selected_fields_set.add(field_key)
+        else:
+            selected_fields_set.discard(field_key)
+        update_button_and_all_cb_state()
+
+    bs_checkbox_controls = []
+    all_fields_cb_bs = ft.Checkbox(
+        ref=all_fields_checkbox_bs_ref, label="All Fields",
+        value=len(selected_fields_set) == len(available_fields),
+        on_change=on_all_fields_bs_change, adaptive=True
+    )
+    bs_checkbox_controls.append(all_fields_cb_bs)
+    bs_checkbox_controls.append(ft.Divider(height=5, thickness=0.5))
+
+    for field in available_fields:
+        cb = ft.Checkbox(
+            ref=individual_checkbox_bs_refs[field["key"]], label=field["label"],
+            value=field["key"] in selected_fields_set, data=field["key"],
+            on_change=on_individual_field_bs_change, adaptive=True
+        )
+        bs_checkbox_controls.append(cb)
+
+    filter_bottom_sheet_ref = ft.Ref[ft.BottomSheet]()
+
+    def close_bs_and_apply(e=None):
+        if filter_bottom_sheet_ref.current:
+            filter_bottom_sheet_ref.current.open = False
+            if filter_bottom_sheet_ref.current.page:
+                try: filter_bottom_sheet_ref.current.update()
+                except: pass
+        on_change_callback() 
+
+    filter_bottom_sheet = ft.BottomSheet(
+        ref=filter_bottom_sheet_ref,
+        content=ft.Container(
+            ft.Column(
+                [
+                    ft.Text("Select Search Fields", weight=ft.FontWeight.BOLD, size=16),
+                    ft.Divider(height=10),
+                    ft.Column(bs_checkbox_controls, scroll=ft.ScrollMode.ADAPTIVE, spacing=0, tight=True, expand=True),
+                    ft.Divider(height=10),
+                    ft.Row(
+                        [ft.ElevatedButton("Done", on_click=close_bs_and_apply, expand=True, style=ft.ButtonStyle(padding=12))],
+                        alignment=ft.MainAxisAlignment.CENTER
+                    )
+                ],
+                tight=True, spacing=5,
+            ),
+            padding=ft.padding.only(left=20, right=20, top=10, bottom=20),
+            height=page_ref.window_height * 0.6 if page_ref and page_ref.window_height else 400,
+        ),
+        open=False,
+        on_dismiss=lambda e: on_change_callback(), 
+        enable_drag=True,
+        show_drag_handle=True,
+    )
+    if filter_bottom_sheet not in page_ref.overlay:
+        page_ref.overlay.append(filter_bottom_sheet)
+
+    def open_filter_bottom_sheet(e):
+        if all_fields_checkbox_bs_ref.current:
+            all_fields_checkbox_bs_ref.current.value = (len(selected_fields_set) == len(available_fields))
+        for field_key, cb_ref in individual_checkbox_bs_refs.items():
+            if cb_ref.current:
+                cb_ref.current.value = (field_key in selected_fields_set)
+        
+        if filter_bottom_sheet_ref.current and filter_bottom_sheet_ref.current.page:
+            for ctrl in bs_checkbox_controls: 
+                if hasattr(ctrl, 'page') and ctrl.page: 
+                    try: ctrl.update()
+                    except: pass
+        
+        if filter_bottom_sheet_ref.current:
+            filter_bottom_sheet_ref.current.open = True
+            page_ref.update()
+
+    filter_button = ft.OutlinedButton(
+        ref=filter_button_ref,
+        text=get_button_text(),
+        icon=ft.icons.SEARCH_OUTLINED,
+        on_click=open_filter_bottom_sheet,
+        tooltip="Select which fields to search in"
+    )
+    return filter_button
+
 
 # --- Main Application ---
 def main(page: ft.Page):
@@ -1133,11 +1355,21 @@ def main(page: ft.Page):
         stats_view_selected_types = set(s_type for s_type in saved_stats_filter_str.split(',') if s_type)
     else: # Default to all if not found
         stats_view_selected_types = set(ALL_ENTRY_TYPES_STR)
+
+    saved_search_filter_str = get_setting_db(SAVED_SEARCH_VIEW_FILTER_KEY)
+    if saved_search_filter_str is not None:
+        search_view_selected_types = set(s_type for s_type in saved_search_filter_str.split(',') if s_type)
+    else: # Default to all if not found
+        search_view_selected_types = set(ALL_ENTRY_TYPES_STR)
     
     app_state = {
         "current_view": YEARS[0] if YEARS else "Stats",
         "year_view_selected_entry_types": year_view_selected_types,
         "stats_view_selected_entry_types": stats_view_selected_types,
+        "search_view_selected_entry_types": search_view_selected_types,
+        "search_selected_fields": {"name", "author", "platform", "director", "actress", "update_version"},  # Default search fields
+        "current_search_term": "",
+        "search_results": [],
     }
     
     add_jav_date_display_field = ft.Ref[ft.TextField]()
@@ -1171,6 +1403,11 @@ def main(page: ft.Page):
     version_chart_container = ft.Ref[ft.Card]()
     version_pie_chart = ft.Ref[ft.PieChart]()
     version_legend = ft.Ref[ft.Column]()
+
+    # --- Search view refs ---
+    search_text_field = ft.Ref[ft.TextField]()
+    search_results_grid = ft.Ref[ft.GridView]()
+    search_results_count_text = ft.Ref[ft.Text]()
 
     _target_image_field_for_picker = None
 
@@ -1586,7 +1823,7 @@ def main(page: ft.Page):
             conditional_data = get_data_from_conditional_fields(conditional_fields_container)
 
             add_jav_db(name, genre_input_str, date_str, score_int, description, is_rewatch, own_local_copy, final_image_ref_for_db, entry_type_val, conditional_data)
-            show_snackbar(f"Added '{name}' to {target_year}")
+            show_snackbar(f"Added '{name}'") if app_state["current_view"] not in YEARS else show_snackbar(f"Added '{name}' to {target_year}")
             close_manual_dialog()
             refresh_current_view()
             current_stats_filter = "All Time"
@@ -1602,7 +1839,8 @@ def main(page: ft.Page):
             score_dropdown, description_field, rewatch_check, own_local_copy_check
         ]
         action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Entry", on_click=save_new_jav), ]
-        manual_dialog = create_dialog_overlay(f"Add Entry to {target_year}", content_controls, action_buttons);
+        title_text = f"Add Entry to {target_year}" if app_state["current_view"] in YEARS else "Add New Entry"
+        manual_dialog = create_dialog_overlay(title_text, content_controls, action_buttons);
         if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls: close_manual_dialog() 
         main_stack.controls.append(manual_dialog); main_stack.update()
 
@@ -1885,6 +2123,242 @@ def main(page: ft.Page):
                 year_grid_view 
             ]
         )
+
+    def build_search_view():
+        print("Building search view")
+        
+        def perform_search():
+            search_term = search_text_field.current.value.strip() if search_text_field.current else ""
+            
+            if not search_term:
+                app_state["search_results"] = []
+                app_state["current_search_term"] = ""
+                refresh_search_results()
+                return
+            
+            print(f"Performing search for: '{search_term}' in fields: {app_state['search_selected_fields']}")
+            
+            # Get selected entry types for filtering
+            selected_entry_types = list(app_state["search_view_selected_entry_types"]) if app_state["search_view_selected_entry_types"] else None
+            
+            # Perform the search
+            search_results = search_javs_db(
+                search_term, 
+                list(app_state["search_selected_fields"]), 
+                selected_entry_types
+            )
+            
+            app_state["search_results"] = search_results
+            app_state["current_search_term"] = search_term
+            refresh_search_results()
+        
+        def refresh_search_results():
+            grid_view = search_results_grid.current
+            count_text = search_results_count_text.current
+            
+            if not grid_view:
+                return
+            
+            grid_view.controls.clear()
+            results = app_state["search_results"]
+            search_term = app_state["current_search_term"]
+            
+            # Update results count
+            if count_text:
+                count_text.value = f"Found {len(results)} result{'s' if len(results) != 1 else ''}"
+                if search_term:
+                    count_text.value += f" for '{search_term}'"
+                try:
+                    count_text.update()
+                except:
+                    pass
+            
+            if not search_term:
+                grid_view.controls.append(
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Icon(ft.icons.SEARCH_OUTLINED, size=64, color=ft.colors.ON_SURFACE_VARIANT),
+                            ft.Text("Enter a search term to find entries", size=16, color=ft.colors.ON_SURFACE_VARIANT),
+                            ft.Text("Search across titles, authors, platforms, and more", size=12, color=ft.colors.ON_SURFACE_VARIANT, italic=True),
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                        alignment=ft.alignment.center,
+                        padding=30,
+                        expand=True
+                    )
+                )
+            elif not results:
+                grid_view.controls.append(
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Icon(ft.icons.SEARCH_OFF_OUTLINED, size=64, color=ft.colors.ON_SURFACE_VARIANT),
+                            ft.Text(f"No results found for '{search_term}'", size=16, color=ft.colors.ON_SURFACE_VARIANT),
+                            ft.Text("Try different search terms or check your filters", size=12, color=ft.colors.ON_SURFACE_VARIANT, italic=True),
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                        alignment=ft.alignment.center,
+                        padding=30,
+                        expand=True
+                    )
+                )
+            else:
+                for jav_item in results:
+                    try:
+                        card = create_gallery_card(page, jav_item, delete_jav_action_search, open_edit_jav_dialog_wrapper_search, show_description_dialog)
+                        if card:
+                            grid_view.controls.append(card)
+                    except Exception as card_error:
+                        print(f"ERROR CREATING SEARCH CARD for entry ID {jav_item.get('id', '???')}: {card_error}")
+                        traceback.print_exc()
+                        grid_view.controls.append(
+                            ft.Card(content=ft.Container(padding=20, content=ft.Column([
+                                ft.Icon(ft.icons.ERROR_OUTLINE, color=ft.colors.ERROR, size=30),
+                                ft.Text(f"Error loading: {jav_item.get('name', 'Unknown')}", color=ft.colors.ERROR),
+                                ft.Text(f"{card_error}", size=10, color=ft.colors.ERROR, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS)
+                            ])))
+                        )
+            
+            if hasattr(grid_view, 'page') and grid_view.page:
+                try:
+                    grid_view.update()
+                except:
+                    pass
+        
+        def delete_jav_action_search(jav_id, jav_name):
+            jav_to_delete = next((j for j in get_all_javs_db() if j['id'] == jav_id), None)
+            
+            delete_jav_db(jav_id)
+            
+            if jav_to_delete:
+                image_to_delete_ref = jav_to_delete.get('image_url')
+                if image_to_delete_ref and image_to_delete_ref.startswith("images/") and \
+                   not (image_to_delete_ref.lower().startswith("http://") or image_to_delete_ref.lower().startswith("https://")):
+                    full_image_path_to_delete = os.path.join(ASSETS_DIR, image_to_delete_ref)
+                    if os.path.exists(full_image_path_to_delete):
+                        try:
+                            os.remove(full_image_path_to_delete)
+                            print(f"Deleted local image: {full_image_path_to_delete}")
+                            show_snackbar(f"Deleted '{jav_name}' and its local image.", duration=2500)
+                        except OSError as e:
+                            print(f"Error deleting local image {full_image_path_to_delete}: {e}")
+                            show_snackbar(f"Deleted '{jav_name}', but failed to delete its local image: {e}", color=ft.colors.WARNING_CONTAINER, duration=3000)
+                    else:
+                        show_snackbar(f"Deleted '{jav_name}'. Local image file not found for deletion.", color=ft.colors.WARNING_CONTAINER, duration=3000)
+                else:
+                     show_snackbar(f"Deleted '{jav_name}'", duration=2500) 
+            else:
+                show_snackbar(f"Deleted entry (ID: {jav_id})", duration=2500) 
+            
+            # Refresh search results and other views
+            perform_search()  # Re-run the current search to update results
+            current_stats_filter = "All Time"
+            try:
+                if stats_year_filter.current and stats_year_filter.current.selected:
+                    current_stats_filter = list(stats_year_filter.current.selected)[0]
+            except Exception as stats_e: 
+                print(f"Warning: Error accessing stats_year_filter selection after delete: {stats_e}")
+            page.run_thread(calculate_and_update_stats_display, current_stats_filter)
+
+        def open_edit_jav_dialog_wrapper_search(jav_item_data):
+            def refresh_search_after_edit():
+                perform_search()  # Re-run the current search to update results
+            open_edit_jav_dialog(jav_item_data, refresh_search_after_edit)
+
+        def on_search_text_change(e):
+            # Auto-search as user types (with small delay to avoid too many searches)
+            perform_search()
+
+        def on_search_entry_type_filter_change():
+            perform_search()  # Re-run search with new filters
+            # Save the current search view filter selection
+            filter_str_to_save = ",".join(sorted(list(app_state["search_view_selected_entry_types"])))
+            set_setting_db(SAVED_SEARCH_VIEW_FILTER_KEY, filter_str_to_save)
+            print(f"Saved search view filter: {filter_str_to_save}")
+
+        def on_search_fields_filter_change():
+            perform_search()  # Re-run search with new field selection
+
+        # Create filter buttons
+        search_entry_type_filter_button = create_entry_type_filter_button_with_sheet(
+            page, ALL_ENTRY_TYPES_STR, app_state["search_view_selected_entry_types"], 
+            on_search_entry_type_filter_change, button_label_prefix="Filter Types"
+        )
+
+        search_fields_filter_button = create_search_fields_filter_button_with_sheet(
+            page, SEARCH_FIELD_OPTIONS, app_state["search_selected_fields"],
+            on_search_fields_filter_change, button_label_prefix="Search In"
+        )
+
+        # Create UI components
+        search_text_field_widget = ft.TextField(
+            ref=search_text_field,
+            label="Search entries...",
+            hint_text="Enter title, author, platform, etc.",
+            prefix_icon=ft.icons.SEARCH_ROUNDED,
+            on_change=on_search_text_change,
+            expand=True,
+            autofocus=True
+        )
+
+        search_results_count_widget = ft.Text(
+            ref=search_results_count_text,
+            value="Enter a search term to find entries",
+            size=14,
+            color=ft.colors.ON_SURFACE_VARIANT
+        )
+
+        search_grid = ft.GridView(
+            ref=search_results_grid,
+            expand=True, 
+            runs_count=5, 
+            max_extent=270, 
+            child_aspect_ratio=0.55,
+            spacing=10, 
+            run_spacing=10, 
+            padding=ft.padding.all(10)
+        )
+
+        # Initialize the search results display
+        refresh_search_results()
+
+        return ft.Column(
+            expand=True,
+            controls=[
+                # Search input row
+                ft.Container(
+                    content=ft.Row([
+                        search_text_field_widget,
+                        ft.IconButton(
+                            icon=ft.icons.CLEAR_ROUNDED,
+                            tooltip="Clear search",
+                            on_click=lambda e: clear_search()
+                        )
+                    ], spacing=10),
+                    padding=ft.padding.symmetric(horizontal=10, vertical=10),
+                ),
+                # Filter buttons row
+                ft.Container(
+                    content=ft.Row([
+                        search_fields_filter_button,
+                        search_entry_type_filter_button,
+                    ], alignment=ft.MainAxisAlignment.START, spacing=10),
+                    padding=ft.padding.only(left=10, right=10, bottom=5),
+                ),
+                # Results count
+                ft.Container(
+                    content=search_results_count_widget,
+                    padding=ft.padding.symmetric(horizontal=10),
+                ),
+                # Results grid
+                search_grid
+            ]
+        )
+
+        def clear_search():
+            if search_text_field.current:
+                search_text_field.current.value = ""
+                search_text_field.current.update()
+            app_state["search_results"] = []
+            app_state["current_search_term"] = ""
+            refresh_search_results()
 
     def calculate_and_update_stats_display(filter_year="All Time"):
         print(f"Calculating stats for display filter: {filter_year}")
@@ -2231,7 +2705,7 @@ def main(page: ft.Page):
 
     def fab_clicked(e):
         current_view = app_state["current_view"]
-        if current_view in YEARS: open_add_jav_dialog()
+        if current_view in YEARS or current_view == "Search": open_add_jav_dialog()
         else: show_snackbar("No action available here.") 
     fab = ft.FloatingActionButton(icon=ft.icons.ADD, tooltip="Add Entry", visible=False, on_click=fab_clicked)
     page.floating_action_button = fab; page.floating_action_button_location = ft.FloatingActionButtonLocation.END_CONTAINED
@@ -2240,6 +2714,7 @@ def main(page: ft.Page):
         initial_index = YEARS.index(app_state["current_view"])
     except ValueError: 
         if app_state["current_view"] == "Stats": initial_index = len(YEARS)
+        elif app_state["current_view"] == "Search": initial_index = len(YEARS) + 1
         else: 
             initial_index = 0
             app_state["current_view"] = YEARS[0] if YEARS else "Stats"
@@ -2249,7 +2724,8 @@ def main(page: ft.Page):
         min_width=100, min_extended_width=200, group_alignment=-0.9,
         destinations=(
             [ft.NavigationRailDestination(icon=ft.icons.CALENDAR_MONTH_OUTLINED, selected_icon=ft.icons.CALENDAR_MONTH, label=y) for y in YEARS] +
-            [ft.NavigationRailDestination(icon=ft.icons.QUERY_STATS_OUTLINED, selected_icon=ft.icons.QUERY_STATS, label="Stats")]
+            [ft.NavigationRailDestination(icon=ft.icons.QUERY_STATS_OUTLINED, selected_icon=ft.icons.QUERY_STATS, label="Stats")] +
+            [ft.NavigationRailDestination(icon=ft.icons.SEARCH_OUTLINED, selected_icon=ft.icons.SEARCH, label="Search")]
         ),
     )
     main_content_area = ft.Column(expand=True, controls=[]) 
@@ -2259,6 +2735,7 @@ def main(page: ft.Page):
         main_content_area.controls.clear(); show_fab, fab_tooltip, content = False, "Add Entry", None
         if view_id in YEARS: content = build_year_view(view_id); show_fab = True; fab_tooltip = f"Add Entry to {view_id}"
         elif view_id == "Stats": content = build_stats_view(); show_fab = False
+        elif view_id == "Search": content = build_search_view(); show_fab = True; fab_tooltip = "Add New Entry"
         else: content = ft.Container(content=ft.Text(f"Error: Unknown view '{view_id}' selected.", color=ft.colors.ERROR), padding=20); show_fab = False
         
         if content: main_content_area.controls.append(content)
@@ -2275,6 +2752,7 @@ def main(page: ft.Page):
         idx = e.control.selected_index; new_view = "Unknown"
         if 0 <= idx < len(YEARS): new_view = YEARS[idx]
         elif idx == len(YEARS): new_view = "Stats" 
+        elif idx == len(YEARS) + 1: new_view = "Search"
         
         close_manual_dialog() 
         if hasattr(page, 'dialog') and page.dialog is not None and page.dialog.open:
