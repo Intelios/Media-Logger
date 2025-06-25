@@ -11,181 +11,6 @@ import shutil # Already imported
 import uuid # Already imported
 import re
 import asyncio
-import time # Import the time module
-from functools import lru_cache
-
-
-# --- Markdown Rendering Function ---
-def render_markdown(markdown_text: str) -> list[ft.Control]:
-    """
-    Converts raw Markdown text into a list of Flet controls with rich formatting.
-    Supports headings, lists, quotes, inline styles (bold, italic), and dividers.
-    """
-    if not markdown_text or not markdown_text.strip():
-        return [ft.Text("No description provided.", style=ft.TextStyle(italic=True, color=ft.colors.ON_SURFACE_VARIANT))]
-    
-    lines = markdown_text.split('\n')
-    controls = []
-    
-    for line in lines:
-        line_stripped = line.strip()
-        
-        # Skip empty lines (they'll add spacing)
-        if not line_stripped:
-            controls.append(ft.Container(height=8))  # Add vertical spacing
-            continue
-        
-        # Handle headings
-        if line_stripped.startswith('###'):
-            heading_text = line_stripped[3:].strip()
-            controls.append(ft.Text(heading_text, size=16, weight=ft.FontWeight.W_600, color=ft.colors.ON_SURFACE))
-        elif line_stripped.startswith('##'):
-            heading_text = line_stripped[2:].strip()
-            controls.append(ft.Text(heading_text, size=20, weight=ft.FontWeight.BOLD, color=ft.colors.ON_SURFACE))
-        elif line_stripped.startswith('#'):
-            heading_text = line_stripped[1:].strip()
-            controls.append(ft.Text(heading_text, size=24, weight=ft.FontWeight.BOLD, color=ft.colors.ON_SURFACE))
-        
-        # Handle horizontal dividers
-        elif line_stripped in ['---', '***']:
-            controls.append(ft.Divider(height=1, thickness=1, color=ft.colors.with_opacity(0.2, ft.colors.ON_SURFACE)))
-        
-        # Handle blockquotes
-        elif line_stripped.startswith('>'):
-            quote_text = line_stripped[1:].strip()
-            quote_content = _parse_inline_styles(quote_text)
-            controls.append(
-                ft.Container(
-                    content=ft.Text(spans=quote_content, style=ft.TextStyle(italic=True)),
-                    padding=ft.padding.only(left=16, top=8, bottom=8, right=8),
-                    border=ft.border.only(left=ft.BorderSide(4, ft.colors.PRIMARY)),
-                    bgcolor=ft.colors.with_opacity(0.05, ft.colors.PRIMARY),
-                    margin=ft.margin.symmetric(vertical=4)
-                )
-            )
-        
-        # Handle list items
-        elif line_stripped.startswith('* ') or line_stripped.startswith('- '):
-            list_text = line_stripped[2:].strip()
-            list_content = _parse_inline_styles(list_text)
-            controls.append(
-                ft.Row([
-                    ft.Container(
-                        content=ft.Icon(ft.icons.CIRCLE, size=6, color=ft.colors.ON_SURFACE_VARIANT),
-                        margin=ft.margin.only(top=6, right=8)
-                    ),
-                    ft.Container(
-                        content=ft.Text(spans=list_content, style=ft.TextStyle(height=1.4)),
-                        expand=True
-                    )
-                ], vertical_alignment=ft.CrossAxisAlignment.START, spacing=0)
-            )
-        
-        # Handle nested list items (with indentation)
-        elif line.startswith('  * ') or line.startswith('  - '):
-            list_text = line[4:].strip()
-            list_content = _parse_inline_styles(list_text)
-            controls.append(
-                ft.Row([
-                    ft.Container(width=16),  # Indentation
-                    ft.Container(
-                        content=ft.Icon(ft.icons.CIRCLE, size=4, color=ft.colors.ON_SURFACE_VARIANT),
-                        margin=ft.margin.only(top=6, right=8)
-                    ),
-                    ft.Container(
-                        content=ft.Text(spans=list_content, style=ft.TextStyle(height=1.4)),
-                        expand=True
-                    )
-                ], vertical_alignment=ft.CrossAxisAlignment.START, spacing=0)
-            )
-        
-        # Handle regular paragraphs
-        else:
-            paragraph_content = _parse_inline_styles(line_stripped)
-            controls.append(
-                ft.Text(
-                    spans=paragraph_content,
-                    style=ft.TextStyle(
-                        size=16,
-                        height=1.6,
-                        letter_spacing=0.2,
-                        color=ft.colors.ON_SURFACE
-                    )
-                )
-            )
-    
-    return controls
-
-def _parse_inline_styles(text: str) -> list[ft.TextSpan]:
-    """
-    Parses inline markdown styles like **bold**, *italic*, and ~~strikethrough~~
-    Returns a list of TextSpan objects for use in ft.Text with spans.
-    """
-    if not text:
-        return [ft.TextSpan("")]
-    
-    spans = []
-    current_pos = 0
-    
-    # Define regex patterns for different styles
-    patterns = [
-        (r'\*\*(.*?)\*\*', ft.FontWeight.BOLD, None, None),  # **bold**
-        (r'\*(.*?)\*', None, True, None),                    # *italic*
-        (r'~~(.*?)~~', None, None, True),                    # ~~strikethrough~~
-    ]
-    
-    # Find all matches for all patterns
-    all_matches = []
-    for pattern, weight, italic, strikethrough in patterns:
-        for match in re.finditer(pattern, text):
-            all_matches.append({
-                'start': match.start(),
-                'end': match.end(),
-                'content': match.group(1),
-                'weight': weight,
-                'italic': italic,
-                'strikethrough': strikethrough,
-                'full_match': match.group(0)
-            })
-    
-    # Sort matches by start position
-    all_matches.sort(key=lambda x: x['start'])
-    
-    # Process text with matches
-    for match in all_matches:
-        # Add text before the match
-        if current_pos < match['start']:
-            spans.append(ft.TextSpan(text[current_pos:match['start']]))
-        
-        # Add the styled text
-        style = ft.TextStyle(
-            weight=match['weight'],
-            italic=match['italic'],
-            decoration=ft.TextDecoration.LINE_THROUGH if match['strikethrough'] else None
-        )
-        spans.append(ft.TextSpan(match['content'], style))
-        
-        current_pos = match['end']
-    
-    # Add remaining text
-    if current_pos < len(text):
-        spans.append(ft.TextSpan(text[current_pos:]))
-    
-    # If no matches found, return the whole text as a single span
-    if not spans:
-        spans.append(ft.TextSpan(text))
-    
-    return spans
-
-# Import UI components from ui.py
-from ui import (
-    APP_TITLE, YEARS, GENRE_SEPARATOR, DEFAULT_IMAGE_URL, THEMES, DEFAULT_THEME_NAME,
-    ENTRY_TYPE_OPTIONS, ALL_ENTRY_TYPES_STR, SAVED_YEAR_VIEW_FILTER_KEY,
-    SAVED_STATS_VIEW_FILTER_KEY, SAVED_SEARCH_VIEW_FILTER_KEY, SEARCH_FIELD_OPTIONS,
-    create_rating_badge, get_entry_type_icon_name, get_genre_icon_name,
-    create_gallery_card, parse_genres, parse_multi_value_field, format_genres,
-    _generate_pie_data_from_list
-)
 
 # --- Determine the base path ---
 if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
@@ -203,6 +28,52 @@ print(f"Assets directory: {ASSETS_DIR}")
 print(f"Images directory: {IMAGES_DIR}")
 
 
+APP_TITLE = "Media Logger"
+YEARS = ["2023","2024","2025"] # TODO: Consider making this dynamic or configurable
+GENRE_SEPARATOR = ", "
+DEFAULT_IMAGE_URL = "https://via.placeholder.com/300x150.png?text=No+Image"
+
+# --- Theme Definitions ---
+THEMES = {
+    "Deep Purple (Dark)": {"seed": ft.colors.DEEP_PURPLE, "mode": ft.ThemeMode.DARK},
+    "Ocean Blue (Dark)": {"seed": ft.colors.BLUE, "mode": ft.ThemeMode.DARK},
+    "Forest Green (Dark)": {"seed": ft.colors.GREEN, "mode": ft.ThemeMode.DARK},
+    "Sunny Amber (Dark)": {"seed": ft.colors.AMBER, "mode": ft.ThemeMode.DARK},
+    "Crimson Red (Dark)": {"seed": ft.colors.RED, "mode": ft.ThemeMode.DARK},
+    "Indigo Night (Dark)": {"seed": ft.colors.INDIGO, "mode": ft.ThemeMode.DARK},
+    "Teal Waters (Dark)": {"seed": ft.colors.TEAL, "mode": ft.ThemeMode.DARK},
+    "Slate Grey (Dark)": {"seed": ft.colors.BLUE_GREY, "mode": ft.ThemeMode.DARK},
+    "Classic Light": {"seed": ft.colors.BLUE_GREY, "mode": ft.ThemeMode.LIGHT},
+    "Minty Light": {"seed": ft.colors.GREEN_ACCENT, "mode": ft.ThemeMode.LIGHT},
+    "Sky Blue Light": {"seed": ft.colors.LIGHT_BLUE, "mode": ft.ThemeMode.LIGHT},
+}
+DEFAULT_THEME_NAME = "Deep Purple (Dark)"
+
+ENTRY_TYPE_OPTIONS = [
+    ft.dropdown.Option("Movie"), ft.dropdown.Option("Show"), ft.dropdown.Option("Anime"),
+    ft.dropdown.Option("Book"), # Added
+    ft.dropdown.Option("K-Drama"), ft.dropdown.Option("JAV"), ft.dropdown.Option("Hentai"),
+    ft.dropdown.Option("Game"), ft.dropdown.Option("Adult Visual Novel"),
+    ft.dropdown.Option("Other"),
+]
+ALL_ENTRY_TYPES_STR = [opt.key for opt in ENTRY_TYPE_OPTIONS if opt.key]
+
+# --- Saved Preferences Keys ---
+SAVED_YEAR_VIEW_FILTER_KEY = "year_view_last_filter_v2"
+SAVED_STATS_VIEW_FILTER_KEY = "stats_view_last_filter_v2"
+SAVED_SEARCH_VIEW_FILTER_KEY = "search_view_last_filter_v2"
+
+# --- Search Field Options ---
+SEARCH_FIELD_OPTIONS = [
+    {"key": "name", "label": "Title/Name"},
+    {"key": "author", "label": "Author"},
+    {"key": "platform", "label": "Platform"},
+    {"key": "director", "label": "Studio"}, # Changed "Director" to "Studio"
+    {"key": "actress", "label": "Actress"},
+    {"key": "update_version", "label": "Version"},
+    {"key": "genre", "label": "Genre"},
+    {"key": "description", "label": "Description"},
+]
 
 # --- Database Handling ---
 def init_db():
@@ -338,15 +209,11 @@ def add_jav_db(name, genre_str, completion_date_str, score, description, is_rewa
         )
         conn.commit()
         print(f"Entry added: {name}")
-        clear_all_db_caches()
     except sqlite3.Error as e: print(f"Database error adding entry '{name}': {e}")
     finally:
         if conn: conn.close()
 
-@lru_cache(maxsize=32) # Caches the results of the 32 most recent calls
 def get_javs_by_year_db(year):
-    print(f"!!! CACHE MISS !!! --- Running the SLOW database query for year: {year}")
-    start_time = time.time()
     conn = None; javs = []
     try:
         conn = sqlite3.connect(DB_FILE); conn.row_factory = sqlite3.Row
@@ -358,12 +225,8 @@ def get_javs_by_year_db(year):
     except sqlite3.Error as e: print(f"Database Error getting entries for year {year}: {e}")
     finally:
         if conn: conn.close()
-        
-    end_time = time.time()
-    print(f"    -> Query for {year} took {end_time - start_time:.4f} seconds.")
     return javs
 
-@lru_cache(maxsize=4) # A small cache is fine here as it's usually just one result
 def get_all_javs_db():
     conn = None; javs = []
     try:
@@ -378,7 +241,6 @@ def get_all_javs_db():
         if conn: conn.close()
     return javs
 
-@lru_cache(maxsize=128) # Cache up to 128 different search queries
 def search_javs_db(search_term, search_fields, entry_types=None):
     """
     Search for entries based on search term and specified fields.
@@ -453,7 +315,6 @@ def delete_jav_db(jav_id):
         conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
         cursor.execute("DELETE FROM javs WHERE id = ?", (jav_id,)); conn.commit()
         print(f"Entry deleted: ID {jav_id}")
-        clear_all_db_caches()
     except sqlite3.Error as e: print(f"Database error deleting entry ID {jav_id}: {e}")
     finally:
         if conn: conn.close()
@@ -486,101 +347,687 @@ def update_jav_db(jav_id, name, genre_str, completion_date_str, score, descripti
         """, (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, own_local_copy_int, image_to_db, entry_type_to_db, platform_to_db, author_to_db, director_to_db, actress_to_db, version_to_db, jav_id))
         conn.commit()
         print(f"Entry updated: ID {jav_id} - {name}")
-        clear_all_db_caches()
     except sqlite3.Error as e: print(f"Database error updating entry ID {jav_id}: {e}")
     finally:
         if conn: conn.close()
 
+# --- Helper Functions ---
+def parse_genres(genre_str):
+    if not genre_str or not genre_str.strip(): return []
+    return [genre.strip() for genre in genre_str.split(',') if genre.strip()]
+
+def parse_multi_value_field(field_str: str) -> list[str]:
+    """
+    Parses a string that might contain multiple values separated by
+    commas, semicolons, or slashes.
+    """
+    if not field_str or not field_str.strip():
+        return []
+    # Use regex to split by comma, semicolon, or slash, ignoring surrounding whitespace
+    items = re.split(r'\s*[,;/]\s*', field_str)
+    # Return a clean list with no empty items
+    return [item.strip() for item in items if item and item.strip()]
+
+def format_genres(genre_list):
+    if not genre_list: return ""
+    return GENRE_SEPARATOR.join(sorted([str(g).strip() for g in genre_list if str(g).strip()]))
+
+def _generate_pie_data_from_list(items_list: list, fallback_colors: list):
+    """Helper to generate pie chart sections and legend controls from a list of strings."""
+    if not items_list:
+        pie_sections = [ft.PieChartSection(value=1, title="N/A", color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE))]
+        legend_controls = [ft.Text("No data for this category.")]
+        return pie_sections, legend_controls
+
+    counts = Counter(item for item in items_list if item and str(item).strip())
+    if not counts:
+        pie_sections = [ft.PieChartSection(value=1, title="N/A", color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE))]
+        legend_controls = [ft.Text("No data for this category.")]
+        return pie_sections, legend_controls
+
+    total_items = sum(counts.values())
+    pie_sections = []
+    legend_controls = []
+    color_index = 0
+    
+    # --- New Unlimited Logic ---
+    # Loop through every single unique item, sorted by most common
+    for item, count in counts.most_common():
+        percentage = (count / total_items * 100) if total_items > 0 else 0
+        color = fallback_colors[color_index % len(fallback_colors)]
+        color_index += 1
+
+        pie_sections.append(
+            ft.PieChartSection(
+                value=percentage,
+                title=f"{percentage:.0f}%" if percentage >= 5 else "",
+                title_style=ft.TextStyle(size=10, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD),
+                color=color,
+                radius=60
+            )
+        )
+        legend_controls.append(
+            ft.Row([
+                ft.Container(width=16, height=16, bgcolor=color, border_radius=3),
+                ft.Text(f"{item} ({count})", max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, tooltip=item)
+            ], spacing=10)
+        )
+
+    return pie_sections, legend_controls
+
+# --- UI Helper Functions ---
+def create_rating_badge(score):
+    score_text = "N/A"; bgcolor = ft.colors.with_opacity(0.5, ft.colors.ON_SURFACE_VARIANT); text_color = ft.colors.WHITE
+    if score is not None:
+        try:
+            score_val = int(score); score_text = str(score_val)
+            if 0 <= score_val <= 10:
+                if score_val == 10: bgcolor = ft.colors.LIGHT_GREEN_ACCENT_400; text_color = ft.colors.BLACK
+                elif score_val >= 7: bgcolor = ft.colors.GREEN_600; text_color = ft.colors.WHITE
+                elif score_val >= 5: bgcolor = ft.colors.YELLOW_700; text_color = ft.colors.BLACK
+                elif score_val >= 2: bgcolor = ft.colors.RED_700; text_color = ft.colors.WHITE
+                else: bgcolor = ft.colors.RED_500; text_color = ft.colors.WHITE
+        except (ValueError, TypeError): pass
+    return ft.Container(
+        content=ft.Text(score_text, size=12, weight=ft.FontWeight.BOLD, color=text_color, text_align=ft.TextAlign.CENTER),
+        width=30, height=30, shape=ft.BoxShape.CIRCLE, bgcolor=bgcolor, alignment=ft.alignment.center,
+        tooltip=f"Score: {score_text}" if score is not None else "Score: Not Rated"
+    )
 
 
-def clear_all_db_caches():
-    """Clears all lru_cache instances for database functions."""
-    print("--- Caches Cleared ---")
-    get_javs_by_year_db.cache_clear()
-    get_all_javs_db.cache_clear()
-    search_javs_db.cache_clear()
+def get_entry_type_icon_name(entry_type_str: str) -> str:
+    entry_type_str_lower = (entry_type_str or "media").lower()
+    if "movie" in entry_type_str_lower: return ft.icons.MOVIE_OUTLINED
+    if "show" in entry_type_str_lower: return ft.icons.TV_OUTLINED
+    if "anime" in entry_type_str_lower: return ft.icons.ANIMATION_OUTLINED
+    if "book" in entry_type_str_lower: return ft.icons.BOOK_OUTLINED
+    if "k-drama" in entry_type_str_lower: return ft.icons.LIVE_TV_OUTLINED
+    if "jav" in entry_type_str_lower: return ft.icons.VIDEO_CAMERA_BACK_OUTLINED
+    if "hentai" in entry_type_str_lower: return ft.icons.FILTER_FRAMES_OUTLINED
+    if "game" in entry_type_str_lower: return ft.icons.SPORTS_ESPORTS_OUTLINED
+    if "adult visual novel" in entry_type_str_lower: return ft.icons.MENU_BOOK_OUTLINED
+    return ft.icons.LABEL_OUTLINED
+
+def get_genre_icon_name(genre_str: str) -> str:
+    genre_str_lower = (genre_str or "").lower()
+    if "action" in genre_str_lower: return ft.icons.BOLT_OUTLINED
+    if "drama" in genre_str_lower: return ft.icons.THEATER_COMEDY_OUTLINED
+    if "sci-fi" in genre_str_lower or "science fiction" in genre_str_lower : return ft.icons.ROCKET_LAUNCH_OUTLINED
+    if "war" in genre_str_lower: return ft.icons.SHIELD_OUTLINED
+    if "mystery" in genre_str_lower: return ft.icons.QUESTION_MARK_OUTLINED
+    if "thriller" in genre_str_lower: return ft.icons.FLASHLIGHT_ON_OUTLINED
+    if "horror" in genre_str_lower: return ft.icons.SICK_OUTLINED
+    if "comedy" in genre_str_lower: return ft.icons.SENTIMENT_VERY_SATISFIED_OUTLINED
+    if "romance" in genre_str_lower: return ft.icons.FAVORITE_BORDER_OUTLINED
+    if "fantasy" in genre_str_lower: return ft.icons.AUTO_FIX_HIGH_OUTLINED
+    if "adventure" in genre_str_lower: return ft.icons.EXPLORE_OUTLINED
+    if "slice of life" in genre_str_lower: return ft.icons.CAKE_OUTLINED
+    if "supernatural" in genre_str_lower: return ft.icons.AUTO_STORIES_OUTLINED
+    if "sports" in genre_str_lower: return ft.icons.SPORTS_VOLLEYBALL_OUTLINED
+    if "music" in genre_str_lower: return ft.icons.MUSIC_NOTE_OUTLINED
+    if "historical" in genre_str_lower: return ft.icons.ACCOUNT_BALANCE_OUTLINED
+    if "school" in genre_str_lower: return ft.icons.SCHOOL_OUTLINED
+    return ft.icons.LOCAL_OFFER_OUTLINED
+
+def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_desc_callback):
+    name = jav_item.get('name', 'Unknown Title')
+    db_image_value = jav_item.get('image_url')
+    image_src_for_flet = DEFAULT_IMAGE_URL
+
+    if db_image_value:
+        if db_image_value.lower().startswith("http://") or db_image_value.lower().startswith("https://"):
+            image_src_for_flet = db_image_value
+        else:
+            full_local_path_check = os.path.join(ASSETS_DIR, db_image_value) 
+            if os.path.exists(full_local_path_check):
+                image_src_for_flet = db_image_value 
+
+    entry_type_str = jav_item.get('entry_type', 'Media')
+    genres_str = jav_item.get('genre', '')
+    
+    completion_date_str_db = jav_item.get('completion_date', 'N/A') 
+    display_completion_date = 'N/A' 
+
+    if completion_date_str_db and completion_date_str_db != 'N/A':
+        try:
+            date_obj = datetime.strptime(completion_date_str_db, '%Y-%m-%d')
+            day = date_obj.day
+            if 4 <= day <= 20 or 24 <= day <= 30:
+                suffix = "th"
+            else:
+                suffix = ["st", "nd", "rd"][day % 10 - 1]
+            
+            if os.name == 'nt': 
+                day_format_char = '#' 
+            else: 
+                day_format_char = '-'
+            display_completion_date = date_obj.strftime(f'%{day_format_char}d{suffix} %B %Y')
+
+        except ValueError:
+            display_completion_date = completion_date_str_db 
+            print(f"Warning: Could not parse date '{completion_date_str_db}' for display in gallery card for '{name}'.")
+
+    score = jav_item.get('review_score')
+    description_value = jav_item.get('description')
+    has_description = bool(description_value and description_value.strip())
+
+    is_rewatch = jav_item.get('is_rewatch') == 1
+    owns_local_copy = jav_item.get('own_local_copy') == 1
+
+    parsed_genres = parse_genres(genres_str)
+    
+    # Enhanced styling constants
+    CARD_RADIUS = 16
+    IMAGE_HEIGHT = 160
+    CONTENT_PADDING = ft.padding.symmetric(horizontal=20, vertical=16)
+    MAIN_SPACING = 14
+    
+    # Typography
+    TITLE_SIZE = 17
+    SUBTITLE_SIZE = 13
+    TAG_SIZE = 11
+    DATE_SIZE = 12
+    
+    # Colors and styling
+    def get_entry_type_styling(entry_type):
+        styles = {
+            'Game': {
+                'bg': ft.colors.BLUE_600,
+                'fg': ft.colors.WHITE,
+                'gradient': ft.LinearGradient(
+                    colors=[ft.colors.BLUE_600, ft.colors.BLUE_700],
+                    begin=ft.alignment.top_left,
+                    end=ft.alignment.bottom_right
+                )
+            },
+            'Movie': {
+                'bg': ft.colors.RED_600,
+                'fg': ft.colors.WHITE,
+                'gradient': ft.LinearGradient(
+                    colors=[ft.colors.RED_600, ft.colors.RED_700],
+                    begin=ft.alignment.top_left,
+                    end=ft.alignment.bottom_right
+                )
+            },
+            'Show': {
+                'bg': ft.colors.PURPLE_600,
+                'fg': ft.colors.WHITE,
+                'gradient': ft.LinearGradient(
+                    colors=[ft.colors.PURPLE_600, ft.colors.PURPLE_700],
+                    begin=ft.alignment.top_left,
+                    end=ft.alignment.bottom_right
+                )
+            },
+            'K-Drama': {
+                'bg': ft.colors.GREEN_600,
+                'fg': ft.colors.WHITE,
+                'gradient': ft.LinearGradient(
+                    colors=[ft.colors.GREEN_600, ft.colors.GREEN_700],
+                    begin=ft.alignment.top_left,
+                    end=ft.alignment.bottom_right
+                )
+            },
+            'Anime': {
+                'bg': ft.colors.PINK_600,
+                'fg': ft.colors.WHITE,
+                'gradient': ft.LinearGradient(
+                    colors=[ft.colors.PINK_600, ft.colors.PINK_700],
+                    begin=ft.alignment.top_left,
+                    end=ft.alignment.bottom_right
+                )
+            },
+            'Book': {
+                'bg': ft.colors.BROWN_600,
+                'fg': ft.colors.WHITE,
+                'gradient': ft.LinearGradient(
+                    colors=[ft.colors.BROWN_600, ft.colors.BROWN_700],
+                    begin=ft.alignment.top_left,
+                    end=ft.alignment.bottom_right
+                )
+            },
+            'Hentai': {
+                'bg': ft.colors.DEEP_PURPLE_600,
+                'fg': ft.colors.WHITE,
+                'gradient': ft.LinearGradient(
+                    colors=[ft.colors.DEEP_PURPLE_600, ft.colors.DEEP_PURPLE_700],
+                    begin=ft.alignment.top_left,
+                    end=ft.alignment.bottom_right
+                )
+            },
+            'JAV': {
+                'bg': ft.colors.INDIGO_600,
+                'fg': ft.colors.WHITE,
+                'gradient': ft.LinearGradient(
+                    colors=[ft.colors.INDIGO_600, ft.colors.INDIGO_700],
+                    begin=ft.alignment.top_left,
+                    end=ft.alignment.bottom_right
+                )
+            },
+            'Adult Visual Novel': {
+                'bg': ft.colors.DEEP_ORANGE_600,
+                'fg': ft.colors.WHITE,
+                'gradient': ft.LinearGradient(
+                    colors=[ft.colors.DEEP_ORANGE_600, ft.colors.DEEP_ORANGE_700],
+                    begin=ft.alignment.top_left,
+                    end=ft.alignment.bottom_right
+                )
+            },
+            'Other': {
+                'bg': ft.colors.BLUE_GREY_600,
+                'fg': ft.colors.WHITE,
+                'gradient': ft.LinearGradient(
+                    colors=[ft.colors.BLUE_GREY_600, ft.colors.BLUE_GREY_700],
+                    begin=ft.alignment.top_left,
+                    end=ft.alignment.bottom_right
+                )
+            },
+        }
+        return styles.get(entry_type, styles['Other'])
+
+    # Enhanced title with better typography
+    title_text = ft.Text(
+        name, 
+        weight=ft.FontWeight.W_600, 
+        size=TITLE_SIZE, 
+        max_lines=2,
+        overflow=ft.TextOverflow.ELLIPSIS, 
+        color=ft.colors.ON_SURFACE,
+        style=ft.TextStyle(
+            letter_spacing=0.2,
+        )
+    )
+
+    # Enhanced entry type badge with gradient
+    entry_type_style = get_entry_type_styling(entry_type_str)
+    entry_type_icon_name = get_entry_type_icon_name(entry_type_str)
+    
+    entry_type_badge = ft.Container(
+        content=ft.Row(
+            [
+                ft.Icon(entry_type_icon_name, size=14, color=entry_type_style['fg']),
+                ft.Text(
+                    entry_type_str, 
+                    size=TAG_SIZE, 
+                    color=entry_type_style['fg'], 
+                    weight=ft.FontWeight.W_600,
+                    style=ft.TextStyle(letter_spacing=0.3)
+                )
+            ],
+            spacing=6, 
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            tight=True,
+        ),
+        gradient=entry_type_style['gradient'],
+        padding=ft.padding.symmetric(horizontal=12, vertical=6),
+        border_radius=ft.border_radius.all(20),
+        shadow=ft.BoxShadow(
+            spread_radius=0,
+            blur_radius=4,
+            color=ft.colors.with_opacity(0.3, entry_type_style['bg']),
+            offset=ft.Offset(0, 2),
+        )
+    )
+    
+    # Enhanced rating badge
+    def create_enhanced_rating_badge(score):
+        if score is None:
+            return ft.Container()
+        
+        # Color coding for different score ranges
+        if score >= 9:
+            color = ft.colors.GREEN_600
+            bg_color = ft.colors.with_opacity(0.1, ft.colors.GREEN_600)
+        elif score >= 7:
+            color = ft.colors.BLUE_600
+            bg_color = ft.colors.with_opacity(0.1, ft.colors.BLUE_600)
+        elif score >= 5:
+            color = ft.colors.ORANGE_600
+            bg_color = ft.colors.with_opacity(0.1, ft.colors.ORANGE_600)
+        else:
+            color = ft.colors.RED_600
+            bg_color = ft.colors.with_opacity(0.1, ft.colors.RED_600)
+        
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Icon(ft.icons.STAR_ROUNDED, size=14, color=color),
+                    ft.Text(
+                        f"{score:.1f}", 
+                        size=TAG_SIZE + 1, 
+                        color=color, 
+                        weight=ft.FontWeight.W_700
+                    )
+                ],
+                spacing=4,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                tight=True,
+            ),
+            bgcolor=bg_color,
+            padding=ft.padding.symmetric(horizontal=10, vertical=6),
+            border_radius=ft.border_radius.all(20),
+            border=ft.border.all(1, ft.colors.with_opacity(0.2, color))
+        )
+
+    rating_badge = create_enhanced_rating_badge(score)
+
+    # Enhanced genre tags
+    def create_genre_tag(genre_text):
+        return ft.Container(
+            content=ft.Text(
+                genre_text, 
+                size=TAG_SIZE - 1, 
+                color=ft.colors.ON_SURFACE_VARIANT,
+                weight=ft.FontWeight.W_500,
+                max_lines=1,
+                overflow=ft.TextOverflow.ELLIPSIS
+            ),
+            bgcolor=ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE),
+            padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            border_radius=ft.border_radius.all(12),
+            border=ft.border.all(1, ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE))
+        )
+
+    genre_widgets_row = ft.Row(
+        wrap=True, 
+        spacing=6, 
+        run_spacing=6,
+        tight=True,
+    )
+    
+    if parsed_genres:
+        display_genres = parsed_genres[:3]  # Show fewer genres for cleaner look
+        for genre_text in display_genres:
+            genre_widgets_row.controls.append(create_genre_tag(genre_text))
+        
+        if len(parsed_genres) > 3:
+            remaining_genres = parsed_genres[3:]
+            tooltip_text = ", ".join(remaining_genres)
+            genre_widgets_row.controls.append(
+                ft.Container(
+                    content=ft.Text(
+                        f"+{len(parsed_genres) - 3}", 
+                        size=TAG_SIZE - 1,
+                        color=ft.colors.PRIMARY,
+                        weight=ft.FontWeight.W_600
+                    ),
+                    bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
+                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                    border_radius=ft.border_radius.all(12),
+                    border=ft.border.all(1, ft.colors.with_opacity(0.3, ft.colors.PRIMARY)),
+                    tooltip=tooltip_text,
+                )
+            )
+
+    # Enhanced indicators with better styling
+    def create_indicator(icon, tooltip, color):
+        return ft.Container(
+            content=ft.Icon(icon, size=16, color=color),
+            bgcolor=ft.colors.with_opacity(0.1, color),
+            padding=ft.padding.all(6),
+            border_radius=ft.border_radius.all(20),
+            tooltip=tooltip,
+            border=ft.border.all(1, ft.colors.with_opacity(0.3, color))
+        )
+
+    bottom_indicators_list = []
+    if is_rewatch:
+        bottom_indicators_list.append(
+            create_indicator(ft.icons.REPLAY_ROUNDED, "Rewatched", ft.colors.AMBER_600)
+        )
+    if owns_local_copy:
+        bottom_indicators_list.append(
+            create_indicator(ft.icons.DOWNLOAD_DONE_ROUNDED, "Owns Local Copy", ft.colors.GREEN_600)
+        )
+
+    bottom_indicators_row = ft.Row(
+        controls=bottom_indicators_list, 
+        spacing=8, 
+        vertical_alignment=ft.CrossAxisAlignment.CENTER
+    )
+
+    # Enhanced options menu
+    options_button = ft.Container(
+        content=ft.PopupMenuButton(
+            content=ft.Icon(ft.icons.MORE_VERT_ROUNDED, color=ft.colors.WHITE, size=18), 
+            tooltip="Options",
+            items=[
+                ft.PopupMenuItem(
+                    text="Edit", 
+                    icon=ft.icons.EDIT_OUTLINED, 
+                    on_click=lambda _, item=jav_item: edit_callback(item)
+                ),
+                ft.PopupMenuItem(
+                    text="View Description", 
+                    icon=ft.icons.DESCRIPTION_OUTLINED, 
+                    on_click=lambda _, item=jav_item: show_desc_callback(item), 
+                    disabled=not has_description
+                ),
+                ft.PopupMenuItem(),
+                ft.PopupMenuItem(
+                    text="Delete", 
+                    icon=ft.icons.DELETE_OUTLINE, 
+                    on_click=lambda _, item_id=jav_item['id'], item_name=jav_item['name']: delete_callback(item_id, item_name)
+                )
+            ]
+        ),
+        bgcolor=ft.colors.with_opacity(0.4, ft.colors.BLACK87),
+        padding=ft.padding.all(8),
+        border_radius=ft.border_radius.all(20),
+        shadow=ft.BoxShadow(
+            spread_radius=0,
+            blur_radius=8,
+            color=ft.colors.with_opacity(0.3, ft.colors.BLACK),
+            offset=ft.Offset(0, 2),
+        )
+    )
+
+    # Enhanced image with overlay gradient
+    image_stack = ft.Stack(
+        [
+            ft.Container(
+                content=ft.Image(
+                    src=image_src_for_flet, 
+                    height=IMAGE_HEIGHT, 
+                    width=float('inf'), 
+                    fit=ft.ImageFit.COVER,
+                    error_content=ft.Container( 
+                        content=ft.Column(
+                            [
+                                ft.Icon(ft.icons.BROKEN_IMAGE, size=40, color=ft.colors.ON_SURFACE_VARIANT),
+                                ft.Text("Image Error", size=12, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500)
+                            ],
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER, 
+                            alignment=ft.MainAxisAlignment.CENTER, 
+                            spacing=8,
+                        ),
+                        height=IMAGE_HEIGHT, 
+                        width=float('inf'), 
+                        bgcolor=ft.colors.SURFACE_VARIANT,
+                        alignment=ft.alignment.center
+                    )
+                ),
+                border_radius=ft.border_radius.only(top_left=CARD_RADIUS, top_right=CARD_RADIUS),
+                clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            ),
+            # Subtle gradient overlay for better text readability
+            ft.Container(
+                height=IMAGE_HEIGHT,
+                width=float('inf'),
+                gradient=ft.LinearGradient(
+                    colors=[
+                        ft.colors.with_opacity(0, ft.colors.BLACK),
+                        ft.colors.with_opacity(0.2, ft.colors.BLACK)
+                    ],
+                    begin=ft.alignment.top_center,
+                    end=ft.alignment.bottom_center
+                ),
+                border_radius=ft.border_radius.only(top_left=CARD_RADIUS, top_right=CARD_RADIUS),
+            ),
+            ft.Container(
+                content=options_button,
+                top=12, 
+                right=12,
+            )
+        ]
+    )
+
+    # Enhanced info chips
+    def create_info_chip(icon, text, tooltip_prefix):
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Icon(icon, size=12, color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Text(
+                        text, 
+                        size=TAG_SIZE, 
+                        color=ft.colors.ON_SURFACE_VARIANT, 
+                        weight=ft.FontWeight.W_500, 
+                        max_lines=1, 
+                        overflow=ft.TextOverflow.ELLIPSIS
+                    )
+                ],
+                spacing=4, 
+                vertical_alignment=ft.CrossAxisAlignment.CENTER, 
+                tight=True,
+            ),
+            bgcolor=ft.colors.with_opacity(0.06, ft.colors.ON_SURFACE),
+            padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            border_radius=ft.border_radius.all(12),
+            tooltip=f"{tooltip_prefix}: {text}",
+            border=ft.border.all(1, ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE))
+        )
+
+    # Type-specific info
+    type_specific_info_container = ft.Row(wrap=True, spacing=6, run_spacing=6)
+
+    if jav_item.get('platform'):
+        type_specific_info_container.controls.append(
+            create_info_chip(ft.icons.VIDEOGAME_ASSET_OUTLINED, jav_item['platform'], "Platform")
+        )
+    if jav_item.get('author'):
+        type_specific_info_container.controls.append(
+            create_info_chip(ft.icons.PERSON_OUTLINE, jav_item['author'], "Author")
+        )
+    if jav_item.get('director'):
+        type_specific_info_container.controls.append(
+            create_info_chip(ft.icons.BUSINESS_OUTLINED, jav_item['director'], "Studio")
+        )
+    if jav_item.get('actress'):
+        actress_list = parse_multi_value_field(jav_item['actress'])
+        for actress_name in actress_list:
+            type_specific_info_container.controls.append(
+                create_info_chip(ft.icons.WOMAN_2_OUTLINED, actress_name, f"Actress: {actress_name}")
+            )
+    if jav_item.get('update_version'):
+        type_specific_info_container.controls.append(
+            create_info_chip(ft.icons.INFO_OUTLINE, jav_item['update_version'], "Version")
+        )
+
+    # Build card content
+    card_content_controls = [
+        # Title section
+        ft.Container(
+            content=title_text,
+            margin=ft.margin.only(bottom=4)
+        ),
+        
+        # Entry type and rating row  
+        ft.Row(
+            controls=[entry_type_badge, rating_badge] if rating_badge.content else [entry_type_badge],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        ),
+    ]
+
+    # Add type-specific info if available
+    if type_specific_info_container.controls:
+        card_content_controls.append(type_specific_info_container)
+
+    # Add genres if available
+    if genre_widgets_row.controls:
+        card_content_controls.append(genre_widgets_row)
+    
+    # Bottom section with indicators and date
+    card_content_controls.append(
+        ft.Row(
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN, 
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[
+                bottom_indicators_row,
+                ft.Text(
+                    display_completion_date, 
+                    size=DATE_SIZE, 
+                    color=ft.colors.ON_SURFACE_VARIANT, 
+                    opacity=0.8, 
+                    weight=ft.FontWeight.W_500,
+                    style=ft.TextStyle(letter_spacing=0.2)
+                ),
+            ]
+        )
+    )
+    
+    card_content = ft.Column(
+        controls=card_content_controls,
+        spacing=MAIN_SPACING,
+        tight=True,
+    )
+
+    # Create the final card with enhanced styling
+    return ft.Card(
+        content=ft.Container(
+            content=ft.Column(
+                [
+                    image_stack,
+                    ft.Container(content=card_content, padding=CONTENT_PADDING)
+                ],
+                spacing=0,
+                tight=True
+            ),
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+        ),
+        elevation=3,
+        margin=ft.margin.all(8),
+        shape=ft.RoundedRectangleBorder(radius=CARD_RADIUS),
+        shadow_color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
+        surface_tint_color=ft.colors.SURFACE_TINT,
+    )
 
 # --- Helper Functions for Dynamic Forms ---
-def update_conditional_fields(selected_type, container, initial_data=None):
+def update_conditional_fields(selected_type: str, container: ft.Column, initial_data: dict | None = None):
+    """Dynamically adds form fields based on the selected entry type."""
     container.controls.clear()
-    
-    if not selected_type:
-        if container.page:
-            try:
-                container.update()
-            except Exception:
-                pass
-        return
-    
-    def create_styled_conditional_field(label, value="", hint_text="", options=None, data=None, capitalization=None):
-        if options:  # Dropdown
-            return ft.Dropdown(
-                label=label,
-                options=options,
-                value=value,
-                hint_text=hint_text,
-                data=data,
-                border_radius=12,
-                filled=True,
-                bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
-                border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
-                focused_border_color=ft.colors.PRIMARY,
-                content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
-                dense=True,
-                options_fill_horizontally=True,
-            )
-        else:  # TextField
-            return ft.TextField(
-                label=label,
-                value=value,
-                hint_text=hint_text,
-                data=data,
-                capitalization=capitalization,
-                border_radius=12,
-                filled=True,
-                bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
-                border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
-                focused_border_color=ft.colors.PRIMARY,
-                content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
-            )
     
     if selected_type == "Game":
         platform_options = [
             ft.dropdown.Option("PC"), ft.dropdown.Option("PlayStation"), ft.dropdown.Option("Xbox"),
             ft.dropdown.Option("Nintendo Switch"), ft.dropdown.Option("Mobile"), ft.dropdown.Option("Other"),
         ]
-        # The create_styled_conditional_field function will now correctly apply the fix
-        container.controls.append(create_styled_conditional_field(
-            label="Platform",
-            options=platform_options,
-            hint_text="Select the game platform",
+        container.controls.append(ft.Dropdown(
+            label="Platform", options=platform_options, hint_text="Select the game platform",
             value=initial_data.get('platform') if initial_data else None,
             data="platform"
         ))
     elif selected_type == "Book":
-        container.controls.append(create_styled_conditional_field(
-            label="Author",
-            capitalization=ft.TextCapitalization.WORDS,
+        container.controls.append(ft.TextField(
+            label="Author", capitalization=ft.TextCapitalization.WORDS,
             value=initial_data.get('author') if initial_data else None,
             data="author"
         ))
     elif selected_type == "JAV":
         container.controls.extend([
-            create_styled_conditional_field(
-                label="Studio",
-                capitalization=ft.TextCapitalization.WORDS,
+            ft.TextField(
+                label="Studio", capitalization=ft.TextCapitalization.WORDS,
                 value=initial_data.get('director') if initial_data else None,
                 data="director"
             ),
-            create_styled_conditional_field(
-                label="Actress(es)",
-                capitalization=ft.TextCapitalization.WORDS,
+            ft.TextField(
+                label="Actress(es)", capitalization=ft.TextCapitalization.WORDS,
                 value=initial_data.get('actress') if initial_data else None,
                 data="actress"
             )
         ])
     elif selected_type == "Adult Visual Novel":
-        container.controls.append(create_styled_conditional_field(
+        container.controls.append(ft.TextField(
             label="Update / Version",
             value=initial_data.get('update_version') if initial_data else None,
             data="update_version"
@@ -1021,21 +1468,7 @@ async def main(page: ft.Page):
             page.dialog = progress_dialog; progress_dialog.open = True; page.update()
             page.run_thread(import_csv_data, selected_file)
         else: show_snackbar("CSV Import Cancelled or No File Selected")
-    def open_import_dialog(e): import_dialog.pick_files(dialog_title="Select CSV Log", allow_multiple=False, allowed_extensions=["csv"])    
-
-    export_dialog = ft.FilePicker(on_result=lambda e: handle_export_result(e)); page.overlay.append(export_dialog)
-    def handle_export_result(e: ft.FilePickerResultEvent):
-        page.dialog = None
-        if e.path:
-            export_path = e.path
-            if not export_path.lower().endswith('.csv'):
-                export_path += '.csv'
-            print(f"CSV export path selected: {export_path}")
-            progress_dialog = ft.AlertDialog(modal=True, title=ft.Text("Exporting CSV"), content=ft.Row([ft.ProgressRing(), ft.Text("Processing...")], alignment=ft.MainAxisAlignment.CENTER))
-            page.dialog = progress_dialog; progress_dialog.open = True; page.update()
-            page.run_thread(export_csv_data, export_path)
-        else: show_snackbar("CSV Export Cancelled or No Path Selected")
-    def open_export_dialog(e): export_dialog.save_file(dialog_title="Save CSV Export", file_name="media_log_export.csv", allowed_extensions=["csv"])
+    def open_import_dialog(e): import_dialog.pick_files(dialog_title="Select CSV Log", allow_multiple=False, allowed_extensions=["csv"])
     
     def import_csv_data(file_path):
         expected_headers_lower = [ 
@@ -1174,66 +1607,6 @@ async def main(page: ft.Page):
         else: print("Import process finished, but page context was lost. UI not updated.")
 
 
-    def export_csv_data(export_path):
-        try:
-            print(f"--- Starting CSV Export to: {export_path} ---")
-            all_entries = get_all_javs_db()
-            
-            if not all_entries:
-                if page: page.run_thread(show_export_summary, "No entries to export.", True)
-                return
-            
-            # Define CSV headers matching the import format
-            csv_headers = [
-                "Name", "Genre", "Review_Score", "Completion_Date", "Description", 
-                "IsRewatch", "OwnLocalCopy", "EntryType", "ImageURL", "Platform",
-                "Author", "Studio", "Actress", "UpdateVersion"
-            ]
-            
-            exported_count = 0
-            
-            with open(export_path, mode='w', encoding='utf-8', newline='') as csvfile:
-                writer = csv.DictWriter(csvfile, fieldnames=csv_headers)
-                writer.writeheader()
-                
-                for entry in all_entries:
-                    # Convert database values to CSV format
-                    csv_row = {
-                        "Name": entry.get('name', ''),
-                        "Genre": entry.get('genre', ''),
-                        "Review_Score": entry.get('review_score', ''),
-                        "Completion_Date": entry.get('completion_date', ''),
-                        "Description": entry.get('description', ''),
-                        "IsRewatch": 'true' if entry.get('is_rewatch') == 1 else 'false',
-                        "OwnLocalCopy": 'true' if entry.get('own_local_copy') == 1 else 'false',
-                        "EntryType": entry.get('entry_type', ''),
-                        "ImageURL": entry.get('image_url', ''),
-                        "Platform": entry.get('platform', ''),
-                        "Author": entry.get('author', ''),
-                        "Studio": entry.get('director', ''),  # Map director to Studio for consistency
-                        "Actress": entry.get('actress', ''),
-                        "UpdateVersion": entry.get('update_version', '')
-                    }
-                    writer.writerow(csv_row)
-                    exported_count += 1
-            
-            print(f"--- CSV Export Finished. Exported: {exported_count} entries ---")
-            if page: page.run_thread(show_export_summary, f"Successfully exported {exported_count} entries to {os.path.basename(export_path)}", False)
-            
-        except Exception as e:
-            error_msg = f"Error during CSV export: {e}"
-            print(error_msg)
-            traceback.print_exc()
-            if page: page.run_thread(show_export_summary, error_msg, True)
-    
-    def show_export_summary(message, had_errors):
-        if not page: return
-        if hasattr(page, 'dialog') and page.dialog and isinstance(page.dialog, ft.AlertDialog) and page.dialog.title and hasattr(page.dialog.title, 'value') and page.dialog.title.value == "Exporting CSV":
-            page.dialog.open = False; page.update()
-        snackbar_color = ft.colors.ERROR_CONTAINER if had_errors else ft.colors.GREEN_700
-        show_snackbar(message, color=snackbar_color, duration=8000)
-        if page: page.update()
-
     def show_import_summary_and_refresh(message, had_errors):
         if not page: return
         if hasattr(page, 'dialog') and page.dialog and isinstance(page.dialog, ft.AlertDialog) and page.dialog.title and hasattr(page.dialog.title, 'value') and page.dialog.title.value == "Importing CSV":
@@ -1291,165 +1664,42 @@ async def main(page: ft.Page):
             print("INFO: Dialog operation already in progress. Ignoring click.")
             return
         page._dialog_is_opening = True
-        
+        dialog_instance_ref = ft.Ref[ft.AlertDialog]()
         try:
             if hasattr(page, 'dialog') and page.dialog is not None and page.dialog.open:
                 page._dialog_is_opening = False 
                 return
-                
             description_text = jav_data.get('description') or "No description provided."
-            entry_name = jav_data.get('name', 'Entry')
-            entry_type = jav_data.get('entry_type', 'Media')
-            
-            # Create enhanced header with entry type icon and styling
-            entry_type_icon = get_entry_type_icon_name(entry_type)
-            
-            # Enhanced header section
-            header_section = ft.Container(
-                content=ft.Column([
-                    ft.Row([
-                        ft.Container(
-                            content=ft.Icon(
-                                entry_type_icon, 
-                                size=28, 
-                                color=ft.colors.PRIMARY
-                            ),
-                            bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
-                            padding=ft.padding.all(12),
-                            border_radius=ft.border_radius.all(12),
-                        ),
-                        ft.Container(
-                            content=ft.Column([
-                                ft.Text(
-                                    entry_name,
-                                    style=ft.TextThemeStyle.TITLE_LARGE,
-                                    weight=ft.FontWeight.W_600,
-                                    color=ft.colors.ON_SURFACE,
-                                    max_lines=2,
-                                    overflow=ft.TextOverflow.ELLIPSIS,
-                                ),
-                                ft.Container(
-                                    content=ft.Text(
-                                        entry_type,
-                                        size=14,
-                                        color=ft.colors.PRIMARY,
-                                        weight=ft.FontWeight.W_500,
-                                    ),
-                                    bgcolor=ft.colors.with_opacity(0.08, ft.colors.PRIMARY),
-                                    padding=ft.padding.symmetric(horizontal=12, vertical=6),
-                                    border_radius=ft.border_radius.all(16),
-                                    margin=ft.margin.only(top=4),
-                                )
-                            ], spacing=8, tight=True),
-                            expand=True
-                        )
-                    ], spacing=16, vertical_alignment=ft.CrossAxisAlignment.START),
-                    
-                    # Divider with gradient effect
-                    ft.Container(
-                        height=1,
-                        bgcolor=ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE),
-                        margin=ft.margin.symmetric(vertical=20),
-                    )
-                ], spacing=0, tight=True),
-                padding=ft.padding.all(24),
-                bgcolor=ft.colors.with_opacity(0.02, ft.colors.PRIMARY),
+            dialog_title = f"Description: {jav_data.get('name', 'Entry')}"
+            description_content_container = ft.Container(
+                content=ft.Text(description_text, selectable=True),
+                padding=ft.padding.only(top=5, bottom=10),
             )
+            description_content_container.scroll = ft.ScrollMode.ADAPTIVE
+            description_content_container.constraints = ft.BoxConstraints(max_height=300)
             
-            # Enhanced description content with markdown rendering
-            markdown_controls = render_markdown(description_text)
-            
-            description_content = ft.Container(
-                content=ft.Column(
-                    controls=markdown_controls,
-                    spacing=8,
-                    tight=True
-                ),
-                padding=ft.padding.symmetric(horizontal=24, vertical=16),
-                margin=ft.margin.only(bottom=8),
+            dialog_instance = ft.AlertDialog(
+                ref=dialog_instance_ref, modal=True, title=ft.Text(dialog_title),
+                content=description_content_container, actions_alignment=ft.MainAxisAlignment.END,
             )
-            
-            # Scrollable container for description
-            max_height = min(400, page.window_height * 0.5) if page.window_height else 400
-            scrollable_content = ft.Container(
-                content=ft.Column(
-                    controls=[description_content],
-                    scroll=ft.ScrollMode.ADAPTIVE,
-                    tight=True
-                ),
-                height=max_height,
-            )
-            
-            # Enhanced close button
-            close_button = ft.Container(
-                content=ft.ElevatedButton(
-                    text="Close",
-                    icon=ft.icons.CLOSE_ROUNDED,
-                    style=ft.ButtonStyle(
-                        padding=ft.padding.symmetric(horizontal=24, vertical=12),
-                        text_style=ft.TextStyle(
-                            size=14,
-                            weight=ft.FontWeight.W_600,
-                        ),
-                        shape=ft.RoundedRectangleBorder(radius=12),
-                    ),
-                    on_click=lambda e: close_enhanced_dialog()
-                ),
-                alignment=ft.alignment.center_right,
-                padding=ft.padding.only(right=24, bottom=20, top=16),
-            )
-            
-            # Main dialog content
-            dialog_content = ft.Container(
-                content=ft.Column([
-                    header_section,
-                    scrollable_content,
-                    close_button,
-                ], spacing=0, tight=True),
-                width=min(600, page.window_width * 0.8) if page.window_width else 600,
-                bgcolor=ft.colors.SURFACE,
-                border_radius=ft.border_radius.all(20),
-                shadow=ft.BoxShadow(
-                    spread_radius=0,
-                    blur_radius=24,
-                    color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
-                    offset=ft.Offset(0, 8),
-                ),
-                border=ft.border.all(
-                    1, 
-                    ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE)
-                ),
-            )
-            
-            # Background overlay
-            dialog_overlay = ft.Container(
-                content=dialog_content,
-                alignment=ft.alignment.center,
-                bgcolor=ft.colors.with_opacity(0.5, ft.colors.BLACK),
-                expand=True,
-                on_click=lambda e: close_enhanced_dialog(),  # Click outside to close
-            )
-            
-            def close_enhanced_dialog():
-                if dialog_overlay in main_stack.controls:
-                    try:
-                        main_stack.controls.remove(dialog_overlay)
-                        main_stack.update()
-                    except Exception as e:
-                        print(f"Error removing enhanced dialog: {e}")
-            
-            # Prevent clicking on dialog content from closing the dialog
-            dialog_content.on_click = lambda e: e.control.page.update() if hasattr(e.control, 'page') else None
-            
-            # Add to stack and show
-            main_stack.controls.append(dialog_overlay)
-            main_stack.update()
-            
-        except Exception as e: 
-            print(f"Error in show_description_dialog: {e}")
-            traceback.print_exc()
-        finally: 
-            page._dialog_is_opening = False
+            def handle_dialog_dismiss(dismissed_dialog_instance):
+                 if hasattr(page, 'dialog') and page.dialog == dismissed_dialog_instance: page.dialog = None
+                 if hasattr(dismissed_dialog_instance, 'open'): dismissed_dialog_instance.open = False
+                 if dismissed_dialog_instance in page.overlay:
+                     try: page.overlay.remove(dismissed_dialog_instance)
+                     except ValueError: pass
+                 if page: page.update() 
+            dialog_instance.on_dismiss = lambda e, inst=dialog_instance: handle_dialog_dismiss(inst) 
+            def close_dialog_action(e):
+                instance_to_close = dialog_instance 
+                if instance_to_close: instance_to_close.open = False
+                if page: page.update() 
+            dialog_instance.actions = [ft.TextButton("Close", on_click=close_dialog_action)]
+            if dialog_instance not in page.overlay: page.overlay.append(dialog_instance)
+            dialog_instance.open = True; page.dialog = dialog_instance
+            if page: page.update()
+        except Exception as e: print(f"Error in show_description_dialog: {e}"); traceback.print_exc()
+        finally: page._dialog_is_opening = False
 
     def process_and_copy_image(image_source_path_or_url: str) -> str | None:
         if not image_source_path_or_url or not image_source_path_or_url.strip():
@@ -1493,14 +1743,13 @@ async def main(page: ft.Page):
         
         name_field = ft.TextField(label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS)
         
-        conditional_fields_container = ft.Column(spacing=24, tight=True)
+        conditional_fields_container = ft.Column(spacing=12, tight=True)
         def on_type_change_add(e):
             update_conditional_fields(e.control.value, conditional_fields_container)
 
         entry_type_dropdown = ft.Dropdown(
             label="Entry Type", options=ENTRY_TYPE_OPTIONS, 
-            hint_text="Select the type of media", on_change=on_type_change_add,
-            options_fill_horizontally=True
+            hint_text="Select the type of media", on_change=on_type_change_add
         )
         
         image_source_field = ft.TextField(
@@ -1527,86 +1776,8 @@ async def main(page: ft.Page):
             add_jav_date_display_field.current.value = ""
             add_jav_date_display_field.current.error_text = None
         
-        # Toolbar for Markdown formatting
-        def handle_bold_click(e):
-            apply_markdown_style(description_field, '**')
-
-        def handle_italic_click(e):
-            apply_markdown_style(description_field, '*')
-
-        def handle_header_click(e):
-            apply_markdown_style(description_field, '# ', line_start=True)
-
-        def handle_list_click(e):
-            apply_markdown_style(description_field, '* ', line_start=True)
-
-        def apply_markdown_style(textfield, style, line_start=False):
-            """
-            Applies markdown formatting at cursor position or appends to text.
-            Since Flet doesn't support text selection, we work with cursor position.
-            """
-            if not textfield or not hasattr(textfield, 'value'):
-                return
-                
-            current_text = textfield.value or ""
-            
-            if line_start:
-                # For line-start styles (headers, lists), add at beginning of new line
-                if current_text and not current_text.endswith('\n'):
-                    textfield.value = current_text + '\n' + style
-                else:
-                    textfield.value = current_text + style
-            else:
-                # For inline styles (bold, italic), add the markers where cursor is
-                # Since we can't get cursor position in Flet, append at the end
-                textfield.value = current_text + style + style
-            
-            textfield.update()
-            textfield.focus()
-
-        toolbar = ft.Row([
-            ft.IconButton(
-                icon=ft.icons.FORMAT_BOLD, 
-                tooltip="Add **bold** markers", 
-                on_click=handle_bold_click,
-                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
-            ),
-            ft.IconButton(
-                icon=ft.icons.FORMAT_ITALIC, 
-                tooltip="Add *italic* markers", 
-                on_click=handle_italic_click,
-                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
-            ),
-            ft.IconButton(
-                icon=ft.icons.FORMAT_SIZE, 
-                tooltip="Add # header", 
-                on_click=handle_header_click,
-                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
-            ),
-            ft.IconButton(
-                icon=ft.icons.FORMAT_LIST_BULLETED, 
-                tooltip="Add * list item", 
-                on_click=handle_list_click,
-                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
-            ),
-        ],
-        spacing=4,
-        )
-
-        description_field = ft.TextField(
-            label="Description / Notes", 
-            multiline=True, 
-            min_lines=3, 
-            max_lines=6, 
-            capitalization=ft.TextCapitalization.SENTENCES,
-            hint_text="Markdown supported: # Title, **bold**, *italic*, * lists"
-        )
-        score_dropdown = ft.Dropdown(
-            label="Score", width=110, 
-            options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], 
-            value="N/A",
-            options_fill_horizontally=True  # <--- ADD THIS LINE
-        )
+        description_field = ft.TextField(label="Description / Notes", multiline=True, min_lines=2, max_lines=4, capitalization=ft.TextCapitalization.SENTENCES)
+        score_dropdown = ft.Dropdown(label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value="N/A")
         rewatch_check = ft.Checkbox(label="This was a Rewatch", value=False)
         own_local_copy_check = ft.Checkbox(label="Own Local Copy?", value=False)
 
@@ -1668,15 +1839,7 @@ async def main(page: ft.Page):
         content_controls = [
             name_field, entry_type_dropdown, conditional_fields_container, image_source_row, genre_field,
             ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_add_date_picker)], alignment=ft.MainAxisAlignment.START),
-            score_dropdown, 
-            ft.Column([
-                ft.Row([
-                    ft.Text("Description / Notes", size=12, color=ft.colors.PRIMARY, weight=ft.FontWeight.W_500),
-                    toolbar
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                description_field
-            ], spacing=5),
-            rewatch_check, own_local_copy_check
+            score_dropdown, description_field, rewatch_check, own_local_copy_check
         ]
         action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Entry", on_click=save_new_jav), ]
         title_text = f"Add Entry to {target_year}" if app_state["current_view"] in YEARS else "Add New Entry"
@@ -1684,556 +1847,77 @@ async def main(page: ft.Page):
         if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls: close_manual_dialog() 
         main_stack.controls.append(manual_dialog); main_stack.update()
 
-        def open_edit_jav_dialog(jav_data_to_edit, list_refresh_callback):
-            nonlocal _target_image_field_for_picker
-            jav_id = jav_data_to_edit['id']
-            
-            edit_name_field_ref = ft.Ref[ft.TextField](); edit_genre_field_ref = ft.Ref[ft.TextField](); edit_date_display_field_ref = ft.Ref[ft.TextField](); edit_score_dropdown_ref = ft.Ref[ft.Dropdown](); edit_description_field_ref = ft.Ref[ft.TextField](); edit_rewatch_check_ref = ft.Ref[ft.Checkbox](); edit_own_local_copy_check_ref = ft.Ref[ft.Checkbox]()
-            edit_entry_type_dropdown_ref = ft.Ref[ft.Dropdown]()
-            
-            name_field = ft.TextField(ref=edit_name_field_ref, label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('name', ''))
-            
-            conditional_fields_container = ft.Column(spacing=12, tight=True)
-            def on_type_change_edit(e):
-                update_conditional_fields(e.control.value, conditional_fields_container)
-
-            entry_type_dropdown = ft.Dropdown(
-                ref=edit_entry_type_dropdown_ref, label="Entry Type", options=ENTRY_TYPE_OPTIONS, 
-                value=jav_data_to_edit.get('entry_type'), on_change=on_type_change_edit
-            )
-            
-            update_conditional_fields(
-                jav_data_to_edit.get('entry_type'), 
-                conditional_fields_container, 
-                initial_data=jav_data_to_edit
-            )
-
-            edit_image_source_row = ft.TextField(
-                label="Image Source (URL or Local Path)", 
-                value=jav_data_to_edit.get('image_url', ''), 
-                expand=True,
-                hint_text="e.g., https://... or C:\\path\\to\\image.jpg or images/file.jpg"
-            )
-            def browse_for_image_edit(e):
-                nonlocal _target_image_field_for_picker
-                _target_image_field_for_picker = edit_image_source_row
-                image_file_picker.pick_files(
-                    dialog_title="Select Image", allow_multiple=False,
-                    allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"]
-                )
-            edit_image_source_row = ft.Row(
-                [ edit_image_source_row, ft.IconButton(icon=ft.icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_edit) ],
-                vertical_alignment=ft.CrossAxisAlignment.END
-            )
-
-            genre_field = ft.TextField(ref=edit_genre_field_ref, label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('genre', '') or '')
-            initial_date_str = jav_data_to_edit.get('completion_date', ''); date_display = ft.TextField(ref=edit_date_display_field_ref, label="Completion Date", read_only=True, hint_text="Click calendar to select...", value=initial_date_str)
-            initial_score = jav_data_to_edit.get('review_score'); score_value_str = str(initial_score) if initial_score is not None else "N/A"; score_dropdown = ft.Dropdown(ref=edit_score_dropdown_ref, label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value=score_value_str)
-            description_field = ft.TextField(
-                ref=edit_description_field_ref, 
-                label="Description / Notes", 
-                multiline=True, 
-                min_lines=3, 
-                max_lines=6, 
-                capitalization=ft.TextCapitalization.SENTENCES, 
-                value=jav_data_to_edit.get('description', '') or '',
-                hint_text="Markdown supported: # Title, **bold**, *italic*, * lists"
-            )
-            initial_rewatch = jav_data_to_edit.get('is_rewatch') == 1; rewatch_check = ft.Checkbox(ref=edit_rewatch_check_ref, label="This was a Rewatch", value=initial_rewatch)
-            initial_own_local_copy = jav_data_to_edit.get('own_local_copy') == 1; own_local_copy_check = ft.Checkbox(ref=edit_own_local_copy_check_ref, label="Own Local Copy?", value=initial_own_local_copy)
-
-            initial_picker_date = None
-            if initial_date_str:
-                try: initial_picker_date = datetime.strptime(initial_date_str, '%Y-%m-%d')
-                except ValueError: pass
-            
-            _edit_date_picker_instance = ft.DatePicker( 
-                on_change=lambda e: handle_edit_date_change(e, edit_date_display_field_ref), 
-                help_text="Select Completion Date", value=initial_picker_date
-            )
-            if _edit_date_picker_instance not in page.overlay: 
-                page.overlay.append(_edit_date_picker_instance)
-            
-            def handle_edit_date_change(e, target_field_ref): 
-                selected_date = e.control.value
-                if target_field_ref.current and selected_date: 
-                    target_field_ref.current.value = selected_date.strftime('%Y-%m-%d')
-                    if hasattr(target_field_ref.current, 'page') and target_field_ref.current.page: target_field_ref.current.update()
-            def open_edit_date_picker(e): 
-                _edit_date_picker_instance.open = True
-                page.update()
-
     def open_edit_jav_dialog(jav_data_to_edit, list_refresh_callback):
         nonlocal _target_image_field_for_picker
         jav_id = jav_data_to_edit['id']
-
-        # --- Field References ---
-        edit_name_field_ref = ft.Ref[ft.TextField]()
-        edit_genre_field_ref = ft.Ref[ft.TextField]()
-        edit_date_display_field_ref = ft.Ref[ft.TextField]()
-        edit_score_dropdown_ref = ft.Ref[ft.Dropdown]()
-        edit_description_field_ref = ft.Ref[ft.TextField]()
-        edit_rewatch_check_ref = ft.Ref[ft.Checkbox]()
-        edit_own_local_copy_check_ref = ft.Ref[ft.Checkbox]()
+        
+        edit_name_field_ref = ft.Ref[ft.TextField](); edit_genre_field_ref = ft.Ref[ft.TextField](); edit_date_display_field_ref = ft.Ref[ft.TextField](); edit_score_dropdown_ref = ft.Ref[ft.Dropdown](); edit_description_field_ref = ft.Ref[ft.TextField](); edit_rewatch_check_ref = ft.Ref[ft.Checkbox](); edit_own_local_copy_check_ref = ft.Ref[ft.Checkbox]()
         edit_entry_type_dropdown_ref = ft.Ref[ft.Dropdown]()
-        image_preview_ref = ft.Ref[ft.Image]()
         
-        # --- Modern Field Styling ---
-        def create_styled_textfield(label, value="", hint_text="", multiline=False, min_lines=1, max_lines=1, capitalization=None, ref=None):
-            return ft.TextField(
-                ref=ref,
-                label=label,
-                value=value,
-                hint_text=hint_text,
-                multiline=multiline,
-                min_lines=min_lines,
-                max_lines=max_lines,
-                capitalization=capitalization,
-                border_radius=12,
-                filled=True,
-                bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
-                border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
-                focused_border_color=ft.colors.PRIMARY,
-                content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
-            )
+        name_field = ft.TextField(ref=edit_name_field_ref, label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('name', ''))
         
-        def create_styled_dropdown(label, options, value=None, on_change=None, ref=None):
-            return ft.Dropdown(
-                ref=ref,
-                label=label,
-                options=options,
-                value=value,
-                on_change=on_change,
-                border_radius=12,
-                filled=True,
-                bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
-                border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
-                focused_border_color=ft.colors.PRIMARY,
-                content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
-                # Fix the dropdown overlay issue
-                options_fill_horizontally=True,
-                dense=True,
-            )
-        
-        # --- Field Definitions ---
-        name_field = ft.TextField(
-            ref=edit_name_field_ref,
-            label="Title",
-            autofocus=True,
-            capitalization=ft.TextCapitalization.WORDS,
-            value=jav_data_to_edit.get('name', ''),
-            border_radius=12,
-            filled=True,
-            bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
-            border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
-            focused_border_color=ft.colors.PRIMARY,
-            content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
-        )
-        
-        conditional_fields_container = ft.Column(spacing=16, tight=True)
-        
+        conditional_fields_container = ft.Column(spacing=12, tight=True)
         def on_type_change_edit(e):
             update_conditional_fields(e.control.value, conditional_fields_container)
 
-        # Fixed: Pass the ref to the helper function
-        entry_type_dropdown = create_styled_dropdown(
-            "Entry Type",
-            ENTRY_TYPE_OPTIONS,
-            jav_data_to_edit.get('entry_type'),
-            on_type_change_edit,
-            edit_entry_type_dropdown_ref
+        entry_type_dropdown = ft.Dropdown(
+            ref=edit_entry_type_dropdown_ref, label="Entry Type", options=ENTRY_TYPE_OPTIONS, 
+            value=jav_data_to_edit.get('entry_type'), on_change=on_type_change_edit
         )
         
         update_conditional_fields(
-            jav_data_to_edit.get('entry_type'),
-            conditional_fields_container,
+            jav_data_to_edit.get('entry_type'), 
+            conditional_fields_container, 
             initial_data=jav_data_to_edit
         )
 
-        _edit_image_source_tf = ft.TextField(
-            label="Image Source (URL or Local Path)",
-            value=jav_data_to_edit.get('image_url', ''),
-            hint_text="https://example.com/image.jpg or C:\\path\\to\\image.jpg",
-            on_change=lambda e: update_image_preview(e.control.value),
-            border_radius=12,
-            filled=True,
-            bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
-            border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
-            focused_border_color=ft.colors.PRIMARY,
-            content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
-            prefix_icon=ft.icons.LINK_OUTLINED,
-        )
-
-        genre_field = ft.TextField(
-            ref=edit_genre_field_ref,
-            label="Genres (comma-separated)",
-            hint_text="Action, Drama, Thriller",
-            capitalization=ft.TextCapitalization.WORDS,
-            value=jav_data_to_edit.get('genre', '') or '',
-            border_radius=12,
-            filled=True,
-            bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
-            border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
-            focused_border_color=ft.colors.PRIMARY,
-            content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
-            prefix_icon=ft.icons.LOCAL_OFFER_OUTLINED,
-        )
-        
-        initial_date_str = jav_data_to_edit.get('completion_date', '')
-        date_display = ft.TextField(
-            ref=edit_date_display_field_ref,
-            label="Completion Date",
-            read_only=True,
-            hint_text="Select a date...",
-            value=initial_date_str,
+        _edit_image_source_tf = ft.TextField( 
+            label="Image Source (URL or Local Path)", 
+            value=jav_data_to_edit.get('image_url', ''), 
             expand=True,
-            border_radius=12,
-            filled=True,
-            bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
-            border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
-            content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
-            prefix_icon=ft.icons.CALENDAR_TODAY_OUTLINED,
+            hint_text="e.g., https://... or C:\\path\\to\\image.jpg or images/file.jpg"
         )
-        
-        initial_score = jav_data_to_edit.get('review_score')
-        score_value_str = str(initial_score) if initial_score is not None else "N/A"
-        
-        # Fixed: Pass the ref to the helper function
-        score_dropdown = create_styled_dropdown(
-            "Score",
-            [ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)],
-            score_value_str,
-            None,
-            edit_score_dropdown_ref
-        )
-        score_dropdown.expand = True
-        
-        description_field = ft.TextField(
-            ref=edit_description_field_ref,
-            label="Description / Notes",
-            multiline=True,
-            min_lines=6,
-            max_lines=10,
-            capitalization=ft.TextCapitalization.SENTENCES,
-            value=jav_data_to_edit.get('description', '') or '',
-            hint_text="Write your thoughts, notes, or review...\nMarkdown supported: **bold**, *italic*, # headers, * lists",
-            border_radius=12,
-            filled=True,
-            bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
-            border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
-            focused_border_color=ft.colors.PRIMARY,
-            content_padding=ft.padding.all(16),
-        )
-        
-        initial_rewatch = jav_data_to_edit.get('is_rewatch') == 1
-        rewatch_check = ft.Checkbox(
-            ref=edit_rewatch_check_ref,
-            label="This was a Rewatch",
-            value=initial_rewatch,
-            fill_color=ft.colors.PRIMARY,
-        )
-        
-        initial_own_local_copy = jav_data_to_edit.get('own_local_copy') == 1
-        own_local_copy_check = ft.Checkbox(
-            ref=edit_own_local_copy_check_ref,
-            label="Own Local Copy",
-            value=initial_own_local_copy,
-            fill_color=ft.colors.PRIMARY,
+        def browse_for_image_edit(e):
+            nonlocal _target_image_field_for_picker
+            _target_image_field_for_picker = _edit_image_source_tf 
+            image_file_picker.pick_files(
+                dialog_title="Select Image", allow_multiple=False,
+                allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"]
+            )
+        edit_image_source_row = ft.Row(
+            [ _edit_image_source_tf, ft.IconButton(icon=ft.icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_edit) ],
+            vertical_alignment=ft.CrossAxisAlignment.END
         )
 
-        # --- Date Picker Setup ---
+        genre_field = ft.TextField(ref=edit_genre_field_ref, label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('genre', '') or '')
+        initial_date_str = jav_data_to_edit.get('completion_date', ''); date_display = ft.TextField(ref=edit_date_display_field_ref, label="Completion Date", read_only=True, hint_text="Click calendar to select...", value=initial_date_str)
+        initial_score = jav_data_to_edit.get('review_score'); score_value_str = str(initial_score) if initial_score is not None else "N/A"; score_dropdown = ft.Dropdown(ref=edit_score_dropdown_ref, label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value=score_value_str)
+        description_field = ft.TextField(ref=edit_description_field_ref, label="Description / Notes", multiline=True, min_lines=2, max_lines=4, capitalization=ft.TextCapitalization.SENTENCES, value=jav_data_to_edit.get('description', '') or '')
+        initial_rewatch = jav_data_to_edit.get('is_rewatch') == 1; rewatch_check = ft.Checkbox(ref=edit_rewatch_check_ref, label="This was a Rewatch", value=initial_rewatch)
+        initial_own_local_copy = jav_data_to_edit.get('own_local_copy') == 1; own_local_copy_check = ft.Checkbox(ref=edit_own_local_copy_check_ref, label="Own Local Copy?", value=initial_own_local_copy)
+
         initial_picker_date = None
         if initial_date_str:
-            try: 
-                initial_picker_date = datetime.strptime(initial_date_str, '%Y-%m-%d')
-            except ValueError: 
-                pass
+            try: initial_picker_date = datetime.strptime(initial_date_str, '%Y-%m-%d')
+            except ValueError: pass
         
-        _edit_date_picker_instance = ft.DatePicker(
-            on_change=lambda e: handle_edit_date_change(e, edit_date_display_field_ref),
-            help_text="Select Completion Date",
-            value=initial_picker_date
+        _edit_date_picker_instance = ft.DatePicker( 
+            on_change=lambda e: handle_edit_date_change(e, edit_date_display_field_ref), 
+            help_text="Select Completion Date", value=initial_picker_date
         )
-        if _edit_date_picker_instance not in page.overlay:
+        if _edit_date_picker_instance not in page.overlay: 
             page.overlay.append(_edit_date_picker_instance)
         
-        def handle_edit_date_change(e, target_field_ref):
+        def handle_edit_date_change(e, target_field_ref): 
             selected_date = e.control.value
-            if target_field_ref.current and selected_date:
+            if target_field_ref.current and selected_date: 
                 target_field_ref.current.value = selected_date.strftime('%Y-%m-%d')
-                if hasattr(target_field_ref.current, 'page') and target_field_ref.current.page:
-                    target_field_ref.current.update()
-        
-        def open_edit_date_picker(e):
+                if hasattr(target_field_ref.current, 'page') and target_field_ref.current.page: target_field_ref.current.update()
+        def open_edit_date_picker(e): 
             _edit_date_picker_instance.open = True
             page.update()
 
-        # --- Image Handling ---
-        def update_image_preview(source_path_or_url):
-            if not image_preview_ref.current: 
-                return
-            
-            src_for_flet = DEFAULT_IMAGE_URL
-            if source_path_or_url:
-                if source_path_or_url.lower().startswith("http"):
-                    src_for_flet = source_path_or_url
-                else:
-                    if source_path_or_url.startswith("images/"):
-                        full_path = os.path.join(ASSETS_DIR, source_path_or_url)
-                        if os.path.exists(full_path):
-                            src_for_flet = source_path_or_url
-                    elif os.path.exists(source_path_or_url):
-                        src_for_flet = source_path_or_url
-            
-            image_preview_ref.current.src = src_for_flet
-            if hasattr(image_preview_ref.current, 'page') and image_preview_ref.current.page:
-                image_preview_ref.current.update()
-
-        def browse_for_image_edit(e):
-            nonlocal _target_image_field_for_picker
-            _target_image_field_for_picker = _edit_image_source_tf
-            image_file_picker.pick_files(
-                dialog_title="Select Image",
-                allow_multiple=False,
-                allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"]
-            )
-
-        # --- Enhanced Markdown Toolbar ---
-        def apply_markdown_style_edit(textfield, style, line_start=False):
-            if textfield and hasattr(textfield, 'value'):
-                current_text = textfield.value or ""
-                if line_start:
-                    if current_text and not current_text.endswith('\n'):
-                        textfield.value = current_text + '\n' + style
-                    else:
-                        textfield.value = current_text + style
-                else:
-                    textfield.value = current_text + style + style
-                textfield.update()
-                textfield.focus()
-
-        def create_toolbar_button(icon, tooltip, on_click):
-            return ft.Container(
-                content=ft.IconButton(
-                    icon=icon,
-                    tooltip=tooltip,
-                    on_click=on_click,
-                    icon_size=18,
-                    style=ft.ButtonStyle(
-                        color=ft.colors.ON_SURFACE_VARIANT,
-                        bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
-                        overlay_color=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
-                        shape=ft.RoundedRectangleBorder(radius=8),
-                    ),
-                ),
-                border_radius=8,
-            )
-
-        edit_toolbar = ft.Container(
-            content=ft.Row([
-                create_toolbar_button(
-                    ft.icons.FORMAT_BOLD,
-                    "Bold",
-                    lambda e: apply_markdown_style_edit(description_field, '**')
-                ),
-                create_toolbar_button(
-                    ft.icons.FORMAT_ITALIC,
-                    "Italic", 
-                    lambda e: apply_markdown_style_edit(description_field, '*')
-                ),
-                create_toolbar_button(
-                    ft.icons.TITLE,
-                    "Header",
-                    lambda e: apply_markdown_style_edit(description_field, '# ', True)
-                ),
-                create_toolbar_button(
-                    ft.icons.FORMAT_LIST_BULLETED,
-                    "List Item",
-                    lambda e: apply_markdown_style_edit(description_field, '* ', True)
-                ),
-            ], spacing=4),
-            padding=ft.padding.symmetric(horizontal=8, vertical=4),
-            border_radius=12,
-            bgcolor=ft.colors.with_opacity(0.03, ft.colors.ON_SURFACE),
-            border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE)),
-        )
-
-        # --- Enhanced Image Preview ---
-        image_preview_widget = ft.Container(
-            content=ft.Image(
-                ref=image_preview_ref,
-                height=200,
-                width=float('inf'),
-                fit=ft.ImageFit.COVER,
-                border_radius=ft.border_radius.all(16),
-                error_content=ft.Container(
-                    content=ft.Column([
-                        ft.Icon(
-                            ft.icons.BROKEN_IMAGE_OUTLINED,
-                            size=48,
-                            color=ft.colors.ON_SURFACE_VARIANT
-                        ),
-                        ft.Text(
-                            "Image Not Found",
-                            size=14,
-                            color=ft.colors.ON_SURFACE_VARIANT,
-                            weight=ft.FontWeight.W_500
-                        )
-                    ], 
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    alignment=ft.MainAxisAlignment.CENTER
-                    ),
-                    bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
-                    border_radius=16,
-                    height=200,
-                )
-            ),
-            shadow=ft.BoxShadow(
-                spread_radius=0,
-                blur_radius=8,
-                color=ft.colors.with_opacity(0.1, ft.colors.BLACK),
-                offset=ft.Offset(0, 2)
-            ),
-            border_radius=16,
-        )
-        update_image_preview(_edit_image_source_tf.value)
-
-        # --- Enhanced Buttons ---
-        browse_button = ft.Container(
-            content=ft.ElevatedButton(
-                "Browse for Local Image",
-                icon=ft.icons.FOLDER_OPEN_OUTLINED,
-                on_click=browse_for_image_edit,
-                width=float('inf'),
-                style=ft.ButtonStyle(
-                    bgcolor=ft.colors.with_opacity(0.08, ft.colors.PRIMARY),
-                    color=ft.colors.PRIMARY,
-                    overlay_color=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
-                    elevation=0,
-                    shape=ft.RoundedRectangleBorder(radius=12),
-                    padding=ft.padding.symmetric(horizontal=20, vertical=12),
-                ),
-            ),
-            margin=ft.margin.only(top=8),
-        )
-
-        # --- Section Headers ---
-        def create_section_header(title, icon=None):
-            return ft.Container(
-                content=ft.Row([
-                    ft.Icon(icon, size=20, color=ft.colors.PRIMARY) if icon else None,
-                    ft.Text(
-                        title,
-                        style=ft.TextThemeStyle.TITLE_MEDIUM,
-                        weight=ft.FontWeight.W_600,
-                        color=ft.colors.ON_SURFACE,
-                    ),
-                ], spacing=8),
-                margin=ft.margin.only(bottom=12),
-            )
-
-        # --- UI Layout Construction ---
-        left_column = ft.Container(
-            content=ft.Column([
-                create_section_header("Cover Image", ft.icons.IMAGE_OUTLINED),
-                image_preview_widget,
-                _edit_image_source_tf,
-                browse_button,
-                ft.Container(height=24),  # Spacer
-                create_section_header("Basic Information", ft.icons.INFO_OUTLINED),
-                name_field,
-                entry_type_dropdown,
-                conditional_fields_container,
-            ], spacing=16),
-            padding=ft.padding.only(right=20),
-            expand=2,
-        )
-
-        # --- Enhanced Date/Score Section ---
-        date_score_section = ft.Container(
-            content=ft.Row([
-                ft.Container(
-                    content=ft.Column([
-                        ft.Text(
-                            "Completion Date",
-                            style=ft.TextThemeStyle.LABEL_LARGE,
-                            weight=ft.FontWeight.W_600,
-                            color=ft.colors.ON_SURFACE,
-                        ),
-                        ft.Row([
-                            date_display,
-                            ft.Container(
-                                content=ft.IconButton(
-                                    icon=ft.icons.CALENDAR_MONTH,
-                                    on_click=open_edit_date_picker,
-                                    style=ft.ButtonStyle(
-                                        bgcolor=ft.colors.with_opacity(0.05, ft.colors.PRIMARY),
-                                        color=ft.colors.PRIMARY,
-                                        shape=ft.RoundedRectangleBorder(radius=10),
-                                    ),
-                                ),
-                                margin=ft.margin.only(left=8),
-                            )
-                        ])
-                    ], spacing=8),
-                    expand=True,
-                ),
-                ft.Container(
-                    content=ft.Column([
-                        ft.Text(
-                            "Score",
-                            style=ft.TextThemeStyle.LABEL_LARGE,
-                            weight=ft.FontWeight.W_600,
-                            color=ft.colors.ON_SURFACE,
-                        ),
-                        score_dropdown
-                    ], spacing=8),
-                    expand=True,
-                ),
-            ], spacing=20),
-            padding=ft.padding.all(16),
-            border_radius=16,
-            bgcolor=ft.colors.with_opacity(0.02, ft.colors.ON_SURFACE),
-            border=ft.border.all(1, ft.colors.with_opacity(0.08, ft.colors.OUTLINE)),
-            margin=ft.margin.symmetric(vertical=8),
-        )
-
-        # --- Enhanced Checkboxes ---
-        checkbox_section = ft.Container(
-            content=ft.Row([
-                ft.Container(
-                    content=rewatch_check,
-                    padding=ft.padding.symmetric(horizontal=12, vertical=8),
-                    border_radius=12,
-                    bgcolor=ft.colors.with_opacity(0.03, ft.colors.ON_SURFACE),
-                ),
-                ft.Container(
-                    content=own_local_copy_check,
-                    padding=ft.padding.symmetric(horizontal=12, vertical=8),
-                    border_radius=12,
-                    bgcolor=ft.colors.with_opacity(0.03, ft.colors.ON_SURFACE),
-                ),
-            ], spacing=12),
-            margin=ft.margin.only(top=16),
-        )
-
-        right_column = ft.Container(
-            content=ft.Column([
-                date_score_section,
-                genre_field,
-                ft.Container(height=8),  # Spacer
-                create_section_header("Description & Notes", ft.icons.DESCRIPTION_OUTLINED),
-                edit_toolbar,
-                description_field,
-                checkbox_section,
-            ], spacing=16),
-            padding=ft.padding.only(left=20),
-            expand=3,
-        )
-
-        # --- Enhanced Save Logic (keeping original functionality) ---
         def save_edited_jav(e):
-            # [Original save logic remains the same]
             name = edit_name_field_ref.current.value.strip()
             entry_type_val = edit_entry_type_dropdown_ref.current.value
             image_source_input = _edit_image_source_tf.value.strip() 
@@ -2245,56 +1929,36 @@ async def main(page: ft.Page):
             own_local_copy = edit_own_local_copy_check_ref.current.value
             errors = []
 
-            edit_name_field_ref.current.error_text = None
-            edit_date_display_field_ref.current.error_text = None
-            edit_score_dropdown_ref.current.error_text = None
-            edit_entry_type_dropdown_ref.current.error_text = None
-            _edit_image_source_tf.error_text = None
+            edit_name_field_ref.current.error_text = None; edit_date_display_field_ref.current.error_text = None; edit_score_dropdown_ref.current.error_text = None; edit_entry_type_dropdown_ref.current.error_text = None; _edit_image_source_tf.error_text = None
 
-            if not name: 
-                errors.append("Title is required.")
-                edit_name_field_ref.current.error_text = "Required"
-            if not entry_type_val: 
-                errors.append("Entry Type is required.")
-                edit_entry_type_dropdown_ref.current.error_text = "Required"
-            if not date_str: 
-                errors.append("Completion Date is required.")
-                edit_date_display_field_ref.current.error_text = "Required"
+            if not name: errors.append("Title is required."); edit_name_field_ref.current.error_text = "Required"
+            if not entry_type_val: errors.append("Entry Type is required."); edit_entry_type_dropdown_ref.current.error_text = "Required"
+            if not date_str: errors.append("Completion Date is required."); edit_date_display_field_ref.current.error_text = "Required"
             else:
-                try: 
-                    datetime.strptime(date_str, '%Y-%m-%d')
-                except ValueError: 
-                    errors.append("Invalid date format (YYYY-MM-DD).")
-                    edit_date_display_field_ref.current.error_text = "Invalid Format"
+                try: datetime.strptime(date_str, '%Y-%m-%d')
+                except ValueError: errors.append("Invalid date format (YYYY-MM-DD)."); edit_date_display_field_ref.current.error_text = "Invalid Format"
 
             if image_source_input and \
-                not (image_source_input.lower().startswith("http://") or image_source_input.lower().startswith("https://")) and \
-                not (image_source_input.startswith("images/") and os.path.exists(os.path.join(ASSETS_DIR, image_source_input))): 
+               not (image_source_input.lower().startswith("http://") or image_source_input.lower().startswith("https://")) and \
+               not (image_source_input.startswith("images/") and os.path.exists(os.path.join(ASSETS_DIR, image_source_input))): 
                 if not os.path.exists(image_source_input): 
-                    errors.append("Local image file not found.")
-                    _edit_image_source_tf.error_text = "File not found"
+                    errors.append("Local image file not found."); _edit_image_source_tf.error_text = "File not found"
             
             score_int = None
             if score_str and score_str != "N/A":
                 try:
-                    score_int = int(score_str)
-                    if not (0 <= score_int <= 10): 
-                        errors.append("Score must be 0-10.")
-                        edit_score_dropdown_ref.current.error_text = "0-10"
-                except ValueError: 
-                    errors.append("Invalid score.")
-                    edit_score_dropdown_ref.current.error_text = "Invalid"
+                    score_int = int(score_str);
+                    if not (0 <= score_int <= 10): errors.append("Score must be 0-10."); edit_score_dropdown_ref.current.error_text = "0-10"
+                except ValueError: errors.append("Invalid score."); edit_score_dropdown_ref.current.error_text = "Invalid"
 
-            # Update all fields
-            for field_ref in [edit_name_field_ref, edit_entry_type_dropdown_ref, edit_date_display_field_ref, edit_score_dropdown_ref]:
-                if hasattr(field_ref.current, 'page') and field_ref.current.page: 
-                    field_ref.current.update()
-            if hasattr(_edit_image_source_tf, 'page') and _edit_image_source_tf.page: 
-                _edit_image_source_tf.update()
+            if hasattr(edit_name_field_ref.current, 'page') and edit_name_field_ref.current.page: edit_name_field_ref.current.update()
+            if hasattr(edit_entry_type_dropdown_ref.current, 'page') and edit_entry_type_dropdown_ref.current.page: edit_entry_type_dropdown_ref.current.update()
+            if hasattr(_edit_image_source_tf, 'page') and _edit_image_source_tf.page: _edit_image_source_tf.update()
+            if hasattr(edit_genre_field_ref.current, 'page') and edit_genre_field_ref.current.page: edit_genre_field_ref.current.update()
+            if hasattr(edit_date_display_field_ref.current, 'page') and edit_date_display_field_ref.current.page: edit_date_display_field_ref.current.update()
+            if hasattr(edit_score_dropdown_ref.current, 'page') and edit_score_dropdown_ref.current.page: edit_score_dropdown_ref.current.update()
 
-            if errors: 
-                show_snackbar("Please fix errors: " + " ".join(errors), color=ft.colors.ERROR_CONTAINER)
-                return
+            if errors: show_snackbar("Please fix errors: " + " ".join(errors), color=ft.colors.ERROR_CONTAINER); return
 
             final_image_ref_for_db = jav_data_to_edit.get('image_url') 
             original_db_image_url = jav_data_to_edit.get('image_url')
@@ -2319,203 +1983,13 @@ async def main(page: ft.Page):
             try:
                 if stats_year_filter.current and stats_year_filter.current.selected:
                     current_stats_filter = list(stats_year_filter.current.selected)[0]
-            except Exception as stats_e: 
-                print(f"Warning: Error accessing stats_year_filter selection after edit: {stats_e}")
+            except Exception as stats_e: print(f"Warning: Error accessing stats_year_filter selection after edit: {stats_e}")
             page.run_thread(calculate_and_update_stats_display, current_stats_filter)
-
-        # --- Enhanced Dialog Assembly ---
-        dialog_header = ft.Container(
-            content=ft.Row([
-                ft.Row([
-                    ft.Container(
-                        content=ft.Icon(ft.icons.EDIT_OUTLINED, size=24, color=ft.colors.PRIMARY),
-                        margin=ft.margin.only(right=12),
-                    ),
-                    ft.Text(
-                        "Edit Entry",
-                        style=ft.TextThemeStyle.HEADLINE_SMALL,
-                        weight=ft.FontWeight.W_600,
-                        color=ft.colors.ON_SURFACE,
-                    ),
-                ]),
-                ft.Container(
-                    content=ft.IconButton(
-                        icon=ft.icons.CLOSE_ROUNDED,
-                        on_click=close_manual_dialog,
-                        tooltip="Close",
-                        style=ft.ButtonStyle(
-                            color=ft.colors.ON_SURFACE_VARIANT,
-                            bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
-                            overlay_color=ft.colors.with_opacity(0.1, ft.colors.ERROR),
-                            shape=ft.RoundedRectangleBorder(radius=10),
-                        ),
-                    ),
-                    padding=ft.padding.all(4),
-                )
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            padding=ft.padding.symmetric(horizontal=24, vertical=20),
-            bgcolor=ft.colors.with_opacity(0.02, ft.colors.PRIMARY),
-            border=ft.border.only(bottom=ft.BorderSide(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE))),
-        )
-
-        dialog_footer = ft.Container(
-            content=ft.Row([
-                ft.Container(
-                    content=ft.TextButton(
-                        "Cancel",
-                        on_click=close_manual_dialog,
-                        style=ft.ButtonStyle(
-                            color=ft.colors.ON_SURFACE_VARIANT,
-                            overlay_color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE),
-                            shape=ft.RoundedRectangleBorder(radius=12),
-                            padding=ft.padding.symmetric(horizontal=24, vertical=12),
-                        ),
-                    ),
-                    margin=ft.margin.only(right=12),
-                ),
-                ft.ElevatedButton(
-                    "Save Changes",
-                    icon=ft.icons.SAVE_OUTLINED,
-                    on_click=save_edited_jav,
-                    style=ft.ButtonStyle(
-                        bgcolor=ft.colors.PRIMARY,
-                        color=ft.colors.ON_PRIMARY,
-                        overlay_color=ft.colors.with_opacity(0.1, ft.colors.ON_PRIMARY),
-                        elevation=2,
-                        shape=ft.RoundedRectangleBorder(radius=12),
-                        padding=ft.padding.symmetric(horizontal=32, vertical=12),
-                    ),
-                )
-            ], alignment=ft.MainAxisAlignment.END),
-            padding=ft.padding.symmetric(horizontal=24, vertical=20),
-            bgcolor=ft.colors.with_opacity(0.01, ft.colors.ON_SURFACE),
-            border=ft.border.only(top=ft.BorderSide(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE))),
-        )
-
-        main_content = ft.Container(
-            content=ft.Row([
-                left_column,
-                ft.Container(
-                    width=1,
-                    bgcolor=ft.colors.with_opacity(0.1, ft.colors.OUTLINE),
-                    margin=ft.margin.symmetric(horizontal=8),
-                ),
-                right_column
-            ], vertical_alignment=ft.CrossAxisAlignment.START),
-            padding=ft.padding.all(24),
-            expand=True,
-        )
-
-        # --- Final Dialog Container ---
-        dialog_content = ft.Container(
-            content=ft.Column([
-                dialog_header,
-                main_content,
-                dialog_footer,
-            ], spacing=0),
-            width=1000,
-            bgcolor=ft.colors.SURFACE,
-            border_radius=20,
-            border=ft.border.all(1, ft.colors.with_opacity(0.12, ft.colors.OUTLINE)),
-            shadow=ft.BoxShadow(
-                spread_radius=0,
-                blur_radius=24,
-                color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
-                offset=ft.Offset(0, 8)
-            ),
-            clip_behavior=ft.ClipBehavior.HARD_EDGE,
-        )
-        
-        dialog_content.constraints = ft.BoxConstraints(
-            max_height=page.window_height * 0.95 if page and page.window_height else 900
-        )
-
-        # Create the enhanced overlay scrim
-        overlay_scrim = ft.Container(
-            ref=manual_dialog_container,
-            content=dialog_content,
-            alignment=ft.alignment.center,
-            bgcolor=ft.colors.with_opacity(0.7, ft.colors.BLACK),
-            expand=True,
-        )
-        
-        # Store the date picker instance to remove it from overlay when dialog closes
-        overlay_scrim._edit_date_picker_ref = _edit_date_picker_instance
-
-        if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls:
-            close_manual_dialog()
-        main_stack.controls.append(overlay_scrim)
-        main_stack.update()
-
-        # Toolbar for Markdown formatting in edit dialog
-        def handle_bold_click_edit(e):
-            apply_markdown_style_edit(description_field, '**')
-
-        def handle_italic_click_edit(e):
-            apply_markdown_style_edit(description_field, '*')
-
-        def handle_header_click_edit(e):
-            apply_markdown_style_edit(description_field, '# ', line_start=True)
-
-        def handle_list_click_edit(e):
-            apply_markdown_style_edit(description_field, '* ', line_start=True)
-
-        def apply_markdown_style_edit(textfield, style, line_start=False):
-            if textfield and hasattr(textfield, 'value'):
-                current_text = textfield.value or ""
-                # For now, just append the style at the end since Flet doesn't support text selection
-                if line_start:
-                    # Add header style at the beginning of a new line
-                    if current_text and not current_text.endswith('\n'):
-                        textfield.value = current_text + '\n' + style
-                    else:
-                        textfield.value = current_text + style
-                else:
-                    # Add bold/italic markers
-                    textfield.value = current_text + style + style
-                textfield.update()
-
-        edit_toolbar = ft.Row([
-            ft.IconButton(
-                icon=ft.icons.FORMAT_BOLD, 
-                tooltip="Add **bold** markers", 
-                on_click=handle_bold_click_edit,
-                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
-            ),
-            ft.IconButton(
-                icon=ft.icons.FORMAT_ITALIC, 
-                tooltip="Add *italic* markers", 
-                on_click=handle_italic_click_edit,
-                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
-            ),
-            ft.IconButton(
-                icon=ft.icons.FORMAT_SIZE, 
-                tooltip="Add # header", 
-                on_click=handle_header_click_edit,
-                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
-            ),
-            ft.IconButton(
-                icon=ft.icons.FORMAT_LIST_BULLETED, 
-                tooltip="Add * list item", 
-                on_click=handle_list_click_edit,
-                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
-            ),
-        ],
-        spacing=4,
-        )
 
         content_controls = [
             name_field, entry_type_dropdown, conditional_fields_container, edit_image_source_row, genre_field,
             ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_edit_date_picker)], alignment=ft.MainAxisAlignment.START),
-            score_dropdown, 
-            ft.Column([
-                ft.Row([
-                    ft.Text("Description / Notes", size=12, color=ft.colors.PRIMARY, weight=ft.FontWeight.W_500),
-                    edit_toolbar
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                description_field
-            ], spacing=5),
-            rewatch_check, own_local_copy_check
+            score_dropdown, description_field, rewatch_check, own_local_copy_check
         ]
         action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Changes", on_click=save_edited_jav), ]
         manual_dialog = create_dialog_overlay(f"Edit Entry: {jav_data_to_edit['name']}", content_controls, action_buttons, associated_picker=_edit_date_picker_instance)
@@ -2688,16 +2162,13 @@ async def main(page: ft.Page):
                 print(f"Performing search for: '{search_term}' in fields: {app_state['search_selected_fields']}")
             
             # Get selected entry types for filtering
-            selected_entry_types = tuple(sorted(list(app_state["search_view_selected_entry_types"]))) if app_state["search_view_selected_entry_types"] else None
+            selected_entry_types = list(app_state["search_view_selected_entry_types"]) if app_state["search_view_selected_entry_types"] else None
             
-            # Get selected search fields
-            selected_search_fields = tuple(sorted(list(app_state["search_selected_fields"])))
-
-            # Perform the search using tuples
+            # Perform the search
             search_results = search_javs_db(
                 search_term, 
-                selected_search_fields, # Pass the tuple
-                selected_entry_types    # Pass the tuple or None
+                list(app_state["search_selected_fields"]), 
+                selected_entry_types
             )
             
             app_state["search_results"] = search_results
@@ -3281,10 +2752,7 @@ async def main(page: ft.Page):
             ft.Row([ft.Text("Theme:"), theme_dropdown], vertical_alignment=ft.CrossAxisAlignment.CENTER),
             ft.Divider(height=20, thickness=1),
             ft.Container(content=ft.Text("Import / Export", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
-            ft.Row( [ 
-                ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog), 
-                ft.ElevatedButton("Export to CSV", icon=ft.icons.DOWNLOAD_ROUNDED, on_click=open_export_dialog),
-            ], spacing=10 ),
+            ft.Row( [ ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog), ], spacing=10 ),
             ft.Text( "CSV Format: Header row required. Columns: Name (Req), Genre, Review_Score, Completion_Date (Req), Description, IsRewatch, OwnLocalCopy, EntryType, ImageURL, Platform, Author, Studio, Actress, UpdateVersion. Case insensitive for headers.", italic=True, size=11, color=ft.colors.with_opacity(0.6, ft.colors.ON_SURFACE), max_lines=4 )
         ]
         return ft.Container(
