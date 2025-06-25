@@ -11,6 +11,9 @@ import shutil # Already imported
 import uuid # Already imported
 import re
 import asyncio
+import time # Import the time module
+from functools import lru_cache
+
 
 # --- Markdown Rendering Function ---
 def render_markdown(markdown_text: str) -> list[ft.Control]:
@@ -335,11 +338,15 @@ def add_jav_db(name, genre_str, completion_date_str, score, description, is_rewa
         )
         conn.commit()
         print(f"Entry added: {name}")
+        clear_all_db_caches()
     except sqlite3.Error as e: print(f"Database error adding entry '{name}': {e}")
     finally:
         if conn: conn.close()
 
+@lru_cache(maxsize=32) # Caches the results of the 32 most recent calls
 def get_javs_by_year_db(year):
+    print(f"!!! CACHE MISS !!! --- Running the SLOW database query for year: {year}")
+    start_time = time.time()
     conn = None; javs = []
     try:
         conn = sqlite3.connect(DB_FILE); conn.row_factory = sqlite3.Row
@@ -351,8 +358,12 @@ def get_javs_by_year_db(year):
     except sqlite3.Error as e: print(f"Database Error getting entries for year {year}: {e}")
     finally:
         if conn: conn.close()
+        
+    end_time = time.time()
+    print(f"    -> Query for {year} took {end_time - start_time:.4f} seconds.")
     return javs
 
+@lru_cache(maxsize=4) # A small cache is fine here as it's usually just one result
 def get_all_javs_db():
     conn = None; javs = []
     try:
@@ -367,6 +378,7 @@ def get_all_javs_db():
         if conn: conn.close()
     return javs
 
+@lru_cache(maxsize=128) # Cache up to 128 different search queries
 def search_javs_db(search_term, search_fields, entry_types=None):
     """
     Search for entries based on search term and specified fields.
@@ -441,6 +453,7 @@ def delete_jav_db(jav_id):
         conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
         cursor.execute("DELETE FROM javs WHERE id = ?", (jav_id,)); conn.commit()
         print(f"Entry deleted: ID {jav_id}")
+        clear_all_db_caches()
     except sqlite3.Error as e: print(f"Database error deleting entry ID {jav_id}: {e}")
     finally:
         if conn: conn.close()
@@ -473,11 +486,19 @@ def update_jav_db(jav_id, name, genre_str, completion_date_str, score, descripti
         """, (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, own_local_copy_int, image_to_db, entry_type_to_db, platform_to_db, author_to_db, director_to_db, actress_to_db, version_to_db, jav_id))
         conn.commit()
         print(f"Entry updated: ID {jav_id} - {name}")
+        clear_all_db_caches()
     except sqlite3.Error as e: print(f"Database error updating entry ID {jav_id}: {e}")
     finally:
         if conn: conn.close()
 
 
+
+def clear_all_db_caches():
+    """Clears all lru_cache instances for database functions."""
+    print("--- Caches Cleared ---")
+    get_javs_by_year_db.cache_clear()
+    get_all_javs_db.cache_clear()
+    search_javs_db.cache_clear()
 
 # --- Helper Functions for Dynamic Forms ---
 def update_conditional_fields(selected_type, container, initial_data=None):
@@ -2667,13 +2688,16 @@ async def main(page: ft.Page):
                 print(f"Performing search for: '{search_term}' in fields: {app_state['search_selected_fields']}")
             
             # Get selected entry types for filtering
-            selected_entry_types = list(app_state["search_view_selected_entry_types"]) if app_state["search_view_selected_entry_types"] else None
+            selected_entry_types = tuple(sorted(list(app_state["search_view_selected_entry_types"]))) if app_state["search_view_selected_entry_types"] else None
             
-            # Perform the search
+            # Get selected search fields
+            selected_search_fields = tuple(sorted(list(app_state["search_selected_fields"])))
+
+            # Perform the search using tuples
             search_results = search_javs_db(
                 search_term, 
-                list(app_state["search_selected_fields"]), 
-                selected_entry_types
+                selected_search_fields, # Pass the tuple
+                selected_entry_types    # Pass the tuple or None
             )
             
             app_state["search_results"] = search_results
