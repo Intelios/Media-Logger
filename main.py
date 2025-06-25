@@ -480,41 +480,85 @@ def update_jav_db(jav_id, name, genre_str, completion_date_str, score, descripti
 
 
 # --- Helper Functions for Dynamic Forms ---
-def update_conditional_fields(selected_type: str, container: ft.Column, initial_data: dict | None = None):
-    """Dynamically adds form fields based on the selected entry type."""
+def update_conditional_fields(selected_type, container, initial_data=None):
     container.controls.clear()
+    
+    if not selected_type:
+        if container.page:
+            try:
+                container.update()
+            except Exception:
+                pass
+        return
+    
+    def create_styled_conditional_field(label, value="", hint_text="", options=None, data=None, capitalization=None):
+        if options:  # Dropdown
+            return ft.Dropdown(
+                label=label,
+                options=options,
+                value=value,
+                hint_text=hint_text,
+                data=data,
+                border_radius=12,
+                filled=True,
+                bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
+                focused_border_color=ft.colors.PRIMARY,
+                content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
+                dense=True,
+                options_fill_horizontally=True,
+            )
+        else:  # TextField
+            return ft.TextField(
+                label=label,
+                value=value,
+                hint_text=hint_text,
+                data=data,
+                capitalization=capitalization,
+                border_radius=12,
+                filled=True,
+                bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
+                focused_border_color=ft.colors.PRIMARY,
+                content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
+            )
     
     if selected_type == "Game":
         platform_options = [
             ft.dropdown.Option("PC"), ft.dropdown.Option("PlayStation"), ft.dropdown.Option("Xbox"),
             ft.dropdown.Option("Nintendo Switch"), ft.dropdown.Option("Mobile"), ft.dropdown.Option("Other"),
         ]
-        container.controls.append(ft.Dropdown(
-            label="Platform", options=platform_options, hint_text="Select the game platform",
+        container.controls.append(create_styled_conditional_field(
+            label="Platform",
+            options=platform_options,
+            hint_text="Select the game platform",
             value=initial_data.get('platform') if initial_data else None,
             data="platform"
         ))
     elif selected_type == "Book":
-        container.controls.append(ft.TextField(
-            label="Author", capitalization=ft.TextCapitalization.WORDS,
+        container.controls.append(create_styled_conditional_field(
+            label="Author",
+            capitalization=ft.TextCapitalization.WORDS,
             value=initial_data.get('author') if initial_data else None,
             data="author"
         ))
     elif selected_type == "JAV":
         container.controls.extend([
-            ft.TextField(
-                label="Studio", capitalization=ft.TextCapitalization.WORDS,
+            create_styled_conditional_field(
+                label="Studio",
+                capitalization=ft.TextCapitalization.WORDS,
                 value=initial_data.get('director') if initial_data else None,
                 data="director"
             ),
-            ft.TextField(
-                label="Actress(es)", capitalization=ft.TextCapitalization.WORDS,
+            create_styled_conditional_field(
+                label="Actress(es)",
+                capitalization=ft.TextCapitalization.WORDS,
                 value=initial_data.get('actress') if initial_data else None,
                 data="actress"
             )
         ])
     elif selected_type == "Adult Visual Novel":
-        container.controls.append(ft.TextField(
+        container.controls.append(create_styled_conditional_field(
             label="Update / Version",
             value=initial_data.get('update_version') if initial_data else None,
             data="update_version"
@@ -1427,7 +1471,7 @@ async def main(page: ft.Page):
         
         name_field = ft.TextField(label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS)
         
-        conditional_fields_container = ft.Column(spacing=12, tight=True)
+        conditional_fields_container = ft.Column(spacing=24, tight=True)
         def on_type_change_add(e):
             update_conditional_fields(e.control.value, conditional_fields_container)
 
@@ -1636,7 +1680,7 @@ async def main(page: ft.Page):
                 initial_data=jav_data_to_edit
             )
 
-            _edit_image_source_tf = ft.TextField( 
+            edit_image_source_row = ft.TextField(
                 label="Image Source (URL or Local Path)", 
                 value=jav_data_to_edit.get('image_url', ''), 
                 expand=True,
@@ -1644,13 +1688,13 @@ async def main(page: ft.Page):
             )
             def browse_for_image_edit(e):
                 nonlocal _target_image_field_for_picker
-                _target_image_field_for_picker = _edit_image_source_tf 
+                _target_image_field_for_picker = edit_image_source_row
                 image_file_picker.pick_files(
                     dialog_title="Select Image", allow_multiple=False,
                     allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"]
                 )
             edit_image_source_row = ft.Row(
-                [ _edit_image_source_tf, ft.IconButton(icon=ft.icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_edit) ],
+                [ edit_image_source_row, ft.IconButton(icon=ft.icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_edit) ],
                 vertical_alignment=ft.CrossAxisAlignment.END
             )
 
@@ -1706,19 +1750,70 @@ async def main(page: ft.Page):
         edit_entry_type_dropdown_ref = ft.Ref[ft.Dropdown]()
         image_preview_ref = ft.Ref[ft.Image]()
         
+        # --- Modern Field Styling ---
+        def create_styled_textfield(label, value="", hint_text="", multiline=False, min_lines=1, max_lines=1, capitalization=None, ref=None):
+            return ft.TextField(
+                ref=ref,
+                label=label,
+                value=value,
+                hint_text=hint_text,
+                multiline=multiline,
+                min_lines=min_lines,
+                max_lines=max_lines,
+                capitalization=capitalization,
+                border_radius=12,
+                filled=True,
+                bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
+                focused_border_color=ft.colors.PRIMARY,
+                content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
+            )
+        
+        def create_styled_dropdown(label, options, value=None, on_change=None, ref=None):
+            return ft.Dropdown(
+                ref=ref,
+                label=label,
+                options=options,
+                value=value,
+                on_change=on_change,
+                border_radius=12,
+                filled=True,
+                bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
+                focused_border_color=ft.colors.PRIMARY,
+                content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
+                # Fix the dropdown overlay issue
+                options_fill_horizontally=True,
+                dense=True,
+            )
+        
         # --- Field Definitions ---
         name_field = ft.TextField(
-            ref=edit_name_field_ref, label="Title", autofocus=True,
-            capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('name', '')
+            ref=edit_name_field_ref,
+            label="Title",
+            autofocus=True,
+            capitalization=ft.TextCapitalization.WORDS,
+            value=jav_data_to_edit.get('name', ''),
+            border_radius=12,
+            filled=True,
+            bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+            border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
+            focused_border_color=ft.colors.PRIMARY,
+            content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
         )
         
-        conditional_fields_container = ft.Column(spacing=12, tight=True)
+        conditional_fields_container = ft.Column(spacing=16, tight=True)
+        
         def on_type_change_edit(e):
             update_conditional_fields(e.control.value, conditional_fields_container)
 
-        entry_type_dropdown = ft.Dropdown(
-            ref=edit_entry_type_dropdown_ref, label="Entry Type", options=ENTRY_TYPE_OPTIONS,
-            value=jav_data_to_edit.get('entry_type'), on_change=on_type_change_edit
+        # Fixed: Pass the ref to the helper function
+        entry_type_dropdown = create_styled_dropdown(
+            "Entry Type",
+            ENTRY_TYPE_OPTIONS,
+            jav_data_to_edit.get('entry_type'),
+            on_type_change_edit,
+            edit_entry_type_dropdown_ref
         )
         
         update_conditional_fields(
@@ -1730,52 +1825,106 @@ async def main(page: ft.Page):
         _edit_image_source_tf = ft.TextField(
             label="Image Source (URL or Local Path)",
             value=jav_data_to_edit.get('image_url', ''),
-            hint_text="e.g., https://... or C:\\path\\to\\image.jpg",
-            on_change=lambda e: update_image_preview(e.control.value)
+            hint_text="https://example.com/image.jpg or C:\\path\\to\\image.jpg",
+            on_change=lambda e: update_image_preview(e.control.value),
+            border_radius=12,
+            filled=True,
+            bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+            border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
+            focused_border_color=ft.colors.PRIMARY,
+            content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
+            prefix_icon=ft.icons.LINK_OUTLINED,
         )
 
         genre_field = ft.TextField(
-            ref=edit_genre_field_ref, label="Genres (comma-separated)",
-            hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS,
-            value=jav_data_to_edit.get('genre', '') or ''
+            ref=edit_genre_field_ref,
+            label="Genres (comma-separated)",
+            hint_text="Action, Drama, Thriller",
+            capitalization=ft.TextCapitalization.WORDS,
+            value=jav_data_to_edit.get('genre', '') or '',
+            border_radius=12,
+            filled=True,
+            bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+            border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
+            focused_border_color=ft.colors.PRIMARY,
+            content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
+            prefix_icon=ft.icons.LOCAL_OFFER_OUTLINED,
         )
         
         initial_date_str = jav_data_to_edit.get('completion_date', '')
         date_display = ft.TextField(
-            ref=edit_date_display_field_ref, label="Completion Date", read_only=True,
-            hint_text="Select a date...", value=initial_date_str, expand=True
+            ref=edit_date_display_field_ref,
+            label="Completion Date",
+            read_only=True,
+            hint_text="Select a date...",
+            value=initial_date_str,
+            expand=True,
+            border_radius=12,
+            filled=True,
+            bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+            border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
+            content_padding=ft.padding.symmetric(horizontal=16, vertical=12),
+            prefix_icon=ft.icons.CALENDAR_TODAY_OUTLINED,
         )
         
         initial_score = jav_data_to_edit.get('review_score')
         score_value_str = str(initial_score) if initial_score is not None else "N/A"
-        score_dropdown = ft.Dropdown(
-            ref=edit_score_dropdown_ref, label="Score", expand=True,
-            options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)],
-            value=score_value_str
+        
+        # Fixed: Pass the ref to the helper function
+        score_dropdown = create_styled_dropdown(
+            "Score",
+            [ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)],
+            score_value_str,
+            None,
+            edit_score_dropdown_ref
         )
+        score_dropdown.expand = True
         
         description_field = ft.TextField(
-            ref=edit_description_field_ref, label=None, multiline=True, min_lines=5, max_lines=8,
+            ref=edit_description_field_ref,
+            label="Description / Notes",
+            multiline=True,
+            min_lines=6,
+            max_lines=10,
             capitalization=ft.TextCapitalization.SENTENCES,
             value=jav_data_to_edit.get('description', '') or '',
-            hint_text="Markdown supported: # Title, **bold**, *italic*, * lists"
+            hint_text="Write your thoughts, notes, or review...\nMarkdown supported: **bold**, *italic*, # headers, * lists",
+            border_radius=12,
+            filled=True,
+            bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+            border_color=ft.colors.with_opacity(0.2, ft.colors.OUTLINE),
+            focused_border_color=ft.colors.PRIMARY,
+            content_padding=ft.padding.all(16),
         )
         
         initial_rewatch = jav_data_to_edit.get('is_rewatch') == 1
-        rewatch_check = ft.Checkbox(ref=edit_rewatch_check_ref, label="This was a Rewatch", value=initial_rewatch)
+        rewatch_check = ft.Checkbox(
+            ref=edit_rewatch_check_ref,
+            label="This was a Rewatch",
+            value=initial_rewatch,
+            fill_color=ft.colors.PRIMARY,
+        )
         
         initial_own_local_copy = jav_data_to_edit.get('own_local_copy') == 1
-        own_local_copy_check = ft.Checkbox(ref=edit_own_local_copy_check_ref, label="Own Local Copy?", value=initial_own_local_copy)
+        own_local_copy_check = ft.Checkbox(
+            ref=edit_own_local_copy_check_ref,
+            label="Own Local Copy",
+            value=initial_own_local_copy,
+            fill_color=ft.colors.PRIMARY,
+        )
 
         # --- Date Picker Setup ---
         initial_picker_date = None
         if initial_date_str:
-            try: initial_picker_date = datetime.strptime(initial_date_str, '%Y-%m-%d')
-            except ValueError: pass
+            try: 
+                initial_picker_date = datetime.strptime(initial_date_str, '%Y-%m-%d')
+            except ValueError: 
+                pass
         
         _edit_date_picker_instance = ft.DatePicker(
             on_change=lambda e: handle_edit_date_change(e, edit_date_display_field_ref),
-            help_text="Select Completion Date", value=initial_picker_date
+            help_text="Select Completion Date",
+            value=initial_picker_date
         )
         if _edit_date_picker_instance not in page.overlay:
             page.overlay.append(_edit_date_picker_instance)
@@ -1793,19 +1942,18 @@ async def main(page: ft.Page):
 
         # --- Image Handling ---
         def update_image_preview(source_path_or_url):
-            if not image_preview_ref.current: return
+            if not image_preview_ref.current: 
+                return
             
             src_for_flet = DEFAULT_IMAGE_URL
             if source_path_or_url:
                 if source_path_or_url.lower().startswith("http"):
                     src_for_flet = source_path_or_url
                 else:
-                    # Check if it's a relative path within assets
                     if source_path_or_url.startswith("images/"):
                         full_path = os.path.join(ASSETS_DIR, source_path_or_url)
                         if os.path.exists(full_path):
                             src_for_flet = source_path_or_url
-                    # Check if it's an absolute local path
                     elif os.path.exists(source_path_or_url):
                         src_for_flet = source_path_or_url
             
@@ -1817,11 +1965,12 @@ async def main(page: ft.Page):
             nonlocal _target_image_field_for_picker
             _target_image_field_for_picker = _edit_image_source_tf
             image_file_picker.pick_files(
-                dialog_title="Select Image", allow_multiple=False,
+                dialog_title="Select Image",
+                allow_multiple=False,
                 allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"]
             )
 
-        # --- Markdown Toolbar ---
+        # --- Enhanced Markdown Toolbar ---
         def apply_markdown_style_edit(textfield, style, line_start=False):
             if textfield and hasattr(textfield, 'value'):
                 current_text = textfield.value or ""
@@ -1835,72 +1984,228 @@ async def main(page: ft.Page):
                 textfield.update()
                 textfield.focus()
 
-        edit_toolbar = ft.Row([
-            ft.IconButton(icon=ft.icons.FORMAT_BOLD, tooltip="Bold", on_click=lambda e: apply_markdown_style_edit(description_field, '**')),
-            ft.IconButton(icon=ft.icons.FORMAT_ITALIC, tooltip="Italic", on_click=lambda e: apply_markdown_style_edit(description_field, '*')),
-            ft.IconButton(icon=ft.icons.TITLE, tooltip="Header", on_click=lambda e: apply_markdown_style_edit(description_field, '# ', True)),
-            ft.IconButton(icon=ft.icons.FORMAT_LIST_BULLETED, tooltip="List Item", on_click=lambda e: apply_markdown_style_edit(description_field, '* ', True)),
-        ], spacing=4)
+        def create_toolbar_button(icon, tooltip, on_click):
+            return ft.Container(
+                content=ft.IconButton(
+                    icon=icon,
+                    tooltip=tooltip,
+                    on_click=on_click,
+                    icon_size=18,
+                    style=ft.ButtonStyle(
+                        color=ft.colors.ON_SURFACE_VARIANT,
+                        bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                        overlay_color=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
+                        shape=ft.RoundedRectangleBorder(radius=8),
+                    ),
+                ),
+                border_radius=8,
+            )
+
+        edit_toolbar = ft.Container(
+            content=ft.Row([
+                create_toolbar_button(
+                    ft.icons.FORMAT_BOLD,
+                    "Bold",
+                    lambda e: apply_markdown_style_edit(description_field, '**')
+                ),
+                create_toolbar_button(
+                    ft.icons.FORMAT_ITALIC,
+                    "Italic", 
+                    lambda e: apply_markdown_style_edit(description_field, '*')
+                ),
+                create_toolbar_button(
+                    ft.icons.TITLE,
+                    "Header",
+                    lambda e: apply_markdown_style_edit(description_field, '# ', True)
+                ),
+                create_toolbar_button(
+                    ft.icons.FORMAT_LIST_BULLETED,
+                    "List Item",
+                    lambda e: apply_markdown_style_edit(description_field, '* ', True)
+                ),
+            ], spacing=4),
+            padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            border_radius=12,
+            bgcolor=ft.colors.with_opacity(0.03, ft.colors.ON_SURFACE),
+            border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE)),
+        )
+
+        # --- Enhanced Image Preview ---
+        image_preview_widget = ft.Container(
+            content=ft.Image(
+                ref=image_preview_ref,
+                height=200,
+                width=float('inf'),
+                fit=ft.ImageFit.COVER,
+                border_radius=ft.border_radius.all(16),
+                error_content=ft.Container(
+                    content=ft.Column([
+                        ft.Icon(
+                            ft.icons.BROKEN_IMAGE_OUTLINED,
+                            size=48,
+                            color=ft.colors.ON_SURFACE_VARIANT
+                        ),
+                        ft.Text(
+                            "Image Not Found",
+                            size=14,
+                            color=ft.colors.ON_SURFACE_VARIANT,
+                            weight=ft.FontWeight.W_500
+                        )
+                    ], 
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    alignment=ft.MainAxisAlignment.CENTER
+                    ),
+                    bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                    border_radius=16,
+                    height=200,
+                )
+            ),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.colors.with_opacity(0.1, ft.colors.BLACK),
+                offset=ft.Offset(0, 2)
+            ),
+            border_radius=16,
+        )
+        update_image_preview(_edit_image_source_tf.value)
+
+        # --- Enhanced Buttons ---
+        browse_button = ft.Container(
+            content=ft.ElevatedButton(
+                "Browse for Local Image",
+                icon=ft.icons.FOLDER_OPEN_OUTLINED,
+                on_click=browse_for_image_edit,
+                width=float('inf'),
+                style=ft.ButtonStyle(
+                    bgcolor=ft.colors.with_opacity(0.08, ft.colors.PRIMARY),
+                    color=ft.colors.PRIMARY,
+                    overlay_color=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
+                    elevation=0,
+                    shape=ft.RoundedRectangleBorder(radius=12),
+                    padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                ),
+            ),
+            margin=ft.margin.only(top=8),
+        )
+
+        # --- Section Headers ---
+        def create_section_header(title, icon=None):
+            return ft.Container(
+                content=ft.Row([
+                    ft.Icon(icon, size=20, color=ft.colors.PRIMARY) if icon else None,
+                    ft.Text(
+                        title,
+                        style=ft.TextThemeStyle.TITLE_MEDIUM,
+                        weight=ft.FontWeight.W_600,
+                        color=ft.colors.ON_SURFACE,
+                    ),
+                ], spacing=8),
+                margin=ft.margin.only(bottom=12),
+            )
 
         # --- UI Layout Construction ---
-        image_preview_widget = ft.Image(
-            ref=image_preview_ref,
-            height=180, width=float('inf'), fit=ft.ImageFit.COVER,
-            border_radius=ft.border_radius.all(12),
-            error_content=ft.Container(
-                content=ft.Column([
-                    ft.Icon(ft.icons.BROKEN_IMAGE_OUTLINED, size=40),
-                    ft.Text("Image Not Found", size=12)
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
-                bgcolor=ft.colors.SURFACE_VARIANT, border_radius=12
-            )
-        )
-        update_image_preview(_edit_image_source_tf.value) # Set initial image
-
         left_column = ft.Container(
             content=ft.Column([
-                ft.Text("Cover Image", style=ft.TextThemeStyle.LABEL_LARGE, weight=ft.FontWeight.BOLD),
+                create_section_header("Cover Image", ft.icons.IMAGE_OUTLINED),
                 image_preview_widget,
                 _edit_image_source_tf,
-                ft.ElevatedButton("Browse for Local Image", icon=ft.icons.FOLDER_OPEN_OUTLINED, on_click=browse_for_image_edit, width=float('inf')),
-                ft.Divider(height=20),
+                browse_button,
+                ft.Container(height=24),  # Spacer
+                create_section_header("Basic Information", ft.icons.INFO_OUTLINED),
                 name_field,
                 entry_type_dropdown,
                 conditional_fields_container,
-            ], spacing=12),
-            padding=ft.padding.only(right=15),
+            ], spacing=16),
+            padding=ft.padding.only(right=20),
             expand=2,
+        )
+
+        # --- Enhanced Date/Score Section ---
+        date_score_section = ft.Container(
+            content=ft.Row([
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text(
+                            "Completion Date",
+                            style=ft.TextThemeStyle.LABEL_LARGE,
+                            weight=ft.FontWeight.W_600,
+                            color=ft.colors.ON_SURFACE,
+                        ),
+                        ft.Row([
+                            date_display,
+                            ft.Container(
+                                content=ft.IconButton(
+                                    icon=ft.icons.CALENDAR_MONTH,
+                                    on_click=open_edit_date_picker,
+                                    style=ft.ButtonStyle(
+                                        bgcolor=ft.colors.with_opacity(0.05, ft.colors.PRIMARY),
+                                        color=ft.colors.PRIMARY,
+                                        shape=ft.RoundedRectangleBorder(radius=10),
+                                    ),
+                                ),
+                                margin=ft.margin.only(left=8),
+                            )
+                        ])
+                    ], spacing=8),
+                    expand=True,
+                ),
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text(
+                            "Score",
+                            style=ft.TextThemeStyle.LABEL_LARGE,
+                            weight=ft.FontWeight.W_600,
+                            color=ft.colors.ON_SURFACE,
+                        ),
+                        score_dropdown
+                    ], spacing=8),
+                    expand=True,
+                ),
+            ], spacing=20),
+            padding=ft.padding.all(16),
+            border_radius=16,
+            bgcolor=ft.colors.with_opacity(0.02, ft.colors.ON_SURFACE),
+            border=ft.border.all(1, ft.colors.with_opacity(0.08, ft.colors.OUTLINE)),
+            margin=ft.margin.symmetric(vertical=8),
+        )
+
+        # --- Enhanced Checkboxes ---
+        checkbox_section = ft.Container(
+            content=ft.Row([
+                ft.Container(
+                    content=rewatch_check,
+                    padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                    border_radius=12,
+                    bgcolor=ft.colors.with_opacity(0.03, ft.colors.ON_SURFACE),
+                ),
+                ft.Container(
+                    content=own_local_copy_check,
+                    padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                    border_radius=12,
+                    bgcolor=ft.colors.with_opacity(0.03, ft.colors.ON_SURFACE),
+                ),
+            ], spacing=12),
+            margin=ft.margin.only(top=16),
         )
 
         right_column = ft.Container(
             content=ft.Column([
-                ft.Row([
-                    ft.Column([
-                        ft.Text("Completion", style=ft.TextThemeStyle.LABEL_LARGE, weight=ft.FontWeight.BOLD),
-                        ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, on_click=open_edit_date_picker)])
-                    ], expand=True),
-                    ft.Column([
-                        ft.Text("Score", style=ft.TextThemeStyle.LABEL_LARGE, weight=ft.FontWeight.BOLD),
-                        score_dropdown
-                    ], expand=True),
-                ], spacing=15),
+                date_score_section,
                 genre_field,
-                ft.Column([
-                    ft.Row([
-                        ft.Text("Description / Notes", style=ft.TextThemeStyle.LABEL_LARGE, weight=ft.FontWeight.BOLD),
-                        edit_toolbar
-                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    description_field
-                ], spacing=5),
-                ft.Row([rewatch_check, own_local_copy_check])
-            ], spacing=12),
-            padding=ft.padding.only(left=15),
+                ft.Container(height=8),  # Spacer
+                create_section_header("Description & Notes", ft.icons.DESCRIPTION_OUTLINED),
+                edit_toolbar,
+                description_field,
+                checkbox_section,
+            ], spacing=16),
+            padding=ft.padding.only(left=20),
             expand=3,
         )
 
-        # --- Save Logic ---
+        # --- Enhanced Save Logic (keeping original functionality) ---
         def save_edited_jav(e):
-            # (This logic remains the same as your original function)
+            # [Original save logic remains the same]
             name = edit_name_field_ref.current.value.strip()
             entry_type_val = edit_entry_type_dropdown_ref.current.value
             image_source_input = _edit_image_source_tf.value.strip() 
@@ -1912,36 +2217,56 @@ async def main(page: ft.Page):
             own_local_copy = edit_own_local_copy_check_ref.current.value
             errors = []
 
-            edit_name_field_ref.current.error_text = None; edit_date_display_field_ref.current.error_text = None; edit_score_dropdown_ref.current.error_text = None; edit_entry_type_dropdown_ref.current.error_text = None; _edit_image_source_tf.error_text = None
+            edit_name_field_ref.current.error_text = None
+            edit_date_display_field_ref.current.error_text = None
+            edit_score_dropdown_ref.current.error_text = None
+            edit_entry_type_dropdown_ref.current.error_text = None
+            _edit_image_source_tf.error_text = None
 
-            if not name: errors.append("Title is required."); edit_name_field_ref.current.error_text = "Required"
-            if not entry_type_val: errors.append("Entry Type is required."); edit_entry_type_dropdown_ref.current.error_text = "Required"
-            if not date_str: errors.append("Completion Date is required."); edit_date_display_field_ref.current.error_text = "Required"
+            if not name: 
+                errors.append("Title is required.")
+                edit_name_field_ref.current.error_text = "Required"
+            if not entry_type_val: 
+                errors.append("Entry Type is required.")
+                edit_entry_type_dropdown_ref.current.error_text = "Required"
+            if not date_str: 
+                errors.append("Completion Date is required.")
+                edit_date_display_field_ref.current.error_text = "Required"
             else:
-                try: datetime.strptime(date_str, '%Y-%m-%d')
-                except ValueError: errors.append("Invalid date format (YYYY-MM-DD)."); edit_date_display_field_ref.current.error_text = "Invalid Format"
+                try: 
+                    datetime.strptime(date_str, '%Y-%m-%d')
+                except ValueError: 
+                    errors.append("Invalid date format (YYYY-MM-DD).")
+                    edit_date_display_field_ref.current.error_text = "Invalid Format"
 
             if image_source_input and \
                 not (image_source_input.lower().startswith("http://") or image_source_input.lower().startswith("https://")) and \
                 not (image_source_input.startswith("images/") and os.path.exists(os.path.join(ASSETS_DIR, image_source_input))): 
                 if not os.path.exists(image_source_input): 
-                    errors.append("Local image file not found."); _edit_image_source_tf.error_text = "File not found"
+                    errors.append("Local image file not found.")
+                    _edit_image_source_tf.error_text = "File not found"
             
             score_int = None
             if score_str and score_str != "N/A":
                 try:
-                    score_int = int(score_str);
-                    if not (0 <= score_int <= 10): errors.append("Score must be 0-10."); edit_score_dropdown_ref.current.error_text = "0-10"
-                except ValueError: errors.append("Invalid score."); edit_score_dropdown_ref.current.error_text = "Invalid"
+                    score_int = int(score_str)
+                    if not (0 <= score_int <= 10): 
+                        errors.append("Score must be 0-10.")
+                        edit_score_dropdown_ref.current.error_text = "0-10"
+                except ValueError: 
+                    errors.append("Invalid score.")
+                    edit_score_dropdown_ref.current.error_text = "Invalid"
 
-            if hasattr(edit_name_field_ref.current, 'page') and edit_name_field_ref.current.page: edit_name_field_ref.current.update()
-            if hasattr(edit_entry_type_dropdown_ref.current, 'page') and edit_entry_type_dropdown_ref.current.page: edit_entry_type_dropdown_ref.current.update()
-            if hasattr(_edit_image_source_tf, 'page') and _edit_image_source_tf.page: _edit_image_source_tf.update()
-            if hasattr(edit_genre_field_ref.current, 'page') and edit_genre_field_ref.current.page: edit_genre_field_ref.current.update()
-            if hasattr(edit_date_display_field_ref.current, 'page') and edit_date_display_field_ref.current.page: edit_date_display_field_ref.current.update()
-            if hasattr(edit_score_dropdown_ref.current, 'page') and edit_score_dropdown_ref.current.page: edit_score_dropdown_ref.current.update()
+            # Update all fields
+            for field_ref in [edit_name_field_ref, edit_entry_type_dropdown_ref, edit_date_display_field_ref, edit_score_dropdown_ref]:
+                if hasattr(field_ref.current, 'page') and field_ref.current.page: 
+                    field_ref.current.update()
+            if hasattr(_edit_image_source_tf, 'page') and _edit_image_source_tf.page: 
+                _edit_image_source_tf.update()
 
-            if errors: show_snackbar("Please fix errors: " + " ".join(errors), color=ft.colors.ERROR_CONTAINER); return
+            if errors: 
+                show_snackbar("Please fix errors: " + " ".join(errors), color=ft.colors.ERROR_CONTAINER)
+                return
 
             final_image_ref_for_db = jav_data_to_edit.get('image_url') 
             original_db_image_url = jav_data_to_edit.get('image_url')
@@ -1966,65 +2291,126 @@ async def main(page: ft.Page):
             try:
                 if stats_year_filter.current and stats_year_filter.current.selected:
                     current_stats_filter = list(stats_year_filter.current.selected)[0]
-            except Exception as stats_e: print(f"Warning: Error accessing stats_year_filter selection after edit: {stats_e}")
+            except Exception as stats_e: 
+                print(f"Warning: Error accessing stats_year_filter selection after edit: {stats_e}")
             page.run_thread(calculate_and_update_stats_display, current_stats_filter)
 
-        # --- Dialog Assembly ---
-        dialog_content = ft.Container(
-            content=ft.Column(
-                [
-                    # Header
-                    ft.Row(
-                        [
-                            ft.Text("Edit Entry", style=ft.TextThemeStyle.HEADLINE_SMALL),
-                            ft.IconButton(icon=ft.icons.CLOSE_ROUNDED, on_click=close_manual_dialog, tooltip="Close")
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-                    ),
-                    ft.Divider(height=1),
-                    # Main Form Content
+        # --- Enhanced Dialog Assembly ---
+        dialog_header = ft.Container(
+            content=ft.Row([
+                ft.Row([
                     ft.Container(
-                        content=ft.Row(
-                            [left_column, ft.VerticalDivider(width=1), right_column],
-                            vertical_alignment=ft.CrossAxisAlignment.START,
-                        ),
-                        padding=ft.padding.symmetric(vertical=15),
-                        expand=True,
+                        content=ft.Icon(ft.icons.EDIT_OUTLINED, size=24, color=ft.colors.PRIMARY),
+                        margin=ft.margin.only(right=12),
                     ),
-                    ft.Divider(height=1),
-                    # Footer / Actions
-                    ft.Row(
-                        [
-                            ft.TextButton("Cancel", on_click=close_manual_dialog),
-                            ft.ElevatedButton("Save Changes", icon=ft.icons.SAVE_OUTLINED, on_click=save_edited_jav)
-                        ],
-                        alignment=ft.MainAxisAlignment.END
-                    )
-                ],
-                spacing=0,
-            ),
-            width=900,
-            bgcolor=ft.colors.with_opacity(0.98, ft.colors.SURFACE),
-            border_radius=12,
-            border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.OUTLINE)),
+                    ft.Text(
+                        "Edit Entry",
+                        style=ft.TextThemeStyle.HEADLINE_SMALL,
+                        weight=ft.FontWeight.W_600,
+                        color=ft.colors.ON_SURFACE,
+                    ),
+                ]),
+                ft.Container(
+                    content=ft.IconButton(
+                        icon=ft.icons.CLOSE_ROUNDED,
+                        on_click=close_manual_dialog,
+                        tooltip="Close",
+                        style=ft.ButtonStyle(
+                            color=ft.colors.ON_SURFACE_VARIANT,
+                            bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                            overlay_color=ft.colors.with_opacity(0.1, ft.colors.ERROR),
+                            shape=ft.RoundedRectangleBorder(radius=10),
+                        ),
+                    ),
+                    padding=ft.padding.all(4),
+                )
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            padding=ft.padding.symmetric(horizontal=24, vertical=20),
+            bgcolor=ft.colors.with_opacity(0.02, ft.colors.PRIMARY),
+            border=ft.border.only(bottom=ft.BorderSide(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE))),
+        )
+
+        dialog_footer = ft.Container(
+            content=ft.Row([
+                ft.Container(
+                    content=ft.TextButton(
+                        "Cancel",
+                        on_click=close_manual_dialog,
+                        style=ft.ButtonStyle(
+                            color=ft.colors.ON_SURFACE_VARIANT,
+                            overlay_color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE),
+                            shape=ft.RoundedRectangleBorder(radius=12),
+                            padding=ft.padding.symmetric(horizontal=24, vertical=12),
+                        ),
+                    ),
+                    margin=ft.margin.only(right=12),
+                ),
+                ft.ElevatedButton(
+                    "Save Changes",
+                    icon=ft.icons.SAVE_OUTLINED,
+                    on_click=save_edited_jav,
+                    style=ft.ButtonStyle(
+                        bgcolor=ft.colors.PRIMARY,
+                        color=ft.colors.ON_PRIMARY,
+                        overlay_color=ft.colors.with_opacity(0.1, ft.colors.ON_PRIMARY),
+                        elevation=2,
+                        shape=ft.RoundedRectangleBorder(radius=12),
+                        padding=ft.padding.symmetric(horizontal=32, vertical=12),
+                    ),
+                )
+            ], alignment=ft.MainAxisAlignment.END),
+            padding=ft.padding.symmetric(horizontal=24, vertical=20),
+            bgcolor=ft.colors.with_opacity(0.01, ft.colors.ON_SURFACE),
+            border=ft.border.only(top=ft.BorderSide(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE))),
+        )
+
+        main_content = ft.Container(
+            content=ft.Row([
+                left_column,
+                ft.Container(
+                    width=1,
+                    bgcolor=ft.colors.with_opacity(0.1, ft.colors.OUTLINE),
+                    margin=ft.margin.symmetric(horizontal=8),
+                ),
+                right_column
+            ], vertical_alignment=ft.CrossAxisAlignment.START),
+            padding=ft.padding.all(24),
+            expand=True,
+        )
+
+        # --- Final Dialog Container ---
+        dialog_content = ft.Container(
+            content=ft.Column([
+                dialog_header,
+                main_content,
+                dialog_footer,
+            ], spacing=0),
+            width=1000,
+            bgcolor=ft.colors.SURFACE,
+            border_radius=20,
+            border=ft.border.all(1, ft.colors.with_opacity(0.12, ft.colors.OUTLINE)),
             shadow=ft.BoxShadow(
-                spread_radius=1, blur_radius=15,
-                color=ft.colors.with_opacity(0.2, ft.colors.BLACK),
-                offset=ft.Offset(0, 5)
+                spread_radius=0,
+                blur_radius=24,
+                color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
+                offset=ft.Offset(0, 8)
             ),
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
-            padding=ft.padding.all(20)
         )
-        dialog_content.constraints = ft.BoxConstraints(max_height=page.window_height * 0.9 if page and page.window_height else 800)
+        
+        dialog_content.constraints = ft.BoxConstraints(
+            max_height=page.window_height * 0.95 if page and page.window_height else 900
+        )
 
-        # Create the overlay scrim
+        # Create the enhanced overlay scrim
         overlay_scrim = ft.Container(
             ref=manual_dialog_container,
             content=dialog_content,
             alignment=ft.alignment.center,
-            bgcolor=ft.colors.with_opacity(0.6, ft.colors.BLACK),
+            bgcolor=ft.colors.with_opacity(0.7, ft.colors.BLACK),
             expand=True,
         )
+        
         # Store the date picker instance to remove it from overlay when dialog closes
         overlay_scrim._edit_date_picker_ref = _edit_date_picker_instance
 

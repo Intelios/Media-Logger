@@ -3,6 +3,17 @@ from datetime import datetime
 import os
 from collections import Counter
 import re
+import sys
+
+
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    # Running in a bundled app (e.g., PyInstaller)
+    base_path = os.path.dirname(sys.executable)
+else:
+    # Running as a normal Python script
+    base_path = os.path.dirname(os.path.abspath(__file__))
+
+ASSETS_DIR = os.path.join(base_path, "assets")
 
 # Constants and configurations
 APP_TITLE = "Media Logger"
@@ -107,7 +118,8 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         if db_image_value.lower().startswith("http://") or db_image_value.lower().startswith("https://"):
             image_src_for_flet = db_image_value
         else:
-            full_local_path_check = os.path.join("assets", db_image_value) 
+            # This now uses the globally defined ASSETS_DIR without error
+            full_local_path_check = os.path.join(ASSETS_DIR, db_image_value) 
             if os.path.exists(full_local_path_check):
                 image_src_for_flet = db_image_value 
 
