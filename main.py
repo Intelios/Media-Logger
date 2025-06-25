@@ -528,6 +528,7 @@ def update_conditional_fields(selected_type, container, initial_data=None):
             ft.dropdown.Option("PC"), ft.dropdown.Option("PlayStation"), ft.dropdown.Option("Xbox"),
             ft.dropdown.Option("Nintendo Switch"), ft.dropdown.Option("Mobile"), ft.dropdown.Option("Other"),
         ]
+        # The create_styled_conditional_field function will now correctly apply the fix
         container.controls.append(create_styled_conditional_field(
             label="Platform",
             options=platform_options,
@@ -1477,7 +1478,8 @@ async def main(page: ft.Page):
 
         entry_type_dropdown = ft.Dropdown(
             label="Entry Type", options=ENTRY_TYPE_OPTIONS, 
-            hint_text="Select the type of media", on_change=on_type_change_add
+            hint_text="Select the type of media", on_change=on_type_change_add,
+            options_fill_horizontally=True
         )
         
         image_source_field = ft.TextField(
@@ -1578,7 +1580,12 @@ async def main(page: ft.Page):
             capitalization=ft.TextCapitalization.SENTENCES,
             hint_text="Markdown supported: # Title, **bold**, *italic*, * lists"
         )
-        score_dropdown = ft.Dropdown(label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value="N/A")
+        score_dropdown = ft.Dropdown(
+            label="Score", width=110, 
+            options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], 
+            value="N/A",
+            options_fill_horizontally=True  # <--- ADD THIS LINE
+        )
         rewatch_check = ft.Checkbox(label="This was a Rewatch", value=False)
         own_local_copy_check = ft.Checkbox(label="Own Local Copy?", value=False)
 
