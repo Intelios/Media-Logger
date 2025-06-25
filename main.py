@@ -1612,86 +1612,295 @@ async def main(page: ft.Page):
         if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls: close_manual_dialog() 
         main_stack.controls.append(manual_dialog); main_stack.update()
 
+        def open_edit_jav_dialog(jav_data_to_edit, list_refresh_callback):
+            nonlocal _target_image_field_for_picker
+            jav_id = jav_data_to_edit['id']
+            
+            edit_name_field_ref = ft.Ref[ft.TextField](); edit_genre_field_ref = ft.Ref[ft.TextField](); edit_date_display_field_ref = ft.Ref[ft.TextField](); edit_score_dropdown_ref = ft.Ref[ft.Dropdown](); edit_description_field_ref = ft.Ref[ft.TextField](); edit_rewatch_check_ref = ft.Ref[ft.Checkbox](); edit_own_local_copy_check_ref = ft.Ref[ft.Checkbox]()
+            edit_entry_type_dropdown_ref = ft.Ref[ft.Dropdown]()
+            
+            name_field = ft.TextField(ref=edit_name_field_ref, label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('name', ''))
+            
+            conditional_fields_container = ft.Column(spacing=12, tight=True)
+            def on_type_change_edit(e):
+                update_conditional_fields(e.control.value, conditional_fields_container)
+
+            entry_type_dropdown = ft.Dropdown(
+                ref=edit_entry_type_dropdown_ref, label="Entry Type", options=ENTRY_TYPE_OPTIONS, 
+                value=jav_data_to_edit.get('entry_type'), on_change=on_type_change_edit
+            )
+            
+            update_conditional_fields(
+                jav_data_to_edit.get('entry_type'), 
+                conditional_fields_container, 
+                initial_data=jav_data_to_edit
+            )
+
+            _edit_image_source_tf = ft.TextField( 
+                label="Image Source (URL or Local Path)", 
+                value=jav_data_to_edit.get('image_url', ''), 
+                expand=True,
+                hint_text="e.g., https://... or C:\\path\\to\\image.jpg or images/file.jpg"
+            )
+            def browse_for_image_edit(e):
+                nonlocal _target_image_field_for_picker
+                _target_image_field_for_picker = _edit_image_source_tf 
+                image_file_picker.pick_files(
+                    dialog_title="Select Image", allow_multiple=False,
+                    allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"]
+                )
+            edit_image_source_row = ft.Row(
+                [ _edit_image_source_tf, ft.IconButton(icon=ft.icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_edit) ],
+                vertical_alignment=ft.CrossAxisAlignment.END
+            )
+
+            genre_field = ft.TextField(ref=edit_genre_field_ref, label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('genre', '') or '')
+            initial_date_str = jav_data_to_edit.get('completion_date', ''); date_display = ft.TextField(ref=edit_date_display_field_ref, label="Completion Date", read_only=True, hint_text="Click calendar to select...", value=initial_date_str)
+            initial_score = jav_data_to_edit.get('review_score'); score_value_str = str(initial_score) if initial_score is not None else "N/A"; score_dropdown = ft.Dropdown(ref=edit_score_dropdown_ref, label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value=score_value_str)
+            description_field = ft.TextField(
+                ref=edit_description_field_ref, 
+                label="Description / Notes", 
+                multiline=True, 
+                min_lines=3, 
+                max_lines=6, 
+                capitalization=ft.TextCapitalization.SENTENCES, 
+                value=jav_data_to_edit.get('description', '') or '',
+                hint_text="Markdown supported: # Title, **bold**, *italic*, * lists"
+            )
+            initial_rewatch = jav_data_to_edit.get('is_rewatch') == 1; rewatch_check = ft.Checkbox(ref=edit_rewatch_check_ref, label="This was a Rewatch", value=initial_rewatch)
+            initial_own_local_copy = jav_data_to_edit.get('own_local_copy') == 1; own_local_copy_check = ft.Checkbox(ref=edit_own_local_copy_check_ref, label="Own Local Copy?", value=initial_own_local_copy)
+
+            initial_picker_date = None
+            if initial_date_str:
+                try: initial_picker_date = datetime.strptime(initial_date_str, '%Y-%m-%d')
+                except ValueError: pass
+            
+            _edit_date_picker_instance = ft.DatePicker( 
+                on_change=lambda e: handle_edit_date_change(e, edit_date_display_field_ref), 
+                help_text="Select Completion Date", value=initial_picker_date
+            )
+            if _edit_date_picker_instance not in page.overlay: 
+                page.overlay.append(_edit_date_picker_instance)
+            
+            def handle_edit_date_change(e, target_field_ref): 
+                selected_date = e.control.value
+                if target_field_ref.current and selected_date: 
+                    target_field_ref.current.value = selected_date.strftime('%Y-%m-%d')
+                    if hasattr(target_field_ref.current, 'page') and target_field_ref.current.page: target_field_ref.current.update()
+            def open_edit_date_picker(e): 
+                _edit_date_picker_instance.open = True
+                page.update()
+
     def open_edit_jav_dialog(jav_data_to_edit, list_refresh_callback):
         nonlocal _target_image_field_for_picker
         jav_id = jav_data_to_edit['id']
-        
-        edit_name_field_ref = ft.Ref[ft.TextField](); edit_genre_field_ref = ft.Ref[ft.TextField](); edit_date_display_field_ref = ft.Ref[ft.TextField](); edit_score_dropdown_ref = ft.Ref[ft.Dropdown](); edit_description_field_ref = ft.Ref[ft.TextField](); edit_rewatch_check_ref = ft.Ref[ft.Checkbox](); edit_own_local_copy_check_ref = ft.Ref[ft.Checkbox]()
+
+        # --- Field References ---
+        edit_name_field_ref = ft.Ref[ft.TextField]()
+        edit_genre_field_ref = ft.Ref[ft.TextField]()
+        edit_date_display_field_ref = ft.Ref[ft.TextField]()
+        edit_score_dropdown_ref = ft.Ref[ft.Dropdown]()
+        edit_description_field_ref = ft.Ref[ft.TextField]()
+        edit_rewatch_check_ref = ft.Ref[ft.Checkbox]()
+        edit_own_local_copy_check_ref = ft.Ref[ft.Checkbox]()
         edit_entry_type_dropdown_ref = ft.Ref[ft.Dropdown]()
+        image_preview_ref = ft.Ref[ft.Image]()
         
-        name_field = ft.TextField(ref=edit_name_field_ref, label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('name', ''))
+        # --- Field Definitions ---
+        name_field = ft.TextField(
+            ref=edit_name_field_ref, label="Title", autofocus=True,
+            capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('name', '')
+        )
         
         conditional_fields_container = ft.Column(spacing=12, tight=True)
         def on_type_change_edit(e):
             update_conditional_fields(e.control.value, conditional_fields_container)
 
         entry_type_dropdown = ft.Dropdown(
-            ref=edit_entry_type_dropdown_ref, label="Entry Type", options=ENTRY_TYPE_OPTIONS, 
+            ref=edit_entry_type_dropdown_ref, label="Entry Type", options=ENTRY_TYPE_OPTIONS,
             value=jav_data_to_edit.get('entry_type'), on_change=on_type_change_edit
         )
         
         update_conditional_fields(
-            jav_data_to_edit.get('entry_type'), 
-            conditional_fields_container, 
+            jav_data_to_edit.get('entry_type'),
+            conditional_fields_container,
             initial_data=jav_data_to_edit
         )
 
-        _edit_image_source_tf = ft.TextField( 
-            label="Image Source (URL or Local Path)", 
-            value=jav_data_to_edit.get('image_url', ''), 
-            expand=True,
-            hint_text="e.g., https://... or C:\\path\\to\\image.jpg or images/file.jpg"
-        )
-        def browse_for_image_edit(e):
-            nonlocal _target_image_field_for_picker
-            _target_image_field_for_picker = _edit_image_source_tf 
-            image_file_picker.pick_files(
-                dialog_title="Select Image", allow_multiple=False,
-                allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"]
-            )
-        edit_image_source_row = ft.Row(
-            [ _edit_image_source_tf, ft.IconButton(icon=ft.icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_edit) ],
-            vertical_alignment=ft.CrossAxisAlignment.END
+        _edit_image_source_tf = ft.TextField(
+            label="Image Source (URL or Local Path)",
+            value=jav_data_to_edit.get('image_url', ''),
+            hint_text="e.g., https://... or C:\\path\\to\\image.jpg",
+            on_change=lambda e: update_image_preview(e.control.value)
         )
 
-        genre_field = ft.TextField(ref=edit_genre_field_ref, label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('genre', '') or '')
-        initial_date_str = jav_data_to_edit.get('completion_date', ''); date_display = ft.TextField(ref=edit_date_display_field_ref, label="Completion Date", read_only=True, hint_text="Click calendar to select...", value=initial_date_str)
-        initial_score = jav_data_to_edit.get('review_score'); score_value_str = str(initial_score) if initial_score is not None else "N/A"; score_dropdown = ft.Dropdown(ref=edit_score_dropdown_ref, label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value=score_value_str)
+        genre_field = ft.TextField(
+            ref=edit_genre_field_ref, label="Genres (comma-separated)",
+            hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS,
+            value=jav_data_to_edit.get('genre', '') or ''
+        )
+        
+        initial_date_str = jav_data_to_edit.get('completion_date', '')
+        date_display = ft.TextField(
+            ref=edit_date_display_field_ref, label="Completion Date", read_only=True,
+            hint_text="Select a date...", value=initial_date_str, expand=True
+        )
+        
+        initial_score = jav_data_to_edit.get('review_score')
+        score_value_str = str(initial_score) if initial_score is not None else "N/A"
+        score_dropdown = ft.Dropdown(
+            ref=edit_score_dropdown_ref, label="Score", expand=True,
+            options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)],
+            value=score_value_str
+        )
+        
         description_field = ft.TextField(
-            ref=edit_description_field_ref, 
-            label="Description / Notes", 
-            multiline=True, 
-            min_lines=3, 
-            max_lines=6, 
-            capitalization=ft.TextCapitalization.SENTENCES, 
+            ref=edit_description_field_ref, label=None, multiline=True, min_lines=5, max_lines=8,
+            capitalization=ft.TextCapitalization.SENTENCES,
             value=jav_data_to_edit.get('description', '') or '',
             hint_text="Markdown supported: # Title, **bold**, *italic*, * lists"
         )
-        initial_rewatch = jav_data_to_edit.get('is_rewatch') == 1; rewatch_check = ft.Checkbox(ref=edit_rewatch_check_ref, label="This was a Rewatch", value=initial_rewatch)
-        initial_own_local_copy = jav_data_to_edit.get('own_local_copy') == 1; own_local_copy_check = ft.Checkbox(ref=edit_own_local_copy_check_ref, label="Own Local Copy?", value=initial_own_local_copy)
+        
+        initial_rewatch = jav_data_to_edit.get('is_rewatch') == 1
+        rewatch_check = ft.Checkbox(ref=edit_rewatch_check_ref, label="This was a Rewatch", value=initial_rewatch)
+        
+        initial_own_local_copy = jav_data_to_edit.get('own_local_copy') == 1
+        own_local_copy_check = ft.Checkbox(ref=edit_own_local_copy_check_ref, label="Own Local Copy?", value=initial_own_local_copy)
 
+        # --- Date Picker Setup ---
         initial_picker_date = None
         if initial_date_str:
             try: initial_picker_date = datetime.strptime(initial_date_str, '%Y-%m-%d')
             except ValueError: pass
         
-        _edit_date_picker_instance = ft.DatePicker( 
-            on_change=lambda e: handle_edit_date_change(e, edit_date_display_field_ref), 
+        _edit_date_picker_instance = ft.DatePicker(
+            on_change=lambda e: handle_edit_date_change(e, edit_date_display_field_ref),
             help_text="Select Completion Date", value=initial_picker_date
         )
-        if _edit_date_picker_instance not in page.overlay: 
+        if _edit_date_picker_instance not in page.overlay:
             page.overlay.append(_edit_date_picker_instance)
         
-        def handle_edit_date_change(e, target_field_ref): 
+        def handle_edit_date_change(e, target_field_ref):
             selected_date = e.control.value
-            if target_field_ref.current and selected_date: 
+            if target_field_ref.current and selected_date:
                 target_field_ref.current.value = selected_date.strftime('%Y-%m-%d')
-                if hasattr(target_field_ref.current, 'page') and target_field_ref.current.page: target_field_ref.current.update()
-        def open_edit_date_picker(e): 
+                if hasattr(target_field_ref.current, 'page') and target_field_ref.current.page:
+                    target_field_ref.current.update()
+        
+        def open_edit_date_picker(e):
             _edit_date_picker_instance.open = True
             page.update()
 
+        # --- Image Handling ---
+        def update_image_preview(source_path_or_url):
+            if not image_preview_ref.current: return
+            
+            src_for_flet = DEFAULT_IMAGE_URL
+            if source_path_or_url:
+                if source_path_or_url.lower().startswith("http"):
+                    src_for_flet = source_path_or_url
+                else:
+                    # Check if it's a relative path within assets
+                    if source_path_or_url.startswith("images/"):
+                        full_path = os.path.join(ASSETS_DIR, source_path_or_url)
+                        if os.path.exists(full_path):
+                            src_for_flet = source_path_or_url
+                    # Check if it's an absolute local path
+                    elif os.path.exists(source_path_or_url):
+                        src_for_flet = source_path_or_url
+            
+            image_preview_ref.current.src = src_for_flet
+            if hasattr(image_preview_ref.current, 'page') and image_preview_ref.current.page:
+                image_preview_ref.current.update()
+
+        def browse_for_image_edit(e):
+            nonlocal _target_image_field_for_picker
+            _target_image_field_for_picker = _edit_image_source_tf
+            image_file_picker.pick_files(
+                dialog_title="Select Image", allow_multiple=False,
+                allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"]
+            )
+
+        # --- Markdown Toolbar ---
+        def apply_markdown_style_edit(textfield, style, line_start=False):
+            if textfield and hasattr(textfield, 'value'):
+                current_text = textfield.value or ""
+                if line_start:
+                    if current_text and not current_text.endswith('\n'):
+                        textfield.value = current_text + '\n' + style
+                    else:
+                        textfield.value = current_text + style
+                else:
+                    textfield.value = current_text + style + style
+                textfield.update()
+                textfield.focus()
+
+        edit_toolbar = ft.Row([
+            ft.IconButton(icon=ft.icons.FORMAT_BOLD, tooltip="Bold", on_click=lambda e: apply_markdown_style_edit(description_field, '**')),
+            ft.IconButton(icon=ft.icons.FORMAT_ITALIC, tooltip="Italic", on_click=lambda e: apply_markdown_style_edit(description_field, '*')),
+            ft.IconButton(icon=ft.icons.TITLE, tooltip="Header", on_click=lambda e: apply_markdown_style_edit(description_field, '# ', True)),
+            ft.IconButton(icon=ft.icons.FORMAT_LIST_BULLETED, tooltip="List Item", on_click=lambda e: apply_markdown_style_edit(description_field, '* ', True)),
+        ], spacing=4)
+
+        # --- UI Layout Construction ---
+        image_preview_widget = ft.Image(
+            ref=image_preview_ref,
+            height=180, width=float('inf'), fit=ft.ImageFit.COVER,
+            border_radius=ft.border_radius.all(12),
+            error_content=ft.Container(
+                content=ft.Column([
+                    ft.Icon(ft.icons.BROKEN_IMAGE_OUTLINED, size=40),
+                    ft.Text("Image Not Found", size=12)
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                bgcolor=ft.colors.SURFACE_VARIANT, border_radius=12
+            )
+        )
+        update_image_preview(_edit_image_source_tf.value) # Set initial image
+
+        left_column = ft.Container(
+            content=ft.Column([
+                ft.Text("Cover Image", style=ft.TextThemeStyle.LABEL_LARGE, weight=ft.FontWeight.BOLD),
+                image_preview_widget,
+                _edit_image_source_tf,
+                ft.ElevatedButton("Browse for Local Image", icon=ft.icons.FOLDER_OPEN_OUTLINED, on_click=browse_for_image_edit, width=float('inf')),
+                ft.Divider(height=20),
+                name_field,
+                entry_type_dropdown,
+                conditional_fields_container,
+            ], spacing=12),
+            padding=ft.padding.only(right=15),
+            expand=2,
+        )
+
+        right_column = ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Column([
+                        ft.Text("Completion", style=ft.TextThemeStyle.LABEL_LARGE, weight=ft.FontWeight.BOLD),
+                        ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, on_click=open_edit_date_picker)])
+                    ], expand=True),
+                    ft.Column([
+                        ft.Text("Score", style=ft.TextThemeStyle.LABEL_LARGE, weight=ft.FontWeight.BOLD),
+                        score_dropdown
+                    ], expand=True),
+                ], spacing=15),
+                genre_field,
+                ft.Column([
+                    ft.Row([
+                        ft.Text("Description / Notes", style=ft.TextThemeStyle.LABEL_LARGE, weight=ft.FontWeight.BOLD),
+                        edit_toolbar
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    description_field
+                ], spacing=5),
+                ft.Row([rewatch_check, own_local_copy_check])
+            ], spacing=12),
+            padding=ft.padding.only(left=15),
+            expand=3,
+        )
+
+        # --- Save Logic ---
         def save_edited_jav(e):
+            # (This logic remains the same as your original function)
             name = edit_name_field_ref.current.value.strip()
             entry_type_val = edit_entry_type_dropdown_ref.current.value
             image_source_input = _edit_image_source_tf.value.strip() 
@@ -1713,8 +1922,8 @@ async def main(page: ft.Page):
                 except ValueError: errors.append("Invalid date format (YYYY-MM-DD)."); edit_date_display_field_ref.current.error_text = "Invalid Format"
 
             if image_source_input and \
-               not (image_source_input.lower().startswith("http://") or image_source_input.lower().startswith("https://")) and \
-               not (image_source_input.startswith("images/") and os.path.exists(os.path.join(ASSETS_DIR, image_source_input))): 
+                not (image_source_input.lower().startswith("http://") or image_source_input.lower().startswith("https://")) and \
+                not (image_source_input.startswith("images/") and os.path.exists(os.path.join(ASSETS_DIR, image_source_input))): 
                 if not os.path.exists(image_source_input): 
                     errors.append("Local image file not found."); _edit_image_source_tf.error_text = "File not found"
             
@@ -1759,6 +1968,70 @@ async def main(page: ft.Page):
                     current_stats_filter = list(stats_year_filter.current.selected)[0]
             except Exception as stats_e: print(f"Warning: Error accessing stats_year_filter selection after edit: {stats_e}")
             page.run_thread(calculate_and_update_stats_display, current_stats_filter)
+
+        # --- Dialog Assembly ---
+        dialog_content = ft.Container(
+            content=ft.Column(
+                [
+                    # Header
+                    ft.Row(
+                        [
+                            ft.Text("Edit Entry", style=ft.TextThemeStyle.HEADLINE_SMALL),
+                            ft.IconButton(icon=ft.icons.CLOSE_ROUNDED, on_click=close_manual_dialog, tooltip="Close")
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                    ),
+                    ft.Divider(height=1),
+                    # Main Form Content
+                    ft.Container(
+                        content=ft.Row(
+                            [left_column, ft.VerticalDivider(width=1), right_column],
+                            vertical_alignment=ft.CrossAxisAlignment.START,
+                        ),
+                        padding=ft.padding.symmetric(vertical=15),
+                        expand=True,
+                    ),
+                    ft.Divider(height=1),
+                    # Footer / Actions
+                    ft.Row(
+                        [
+                            ft.TextButton("Cancel", on_click=close_manual_dialog),
+                            ft.ElevatedButton("Save Changes", icon=ft.icons.SAVE_OUTLINED, on_click=save_edited_jav)
+                        ],
+                        alignment=ft.MainAxisAlignment.END
+                    )
+                ],
+                spacing=0,
+            ),
+            width=900,
+            bgcolor=ft.colors.with_opacity(0.98, ft.colors.SURFACE),
+            border_radius=12,
+            border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.OUTLINE)),
+            shadow=ft.BoxShadow(
+                spread_radius=1, blur_radius=15,
+                color=ft.colors.with_opacity(0.2, ft.colors.BLACK),
+                offset=ft.Offset(0, 5)
+            ),
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            padding=ft.padding.all(20)
+        )
+        dialog_content.constraints = ft.BoxConstraints(max_height=page.window_height * 0.9 if page and page.window_height else 800)
+
+        # Create the overlay scrim
+        overlay_scrim = ft.Container(
+            ref=manual_dialog_container,
+            content=dialog_content,
+            alignment=ft.alignment.center,
+            bgcolor=ft.colors.with_opacity(0.6, ft.colors.BLACK),
+            expand=True,
+        )
+        # Store the date picker instance to remove it from overlay when dialog closes
+        overlay_scrim._edit_date_picker_ref = _edit_date_picker_instance
+
+        if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls:
+            close_manual_dialog()
+        main_stack.controls.append(overlay_scrim)
+        main_stack.update()
 
         # Toolbar for Markdown formatting in edit dialog
         def handle_bold_click_edit(e):
