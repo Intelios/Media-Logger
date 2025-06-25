@@ -793,7 +793,21 @@ async def main(page: ft.Page):
             page.dialog = progress_dialog; progress_dialog.open = True; page.update()
             page.run_thread(import_csv_data, selected_file)
         else: show_snackbar("CSV Import Cancelled or No File Selected")
-    def open_import_dialog(e): import_dialog.pick_files(dialog_title="Select CSV Log", allow_multiple=False, allowed_extensions=["csv"])
+    def open_import_dialog(e): import_dialog.pick_files(dialog_title="Select CSV Log", allow_multiple=False, allowed_extensions=["csv"])    
+
+    export_dialog = ft.FilePicker(on_result=lambda e: handle_export_result(e)); page.overlay.append(export_dialog)
+    def handle_export_result(e: ft.FilePickerResultEvent):
+        page.dialog = None
+        if e.path:
+            export_path = e.path
+            if not export_path.lower().endswith('.csv'):
+                export_path += '.csv'
+            print(f"CSV export path selected: {export_path}")
+            progress_dialog = ft.AlertDialog(modal=True, title=ft.Text("Exporting CSV"), content=ft.Row([ft.ProgressRing(), ft.Text("Processing...")], alignment=ft.MainAxisAlignment.CENTER))
+            page.dialog = progress_dialog; progress_dialog.open = True; page.update()
+            page.run_thread(export_csv_data, export_path)
+        else: show_snackbar("CSV Export Cancelled or No Path Selected")
+    def open_export_dialog(e): export_dialog.save_file(dialog_title="Save CSV Export", file_name="media_log_export.csv", allowed_extensions=["csv"])
     
     def import_csv_data(file_path):
         expected_headers_lower = [ 
@@ -932,6 +946,66 @@ async def main(page: ft.Page):
         else: print("Import process finished, but page context was lost. UI not updated.")
 
 
+    def export_csv_data(export_path):
+        try:
+            print(f"--- Starting CSV Export to: {export_path} ---")
+            all_entries = get_all_javs_db()
+            
+            if not all_entries:
+                if page: page.run_thread(show_export_summary, "No entries to export.", True)
+                return
+            
+            # Define CSV headers matching the import format
+            csv_headers = [
+                "Name", "Genre", "Review_Score", "Completion_Date", "Description", 
+                "IsRewatch", "OwnLocalCopy", "EntryType", "ImageURL", "Platform",
+                "Author", "Studio", "Actress", "UpdateVersion"
+            ]
+            
+            exported_count = 0
+            
+            with open(export_path, mode='w', encoding='utf-8', newline='') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=csv_headers)
+                writer.writeheader()
+                
+                for entry in all_entries:
+                    # Convert database values to CSV format
+                    csv_row = {
+                        "Name": entry.get('name', ''),
+                        "Genre": entry.get('genre', ''),
+                        "Review_Score": entry.get('review_score', ''),
+                        "Completion_Date": entry.get('completion_date', ''),
+                        "Description": entry.get('description', ''),
+                        "IsRewatch": 'true' if entry.get('is_rewatch') == 1 else 'false',
+                        "OwnLocalCopy": 'true' if entry.get('own_local_copy') == 1 else 'false',
+                        "EntryType": entry.get('entry_type', ''),
+                        "ImageURL": entry.get('image_url', ''),
+                        "Platform": entry.get('platform', ''),
+                        "Author": entry.get('author', ''),
+                        "Studio": entry.get('director', ''),  # Map director to Studio for consistency
+                        "Actress": entry.get('actress', ''),
+                        "UpdateVersion": entry.get('update_version', '')
+                    }
+                    writer.writerow(csv_row)
+                    exported_count += 1
+            
+            print(f"--- CSV Export Finished. Exported: {exported_count} entries ---")
+            if page: page.run_thread(show_export_summary, f"Successfully exported {exported_count} entries to {os.path.basename(export_path)}", False)
+            
+        except Exception as e:
+            error_msg = f"Error during CSV export: {e}"
+            print(error_msg)
+            traceback.print_exc()
+            if page: page.run_thread(show_export_summary, error_msg, True)
+    
+    def show_export_summary(message, had_errors):
+        if not page: return
+        if hasattr(page, 'dialog') and page.dialog and isinstance(page.dialog, ft.AlertDialog) and page.dialog.title and hasattr(page.dialog.title, 'value') and page.dialog.title.value == "Exporting CSV":
+            page.dialog.open = False; page.update()
+        snackbar_color = ft.colors.ERROR_CONTAINER if had_errors else ft.colors.GREEN_700
+        show_snackbar(message, color=snackbar_color, duration=8000)
+        if page: page.update()
+
     def show_import_summary_and_refresh(message, had_errors):
         if not page: return
         if hasattr(page, 'dialog') and page.dialog and isinstance(page.dialog, ft.AlertDialog) and page.dialog.title and hasattr(page.dialog.title, 'value') and page.dialog.title.value == "Importing CSV":
@@ -989,42 +1063,168 @@ async def main(page: ft.Page):
             print("INFO: Dialog operation already in progress. Ignoring click.")
             return
         page._dialog_is_opening = True
-        dialog_instance_ref = ft.Ref[ft.AlertDialog]()
+        
         try:
             if hasattr(page, 'dialog') and page.dialog is not None and page.dialog.open:
                 page._dialog_is_opening = False 
                 return
+                
             description_text = jav_data.get('description') or "No description provided."
-            dialog_title = f"Description: {jav_data.get('name', 'Entry')}"
-            description_content_container = ft.Container(
-                content=ft.Text(description_text, selectable=True),
-                padding=ft.padding.only(top=5, bottom=10),
-            )
-            description_content_container.scroll = ft.ScrollMode.ADAPTIVE
-            description_content_container.constraints = ft.BoxConstraints(max_height=300)
+            entry_name = jav_data.get('name', 'Entry')
+            entry_type = jav_data.get('entry_type', 'Media')
             
-            dialog_instance = ft.AlertDialog(
-                ref=dialog_instance_ref, modal=True, title=ft.Text(dialog_title),
-                content=description_content_container, actions_alignment=ft.MainAxisAlignment.END,
+            # Create enhanced header with entry type icon and styling
+            entry_type_icon = get_entry_type_icon_name(entry_type)
+            
+            # Enhanced header section
+            header_section = ft.Container(
+                content=ft.Column([
+                    ft.Row([
+                        ft.Container(
+                            content=ft.Icon(
+                                entry_type_icon, 
+                                size=28, 
+                                color=ft.colors.PRIMARY
+                            ),
+                            bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
+                            padding=ft.padding.all(12),
+                            border_radius=ft.border_radius.all(12),
+                        ),
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text(
+                                    entry_name,
+                                    style=ft.TextThemeStyle.TITLE_LARGE,
+                                    weight=ft.FontWeight.W_600,
+                                    color=ft.colors.ON_SURFACE,
+                                    max_lines=2,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
+                                ),
+                                ft.Container(
+                                    content=ft.Text(
+                                        entry_type,
+                                        size=14,
+                                        color=ft.colors.PRIMARY,
+                                        weight=ft.FontWeight.W_500,
+                                    ),
+                                    bgcolor=ft.colors.with_opacity(0.08, ft.colors.PRIMARY),
+                                    padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                                    border_radius=ft.border_radius.all(16),
+                                    margin=ft.margin.only(top=4),
+                                )
+                            ], spacing=8, tight=True),
+                            expand=True
+                        )
+                    ], spacing=16, vertical_alignment=ft.CrossAxisAlignment.START),
+                    
+                    # Divider with gradient effect
+                    ft.Container(
+                        height=1,
+                        bgcolor=ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE),
+                        margin=ft.margin.symmetric(vertical=20),
+                    )
+                ], spacing=0, tight=True),
+                padding=ft.padding.all(24),
+                bgcolor=ft.colors.with_opacity(0.02, ft.colors.PRIMARY),
             )
-            def handle_dialog_dismiss(dismissed_dialog_instance):
-                 if hasattr(page, 'dialog') and page.dialog == dismissed_dialog_instance: page.dialog = None
-                 if hasattr(dismissed_dialog_instance, 'open'): dismissed_dialog_instance.open = False
-                 if dismissed_dialog_instance in page.overlay:
-                     try: page.overlay.remove(dismissed_dialog_instance)
-                     except ValueError: pass
-                 if page: page.update() 
-            dialog_instance.on_dismiss = lambda e, inst=dialog_instance: handle_dialog_dismiss(inst) 
-            def close_dialog_action(e):
-                instance_to_close = dialog_instance 
-                if instance_to_close: instance_to_close.open = False
-                if page: page.update() 
-            dialog_instance.actions = [ft.TextButton("Close", on_click=close_dialog_action)]
-            if dialog_instance not in page.overlay: page.overlay.append(dialog_instance)
-            dialog_instance.open = True; page.dialog = dialog_instance
-            if page: page.update()
-        except Exception as e: print(f"Error in show_description_dialog: {e}"); traceback.print_exc()
-        finally: page._dialog_is_opening = False
+            
+            # Enhanced description content with better typography
+            description_content = ft.Container(
+                content=ft.Text(
+                    description_text,
+                    style=ft.TextStyle(
+                        size=16,
+                        height=1.6,  # Line height for better readability
+                        letter_spacing=0.2,
+                        color=ft.colors.ON_SURFACE,
+                    ),
+                    selectable=True  # Makes the text selectable
+                ),
+                padding=ft.padding.symmetric(horizontal=24, vertical=16),
+                margin=ft.margin.only(bottom=8),
+            )
+            
+            # Scrollable container for description
+            max_height = min(400, page.window_height * 0.5) if page.window_height else 400
+            scrollable_content = ft.Container(
+                content=ft.Column(
+                    controls=[description_content],
+                    scroll=ft.ScrollMode.ADAPTIVE,
+                    tight=True
+                ),
+                height=max_height,
+            )
+            
+            # Enhanced close button
+            close_button = ft.Container(
+                content=ft.ElevatedButton(
+                    text="Close",
+                    icon=ft.icons.CLOSE_ROUNDED,
+                    style=ft.ButtonStyle(
+                        padding=ft.padding.symmetric(horizontal=24, vertical=12),
+                        text_style=ft.TextStyle(
+                            size=14,
+                            weight=ft.FontWeight.W_600,
+                        ),
+                        shape=ft.RoundedRectangleBorder(radius=12),
+                    ),
+                    on_click=lambda e: close_enhanced_dialog()
+                ),
+                alignment=ft.alignment.center_right,
+                padding=ft.padding.only(right=24, bottom=20, top=16),
+            )
+            
+            # Main dialog content
+            dialog_content = ft.Container(
+                content=ft.Column([
+                    header_section,
+                    scrollable_content,
+                    close_button,
+                ], spacing=0, tight=True),
+                width=min(600, page.window_width * 0.8) if page.window_width else 600,
+                bgcolor=ft.colors.SURFACE,
+                border_radius=ft.border_radius.all(20),
+                shadow=ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=24,
+                    color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
+                    offset=ft.Offset(0, 8),
+                ),
+                border=ft.border.all(
+                    1, 
+                    ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE)
+                ),
+            )
+            
+            # Background overlay
+            dialog_overlay = ft.Container(
+                content=dialog_content,
+                alignment=ft.alignment.center,
+                bgcolor=ft.colors.with_opacity(0.5, ft.colors.BLACK),
+                expand=True,
+                on_click=lambda e: close_enhanced_dialog(),  # Click outside to close
+            )
+            
+            def close_enhanced_dialog():
+                if dialog_overlay in main_stack.controls:
+                    try:
+                        main_stack.controls.remove(dialog_overlay)
+                        main_stack.update()
+                    except Exception as e:
+                        print(f"Error removing enhanced dialog: {e}")
+            
+            # Prevent clicking on dialog content from closing the dialog
+            dialog_content.on_click = lambda e: e.control.page.update() if hasattr(e.control, 'page') else None
+            
+            # Add to stack and show
+            main_stack.controls.append(dialog_overlay)
+            main_stack.update()
+            
+        except Exception as e: 
+            print(f"Error in show_description_dialog: {e}")
+            traceback.print_exc()
+        finally: 
+            page._dialog_is_opening = False
 
     def process_and_copy_image(image_source_path_or_url: str) -> str | None:
         if not image_source_path_or_url or not image_source_path_or_url.strip():
@@ -2077,7 +2277,10 @@ async def main(page: ft.Page):
             ft.Row([ft.Text("Theme:"), theme_dropdown], vertical_alignment=ft.CrossAxisAlignment.CENTER),
             ft.Divider(height=20, thickness=1),
             ft.Container(content=ft.Text("Import / Export", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
-            ft.Row( [ ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog), ], spacing=10 ),
+            ft.Row( [ 
+                ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog), 
+                ft.ElevatedButton("Export to CSV", icon=ft.icons.DOWNLOAD_ROUNDED, on_click=open_export_dialog),
+            ], spacing=10 ),
             ft.Text( "CSV Format: Header row required. Columns: Name (Req), Genre, Review_Score, Completion_Date (Req), Description, IsRewatch, OwnLocalCopy, EntryType, ImageURL, Platform, Author, Studio, Actress, UpdateVersion. Case insensitive for headers.", italic=True, size=11, color=ft.colors.with_opacity(0.6, ft.colors.ON_SURFACE), max_lines=4 )
         ]
         return ft.Container(
