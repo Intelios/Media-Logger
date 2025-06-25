@@ -12,6 +12,168 @@ import uuid # Already imported
 import re
 import asyncio
 
+# --- Markdown Rendering Function ---
+def render_markdown(markdown_text: str) -> list[ft.Control]:
+    """
+    Converts raw Markdown text into a list of Flet controls with rich formatting.
+    Supports headings, lists, quotes, inline styles (bold, italic), and dividers.
+    """
+    if not markdown_text or not markdown_text.strip():
+        return [ft.Text("No description provided.", style=ft.TextStyle(italic=True, color=ft.colors.ON_SURFACE_VARIANT))]
+    
+    lines = markdown_text.split('\n')
+    controls = []
+    
+    for line in lines:
+        line_stripped = line.strip()
+        
+        # Skip empty lines (they'll add spacing)
+        if not line_stripped:
+            controls.append(ft.Container(height=8))  # Add vertical spacing
+            continue
+        
+        # Handle headings
+        if line_stripped.startswith('###'):
+            heading_text = line_stripped[3:].strip()
+            controls.append(ft.Text(heading_text, size=16, weight=ft.FontWeight.W_600, color=ft.colors.ON_SURFACE))
+        elif line_stripped.startswith('##'):
+            heading_text = line_stripped[2:].strip()
+            controls.append(ft.Text(heading_text, size=20, weight=ft.FontWeight.BOLD, color=ft.colors.ON_SURFACE))
+        elif line_stripped.startswith('#'):
+            heading_text = line_stripped[1:].strip()
+            controls.append(ft.Text(heading_text, size=24, weight=ft.FontWeight.BOLD, color=ft.colors.ON_SURFACE))
+        
+        # Handle horizontal dividers
+        elif line_stripped in ['---', '***']:
+            controls.append(ft.Divider(height=1, thickness=1, color=ft.colors.with_opacity(0.2, ft.colors.ON_SURFACE)))
+        
+        # Handle blockquotes
+        elif line_stripped.startswith('>'):
+            quote_text = line_stripped[1:].strip()
+            quote_content = _parse_inline_styles(quote_text)
+            controls.append(
+                ft.Container(
+                    content=ft.Text(spans=quote_content, style=ft.TextStyle(italic=True)),
+                    padding=ft.padding.only(left=16, top=8, bottom=8, right=8),
+                    border=ft.border.only(left=ft.BorderSide(4, ft.colors.PRIMARY)),
+                    bgcolor=ft.colors.with_opacity(0.05, ft.colors.PRIMARY),
+                    margin=ft.margin.symmetric(vertical=4)
+                )
+            )
+        
+        # Handle list items
+        elif line_stripped.startswith('* ') or line_stripped.startswith('- '):
+            list_text = line_stripped[2:].strip()
+            list_content = _parse_inline_styles(list_text)
+            controls.append(
+                ft.Row([
+                    ft.Container(
+                        content=ft.Icon(ft.icons.CIRCLE, size=6, color=ft.colors.ON_SURFACE_VARIANT),
+                        margin=ft.margin.only(top=6, right=8)
+                    ),
+                    ft.Container(
+                        content=ft.Text(spans=list_content, style=ft.TextStyle(height=1.4)),
+                        expand=True
+                    )
+                ], vertical_alignment=ft.CrossAxisAlignment.START, spacing=0)
+            )
+        
+        # Handle nested list items (with indentation)
+        elif line.startswith('  * ') or line.startswith('  - '):
+            list_text = line[4:].strip()
+            list_content = _parse_inline_styles(list_text)
+            controls.append(
+                ft.Row([
+                    ft.Container(width=16),  # Indentation
+                    ft.Container(
+                        content=ft.Icon(ft.icons.CIRCLE, size=4, color=ft.colors.ON_SURFACE_VARIANT),
+                        margin=ft.margin.only(top=6, right=8)
+                    ),
+                    ft.Container(
+                        content=ft.Text(spans=list_content, style=ft.TextStyle(height=1.4)),
+                        expand=True
+                    )
+                ], vertical_alignment=ft.CrossAxisAlignment.START, spacing=0)
+            )
+        
+        # Handle regular paragraphs
+        else:
+            paragraph_content = _parse_inline_styles(line_stripped)
+            controls.append(
+                ft.Text(
+                    spans=paragraph_content,
+                    style=ft.TextStyle(
+                        size=16,
+                        height=1.6,
+                        letter_spacing=0.2,
+                        color=ft.colors.ON_SURFACE
+                    )
+                )
+            )
+    
+    return controls
+
+def _parse_inline_styles(text: str) -> list[ft.TextSpan]:
+    """
+    Parses inline markdown styles like **bold**, *italic*, and ~~strikethrough~~
+    Returns a list of TextSpan objects for use in ft.Text with spans.
+    """
+    if not text:
+        return [ft.TextSpan("")]
+    
+    spans = []
+    current_pos = 0
+    
+    # Define regex patterns for different styles
+    patterns = [
+        (r'\*\*(.*?)\*\*', ft.FontWeight.BOLD, None, None),  # **bold**
+        (r'\*(.*?)\*', None, True, None),                    # *italic*
+        (r'~~(.*?)~~', None, None, True),                    # ~~strikethrough~~
+    ]
+    
+    # Find all matches for all patterns
+    all_matches = []
+    for pattern, weight, italic, strikethrough in patterns:
+        for match in re.finditer(pattern, text):
+            all_matches.append({
+                'start': match.start(),
+                'end': match.end(),
+                'content': match.group(1),
+                'weight': weight,
+                'italic': italic,
+                'strikethrough': strikethrough,
+                'full_match': match.group(0)
+            })
+    
+    # Sort matches by start position
+    all_matches.sort(key=lambda x: x['start'])
+    
+    # Process text with matches
+    for match in all_matches:
+        # Add text before the match
+        if current_pos < match['start']:
+            spans.append(ft.TextSpan(text[current_pos:match['start']]))
+        
+        # Add the styled text
+        style = ft.TextStyle(
+            weight=match['weight'],
+            italic=match['italic'],
+            decoration=ft.TextDecoration.LINE_THROUGH if match['strikethrough'] else None
+        )
+        spans.append(ft.TextSpan(match['content'], style))
+        
+        current_pos = match['end']
+    
+    # Add remaining text
+    if current_pos < len(text):
+        spans.append(ft.TextSpan(text[current_pos:]))
+    
+    # If no matches found, return the whole text as a single span
+    if not spans:
+        spans.append(ft.TextSpan(text))
+    
+    return spans
+
 # Import UI components from ui.py
 from ui import (
     APP_TITLE, YEARS, GENRE_SEPARATOR, DEFAULT_IMAGE_URL, THEMES, DEFAULT_THEME_NAME,
@@ -1128,17 +1290,14 @@ async def main(page: ft.Page):
                 bgcolor=ft.colors.with_opacity(0.02, ft.colors.PRIMARY),
             )
             
-            # Enhanced description content with better typography
+            # Enhanced description content with markdown rendering
+            markdown_controls = render_markdown(description_text)
+            
             description_content = ft.Container(
-                content=ft.Text(
-                    description_text,
-                    style=ft.TextStyle(
-                        size=16,
-                        height=1.6,  # Line height for better readability
-                        letter_spacing=0.2,
-                        color=ft.colors.ON_SURFACE,
-                    ),
-                    selectable=True  # Makes the text selectable
+                content=ft.Column(
+                    controls=markdown_controls,
+                    spacing=8,
+                    tight=True
                 ),
                 padding=ft.padding.symmetric(horizontal=24, vertical=16),
                 margin=ft.margin.only(bottom=8),
@@ -1301,7 +1460,80 @@ async def main(page: ft.Page):
             add_jav_date_display_field.current.value = ""
             add_jav_date_display_field.current.error_text = None
         
-        description_field = ft.TextField(label="Description / Notes", multiline=True, min_lines=2, max_lines=4, capitalization=ft.TextCapitalization.SENTENCES)
+        # Toolbar for Markdown formatting
+        def handle_bold_click(e):
+            apply_markdown_style(description_field, '**')
+
+        def handle_italic_click(e):
+            apply_markdown_style(description_field, '*')
+
+        def handle_header_click(e):
+            apply_markdown_style(description_field, '# ', line_start=True)
+
+        def handle_list_click(e):
+            apply_markdown_style(description_field, '* ', line_start=True)
+
+        def apply_markdown_style(textfield, style, line_start=False):
+            """
+            Applies markdown formatting at cursor position or appends to text.
+            Since Flet doesn't support text selection, we work with cursor position.
+            """
+            if not textfield or not hasattr(textfield, 'value'):
+                return
+                
+            current_text = textfield.value or ""
+            
+            if line_start:
+                # For line-start styles (headers, lists), add at beginning of new line
+                if current_text and not current_text.endswith('\n'):
+                    textfield.value = current_text + '\n' + style
+                else:
+                    textfield.value = current_text + style
+            else:
+                # For inline styles (bold, italic), add the markers where cursor is
+                # Since we can't get cursor position in Flet, append at the end
+                textfield.value = current_text + style + style
+            
+            textfield.update()
+            textfield.focus()
+
+        toolbar = ft.Row([
+            ft.IconButton(
+                icon=ft.icons.FORMAT_BOLD, 
+                tooltip="Add **bold** markers", 
+                on_click=handle_bold_click,
+                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
+            ),
+            ft.IconButton(
+                icon=ft.icons.FORMAT_ITALIC, 
+                tooltip="Add *italic* markers", 
+                on_click=handle_italic_click,
+                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
+            ),
+            ft.IconButton(
+                icon=ft.icons.FORMAT_SIZE, 
+                tooltip="Add # header", 
+                on_click=handle_header_click,
+                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
+            ),
+            ft.IconButton(
+                icon=ft.icons.FORMAT_LIST_BULLETED, 
+                tooltip="Add * list item", 
+                on_click=handle_list_click,
+                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
+            ),
+        ],
+        spacing=4,
+        )
+
+        description_field = ft.TextField(
+            label="Description / Notes", 
+            multiline=True, 
+            min_lines=3, 
+            max_lines=6, 
+            capitalization=ft.TextCapitalization.SENTENCES,
+            hint_text="Markdown supported: # Title, **bold**, *italic*, * lists"
+        )
         score_dropdown = ft.Dropdown(label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value="N/A")
         rewatch_check = ft.Checkbox(label="This was a Rewatch", value=False)
         own_local_copy_check = ft.Checkbox(label="Own Local Copy?", value=False)
@@ -1364,7 +1596,15 @@ async def main(page: ft.Page):
         content_controls = [
             name_field, entry_type_dropdown, conditional_fields_container, image_source_row, genre_field,
             ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_add_date_picker)], alignment=ft.MainAxisAlignment.START),
-            score_dropdown, description_field, rewatch_check, own_local_copy_check
+            score_dropdown, 
+            ft.Column([
+                ft.Row([
+                    ft.Text("Description / Notes", size=12, color=ft.colors.PRIMARY, weight=ft.FontWeight.W_500),
+                    toolbar
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                description_field
+            ], spacing=5),
+            rewatch_check, own_local_copy_check
         ]
         action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Entry", on_click=save_new_jav), ]
         title_text = f"Add Entry to {target_year}" if app_state["current_view"] in YEARS else "Add New Entry"
@@ -1417,7 +1657,16 @@ async def main(page: ft.Page):
         genre_field = ft.TextField(ref=edit_genre_field_ref, label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('genre', '') or '')
         initial_date_str = jav_data_to_edit.get('completion_date', ''); date_display = ft.TextField(ref=edit_date_display_field_ref, label="Completion Date", read_only=True, hint_text="Click calendar to select...", value=initial_date_str)
         initial_score = jav_data_to_edit.get('review_score'); score_value_str = str(initial_score) if initial_score is not None else "N/A"; score_dropdown = ft.Dropdown(ref=edit_score_dropdown_ref, label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value=score_value_str)
-        description_field = ft.TextField(ref=edit_description_field_ref, label="Description / Notes", multiline=True, min_lines=2, max_lines=4, capitalization=ft.TextCapitalization.SENTENCES, value=jav_data_to_edit.get('description', '') or '')
+        description_field = ft.TextField(
+            ref=edit_description_field_ref, 
+            label="Description / Notes", 
+            multiline=True, 
+            min_lines=3, 
+            max_lines=6, 
+            capitalization=ft.TextCapitalization.SENTENCES, 
+            value=jav_data_to_edit.get('description', '') or '',
+            hint_text="Markdown supported: # Title, **bold**, *italic*, * lists"
+        )
         initial_rewatch = jav_data_to_edit.get('is_rewatch') == 1; rewatch_check = ft.Checkbox(ref=edit_rewatch_check_ref, label="This was a Rewatch", value=initial_rewatch)
         initial_own_local_copy = jav_data_to_edit.get('own_local_copy') == 1; own_local_copy_check = ft.Checkbox(ref=edit_own_local_copy_check_ref, label="Own Local Copy?", value=initial_own_local_copy)
 
@@ -1511,10 +1760,75 @@ async def main(page: ft.Page):
             except Exception as stats_e: print(f"Warning: Error accessing stats_year_filter selection after edit: {stats_e}")
             page.run_thread(calculate_and_update_stats_display, current_stats_filter)
 
+        # Toolbar for Markdown formatting in edit dialog
+        def handle_bold_click_edit(e):
+            apply_markdown_style_edit(description_field, '**')
+
+        def handle_italic_click_edit(e):
+            apply_markdown_style_edit(description_field, '*')
+
+        def handle_header_click_edit(e):
+            apply_markdown_style_edit(description_field, '# ', line_start=True)
+
+        def handle_list_click_edit(e):
+            apply_markdown_style_edit(description_field, '* ', line_start=True)
+
+        def apply_markdown_style_edit(textfield, style, line_start=False):
+            if textfield and hasattr(textfield, 'value'):
+                current_text = textfield.value or ""
+                # For now, just append the style at the end since Flet doesn't support text selection
+                if line_start:
+                    # Add header style at the beginning of a new line
+                    if current_text and not current_text.endswith('\n'):
+                        textfield.value = current_text + '\n' + style
+                    else:
+                        textfield.value = current_text + style
+                else:
+                    # Add bold/italic markers
+                    textfield.value = current_text + style + style
+                textfield.update()
+
+        edit_toolbar = ft.Row([
+            ft.IconButton(
+                icon=ft.icons.FORMAT_BOLD, 
+                tooltip="Add **bold** markers", 
+                on_click=handle_bold_click_edit,
+                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
+            ),
+            ft.IconButton(
+                icon=ft.icons.FORMAT_ITALIC, 
+                tooltip="Add *italic* markers", 
+                on_click=handle_italic_click_edit,
+                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
+            ),
+            ft.IconButton(
+                icon=ft.icons.FORMAT_SIZE, 
+                tooltip="Add # header", 
+                on_click=handle_header_click_edit,
+                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
+            ),
+            ft.IconButton(
+                icon=ft.icons.FORMAT_LIST_BULLETED, 
+                tooltip="Add * list item", 
+                on_click=handle_list_click_edit,
+                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))
+            ),
+        ],
+        spacing=4,
+        )
+
         content_controls = [
             name_field, entry_type_dropdown, conditional_fields_container, edit_image_source_row, genre_field,
             ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_edit_date_picker)], alignment=ft.MainAxisAlignment.START),
-            score_dropdown, description_field, rewatch_check, own_local_copy_check
+            score_dropdown, 
+            ft.Column([
+                ft.Row([
+                    ft.Text("Description / Notes", size=12, color=ft.colors.PRIMARY, weight=ft.FontWeight.W_500),
+                    edit_toolbar
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                description_field
+            ], spacing=5),
+            rewatch_check, own_local_copy_check
         ]
         action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Changes", on_click=save_edited_jav), ]
         manual_dialog = create_dialog_overlay(f"Edit Entry: {jav_data_to_edit['name']}", content_controls, action_buttons, associated_picker=_edit_date_picker_instance)
