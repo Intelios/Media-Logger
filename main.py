@@ -1047,7 +1047,7 @@ def get_data_from_conditional_fields(container: ft.Column) -> dict:
             data[control.data] = control.value
     return data
 
-# --- NEW: Helper function to create a Markdown editor component ---
+# --- Helper function to create a Markdown editor component ---
 def create_markdown_editor(initial_value: str = ""):
     """
     Creates a Column containing a Markdown formatting toolbar and a TextField.
@@ -1441,8 +1441,9 @@ async def main(page: ft.Page):
         "search_results": [],
     }
     
-    add_jav_date_display_field = ft.Ref[ft.TextField]()
-    manual_dialog_container = ft.Ref[ft.Container]()
+    # --- MODIFIED: This ref now points to the full-screen overlay container ---
+    form_overlay_container = ft.Ref[ft.Container]()
+
     stats_total_javs_text = ft.Ref[ft.Text]()
     stats_avg_score_text = ft.Ref[ft.Text]()
     stats_total_rewatches_text = ft.Ref[ft.Text]()
@@ -1510,20 +1511,6 @@ async def main(page: ft.Page):
             page.snack_bar = snackbar_control
             if page: page.update()
         except Exception as e: print(f"Error displaying snackbar '{message}': {e}")
-
-    add_date_picker = ft.DatePicker(on_change=lambda e: handle_add_date_change(e), help_text="Select Completion Date")
-    page.overlay.append(add_date_picker)
-    def handle_add_date_change(e):
-        selected_date = e.control.value
-        if add_jav_date_display_field.current and selected_date:
-            add_jav_date_display_field.current.value = selected_date.strftime('%Y-%m-%d')
-            if hasattr(add_jav_date_display_field.current, 'page') and add_jav_date_display_field.current.page: add_jav_date_display_field.current.update()
-    def open_add_date_picker(e=None):
-        if add_date_picker: 
-            add_date_picker.open = True 
-            page.update()
-        else: show_snackbar("Could not open date picker.", color=ft.colors.ERROR_CONTAINER)
-
 
     # --- Import / Export File Pickers and Handlers ---
     import_dialog = ft.FilePicker(on_result=lambda e: handle_import_result(e))
@@ -1773,47 +1760,300 @@ async def main(page: ft.Page):
         print(f"Triggering background stats recalculation for: {current_stats_filter}")
         page.run_thread(calculate_and_update_stats_display, current_stats_filter); page.update()
 
-
-    def close_manual_dialog(e=None):
-        if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls:
+    # --- MODIFIED: This function now closes the new full-screen form overlay ---
+    def close_form_overlay(e=None):
+        """Closes the main form overlay for adding/editing entries."""
+        overlay = form_overlay_container.current
+        if overlay and overlay in main_stack.controls:
             try:
-                if hasattr(manual_dialog_container.current, '_edit_date_picker_ref'):
-                    edit_picker = manual_dialog_container.current._edit_date_picker_ref
-                    if edit_picker in page.overlay: page.overlay.remove(edit_picker);
-                main_stack.controls.remove(manual_dialog_container.current); manual_dialog_container.current = None; main_stack.update()
-            except Exception as remove_e: print(f"Error removing manual dialog from stack: {remove_e}")
+                # Clean up any associated date pickers that were added to the page overlay
+                if hasattr(overlay, '_associated_date_picker') and overlay._associated_date_picker:
+                    if overlay._associated_date_picker in page.overlay:
+                        page.overlay.remove(overlay._associated_date_picker)
+                
+                main_stack.controls.remove(overlay)
+                form_overlay_container.current = None
+                main_stack.update()
+            except Exception as remove_e:
+                print(f"Error removing form overlay from stack: {remove_e}")
 
-    def create_dialog_overlay(title_text, content_controls, action_buttons, associated_picker=None):
-        dialog_content = ft.Container(
-            content=ft.Column(
-                [
-                    ft.Text(title_text, style=ft.TextThemeStyle.TITLE_LARGE),
-                    ft.Divider(height=10, thickness=1),
+    # --- NEW: A reusable function to build the modern Add/Edit UI ---
+    def build_form_view(
+        title_text: str,
+        form_controls: dict,
+        save_callback: callable,
+        close_callback: callable,
+        type_change_callback: callable, # <-- ADDED: The original on_change function
+        associated_picker=None
+    ):
+        """
+        Constructs the new two-panel, full-screen overlay for adding or editing an entry.
+        
+        Args:
+            title_text: The main title for the form panel (e.g., "Add New Entry").
+            form_controls: A dictionary of all the Flet controls for the form.
+            save_callback: The function to call when the save button is clicked.
+            close_callback: The function to call to close the overlay.
+            type_change_callback: The original function to update conditional fields.
+            associated_picker: A reference to a date picker to be cleaned up on close.
+        """
+        
+        # --- Left Panel (Visual Preview) ---
+        preview_image = ft.Ref[ft.Image]()
+        preview_title = ft.Ref[ft.Text]()
+        preview_type = ft.Ref[ft.Text]()
+        preview_date = ft.Ref[ft.Text]()
+        preview_score = ft.Ref[ft.Text]()
+
+        def update_previews(e=None):
+            # Update Title
+            if preview_title.current:
+                preview_title.current.value = form_controls["name"].value or "New Entry"
+                try: preview_title.current.update()
+                except: pass
+            
+            # Update Entry Type
+            if preview_type.current:
+                type_val = form_controls["entry_type"].value
+                preview_type.current.value = type_val or "Not Selected"
+                if preview_type.current.page:
+                    try: preview_type.current.update()
+                    except: pass
+
+            # Update Image
+            if preview_image.current:
+                src = form_controls["image_source"].value
+                if src:
+                    if src.lower().startswith("http"):
+                        preview_image.current.src = src
+                    elif os.path.exists(src):
+                        preview_image.current.src = src
+                    else:
+                        preview_image.current.src = DEFAULT_IMAGE_URL
+                else:
+                    preview_image.current.src = DEFAULT_IMAGE_URL
+                try: preview_image.current.update()
+                except: pass
+
+            # Update Date
+            if preview_date.current:
+                date_val = form_controls["date_display"].value
+                if date_val:
+                    try:
+                        date_obj = datetime.strptime(date_val, '%Y-%m-%d')
+                        preview_date.current.value = date_obj.strftime('%d %B %Y')
+                    except ValueError:
+                        preview_date.current.value = "Invalid Date"
+                else:
+                    preview_date.current.value = "Not Set"
+                try: preview_date.current.update()
+                except: pass
+
+            # Update Score
+            if preview_score.current:
+                score_val = form_controls["score"].value
+                preview_score.current.value = f"{score_val}/10" if score_val and score_val != "N/A" else "N/A"
+                try: preview_score.current.update()
+                except: pass
+
+        # --- CORRECTED LOGIC ---
+        # This new handler calls BOTH the original function and the preview update.
+        def combined_type_change_handler(e):
+            type_change_callback(e)  # This updates the conditional fields
+            update_previews(e)       # This updates the preview panel
+
+        # Attach the update functions to the controls' on_change events
+        form_controls["name"].on_change = update_previews
+        form_controls["entry_type"].on_change = combined_type_change_handler # Use the combined handler
+        form_controls["image_source"].on_change = update_previews
+        form_controls["date_display"].on_change = update_previews
+        form_controls["score"].on_change = update_previews
+
+        # A small helper to create the stat display widgets in the left panel
+        def create_stat_display(icon, text_ref, label):
+            return ft.Row([
+                ft.Icon(icon, size=18, opacity=0.7),
+                ft.Column([
+                    ft.Text(ref=text_ref, value="...", weight=ft.FontWeight.W_600, size=16),
+                    ft.Text(label, size=11, opacity=0.7)
+                ], spacing=0)
+            ], spacing=12)
+
+        left_panel = ft.Container(
+            content=ft.Column([
+                # Image Preview Area
+                ft.Stack([
                     ft.Container(
-                        content=ft.Column(content_controls, spacing=12, tight=True, scroll=ft.ScrollMode.ADAPTIVE),
-                        expand=True,
+                        content=ft.Image(
+                            ref=preview_image,
+                            src=DEFAULT_IMAGE_URL,
+                            fit=ft.ImageFit.COVER,
+                            width=float("inf"),
+                            height=250
+                        ),
+                        clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                        border_radius=ft.border_radius.only(top_left=12)
                     ),
-                    ft.Divider(height=10, thickness=1),
-                    ft.Row(action_buttons, alignment=ft.MainAxisAlignment.END)
+                    ft.Container(
+                        gradient=ft.LinearGradient(
+                            begin=ft.alignment.top_center,
+                            end=ft.alignment.bottom_center,
+                            colors=[ft.colors.TRANSPARENT, ft.colors.with_opacity(0.8, ft.colors.BLACK)]
+                        ),
+                        padding=ft.padding.all(20),
+                        alignment=ft.alignment.bottom_left,
+                        content=ft.Column([
+                            ft.Text(ref=preview_title, value="New Entry", size=28, weight=ft.FontWeight.BOLD),
+                            ft.Text(ref=preview_type, value="Not Selected", size=16, opacity=0.9)
+                        ], spacing=4)
+                    )
+                ]),
+                # Stats Area
+                ft.Container(
+                    content=ft.Column([
+                        create_stat_display(ft.icons.CALENDAR_MONTH_ROUNDED, preview_date, "Completion Date"),
+                        ft.Divider(height=10),
+                        create_stat_display(ft.icons.STAR_HALF_ROUNDED, preview_score, "Review Score"),
+                    ], spacing=10),
+                    padding=20,
+                    expand=True
+                )
+            ]),
+            width=380,
+            bgcolor=ft.colors.with_opacity(0.03, ft.colors.ON_SURFACE),
+            border_radius=ft.border_radius.all(12),
+        )
+
+        # --- Right Panel (Form) ---
+        right_panel = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text(title_text, style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.BOLD),
+                    ft.Text("Fill in the details for your new media log entry.", opacity=0.7),
+                    
+                    # Group: Core Information
+                    ft.Text("CORE INFORMATION", style=ft.TextThemeStyle.BODY_SMALL, weight=ft.FontWeight.BOLD, opacity=0.6),
+                    ft.Divider(height=5),
+                    form_controls["name"],
+                    form_controls["entry_type"],
+                    form_controls["conditional_fields"],
+
+                    # Group: Details
+                    ft.Container(
+                        content=ft.Text("DETAILS", style=ft.TextThemeStyle.BODY_SMALL, weight=ft.FontWeight.BOLD, opacity=0.6),
+                        margin=ft.margin.only(top=10)
+                    ),
+                    ft.Divider(height=5),
+                    form_controls["genre"],
+                    form_controls["image_source_row"],
+                    ft.Row([
+                        ft.Container(content=form_controls["date_display"], expand=True),
+                        form_controls["date_picker_button"]
+                    ]),
+                    form_controls["score"],
+
+                    # Group: Notes
+                    ft.Container(
+                        content=ft.Text("NOTES", style=ft.TextThemeStyle.BODY_SMALL, weight=ft.FontWeight.BOLD, opacity=0.6),
+                        margin=ft.margin.only(top=10)
+                    ),
+                    ft.Divider(height=5),
+                    form_controls["description_editor"],
+
+                    # Group: Toggles
+                    ft.Row([form_controls["rewatch"], form_controls["own_local_copy"]]),
+
+                    # Action Buttons
+                    ft.Container(
+                        content=ft.Row(
+                            [
+                                ft.TextButton("Cancel", on_click=close_callback),
+                                ft.ElevatedButton(
+                                    "Save Entry",
+                                    icon=ft.icons.SAVE_OUTLINED,
+                                    on_click=save_callback,
+                                    style=ft.ButtonStyle(
+                                        bgcolor=ft.colors.PRIMARY,
+                                        color=ft.colors.ON_PRIMARY,
+                                        padding=ft.padding.symmetric(horizontal=24, vertical=12)
+                                    )
+                                )
+                            ],
+                            alignment=ft.MainAxisAlignment.END
+                        ),
+                        margin=ft.margin.only(top=20)
+                    )
                 ],
-                spacing=10, tight=True,
+                scroll=ft.ScrollMode.ADAPTIVE,
+                spacing=12
             ),
-            width=550, padding=20, bgcolor=ft.colors.with_opacity(0.98, ft.colors.SURFACE),
-            border_radius=10, border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.OUTLINE)),
-            shadow=ft.BoxShadow(spread_radius=1, blur_radius=15, color=ft.colors.with_opacity(0.2, ft.colors.BLACK), offset=ft.Offset(0, 5)),
+            padding=ft.padding.all(30),
+            expand=True
         )
-        dialog_content.constraints = ft.BoxConstraints(max_height=page.window_height * 0.85 if page and page.window_height else 700)
-        overlay_scrim = ft.Container(
-            ref=manual_dialog_container, content=dialog_content, alignment=ft.alignment.center,
-            bgcolor=ft.colors.with_opacity(0.6, ft.colors.BLACK), expand=True,
+
+        # --- Assemble the View ---
+        main_form_content = ft.Container(
+            content=ft.Row(
+                controls=[left_panel, right_panel],
+                vertical_alignment=ft.CrossAxisAlignment.STRETCH
+            ),
+            width=1100,
+            height=min(800, page.window_height * 0.9 if page.window_height else 800),
+            bgcolor=ft.colors.SURFACE,
+            border_radius=12,
+            shadow=ft.BoxShadow(
+                spread_radius=2,
+                blur_radius=20,
+                color=ft.colors.with_opacity(0.2, ft.colors.BLACK),
+                offset=ft.Offset(0, 10)
+            ),
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS
         )
-        if associated_picker: overlay_scrim._edit_date_picker_ref = associated_picker
-        return overlay_scrim
+
+        # The full-screen stack
+        overlay = ft.Stack(
+            ref=form_overlay_container,
+            controls=[
+                # Background scrim
+                ft.Container(
+                    bgcolor=ft.colors.with_opacity(0.6, ft.colors.BLACK87),
+                    expand=True,
+                    on_click=close_callback # Optional: click background to close
+                ),
+                # Centered form content
+                ft.Container(
+                    content=main_form_content,
+                    alignment=ft.alignment.center,
+                    expand=True
+                ),
+                # Top-right close button
+                ft.Container(
+                    content=ft.IconButton(
+                        icon=ft.icons.CLOSE_ROUNDED,
+                        icon_color=ft.colors.WHITE,
+                        bgcolor=ft.colors.with_opacity(0.3, ft.colors.BLACK),
+                        tooltip="Close",
+                        on_click=close_callback
+                    ),
+                    top=20,
+                    right=20
+                )
+            ]
+        )
+        
+        # Attach the date picker for cleanup
+        if associated_picker:
+            overlay._associated_date_picker = associated_picker
+
+        # Trigger the initial preview update
+        update_previews()
+        
+        return overlay
 
     def show_description_dialog(jav_data):
         # Prevent multiple dialogs from opening
         if (hasattr(page, '_dialog_is_opening') and page._dialog_is_opening) or \
-           (manual_dialog_container.current and manual_dialog_container.current in main_stack.controls):
+           (form_overlay_container.current and form_overlay_container.current in main_stack.controls):
             print("INFO: Dialog operation already in progress. Ignoring click.")
             return
         page._dialog_is_opening = True
@@ -1886,15 +2126,13 @@ async def main(page: ft.Page):
                 bgcolor=ft.colors.with_opacity(0.02, ft.colors.PRIMARY),
             )
 
-            # --- CORRECTED: Use ft.Markdown to render the description ---
+            # --- MODIFIED: Use ft.Markdown to render the description ---
             description_content = ft.Container(
                 content=ft.Markdown(
                     value=description_text,
                     selectable=True,
                     extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
                     code_theme="atom-one-dark",
-                    # The 'code_style' argument was removed as it is not a valid
-                    # parameter for the ft.Markdown control, which caused the error.
                     on_tap_link=lambda e: page.launch_url(e.data),
                 ),
                 padding=ft.padding.symmetric(horizontal=24, vertical=16),
@@ -2015,6 +2253,7 @@ async def main(page: ft.Page):
         nonlocal _target_image_field_for_picker
         target_year = app_state["current_view"] if app_state["current_view"] in YEARS else str(datetime.now().year)
         
+        # --- Create all form controls ---
         name_field = ft.TextField(label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS)
         
         conditional_fields_container = ft.Column(spacing=12, tight=True)
@@ -2023,7 +2262,8 @@ async def main(page: ft.Page):
 
         entry_type_dropdown = ft.Dropdown(
             label="Entry Type", options=ENTRY_TYPE_OPTIONS, 
-            hint_text="Select the type of media", on_change=on_type_change_add
+            hint_text="Select the type of media"
+            # on_change is now set inside build_form_view
         )
         
         image_source_field = ft.TextField(
@@ -2044,13 +2284,26 @@ async def main(page: ft.Page):
         )
 
         genre_field = ft.TextField(label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS)
-        date_display = ft.TextField(ref=add_jav_date_display_field, label="Completion Date", read_only=True, hint_text="Click calendar to select...")
         
-        if add_jav_date_display_field.current: 
-            add_jav_date_display_field.current.value = ""
-            add_jav_date_display_field.current.error_text = None
+        date_display_field = ft.TextField(label="Completion Date", read_only=True, hint_text="Click calendar to select...")
+        add_date_picker = ft.DatePicker(on_change=lambda e: handle_date_change(e, date_display_field), help_text="Select Completion Date")
+        page.overlay.append(add_date_picker)
         
-        # --- MODIFIED: Use the new Markdown editor ---
+        def handle_date_change(e, target_field):
+            selected_date = e.control.value
+            if target_field and selected_date:
+                target_field.value = selected_date.strftime('%Y-%m-%d')
+                if hasattr(target_field, 'on_change') and callable(target_field.on_change):
+                    target_field.on_change(e) # Manually trigger on_change for preview update
+                if hasattr(target_field, 'page') and target_field.page:
+                    target_field.update()
+
+        def open_date_picker(e):
+            add_date_picker.open = True
+            page.update()
+
+        date_picker_button = ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_date_picker)
+
         description_editor, description_field_ref = create_markdown_editor()
 
         score_dropdown = ft.Dropdown(label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value="N/A")
@@ -2062,22 +2315,21 @@ async def main(page: ft.Page):
             entry_type_val = entry_type_dropdown.value
             image_source_input = image_source_field.value.strip()
             genre_input_str = genre_field.value.strip()
-            date_str = add_jav_date_display_field.current.value.strip() if add_jav_date_display_field.current else ""
+            date_str = date_display_field.value.strip()
             score_str = score_dropdown.value
-            # --- MODIFIED: Get value from the Markdown editor's ref ---
             description = description_field_ref.current.value.strip()
             is_rewatch = rewatch_check.value
             own_local_copy = own_local_copy_check.value
             errors = []
 
-            name_field.error_text = None; date_display.error_text = None; score_dropdown.error_text = None; entry_type_dropdown.error_text = None; image_source_field.error_text = None
+            name_field.error_text = None; date_display_field.error_text = None; score_dropdown.error_text = None; entry_type_dropdown.error_text = None; image_source_field.error_text = None
 
             if not name: errors.append("Title is required."); name_field.error_text = "Required"
             if not entry_type_val: errors.append("Entry Type is required."); entry_type_dropdown.error_text = "Required"
-            if not date_str: errors.append("Completion Date is required."); date_display.error_text = "Required"
+            if not date_str: errors.append("Completion Date is required."); date_display_field.error_text = "Required"
             else:
                 try: datetime.strptime(date_str, '%Y-%m-%d')
-                except ValueError: errors.append("Invalid date format (YYYY-MM-DD)."); date_display.error_text = "Invalid Format"
+                except ValueError: errors.append("Invalid date format (YYYY-MM-DD)."); date_display_field.error_text = "Invalid Format"
             
             if image_source_input and not (image_source_input.lower().startswith("http://") or image_source_input.lower().startswith("https://")):
                 if not os.path.exists(image_source_input): 
@@ -2093,7 +2345,7 @@ async def main(page: ft.Page):
             if hasattr(name_field, 'page') and name_field.page: name_field.update()
             if hasattr(entry_type_dropdown, 'page') and entry_type_dropdown.page: entry_type_dropdown.update()
             if hasattr(image_source_field, 'page') and image_source_field.page: image_source_field.update()
-            if hasattr(date_display, 'page') and date_display.page: date_display.update()
+            if hasattr(date_display_field, 'page') and date_display_field.page: date_display_field.update()
             if hasattr(score_dropdown, 'page') and score_dropdown.page: score_dropdown.update()
 
             if errors: show_snackbar("Please fix errors: " + " ".join(errors), color=ft.colors.ERROR_CONTAINER); return
@@ -2104,7 +2356,7 @@ async def main(page: ft.Page):
 
             add_jav_db(name, genre_input_str, date_str, score_int, description, is_rewatch, own_local_copy, final_image_ref_for_db, entry_type_val, conditional_data)
             show_snackbar(f"Added '{name}'") if app_state["current_view"] not in YEARS else show_snackbar(f"Added '{name}' to {target_year}")
-            close_manual_dialog()
+            close_form_overlay()
             refresh_current_view()
             current_stats_filter = "All Time"
             try:
@@ -2113,35 +2365,53 @@ async def main(page: ft.Page):
             except Exception as stats_e: print(f"Warning: Error accessing stats_year_filter selection after add: {stats_e}")
             page.run_thread(calculate_and_update_stats_display, current_stats_filter)
 
-        content_controls = [
-            name_field, entry_type_dropdown, conditional_fields_container, image_source_row, genre_field,
-            ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_add_date_picker)], alignment=ft.MainAxisAlignment.START),
-            score_dropdown, 
-            description_editor, # Use the new editor component
-            rewatch_check, own_local_copy_check
-        ]
-        action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Entry", on_click=save_new_jav), ]
-        title_text = f"Add Entry to {target_year}" if app_state["current_view"] in YEARS else "Add New Entry"
-        manual_dialog = create_dialog_overlay(title_text, content_controls, action_buttons);
-        if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls: close_manual_dialog() 
-        main_stack.controls.append(manual_dialog); main_stack.update()
+        # --- Package controls and build the view ---
+        form_controls_dict = {
+            "name": name_field,
+            "entry_type": entry_type_dropdown,
+            "conditional_fields": conditional_fields_container,
+            "genre": genre_field,
+            "image_source": image_source_field,
+            "image_source_row": image_source_row,
+            "date_display": date_display_field,
+            "date_picker_button": date_picker_button,
+            "score": score_dropdown,
+            "description_editor": description_editor,
+            "rewatch": rewatch_check,
+            "own_local_copy": own_local_copy_check,
+        }
+
+        title_text = f"Add New Entry"
+        form_view = build_form_view(
+            title_text, 
+            form_controls_dict, 
+            save_new_jav, 
+            close_form_overlay, 
+            on_type_change_add, # <-- Pass the function here
+            add_date_picker
+        )
+        
+        if form_overlay_container.current and form_overlay_container.current in main_stack.controls:
+            close_form_overlay()
+        
+        main_stack.controls.append(form_view)
+        main_stack.update()
 
     def open_edit_jav_dialog(jav_data_to_edit, list_refresh_callback):
         nonlocal _target_image_field_for_picker
         jav_id = jav_data_to_edit['id']
         
-        edit_name_field_ref = ft.Ref[ft.TextField](); edit_genre_field_ref = ft.Ref[ft.TextField](); edit_date_display_field_ref = ft.Ref[ft.TextField](); edit_score_dropdown_ref = ft.Ref[ft.Dropdown](); edit_rewatch_check_ref = ft.Ref[ft.Checkbox](); edit_own_local_copy_check_ref = ft.Ref[ft.Checkbox]()
-        edit_entry_type_dropdown_ref = ft.Ref[ft.Dropdown]()
-        
-        name_field = ft.TextField(ref=edit_name_field_ref, label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('name', ''))
+        # --- Create all form controls with initial values ---
+        name_field = ft.TextField(label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('name', ''))
         
         conditional_fields_container = ft.Column(spacing=12, tight=True)
         def on_type_change_edit(e):
-            update_conditional_fields(e.control.value, conditional_fields_container)
+            update_conditional_fields(e.control.value, conditional_fields_container, jav_data_to_edit)
 
         entry_type_dropdown = ft.Dropdown(
-            ref=edit_entry_type_dropdown_ref, label="Entry Type", options=ENTRY_TYPE_OPTIONS, 
-            value=jav_data_to_edit.get('entry_type'), on_change=on_type_change_edit
+            label="Entry Type", options=ENTRY_TYPE_OPTIONS, 
+            value=jav_data_to_edit.get('entry_type')
+            # on_change is now set inside build_form_view
         )
         
         update_conditional_fields(
@@ -2150,7 +2420,7 @@ async def main(page: ft.Page):
             initial_data=jav_data_to_edit
         )
 
-        _edit_image_source_tf = ft.TextField( 
+        image_source_field = ft.TextField( 
             label="Image Source (URL or Local Path)", 
             value=jav_data_to_edit.get('image_url', ''), 
             expand=True,
@@ -2158,90 +2428,98 @@ async def main(page: ft.Page):
         )
         def browse_for_image_edit(e):
             nonlocal _target_image_field_for_picker
-            _target_image_field_for_picker = _edit_image_source_tf 
+            _target_image_field_for_picker = image_source_field
             image_file_picker.pick_files(
                 dialog_title="Select Image", allow_multiple=False,
                 allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"]
             )
-        edit_image_source_row = ft.Row(
-            [ _edit_image_source_tf, ft.IconButton(icon=ft.icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_edit) ],
+        image_source_row = ft.Row(
+            [ image_source_field, ft.IconButton(icon=ft.icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_edit) ],
             vertical_alignment=ft.CrossAxisAlignment.END
         )
 
-        genre_field = ft.TextField(ref=edit_genre_field_ref, label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('genre', '') or '')
-        initial_date_str = jav_data_to_edit.get('completion_date', ''); date_display = ft.TextField(ref=edit_date_display_field_ref, label="Completion Date", read_only=True, hint_text="Click calendar to select...", value=initial_date_str)
-        initial_score = jav_data_to_edit.get('review_score'); score_value_str = str(initial_score) if initial_score is not None else "N/A"; score_dropdown = ft.Dropdown(ref=edit_score_dropdown_ref, label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value=score_value_str)
+        genre_field = ft.TextField(label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('genre', '') or '')
         
-        # --- MODIFIED: Use the new Markdown editor for editing ---
-        description_editor, edit_description_field_ref = create_markdown_editor(
-            initial_value=jav_data_to_edit.get('description', '') or ''
-        )
-
-        initial_rewatch = jav_data_to_edit.get('is_rewatch') == 1; rewatch_check = ft.Checkbox(ref=edit_rewatch_check_ref, label="This was a Rewatch", value=initial_rewatch)
-        initial_own_local_copy = jav_data_to_edit.get('own_local_copy') == 1; own_local_copy_check = ft.Checkbox(ref=edit_own_local_copy_check_ref, label="Own Local Copy?", value=initial_own_local_copy)
-
+        initial_date_str = jav_data_to_edit.get('completion_date', '')
+        date_display_field = ft.TextField(label="Completion Date", read_only=True, hint_text="Click calendar to select...", value=initial_date_str)
+        
         initial_picker_date = None
         if initial_date_str:
             try: initial_picker_date = datetime.strptime(initial_date_str, '%Y-%m-%d')
             except ValueError: pass
         
-        _edit_date_picker_instance = ft.DatePicker( 
-            on_change=lambda e: handle_edit_date_change(e, edit_date_display_field_ref), 
+        edit_date_picker = ft.DatePicker(
+            on_change=lambda e: handle_date_change(e, date_display_field), 
             help_text="Select Completion Date", value=initial_picker_date
         )
-        if _edit_date_picker_instance not in page.overlay: 
-            page.overlay.append(_edit_date_picker_instance)
-        
-        def handle_edit_date_change(e, target_field_ref): 
+        page.overlay.append(edit_date_picker)
+
+        def handle_date_change(e, target_field):
             selected_date = e.control.value
-            if target_field_ref.current and selected_date: 
-                target_field_ref.current.value = selected_date.strftime('%Y-%m-%d')
-                if hasattr(target_field_ref.current, 'page') and target_field_ref.current.page: target_field_ref.current.update()
-        def open_edit_date_picker(e): 
-            _edit_date_picker_instance.open = True
+            if target_field and selected_date:
+                target_field.value = selected_date.strftime('%Y-%m-%d')
+                if hasattr(target_field, 'on_change') and callable(target_field.on_change):
+                    target_field.on_change(e)
+                if hasattr(target_field, 'page') and target_field.page:
+                    target_field.update()
+
+        def open_edit_date_picker(e):
+            edit_date_picker.open = True
             page.update()
+        
+        date_picker_button = ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_edit_date_picker)
+
+        initial_score = jav_data_to_edit.get('review_score')
+        score_value_str = str(initial_score) if initial_score is not None else "N/A"
+        score_dropdown = ft.Dropdown(label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value=score_value_str)
+        
+        description_editor, description_field_ref = create_markdown_editor(initial_value=jav_data_to_edit.get('description', '') or '')
+
+        initial_rewatch = jav_data_to_edit.get('is_rewatch') == 1
+        rewatch_check = ft.Checkbox(label="This was a Rewatch", value=initial_rewatch)
+        initial_own_local_copy = jav_data_to_edit.get('own_local_copy') == 1
+        own_local_copy_check = ft.Checkbox(label="Own Local Copy?", value=initial_own_local_copy)
 
         def save_edited_jav(e):
-            name = edit_name_field_ref.current.value.strip()
-            entry_type_val = edit_entry_type_dropdown_ref.current.value
-            image_source_input = _edit_image_source_tf.value.strip() 
-            genre_input_str = edit_genre_field_ref.current.value.strip()
-            date_str = edit_date_display_field_ref.current.value.strip()
-            score_str = edit_score_dropdown_ref.current.value
-            # --- MODIFIED: Get value from the Markdown editor's ref ---
-            description = edit_description_field_ref.current.value.strip()
-            is_rewatch = edit_rewatch_check_ref.current.value
-            own_local_copy = edit_own_local_copy_check_ref.current.value
+            name = name_field.value.strip()
+            entry_type_val = entry_type_dropdown.value
+            image_source_input = image_source_field.value.strip() 
+            genre_input_str = genre_field.value.strip()
+            date_str = date_display_field.value.strip()
+            score_str = score_dropdown.value
+            description = description_field_ref.current.value.strip()
+            is_rewatch = rewatch_check.value
+            own_local_copy = own_local_copy_check.value
             errors = []
 
-            edit_name_field_ref.current.error_text = None; edit_date_display_field_ref.current.error_text = None; edit_score_dropdown_ref.current.error_text = None; edit_entry_type_dropdown_ref.current.error_text = None; _edit_image_source_tf.error_text = None
+            name_field.error_text = None; date_display_field.error_text = None; score_dropdown.error_text = None; entry_type_dropdown.error_text = None; image_source_field.error_text = None
 
-            if not name: errors.append("Title is required."); edit_name_field_ref.current.error_text = "Required"
-            if not entry_type_val: errors.append("Entry Type is required."); edit_entry_type_dropdown_ref.current.error_text = "Required"
-            if not date_str: errors.append("Completion Date is required."); edit_date_display_field_ref.current.error_text = "Required"
+            if not name: errors.append("Title is required."); name_field.error_text = "Required"
+            if not entry_type_val: errors.append("Entry Type is required."); entry_type_dropdown.error_text = "Required"
+            if not date_str: errors.append("Completion Date is required."); date_display_field.error_text = "Required"
             else:
                 try: datetime.strptime(date_str, '%Y-%m-%d')
-                except ValueError: errors.append("Invalid date format (YYYY-MM-DD)."); edit_date_display_field_ref.current.error_text = "Invalid Format"
+                except ValueError: errors.append("Invalid date format (YYYY-MM-DD)."); date_display_field.error_text = "Invalid Format"
 
             if image_source_input and \
                not (image_source_input.lower().startswith("http://") or image_source_input.lower().startswith("https://")) and \
                not (image_source_input.startswith("images/") and os.path.exists(os.path.join(ASSETS_DIR, image_source_input))): 
                 if not os.path.exists(image_source_input): 
-                    errors.append("Local image file not found."); _edit_image_source_tf.error_text = "File not found"
+                    errors.append("Local image file not found."); image_source_field.error_text = "File not found"
             
             score_int = None
             if score_str and score_str != "N/A":
                 try:
                     score_int = int(score_str);
-                    if not (0 <= score_int <= 10): errors.append("Score must be 0-10."); edit_score_dropdown_ref.current.error_text = "0-10"
-                except ValueError: errors.append("Invalid score."); edit_score_dropdown_ref.current.error_text = "Invalid"
+                    if not (0 <= score_int <= 10): errors.append("Score must be 0-10."); score_dropdown.error_text = "0-10"
+                except ValueError: errors.append("Invalid score."); score_dropdown.error_text = "Invalid"
 
-            if hasattr(edit_name_field_ref.current, 'page') and edit_name_field_ref.current.page: edit_name_field_ref.current.update()
-            if hasattr(edit_entry_type_dropdown_ref.current, 'page') and edit_entry_type_dropdown_ref.current.page: edit_entry_type_dropdown_ref.current.update()
-            if hasattr(_edit_image_source_tf, 'page') and _edit_image_source_tf.page: _edit_image_source_tf.update()
-            if hasattr(edit_genre_field_ref.current, 'page') and edit_genre_field_ref.current.page: edit_genre_field_ref.current.update()
-            if hasattr(edit_date_display_field_ref.current, 'page') and edit_date_display_field_ref.current.page: edit_date_display_field_ref.current.update()
-            if hasattr(edit_score_dropdown_ref.current, 'page') and edit_score_dropdown_ref.current.page: edit_score_dropdown_ref.current.update()
+            if hasattr(name_field, 'page') and name_field.page: name_field.update()
+            if hasattr(entry_type_dropdown, 'page') and entry_type_dropdown.page: entry_type_dropdown.update()
+            if hasattr(image_source_field, 'page') and image_source_field.page: image_source_field.update()
+            if hasattr(genre_field, 'page') and genre_field.page: genre_field.update()
+            if hasattr(date_display_field, 'page') and date_display_field.page: date_display_field.update()
+            if hasattr(score_dropdown, 'page') and score_dropdown.page: score_dropdown.update()
 
             if errors: show_snackbar("Please fix errors: " + " ".join(errors), color=ft.colors.ERROR_CONTAINER); return
 
@@ -2262,7 +2540,7 @@ async def main(page: ft.Page):
 
             update_jav_db(jav_id, name, genre_input_str, date_str, score_int, description, is_rewatch, own_local_copy, final_image_ref_for_db, entry_type_val, conditional_data)
             show_snackbar(f"Updated '{name}'")
-            close_manual_dialog() 
+            close_form_overlay() 
             list_refresh_callback()
             current_stats_filter = "All Time"
             try:
@@ -2271,17 +2549,37 @@ async def main(page: ft.Page):
             except Exception as stats_e: print(f"Warning: Error accessing stats_year_filter selection after edit: {stats_e}")
             page.run_thread(calculate_and_update_stats_display, current_stats_filter)
 
-        content_controls = [
-            name_field, entry_type_dropdown, conditional_fields_container, edit_image_source_row, genre_field,
-            ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_edit_date_picker)], alignment=ft.MainAxisAlignment.START),
-            score_dropdown, 
-            description_editor, # Use the new editor component
-            rewatch_check, own_local_copy_check
-        ]
-        action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Changes", on_click=save_edited_jav), ]
-        manual_dialog = create_dialog_overlay(f"Edit Entry: {jav_data_to_edit['name']}", content_controls, action_buttons, associated_picker=_edit_date_picker_instance)
-        if manual_dialog_container.current and manual_dialog_container.current in main_stack.controls: close_manual_dialog() 
-        main_stack.controls.append(manual_dialog); main_stack.update()
+        # --- Package controls and build the view ---
+        form_controls_dict = {
+            "name": name_field,
+            "entry_type": entry_type_dropdown,
+            "conditional_fields": conditional_fields_container,
+            "genre": genre_field,
+            "image_source": image_source_field,
+            "image_source_row": image_source_row,
+            "date_display": date_display_field,
+            "date_picker_button": date_picker_button,
+            "score": score_dropdown,
+            "description_editor": description_editor,
+            "rewatch": rewatch_check,
+            "own_local_copy": own_local_copy_check,
+        }
+
+        title_text = f"Edit Entry"
+        form_view = build_form_view(
+            title_text, 
+            form_controls_dict, 
+            save_edited_jav, 
+            close_form_overlay, 
+            on_type_change_edit, # <-- Pass the function here
+            edit_date_picker
+        )
+        
+        if form_overlay_container.current and form_overlay_container.current in main_stack.controls:
+            close_form_overlay()
+        
+        main_stack.controls.append(form_view)
+        main_stack.update()
 
     def build_year_view(year_str):
         print(f"Building year view (Gallery) for: {year_str}")
@@ -3107,7 +3405,7 @@ async def main(page: ft.Page):
         elif idx == len(YEARS): new_view = "Stats" 
         elif idx == len(YEARS) + 1: new_view = "Search"
         
-        close_manual_dialog() 
+        close_form_overlay() 
         if hasattr(page, 'dialog') and page.dialog is not None and page.dialog.open:
              page.dialog.open = False
              if hasattr(page.dialog, 'on_dismiss') and callable(page.dialog.on_dismiss):
