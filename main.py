@@ -1047,6 +1047,72 @@ def get_data_from_conditional_fields(container: ft.Column) -> dict:
             data[control.data] = control.value
     return data
 
+# --- NEW: Helper function to create a Markdown editor component ---
+def create_markdown_editor(initial_value: str = ""):
+    """
+    Creates a Column containing a Markdown formatting toolbar and a TextField.
+    Returns the Column control and a Ref to the TextField.
+    """
+    text_field_ref = ft.Ref[ft.TextField]()
+
+    def insert_markdown(syntax: str):
+        """Appends markdown syntax to the text field."""
+        tf = text_field_ref.current
+        if tf:
+            # A simple append is used due to the lack of direct cursor/selection control in Flet.
+            # This is a robust way to add syntax for the user to fill in.
+            if tf.value:
+                tf.value += f"\n{syntax}"
+            else:
+                tf.value = syntax
+            tf.focus()
+            tf.update()
+
+    toolbar = ft.Container(
+        content=ft.Row(
+            controls=[
+                ft.IconButton(icon=ft.icons.TITLE, on_click=lambda _: insert_markdown("# "), tooltip="Heading"),
+                ft.IconButton(icon=ft.icons.FORMAT_BOLD, on_click=lambda _: insert_markdown("**text**"), tooltip="Bold"),
+                ft.IconButton(icon=ft.icons.FORMAT_ITALIC, on_click=lambda _: insert_markdown("*text*"), tooltip="Italic"),
+                ft.IconButton(icon=ft.icons.FORMAT_LIST_BULLETED, on_click=lambda _: insert_markdown("- "), tooltip="Bulleted List"),
+                ft.IconButton(icon=ft.icons.FORMAT_LIST_NUMBERED, on_click=lambda _: insert_markdown("1. "), tooltip="Numbered List"),
+                ft.IconButton(icon=ft.icons.LINK, on_click=lambda _: insert_markdown("[link text](url)"), tooltip="Link"),
+                ft.IconButton(icon=ft.icons.CODE, on_click=lambda _: insert_markdown("```\ncode\n```"), tooltip="Code Block"),
+            ],
+            spacing=0,
+            alignment=ft.MainAxisAlignment.START,
+        ),
+        border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+        border_radius=ft.border_radius.only(top_left=4, top_right=4),
+        padding=ft.padding.symmetric(horizontal=4),
+    )
+
+    text_field = ft.TextField(
+        ref=text_field_ref,
+        label="Description / Notes (Markdown supported)",
+        value=initial_value,
+        multiline=True,
+        min_lines=3,
+        max_lines=5,
+        capitalization=ft.TextCapitalization.SENTENCES,
+        border_radius=ft.border_radius.only(bottom_left=4, bottom_right=4),
+        # Remove the top border to merge with the toolbar
+        border=ft.border.only(
+            left=ft.border.BorderSide(1, ft.colors.OUTLINE_VARIANT),
+            right=ft.border.BorderSide(1, ft.colors.OUTLINE_VARIANT),
+            bottom=ft.border.BorderSide(1, ft.colors.OUTLINE_VARIANT),
+        )
+    )
+
+    # The complete editor component
+    editor_column = ft.Column(
+        controls=[toolbar, text_field],
+        spacing=0,
+    )
+
+    return editor_column, text_field_ref
+
+
 # --- Helper function to create entry type filter UI (Button + BottomSheet) ---
 def create_entry_type_filter_button_with_sheet(
     page_ref: ft.Page,
@@ -1820,17 +1886,16 @@ async def main(page: ft.Page):
                 bgcolor=ft.colors.with_opacity(0.02, ft.colors.PRIMARY),
             )
 
-            # Enhanced description content with better typography
+            # --- CORRECTED: Use ft.Markdown to render the description ---
             description_content = ft.Container(
-                content=ft.Text(
-                    description_text,
-                    style=ft.TextStyle(
-                        size=16,
-                        height=1.6,  # Line height for better readability
-                        letter_spacing=0.2,
-                        color=ft.colors.ON_SURFACE,
-                    ),
-                    selectable=True
+                content=ft.Markdown(
+                    value=description_text,
+                    selectable=True,
+                    extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
+                    code_theme="atom-one-dark",
+                    # The 'code_style' argument was removed as it is not a valid
+                    # parameter for the ft.Markdown control, which caused the error.
+                    on_tap_link=lambda e: page.launch_url(e.data),
                 ),
                 padding=ft.padding.symmetric(horizontal=24, vertical=16),
                 margin=ft.margin.only(bottom=8),
@@ -1985,7 +2050,9 @@ async def main(page: ft.Page):
             add_jav_date_display_field.current.value = ""
             add_jav_date_display_field.current.error_text = None
         
-        description_field = ft.TextField(label="Description / Notes", multiline=True, min_lines=2, max_lines=4, capitalization=ft.TextCapitalization.SENTENCES)
+        # --- MODIFIED: Use the new Markdown editor ---
+        description_editor, description_field_ref = create_markdown_editor()
+
         score_dropdown = ft.Dropdown(label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value="N/A")
         rewatch_check = ft.Checkbox(label="This was a Rewatch", value=False)
         own_local_copy_check = ft.Checkbox(label="Own Local Copy?", value=False)
@@ -1997,7 +2064,8 @@ async def main(page: ft.Page):
             genre_input_str = genre_field.value.strip()
             date_str = add_jav_date_display_field.current.value.strip() if add_jav_date_display_field.current else ""
             score_str = score_dropdown.value
-            description = description_field.value.strip()
+            # --- MODIFIED: Get value from the Markdown editor's ref ---
+            description = description_field_ref.current.value.strip()
             is_rewatch = rewatch_check.value
             own_local_copy = own_local_copy_check.value
             errors = []
@@ -2048,7 +2116,9 @@ async def main(page: ft.Page):
         content_controls = [
             name_field, entry_type_dropdown, conditional_fields_container, image_source_row, genre_field,
             ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_add_date_picker)], alignment=ft.MainAxisAlignment.START),
-            score_dropdown, description_field, rewatch_check, own_local_copy_check
+            score_dropdown, 
+            description_editor, # Use the new editor component
+            rewatch_check, own_local_copy_check
         ]
         action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Entry", on_click=save_new_jav), ]
         title_text = f"Add Entry to {target_year}" if app_state["current_view"] in YEARS else "Add New Entry"
@@ -2060,7 +2130,7 @@ async def main(page: ft.Page):
         nonlocal _target_image_field_for_picker
         jav_id = jav_data_to_edit['id']
         
-        edit_name_field_ref = ft.Ref[ft.TextField](); edit_genre_field_ref = ft.Ref[ft.TextField](); edit_date_display_field_ref = ft.Ref[ft.TextField](); edit_score_dropdown_ref = ft.Ref[ft.Dropdown](); edit_description_field_ref = ft.Ref[ft.TextField](); edit_rewatch_check_ref = ft.Ref[ft.Checkbox](); edit_own_local_copy_check_ref = ft.Ref[ft.Checkbox]()
+        edit_name_field_ref = ft.Ref[ft.TextField](); edit_genre_field_ref = ft.Ref[ft.TextField](); edit_date_display_field_ref = ft.Ref[ft.TextField](); edit_score_dropdown_ref = ft.Ref[ft.Dropdown](); edit_rewatch_check_ref = ft.Ref[ft.Checkbox](); edit_own_local_copy_check_ref = ft.Ref[ft.Checkbox]()
         edit_entry_type_dropdown_ref = ft.Ref[ft.Dropdown]()
         
         name_field = ft.TextField(ref=edit_name_field_ref, label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('name', ''))
@@ -2101,7 +2171,12 @@ async def main(page: ft.Page):
         genre_field = ft.TextField(ref=edit_genre_field_ref, label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('genre', '') or '')
         initial_date_str = jav_data_to_edit.get('completion_date', ''); date_display = ft.TextField(ref=edit_date_display_field_ref, label="Completion Date", read_only=True, hint_text="Click calendar to select...", value=initial_date_str)
         initial_score = jav_data_to_edit.get('review_score'); score_value_str = str(initial_score) if initial_score is not None else "N/A"; score_dropdown = ft.Dropdown(ref=edit_score_dropdown_ref, label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value=score_value_str)
-        description_field = ft.TextField(ref=edit_description_field_ref, label="Description / Notes", multiline=True, min_lines=2, max_lines=4, capitalization=ft.TextCapitalization.SENTENCES, value=jav_data_to_edit.get('description', '') or '')
+        
+        # --- MODIFIED: Use the new Markdown editor for editing ---
+        description_editor, edit_description_field_ref = create_markdown_editor(
+            initial_value=jav_data_to_edit.get('description', '') or ''
+        )
+
         initial_rewatch = jav_data_to_edit.get('is_rewatch') == 1; rewatch_check = ft.Checkbox(ref=edit_rewatch_check_ref, label="This was a Rewatch", value=initial_rewatch)
         initial_own_local_copy = jav_data_to_edit.get('own_local_copy') == 1; own_local_copy_check = ft.Checkbox(ref=edit_own_local_copy_check_ref, label="Own Local Copy?", value=initial_own_local_copy)
 
@@ -2133,6 +2208,7 @@ async def main(page: ft.Page):
             genre_input_str = edit_genre_field_ref.current.value.strip()
             date_str = edit_date_display_field_ref.current.value.strip()
             score_str = edit_score_dropdown_ref.current.value
+            # --- MODIFIED: Get value from the Markdown editor's ref ---
             description = edit_description_field_ref.current.value.strip()
             is_rewatch = edit_rewatch_check_ref.current.value
             own_local_copy = edit_own_local_copy_check_ref.current.value
@@ -2198,7 +2274,9 @@ async def main(page: ft.Page):
         content_controls = [
             name_field, entry_type_dropdown, conditional_fields_container, edit_image_source_row, genre_field,
             ft.Row([date_display, ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=open_edit_date_picker)], alignment=ft.MainAxisAlignment.START),
-            score_dropdown, description_field, rewatch_check, own_local_copy_check
+            score_dropdown, 
+            description_editor, # Use the new editor component
+            rewatch_check, own_local_copy_check
         ]
         action_buttons = [ ft.TextButton("Cancel", on_click=close_manual_dialog), ft.ElevatedButton("Save Changes", on_click=save_edited_jav), ]
         manual_dialog = create_dialog_overlay(f"Edit Entry: {jav_data_to_edit['name']}", content_controls, action_buttons, associated_picker=_edit_date_picker_instance)
