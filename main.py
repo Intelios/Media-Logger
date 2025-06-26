@@ -1459,7 +1459,13 @@ async def main(page: ft.Page):
         else: show_snackbar("Could not open date picker.", color=ft.colors.ERROR_CONTAINER)
 
 
-    import_dialog = ft.FilePicker(on_result=lambda e: handle_import_result(e)); page.overlay.append(import_dialog)
+    # --- Import / Export File Pickers and Handlers ---
+    import_dialog = ft.FilePicker(on_result=lambda e: handle_import_result(e))
+    page.overlay.append(import_dialog)
+    
+    export_dialog = ft.FilePicker(on_result=lambda e: handle_export_result(e))
+    page.overlay.append(export_dialog)
+
     def handle_import_result(e: ft.FilePickerResultEvent):
         page.dialog = None
         if e.files and e.files[0].path:
@@ -1468,8 +1474,87 @@ async def main(page: ft.Page):
             page.dialog = progress_dialog; progress_dialog.open = True; page.update()
             page.run_thread(import_csv_data, selected_file)
         else: show_snackbar("CSV Import Cancelled or No File Selected")
-    def open_import_dialog(e): import_dialog.pick_files(dialog_title="Select CSV Log", allow_multiple=False, allowed_extensions=["csv"])
     
+    def open_import_dialog(e): 
+        import_dialog.pick_files(dialog_title="Select CSV Log", allow_multiple=False, allowed_extensions=["csv"])
+    
+    def open_export_dialog(e):
+        default_filename = f"media_log_export_{datetime.now().strftime('%Y%m%d')}.csv"
+        export_dialog.save_file(
+            dialog_title="Save CSV Export",
+            file_name=default_filename,
+            allowed_extensions=["csv"]
+        )
+
+    def handle_export_result(e: ft.FilePickerResultEvent):
+        if e.path:
+            save_path = e.path
+            print(f"CSV export path selected: {save_path}")
+            progress_dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Exporting to CSV"),
+                content=ft.Row([ft.ProgressRing(), ft.Text("Writing data...")], alignment=ft.MainAxisAlignment.CENTER)
+            )
+            page.dialog = progress_dialog
+            progress_dialog.open = True
+            page.update()
+            page.run_thread(write_csv_file, save_path)
+        else:
+            show_snackbar("CSV Export Cancelled")
+
+    def write_csv_file(file_path):
+        try:
+            all_entries = get_all_javs_db()
+            if not all_entries:
+                page.run_thread(show_export_summary, file_path, False, "No data to export.")
+                return
+
+            fieldnames = [
+                "Name", "Genre", "Review_Score", "Completion_Date", "Description",
+                "IsRewatch", "OwnLocalCopy", "EntryType", "ImageURL", "Platform",
+                "Author", "Studio", "Actress", "UpdateVersion"
+            ]
+
+            with open(file_path, 'w', newline='', encoding='utf-8-sig') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+
+                for entry in all_entries:
+                    csv_row = {
+                        "Name": entry.get('name', ''),
+                        "Genre": entry.get('genre', ''),
+                        "Review_Score": entry.get('review_score', ''),
+                        "Completion_Date": entry.get('completion_date', ''),
+                        "Description": entry.get('description', ''),
+                        "IsRewatch": bool(entry.get('is_rewatch')),
+                        "OwnLocalCopy": bool(entry.get('own_local_copy')),
+                        "EntryType": entry.get('entry_type', ''),
+                        "ImageURL": entry.get('image_url', ''),
+                        "Platform": entry.get('platform', ''),
+                        "Author": entry.get('author', ''),
+                        "Studio": entry.get('director', ''), # Map DB 'director' to CSV 'Studio'
+                        "Actress": entry.get('actress', ''),
+                        "UpdateVersion": entry.get('update_version', '')
+                    }
+                    writer.writerow(csv_row)
+            
+            page.run_thread(show_export_summary, file_path, True)
+
+        except Exception as e:
+            print(f"Error during CSV export: {e}")
+            traceback.print_exc()
+            page.run_thread(show_export_summary, file_path, False, str(e))
+
+    def show_export_summary(file_path, success, error_message=None):
+        if page.dialog:
+            page.dialog.open = False
+            page.update()
+        
+        if success:
+            show_snackbar(f"Successfully exported data to {os.path.basename(file_path)}", color=ft.colors.GREEN_700)
+        else:
+            show_snackbar(f"Export failed: {error_message}", color=ft.colors.ERROR_CONTAINER, duration=6000)
+
     def import_csv_data(file_path):
         expected_headers_lower = [ 
             "name", "genre", "review_score", "completion_date", "description", 
@@ -2752,7 +2837,10 @@ async def main(page: ft.Page):
             ft.Row([ft.Text("Theme:"), theme_dropdown], vertical_alignment=ft.CrossAxisAlignment.CENTER),
             ft.Divider(height=20, thickness=1),
             ft.Container(content=ft.Text("Import / Export", style=ft.TextThemeStyle.TITLE_MEDIUM), margin=ft.margin.only(top=15)),
-            ft.Row( [ ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog), ], spacing=10 ),
+            ft.Row( [ 
+                ft.ElevatedButton("Import from CSV", icon=ft.icons.UPLOAD_FILE_ROUNDED, on_click=open_import_dialog),
+                ft.ElevatedButton("Export to CSV", icon=ft.icons.FILE_DOWNLOAD_OUTLINED, on_click=open_export_dialog)
+            ], spacing=10 ),
             ft.Text( "CSV Format: Header row required. Columns: Name (Req), Genre, Review_Score, Completion_Date (Req), Description, IsRewatch, OwnLocalCopy, EntryType, ImageURL, Platform, Author, Studio, Actress, UpdateVersion. Case insensitive for headers.", italic=True, size=11, color=ft.colors.with_opacity(0.6, ft.colors.ON_SURFACE), max_lines=4 )
         ]
         return ft.Container(
