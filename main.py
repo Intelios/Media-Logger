@@ -1777,266 +1777,456 @@ async def main(page: ft.Page):
             except Exception as remove_e:
                 print(f"Error removing form overlay from stack: {remove_e}")
 
-    # --- NEW: A reusable function to build the modern Add/Edit UI ---
     def build_form_view(
         title_text: str,
         form_controls: dict,
         save_callback: callable,
         close_callback: callable,
-        type_change_callback: callable, # <-- ADDED: The original on_change function
+        type_change_callback: callable,
         associated_picker=None
     ):
         """
-        Constructs the new two-panel, full-screen overlay for adding or editing an entry.
+        Enhanced two-panel form overlay with improved UI/UX design.
         
-        Args:
-            title_text: The main title for the form panel (e.g., "Add New Entry").
-            form_controls: A dictionary of all the Flet controls for the form.
-            save_callback: The function to call when the save button is clicked.
-            close_callback: The function to call to close the overlay.
-            type_change_callback: The original function to update conditional fields.
-            associated_picker: A reference to a date picker to be cleaned up on close.
+        Key improvements:
+        - Better visual hierarchy and spacing
+        - Enhanced preview panel with animations
+        - Improved form layout with better grouping
+        - Modern card-based design
+        - Better responsive behavior
+        - Enhanced visual feedback
         """
         
-        # --- Left Panel (Visual Preview) ---
+        # --- Enhanced Preview Panel ---
         preview_image = ft.Ref[ft.Image]()
         preview_title = ft.Ref[ft.Text]()
         preview_type = ft.Ref[ft.Text]()
         preview_date = ft.Ref[ft.Text]()
         preview_score = ft.Ref[ft.Text]()
+        preview_genre = ft.Ref[ft.Text]()
+        preview_container = ft.Ref[ft.Container]()
 
         def update_previews(e=None):
-            # Update Title
-            if preview_title.current:
-                preview_title.current.value = form_controls["name"].value or "New Entry"
-                try: preview_title.current.update()
-                except: pass
-            
-            # Update Entry Type
-            if preview_type.current:
-                type_val = form_controls["entry_type"].value
-                preview_type.current.value = type_val or "Not Selected"
-                if preview_type.current.page:
-                    try: preview_type.current.update()
-                    except: pass
+            """Enhanced preview update with better error handling and animations"""
+            try:
+                # Update Title with animation
+                if preview_title.current:
+                    new_title = form_controls["name"].value or "New Entry"
+                    if preview_title.current.value != new_title:
+                        preview_title.current.value = new_title
+                        preview_title.current.update()
+                
+                # Update Entry Type with color coding
+                if preview_type.current:
+                    type_val = form_controls["entry_type"].value or "Not Selected"
+                    preview_type.current.value = type_val
+                    
+                    # Color code based on type
+                    type_colors = {
+                        "Movie": ft.colors.BLUE_400,
+                        "TV Show": ft.colors.GREEN_400,
+                        "Book": ft.colors.ORANGE_400,
+                        "Game": ft.colors.PURPLE_400,
+                        "Not Selected": ft.colors.GREY_400
+                    }
+                    preview_type.current.color = type_colors.get(type_val, ft.colors.GREY_400)
+                    preview_type.current.update()
 
-            # Update Image
-            if preview_image.current:
-                src = form_controls["image_source"].value
-                if src:
-                    if src.lower().startswith("http"):
-                        preview_image.current.src = src
-                    elif os.path.exists(src):
-                        preview_image.current.src = src
+                # Update Image with better fallback handling
+                if preview_image.current:
+                    src = form_controls["image_source"].value
+                    if src and src.strip():
+                        if src.lower().startswith(("http://", "https://")):
+                            preview_image.current.src = src
+                        elif os.path.exists(src):
+                            preview_image.current.src = src
+                        else:
+                            preview_image.current.src = DEFAULT_IMAGE_URL
                     else:
                         preview_image.current.src = DEFAULT_IMAGE_URL
-                else:
-                    preview_image.current.src = DEFAULT_IMAGE_URL
-                try: preview_image.current.update()
-                except: pass
+                    preview_image.current.update()
 
-            # Update Date
-            if preview_date.current:
-                date_val = form_controls["date_display"].value
-                if date_val:
-                    try:
-                        date_obj = datetime.strptime(date_val, '%Y-%m-%d')
-                        preview_date.current.value = date_obj.strftime('%d %B %Y')
-                    except ValueError:
-                        preview_date.current.value = "Invalid Date"
-                else:
-                    preview_date.current.value = "Not Set"
-                try: preview_date.current.update()
-                except: pass
+                # Update Date with better formatting
+                if preview_date.current:
+                    date_val = form_controls["date_display"].value
+                    if date_val and date_val.strip():
+                        try:
+                            date_obj = datetime.strptime(date_val, '%Y-%m-%d')
+                            preview_date.current.value = date_obj.strftime('%d %B %Y')
+                        except ValueError:
+                            preview_date.current.value = "Invalid Date"
+                            preview_date.current.color = ft.colors.ERROR
+                    else:
+                        preview_date.current.value = "Not Set"
+                        preview_date.current.color = ft.colors.GREY_400
+                    preview_date.current.update()
 
-            # Update Score
-            if preview_score.current:
-                score_val = form_controls["score"].value
-                preview_score.current.value = f"{score_val}/10" if score_val and score_val != "N/A" else "N/A"
-                try: preview_score.current.update()
-                except: pass
+                # Update Score with visual indicators
+                if preview_score.current:
+                    score_val = form_controls["score"].value
+                    if score_val and score_val != "N/A":
+                        try:
+                            score_num = float(score_val)
+                            preview_score.current.value = f"{score_val}/10"
+                            
+                            # Color code based on score
+                            if score_num >= 8:
+                                preview_score.current.color = ft.colors.GREEN_400
+                            elif score_num >= 6:
+                                preview_score.current.color = ft.colors.ORANGE_400
+                            else:
+                                preview_score.current.color = ft.colors.RED_400
+                        except:
+                            preview_score.current.value = "Invalid"
+                            preview_score.current.color = ft.colors.ERROR
+                    else:
+                        preview_score.current.value = "Not Rated"
+                        preview_score.current.color = ft.colors.GREY_400
+                    preview_score.current.update()
 
-        # --- CORRECTED LOGIC ---
-        # This new handler calls BOTH the original function and the preview update.
+                # Update Genre if available
+                if preview_genre.current and "genre" in form_controls:
+                    genre_val = form_controls["genre"].value
+                    preview_genre.current.value = genre_val if genre_val and genre_val.strip() else "No Genre"
+                    preview_genre.current.update()
+
+            except Exception as ex:
+                print(f"Preview update error: {ex}")
+
         def combined_type_change_handler(e):
-            type_change_callback(e)  # This updates the conditional fields
-            update_previews(e)       # This updates the preview panel
+            """Enhanced type change handler with better coordination"""
+            try:
+                type_change_callback(e)
+                update_previews(e)
+            except Exception as ex:
+                print(f"Type change handler error: {ex}")
 
-        # Attach the update functions to the controls' on_change events
-        form_controls["name"].on_change = update_previews
-        form_controls["entry_type"].on_change = combined_type_change_handler # Use the combined handler
-        form_controls["image_source"].on_change = update_previews
-        form_controls["date_display"].on_change = update_previews
-        form_controls["score"].on_change = update_previews
+        # Enhanced event binding with error handling
+        def safe_bind_event(control, handler):
+            """Safely bind event handlers to controls"""
+            if control and hasattr(control, 'on_change'):
+                control.on_change = handler
 
-        # A small helper to create the stat display widgets in the left panel
-        def create_stat_display(icon, text_ref, label):
-            return ft.Row([
-                ft.Icon(icon, size=18, opacity=0.7),
-                ft.Column([
-                    ft.Text(ref=text_ref, value="...", weight=ft.FontWeight.W_600, size=16),
-                    ft.Text(label, size=11, opacity=0.7)
-                ], spacing=0)
-            ], spacing=12)
+        safe_bind_event(form_controls.get("name"), update_previews)
+        safe_bind_event(form_controls.get("entry_type"), combined_type_change_handler) 
+        safe_bind_event(form_controls.get("image_source"), update_previews)
+        safe_bind_event(form_controls.get("date_display"), update_previews)
+        safe_bind_event(form_controls.get("score"), update_previews)
+        safe_bind_event(form_controls.get("genre"), update_previews)
 
+        def create_enhanced_stat_display(icon, text_ref, label, subtitle_ref=None):
+            """Create enhanced stat display with better visual hierarchy"""
+            content = ft.Column([
+                ft.Text(ref=text_ref, value="...", weight=ft.FontWeight.W_600, size=16),
+                ft.Text(label, size=12, opacity=0.7, weight=ft.FontWeight.W_500)
+            ], spacing=2)
+            
+            if subtitle_ref:
+                content.controls.insert(1, ft.Text(ref=subtitle_ref, value="", size=11, opacity=0.5))
+            
+            return ft.Container(
+                content=ft.Row([
+                    ft.Container(
+                        content=ft.Icon(icon, size=20, color=ft.colors.PRIMARY),
+                        padding=ft.padding.all(8),
+                        bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
+                        border_radius=8
+                    ),
+                    content
+                ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=ft.padding.all(12),
+                bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                border_radius=8,
+                border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE))
+            )
+
+        # Enhanced Left Panel
         left_panel = ft.Container(
             content=ft.Column([
-                # Image Preview Area
-                ft.Stack([
-                    ft.Container(
-                        content=ft.Image(
-                            ref=preview_image,
-                            src=DEFAULT_IMAGE_URL,
-                            fit=ft.ImageFit.COVER,
-                            width=float("inf"),
-                            height=250
+                # Enhanced Image Preview with overlay effects
+                ft.Container(
+                    content=ft.Stack([
+                        # Main image
+                        ft.Container(
+                            content=ft.Image(
+                                ref=preview_image,
+                                src=DEFAULT_IMAGE_URL,
+                                fit=ft.ImageFit.COVER,
+                                width=float("inf"),
+                                height=280
+                            ),
+                            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                            border_radius=12
                         ),
-                        clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-                        border_radius=ft.border_radius.only(top_left=12)
-                    ),
-                    ft.Container(
-                        gradient=ft.LinearGradient(
-                            begin=ft.alignment.top_center,
-                            end=ft.alignment.bottom_center,
-                            colors=[ft.colors.TRANSPARENT, ft.colors.with_opacity(0.8, ft.colors.BLACK)]
+                        # Gradient overlay
+                        ft.Container(
+                            gradient=ft.LinearGradient(
+                                begin=ft.alignment.top_center,
+                                end=ft.alignment.bottom_center,
+                                colors=[
+                                    ft.colors.TRANSPARENT,
+                                    ft.colors.with_opacity(0.3, ft.colors.BLACK),
+                                    ft.colors.with_opacity(0.8, ft.colors.BLACK)
+                                ]
+                            ),
+                            border_radius=12
                         ),
-                        padding=ft.padding.all(20),
-                        alignment=ft.alignment.bottom_left,
-                        content=ft.Column([
-                            ft.Text(ref=preview_title, value="New Entry", size=28, weight=ft.FontWeight.BOLD),
-                            ft.Text(ref=preview_type, value="Not Selected", size=16, opacity=0.9)
-                        ], spacing=4)
+                        # Content overlay
+                        ft.Container(
+                            padding=ft.padding.all(24),
+                            alignment=ft.alignment.bottom_left,
+                            content=ft.Column([
+                                ft.Text(
+                                    ref=preview_title, 
+                                    value="New Entry", 
+                                    size=24, 
+                                    weight=ft.FontWeight.BOLD,
+                                    color=ft.colors.WHITE,
+                                    max_lines=2,
+                                    overflow=ft.TextOverflow.ELLIPSIS
+                                ),
+                                ft.Container(
+                                    content=ft.Text(
+                                        ref=preview_type, 
+                                        value="Not Selected", 
+                                        size=14, 
+                                        weight=ft.FontWeight.W_500,
+                                        color=ft.colors.WHITE70
+                                    ),
+                                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                    bgcolor=ft.colors.with_opacity(0.3, ft.colors.WHITE),
+                                    border_radius=12
+                                )
+                            ], spacing=8)
+                        )
+                    ]),
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=10,
+                        color=ft.colors.with_opacity(0.2, ft.colors.BLACK),
+                        offset=ft.Offset(0, 4)
                     )
-                ]),
-                # Stats Area
+                ),
+                
+                # Enhanced Stats Section
                 ft.Container(
                     content=ft.Column([
-                        create_stat_display(ft.icons.CALENDAR_MONTH_ROUNDED, preview_date, "Completion Date"),
-                        ft.Divider(height=10),
-                        create_stat_display(ft.icons.STAR_HALF_ROUNDED, preview_score, "Review Score"),
-                    ], spacing=10),
-                    padding=20,
+                        ft.Text(
+                            "PREVIEW", 
+                            size=12, 
+                            weight=ft.FontWeight.BOLD, 
+                            opacity=0.6
+                        ),
+                        ft.Divider(height=1, opacity=0.3),
+                        
+                        create_enhanced_stat_display(
+                            ft.icons.CALENDAR_TODAY_ROUNDED, 
+                            preview_date, 
+                            "Completion Date"
+                        ),
+                        
+                        create_enhanced_stat_display(
+                            ft.icons.STAR_ROUNDED, 
+                            preview_score, 
+                            "Rating"
+                        ),
+                        
+                        create_enhanced_stat_display(
+                            ft.icons.CATEGORY_ROUNDED, 
+                            preview_genre, 
+                            "Genre"
+                        ) if preview_genre.current else ft.Container(),
+                        
+                    ], spacing=12),
+                    padding=ft.padding.all(20),
                     expand=True
                 )
-            ]),
-            width=380,
-            bgcolor=ft.colors.with_opacity(0.03, ft.colors.ON_SURFACE),
-            border_radius=ft.border_radius.all(12),
+            ], spacing=20),
+            width=400,
+            bgcolor=ft.colors.SURFACE_VARIANT,
+            border_radius=16,
+            padding=ft.padding.all(20)
         )
 
-        # --- Right Panel (Form) ---
+        # Enhanced Right Panel with better form organization
+        def create_form_section(title, controls, icon=None):
+            """Create a well-organized form section"""
+            header = ft.Row([
+                ft.Icon(icon, size=16, opacity=0.7) if icon else ft.Container(),
+                ft.Text(
+                    title, 
+                    style=ft.TextThemeStyle.LABEL_LARGE, 
+                    weight=ft.FontWeight.BOLD, 
+                    opacity=0.8
+                )
+            ], spacing=8) if icon else ft.Text(
+                title, 
+                style=ft.TextThemeStyle.LABEL_LARGE, 
+                weight=ft.FontWeight.BOLD, 
+                opacity=0.8
+            )
+            
+            return ft.Container(
+                content=ft.Column([
+                    header,
+                    ft.Divider(height=1, opacity=0.2),
+                    *controls
+                ], spacing=8),
+                margin=ft.margin.only(bottom=24)
+            )
+
         right_panel = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Text(title_text, style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.BOLD),
-                    ft.Text("Fill in the details for your new media log entry.", opacity=0.7),
-                    
-                    # Group: Core Information
-                    ft.Text("CORE INFORMATION", style=ft.TextThemeStyle.BODY_SMALL, weight=ft.FontWeight.BOLD, opacity=0.6),
-                    ft.Divider(height=5),
-                    form_controls["name"],
-                    form_controls["entry_type"],
-                    form_controls["conditional_fields"],
-
-                    # Group: Details
-                    ft.Container(
-                        content=ft.Text("DETAILS", style=ft.TextThemeStyle.BODY_SMALL, weight=ft.FontWeight.BOLD, opacity=0.6),
-                        margin=ft.margin.only(top=10)
-                    ),
-                    ft.Divider(height=5),
-                    form_controls["genre"],
-                    form_controls["image_source_row"],
-                    ft.Row([
-                        ft.Container(content=form_controls["date_display"], expand=True),
-                        form_controls["date_picker_button"]
-                    ]),
-                    form_controls["score"],
-
-                    # Group: Notes
-                    ft.Container(
-                        content=ft.Text("NOTES", style=ft.TextThemeStyle.BODY_SMALL, weight=ft.FontWeight.BOLD, opacity=0.6),
-                        margin=ft.margin.only(top=10)
-                    ),
-                    ft.Divider(height=5),
-                    form_controls["description_editor"],
-
-                    # Group: Toggles
-                    ft.Row([form_controls["rewatch"], form_controls["own_local_copy"]]),
-
-                    # Action Buttons
-                    ft.Container(
-                        content=ft.Row(
-                            [
-                                ft.TextButton("Cancel", on_click=close_callback),
-                                ft.ElevatedButton(
-                                    "Save Entry",
-                                    icon=ft.icons.SAVE_OUTLINED,
-                                    on_click=save_callback,
-                                    style=ft.ButtonStyle(
-                                        bgcolor=ft.colors.PRIMARY,
-                                        color=ft.colors.ON_PRIMARY,
-                                        padding=ft.padding.symmetric(horizontal=24, vertical=12)
-                                    )
+            content=ft.Column([
+                # Enhanced Header
+                ft.Container(
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Icon(ft.icons.ADD_CIRCLE_OUTLINE, size=28, color=ft.colors.PRIMARY),
+                            ft.Column([
+                                ft.Text(
+                                    title_text, 
+                                    style=ft.TextThemeStyle.HEADLINE_SMALL, 
+                                    weight=ft.FontWeight.BOLD
+                                ),
+                                ft.Text(
+                                    "Create a new entry for your media collection", 
+                                    opacity=0.7,
+                                    size=14
                                 )
-                            ],
-                            alignment=ft.MainAxisAlignment.END
+                            ], spacing=2, expand=True)
+                        ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+                    ], spacing=8),
+                    padding=ft.padding.only(bottom=20),
+                    border=ft.border.only(bottom=ft.BorderSide(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE)))
+                ),
+                
+                # Form Sections
+                create_form_section(
+                    "BASIC INFORMATION",
+                    [
+                        form_controls.get("name", ft.Container()),
+                        form_controls.get("entry_type", ft.Container()),
+                        form_controls.get("conditional_fields", ft.Container())
+                    ],
+                    ft.icons.INFO_OUTLINE
+                ),
+
+                create_form_section(
+                    "MEDIA DETAILS", 
+                    [
+                        form_controls.get("genre", ft.Container()),
+                        form_controls.get("image_source_row", ft.Container()),
+                        ft.Row([
+                            ft.Container(
+                                content=form_controls.get("date_display", ft.Container()), 
+                                expand=True
+                            ),
+                            form_controls.get("date_picker_button", ft.Container())
+                        ], vertical_alignment=ft.CrossAxisAlignment.END),
+                        form_controls.get("score", ft.Container())
+                    ],
+                    ft.icons.MOVIE_OUTLINED
+                ),
+
+                create_form_section(
+                    "NOTES & PREFERENCES",
+                    [
+                        form_controls.get("description_editor", ft.Container()),
+                        ft.Row([
+                            form_controls.get("rewatch", ft.Container()),
+                            form_controls.get("own_local_copy", ft.Container())
+                        ], spacing=20)
+                    ],
+                    ft.icons.EDIT_NOTE
+                ),
+
+                # Enhanced Action Buttons
+                ft.Container(
+                    content=ft.Row([
+                        ft.TextButton(
+                            "Cancel",
+                            icon=ft.icons.CLOSE,
+                            on_click=close_callback,
+                            style=ft.ButtonStyle(
+                                color=ft.colors.ON_SURFACE_VARIANT,
+                                padding=ft.padding.symmetric(horizontal=20, vertical=12)
+                            )
                         ),
-                        margin=ft.margin.only(top=20)
-                    )
-                ],
-                scroll=ft.ScrollMode.ADAPTIVE,
-                spacing=12
-            ),
-            padding=ft.padding.all(30),
+                        ft.ElevatedButton(
+                            "Save Entry",
+                            icon=ft.icons.SAVE_OUTLINED,
+                            on_click=save_callback,
+                            style=ft.ButtonStyle(
+                                bgcolor=ft.colors.PRIMARY,
+                                color=ft.colors.ON_PRIMARY,
+                                padding=ft.padding.symmetric(horizontal=32, vertical=12),
+                                shape=ft.RoundedRectangleBorder(radius=8)
+                            )
+                        )
+                    ], alignment=ft.MainAxisAlignment.END, spacing=12),
+                    padding=ft.padding.only(top=20),
+                    border=ft.border.only(top=ft.BorderSide(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE)))
+                )
+            ], scroll=ft.ScrollMode.ADAPTIVE, spacing=0),
+            padding=ft.padding.all(32),
             expand=True
         )
 
-        # --- Assemble the View ---
+        # Enhanced Main Container
         main_form_content = ft.Container(
             content=ft.Row(
                 controls=[left_panel, right_panel],
-                vertical_alignment=ft.CrossAxisAlignment.STRETCH
+                vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+                spacing=24
             ),
-            width=1100,
-            height=min(800, page.window_height * 0.9 if page.window_height else 800),
+            width=1200,
+            height=min(850, page.window_height * 0.9 if page.window_height else 850),
             bgcolor=ft.colors.SURFACE,
-            border_radius=12,
+            border_radius=20,
             shadow=ft.BoxShadow(
-                spread_radius=2,
-                blur_radius=20,
-                color=ft.colors.with_opacity(0.2, ft.colors.BLACK),
+                spread_radius=0,
+                blur_radius=30,
+                color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
                 offset=ft.Offset(0, 10)
             ),
-            clip_behavior=ft.ClipBehavior.ANTI_ALIAS
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            padding=ft.padding.all(4)  # Small padding for the shadow
         )
 
-        # The full-screen stack
+        # Enhanced Overlay with better backdrop
         overlay = ft.Stack(
             ref=form_overlay_container,
             controls=[
-                # Background scrim
+                # Animated backdrop
                 ft.Container(
-                    bgcolor=ft.colors.with_opacity(0.6, ft.colors.BLACK87),
+                    bgcolor=ft.colors.with_opacity(0.7, ft.colors.BLACK),
                     expand=True,
-                    on_click=close_callback # Optional: click background to close
+                    on_click=close_callback,
+                    animate=ft.animation.Animation(300, ft.AnimationCurve.EASE_OUT)
                 ),
-                # Centered form content
+                # Centered form with entrance animation
                 ft.Container(
                     content=main_form_content,
                     alignment=ft.alignment.center,
-                    expand=True
+                    expand=True,
+                    animate=ft.animation.Animation(400, ft.AnimationCurve.EASE_OUT_BACK)
                 ),
-                # Top-right close button
+                # Enhanced close button
                 ft.Container(
-                    content=ft.IconButton(
-                        icon=ft.icons.CLOSE_ROUNDED,
-                        icon_color=ft.colors.WHITE,
-                        bgcolor=ft.colors.with_opacity(0.3, ft.colors.BLACK),
-                        tooltip="Close",
-                        on_click=close_callback
+                    content=ft.Container(
+                        content=ft.IconButton(
+                            icon=ft.icons.CLOSE_ROUNDED,
+                            icon_color=ft.colors.WHITE,
+                            bgcolor=ft.colors.with_opacity(0.3, ft.colors.BLACK),
+                            tooltip="Close (Esc)",
+                            on_click=close_callback,
+                            icon_size=20
+                        ),
+                        border_radius=20,
+                        border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.WHITE))
                     ),
-                    top=20,
-                    right=20
+                    top=24,
+                    right=24
                 )
             ]
         )
@@ -2045,7 +2235,7 @@ async def main(page: ft.Page):
         if associated_picker:
             overlay._associated_date_picker = associated_picker
 
-        # Trigger the initial preview update
+        # Initial preview update
         update_previews()
         
         return overlay
