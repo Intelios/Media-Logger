@@ -1745,46 +1745,170 @@ async def main(page: ft.Page):
         return overlay_scrim
 
     def show_description_dialog(jav_data):
-        if hasattr(page, '_dialog_is_opening') and page._dialog_is_opening:
+        # Prevent multiple dialogs from opening
+        if (hasattr(page, '_dialog_is_opening') and page._dialog_is_opening) or \
+           (manual_dialog_container.current and manual_dialog_container.current in main_stack.controls):
             print("INFO: Dialog operation already in progress. Ignoring click.")
             return
         page._dialog_is_opening = True
-        dialog_instance_ref = ft.Ref[ft.AlertDialog]()
+
+        dialog_overlay_ref = ft.Ref[ft.Container]()
+
         try:
-            if hasattr(page, 'dialog') and page.dialog is not None and page.dialog.open:
-                page._dialog_is_opening = False 
-                return
-            description_text = jav_data.get('description') or "No description provided."
-            dialog_title = f"Description: {jav_data.get('name', 'Entry')}"
-            description_content_container = ft.Container(
-                content=ft.Text(description_text, selectable=True),
-                padding=ft.padding.only(top=5, bottom=10),
+            # Extract data from the entry
+            entry_name = jav_data.get('name', 'Unknown Title')
+            entry_type = jav_data.get('entry_type', 'Media')
+            description_text = jav_data.get('description') or "No description provided for this entry."
+            entry_type_icon = get_entry_type_icon_name(entry_type)
+
+            def close_enhanced_dialog(e=None):
+                overlay = dialog_overlay_ref.current
+                if overlay and overlay in main_stack.controls:
+                    try:
+                        main_stack.controls.remove(overlay)
+                        main_stack.update()
+                    except Exception as err:
+                        print(f"Error removing enhanced dialog: {err}")
+
+            # Enhanced header section
+            header_section = ft.Container(
+                content=ft.Column([
+                    ft.Row([
+                        ft.Container(
+                            content=ft.Icon(
+                                entry_type_icon, 
+                                size=28, 
+                                color=ft.colors.PRIMARY
+                            ),
+                            bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
+                            padding=ft.padding.all(12),
+                            border_radius=ft.border_radius.all(12),
+                        ),
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text(
+                                    entry_name,
+                                    style=ft.TextThemeStyle.TITLE_LARGE,
+                                    weight=ft.FontWeight.W_600,
+                                    color=ft.colors.ON_SURFACE,
+                                    max_lines=2,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
+                                ),
+                                ft.Container(
+                                    content=ft.Text(
+                                        entry_type,
+                                        size=14,
+                                        color=ft.colors.PRIMARY,
+                                        weight=ft.FontWeight.W_500,
+                                    ),
+                                    bgcolor=ft.colors.with_opacity(0.08, ft.colors.PRIMARY),
+                                    padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                                    border_radius=ft.border_radius.all(16),
+                                    margin=ft.margin.only(top=4),
+                                )
+                            ], spacing=8, tight=True),
+                            expand=True
+                        )
+                    ], spacing=16, vertical_alignment=ft.CrossAxisAlignment.START),
+                    ft.Container(
+                        height=1,
+                        bgcolor=ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE),
+                        margin=ft.margin.symmetric(vertical=20),
+                    )
+                ], spacing=0, tight=True),
+                padding=ft.padding.all(24),
+                bgcolor=ft.colors.with_opacity(0.02, ft.colors.PRIMARY),
             )
-            description_content_container.scroll = ft.ScrollMode.ADAPTIVE
-            description_content_container.constraints = ft.BoxConstraints(max_height=300)
-            
-            dialog_instance = ft.AlertDialog(
-                ref=dialog_instance_ref, modal=True, title=ft.Text(dialog_title),
-                content=description_content_container, actions_alignment=ft.MainAxisAlignment.END,
+
+            # Enhanced description content with better typography
+            description_content = ft.Container(
+                content=ft.Text(
+                    description_text,
+                    style=ft.TextStyle(
+                        size=16,
+                        height=1.6,  # Line height for better readability
+                        letter_spacing=0.2,
+                        color=ft.colors.ON_SURFACE,
+                    ),
+                    selectable=True
+                ),
+                padding=ft.padding.symmetric(horizontal=24, vertical=16),
+                margin=ft.margin.only(bottom=8),
             )
-            def handle_dialog_dismiss(dismissed_dialog_instance):
-                 if hasattr(page, 'dialog') and page.dialog == dismissed_dialog_instance: page.dialog = None
-                 if hasattr(dismissed_dialog_instance, 'open'): dismissed_dialog_instance.open = False
-                 if dismissed_dialog_instance in page.overlay:
-                     try: page.overlay.remove(dismissed_dialog_instance)
-                     except ValueError: pass
-                 if page: page.update() 
-            dialog_instance.on_dismiss = lambda e, inst=dialog_instance: handle_dialog_dismiss(inst) 
-            def close_dialog_action(e):
-                instance_to_close = dialog_instance 
-                if instance_to_close: instance_to_close.open = False
-                if page: page.update() 
-            dialog_instance.actions = [ft.TextButton("Close", on_click=close_dialog_action)]
-            if dialog_instance not in page.overlay: page.overlay.append(dialog_instance)
-            dialog_instance.open = True; page.dialog = dialog_instance
-            if page: page.update()
-        except Exception as e: print(f"Error in show_description_dialog: {e}"); traceback.print_exc()
-        finally: page._dialog_is_opening = False
+
+            # Scrollable container for description
+            max_height = min(400, page.window_height * 0.5) if page.window_height else 400
+            scrollable_content = ft.Container(
+                content=ft.Column(
+                    controls=[description_content],
+                    scroll=ft.ScrollMode.ADAPTIVE,
+                    tight=True
+                ),
+                height=max_height,
+            )
+
+            # Enhanced close button
+            close_button = ft.Container(
+                content=ft.ElevatedButton(
+                    text="Close",
+                    icon=ft.icons.CLOSE_ROUNDED,
+                    style=ft.ButtonStyle(
+                        padding=ft.padding.symmetric(horizontal=24, vertical=12),
+                        text_style=ft.TextStyle(
+                            size=14,
+                            weight=ft.FontWeight.W_600,
+                        ),
+                        shape=ft.RoundedRectangleBorder(radius=12),
+                    ),
+                    on_click=close_enhanced_dialog
+                ),
+                alignment=ft.alignment.center_right,
+                padding=ft.padding.only(right=24, bottom=20, top=16),
+            )
+
+            # Main dialog content
+            dialog_content = ft.Container(
+                content=ft.Column([
+                    header_section,
+                    scrollable_content,
+                    close_button,
+                ], spacing=0, tight=True),
+                width=min(600, page.window_width * 0.8) if page.window_width else 600,
+                bgcolor=ft.colors.SURFACE,
+                border_radius=ft.border_radius.all(20),
+                shadow=ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=24,
+                    color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
+                    offset=ft.Offset(0, 8),
+                ),
+                border=ft.border.all(
+                    1, 
+                    ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE)
+                ),
+                # Prevent clicking on dialog content from closing the dialog
+                on_click=lambda e: None,
+            )
+
+            # Background overlay
+            dialog_overlay = ft.Container(
+                ref=dialog_overlay_ref,
+                content=dialog_content,
+                alignment=ft.alignment.center,
+                bgcolor=ft.colors.with_opacity(0.5, ft.colors.BLACK),
+                expand=True,
+                on_click=close_enhanced_dialog,  # Click outside to close
+            )
+
+            # Add to stack and show
+            main_stack.controls.append(dialog_overlay)
+            main_stack.update()
+
+        except Exception as e: 
+            print(f"Error in show_description_dialog: {e}")
+            traceback.print_exc()
+        finally:
+            page._dialog_is_opening = False
 
     def process_and_copy_image(image_source_path_or_url: str) -> str | None:
         if not image_source_path_or_url or not image_source_path_or_url.strip():
