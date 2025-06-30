@@ -364,6 +364,88 @@ def create_search_fields_filter_button_with_sheet(page_ref: ft.Page, available_f
             page_ref.update()
     return ft.OutlinedButton(ref=filter_button_ref, text=get_button_text(), icon=ft.icons.SEARCH_OUTLINED, on_click=open_filter_bottom_sheet, tooltip="Select which fields to search in")
 
+# --- NEW: UI Helper for Backlog List Item ---
+def create_backlog_list_item(page, item_data, complete_callback, edit_callback, delete_callback):
+    """Creates a unique list item control for a backlog item using a robust Row layout."""
+    item_id = item_data['id']
+    name = item_data.get('name', 'Unknown Title')
+    entry_type = item_data.get('entry_type', 'Other')
+    source = item_data.get('source')
+    notes = item_data.get('notes')
+    date_added_str = item_data.get('date_added', 'N/A')
+
+    # Format the date for better readability
+    display_date = date_added_str
+    try:
+        date_obj = datetime.strptime(date_added_str, '%Y-%m-%d')
+        display_date = date_obj.strftime('%d %b %Y')
+    except (ValueError, TypeError):
+        pass
+
+    subtitle_parts = [f"Added: {display_date}"]
+    if source:
+        subtitle_parts.append(f"Source: {source}")
+    subtitle_str = " | ".join(subtitle_parts)
+
+    # 1. Leading Icon
+    leading_icon = ft.Icon(get_entry_type_icon_name(entry_type), size=28, color=ft.colors.ON_SURFACE_VARIANT)
+
+    # 2. Main Content Column (this is the key part)
+    main_content = ft.Column(
+        [
+            ft.Text(name, weight=ft.FontWeight.BOLD, size=16, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+            ft.Text(subtitle_str, size=12, color=ft.colors.ON_SURFACE_VARIANT),
+        ],
+        spacing=4,
+        # This is crucial: it tells the column to take up all available horizontal space
+        expand=True,
+    )
+
+    # 3. Trailing Buttons
+    trailing_controls = ft.Row(
+        spacing=0,
+        controls=[
+            ft.IconButton(
+                icon=ft.icons.CHECK_CIRCLE_OUTLINE,
+                icon_color=ft.colors.GREEN_400,
+                tooltip="Mark as Completed",
+                on_click=lambda _, item=item_data: complete_callback(item)
+            ),
+            ft.IconButton(
+                icon=ft.icons.EDIT_OUTLINED,
+                tooltip="Edit Backlog Item",
+                on_click=lambda _, item=item_data: edit_callback(item)
+            ),
+            ft.IconButton(
+                icon=ft.icons.DELETE_OUTLINE,
+                icon_color=ft.colors.RED_400,
+                tooltip="Delete from Backlog",
+                on_click=lambda _, item_id=item_id, item_name=name: delete_callback(item_id, item_name)
+            ),
+        ]
+    )
+
+    # 4. Combine into a parent Row
+    item_layout = ft.Row(
+        controls=[
+            leading_icon,
+            main_content,
+            trailing_controls,
+        ],
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        spacing=15,
+    )
+
+    # 5 & 6. Wrap in Container and Card
+    return ft.Card(
+        content=ft.Container(
+            content=item_layout,
+            padding=ft.padding.symmetric(vertical=12, horizontal=16),
+            tooltip=f"Notes: {notes}" if notes else "No notes for this item."
+        ),
+        margin=ft.margin.symmetric(vertical=4, horizontal=10)
+    )
+
 
 class AppUI:
     def __init__(self, page: ft.Page):
@@ -407,15 +489,22 @@ class AppUI:
     def initialize_app_state(self):
         saved_year_filter_str = database.get_setting_db(config.SAVED_YEAR_VIEW_FILTER_KEY)
         year_view_selected_types = set(s_type for s_type in saved_year_filter_str.split(',')) if saved_year_filter_str is not None else set(config.ALL_ENTRY_TYPES_STR)
+        
         saved_stats_filter_str = database.get_setting_db(config.SAVED_STATS_VIEW_FILTER_KEY)
         stats_view_selected_types = set(s_type for s_type in saved_stats_filter_str.split(',')) if saved_stats_filter_str is not None else set(config.ALL_ENTRY_TYPES_STR)
+        
         saved_search_filter_str = database.get_setting_db(config.SAVED_SEARCH_VIEW_FILTER_KEY)
         search_view_selected_types = set(s_type for s_type in saved_search_filter_str.split(',')) if saved_search_filter_str is not None else set(config.ALL_ENTRY_TYPES_STR)
+        
+        saved_backlog_filter_str = database.get_setting_db(config.SAVED_BACKLOG_VIEW_FILTER_KEY)
+        backlog_view_selected_types = set(s_type for s_type in saved_backlog_filter_str.split(',')) if saved_backlog_filter_str is not None else set(config.ALL_ENTRY_TYPES_STR)
+
         self.app_state = {
             "current_view": config.YEARS[0] if config.YEARS else "Stats",
             "year_view_selected_entry_types": year_view_selected_types,
             "stats_view_selected_entry_types": stats_view_selected_types,
             "search_view_selected_entry_types": search_view_selected_types,
+            "backlog_view_selected_entry_types": backlog_view_selected_types,
             "search_selected_fields": {"name", "author", "platform", "director", "actress", "update_version"},
             "current_search_term": "",
             "search_results": [],
@@ -710,27 +799,42 @@ class AppUI:
         finally:
             self.page._dialog_is_opening = False
 
-    def open_add_jav_dialog(self, e=None):
-        name_field = ft.TextField(label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS)
+    def open_add_jav_dialog(self, e=None, initial_data=None, backlog_item_id=None):
+        if initial_data is None:
+            initial_data = {}
+
+        name_field = ft.TextField(label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS, value=initial_data.get('name', ''))
         conditional_fields_container = ft.Column(spacing=12, tight=True)
-        def on_type_change_add(e): update_conditional_fields(e.control.value, conditional_fields_container)
-        entry_type_dropdown = ft.Dropdown(label="Entry Type", options=config.ENTRY_TYPE_OPTIONS, hint_text="Select the type of media")
-        image_source_field = ft.TextField(label="Image Source (URL or Local Path)", hint_text="e.g., https://... or C:\\path\\to\\image.jpg", expand=True)
+        
+        def on_type_change_add(e): 
+            update_conditional_fields(e.control.value, conditional_fields_container)
+        
+        entry_type_dropdown = ft.Dropdown(label="Entry Type", options=config.ENTRY_TYPE_OPTIONS, hint_text="Select the type of media", value=initial_data.get('entry_type'))
+        if initial_data.get('entry_type'):
+            update_conditional_fields(initial_data['entry_type'], conditional_fields_container, initial_data=initial_data)
+
+        image_source_field = ft.TextField(label="Image Source (URL or Local Path)", hint_text="e.g., https://... or C:\\path\\to\\image.jpg", expand=True, value=initial_data.get('image_url', ''))
+        
         def browse_for_image_add(e):
             self._target_image_field_for_picker = image_source_field
             self.image_file_picker.pick_files(dialog_title="Select Image", allow_multiple=False, allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"])
+        
         image_source_row = ft.Row([image_source_field, ft.IconButton(icon=ft.icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_add)], vertical_alignment=ft.CrossAxisAlignment.END)
         genre_field = ft.TextField(label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS)
         date_display_field = ft.TextField(label="Completion Date", read_only=True, hint_text="Click calendar to select...")
         add_date_picker = ft.DatePicker(on_change=lambda e: handle_date_change(e, date_display_field), help_text="Select Completion Date")
         self.page.overlay.append(add_date_picker)
+        
         def handle_date_change(e, target_field):
             if target_field and e.control.value:
                 target_field.value = e.control.value.strftime('%Y-%m-%d')
                 if hasattr(target_field, 'on_change') and callable(target_field.on_change): target_field.on_change(e)
                 if target_field.page: target_field.update()
+        
         date_picker_button = ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=lambda e: (setattr(add_date_picker, 'open', True), self.page.update()))
-        description_editor, description_field_ref = create_markdown_editor()
+        
+        description_editor, description_field_ref = create_markdown_editor(initial_value=initial_data.get('notes', ''))
+        
         score_dropdown = ft.Dropdown(label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value="N/A")
         rewatch_check = ft.Checkbox(label="This was a Rewatch", value=False)
         own_local_copy_check = ft.Checkbox(label="Own Local Copy?", value=False)
@@ -751,11 +855,17 @@ class AppUI:
                     if field.page: field.update()
                 self.show_snackbar("Please fix errors: " + " ".join(errors), color=ft.colors.ERROR_CONTAINER)
                 return
-            
+
             final_image_ref_for_db = self.process_and_copy_image(image_source_input)
             conditional_data = get_data_from_conditional_fields(conditional_fields_container)
             database.add_jav_db(name, genre_input_str, date_str, score_int, description, is_rewatch, own_local_copy, final_image_ref_for_db, entry_type_val, conditional_data)
-            self.show_snackbar(f"Added '{name}'")
+            
+            if backlog_item_id:
+                database.delete_backlog_item_db(backlog_item_id)
+                self.show_snackbar(f"Moved '{name}' from backlog to log!")
+            else:
+                self.show_snackbar(f"Added '{name}'")
+
             self.close_form_overlay()
             self.refresh_current_view()
             current_stats_filter = list(self.stats_year_filter.current.selected)[0] if self.stats_year_filter.current and self.stats_year_filter.current.selected else "All Time"
@@ -825,6 +935,178 @@ class AppUI:
         if self.form_overlay_container.current and self.form_overlay_container.current in self.main_stack.current.controls: self.close_form_overlay()
         self.main_stack.current.controls.append(form_view)
         self.main_stack.current.update()
+
+    # --- NEW: Dialog for adding a backlog item ---
+    def open_add_backlog_dialog(self, e=None):
+        name_field = ft.TextField(label="Title", autofocus=True, capitalization=ft.TextCapitalization.WORDS)
+        entry_type_dropdown = ft.Dropdown(label="Entry Type", options=config.ENTRY_TYPE_OPTIONS, hint_text="Select the type of media")
+        source_field = ft.TextField(label="Source / Recommendation", hint_text="e.g., Friend, YouTube, Steam", capitalization=ft.TextCapitalization.SENTENCES)
+        notes_field = ft.TextField(label="Notes", hint_text="Why do you want to watch/play this?", multiline=True, min_lines=2, max_lines=4, capitalization=ft.TextCapitalization.SENTENCES)
+        image_source_field = ft.TextField(label="Image URL (Optional)", hint_text="e.g., https://...")
+
+        # --- Define the dialog as a local variable ---
+        add_dialog = ft.AlertDialog(modal=True)
+
+        def close_dialog(e):
+            add_dialog.open = False
+            self.page.update() # Triggers the on_dismiss event
+
+        def save_new_backlog_item(e):
+            name = name_field.value.strip()
+            if not name:
+                name_field.error_text = "Title is required."
+                name_field.update()
+                return
+            
+            final_image_ref = self.process_and_copy_image(image_source_field.value)
+            database.add_backlog_item_db(
+                name,
+                entry_type_dropdown.value,
+                source_field.value,
+                notes_field.value,
+                final_image_ref
+            )
+            self.show_snackbar(f"Added '{name}' to backlog.")
+            close_dialog(e)
+            self.refresh_current_view()
+
+        add_dialog.title = ft.Text("Add to Backlog")
+        add_dialog.content = ft.Column(
+            controls=[name_field, entry_type_dropdown, source_field, notes_field, image_source_field],
+            spacing=15, tight=True, scroll=ft.ScrollMode.ADAPTIVE, height=400
+        )
+        add_dialog.actions = [
+            ft.TextButton("Cancel", on_click=close_dialog),
+            ft.ElevatedButton("Save", on_click=save_new_backlog_item),
+        ]
+        add_dialog.actions_alignment = ft.MainAxisAlignment.END
+        # Clean up the dialog from the overlay when it's dismissed
+        add_dialog.on_dismiss = lambda e: self.page.overlay.remove(add_dialog)
+
+        self.page.overlay.append(add_dialog)
+        add_dialog.open = True
+        self.page.update()
+
+    # --- NEW: Dialog for editing a backlog item ---
+    def open_edit_backlog_dialog(self, item_data):
+        item_id = item_data['id']
+        name_field = ft.TextField(label="Title", capitalization=ft.TextCapitalization.WORDS, value=item_data.get('name', ''))
+        entry_type_dropdown = ft.Dropdown(label="Entry Type", options=config.ENTRY_TYPE_OPTIONS, value=item_data.get('entry_type'))
+        source_field = ft.TextField(label="Source / Recommendation", capitalization=ft.TextCapitalization.SENTENCES, value=item_data.get('source', ''))
+        notes_field = ft.TextField(label="Notes", multiline=True, min_lines=2, max_lines=4, capitalization=ft.TextCapitalization.SENTENCES, value=item_data.get('notes', ''))
+        image_source_field = ft.TextField(label="Image URL (Optional)", value=item_data.get('image_url', ''))
+
+        # --- Define the dialog as a local variable ---
+        edit_dialog = ft.AlertDialog(modal=True)
+
+        def close_dialog(e):
+            edit_dialog.open = False
+            self.page.update()
+
+        def save_edited_backlog_item(e):
+            name = name_field.value.strip()
+            if not name:
+                name_field.error_text = "Title is required."
+                name_field.update()
+                return
+            
+            final_image_ref = item_data.get('image_url')
+            if image_source_field.value != item_data.get('image_url'):
+                 final_image_ref = self.process_and_copy_image(image_source_field.value)
+
+            database.update_backlog_item_db(
+                item_id, name, entry_type_dropdown.value, source_field.value, notes_field.value, final_image_ref
+            )
+            self.show_snackbar(f"Updated '{name}' in backlog.")
+            close_dialog(e)
+            self.refresh_current_view()
+
+        edit_dialog.title = ft.Text("Edit Backlog Item")
+        edit_dialog.content = ft.Column(
+            controls=[name_field, entry_type_dropdown, source_field, notes_field, image_source_field],
+            spacing=15, tight=True, scroll=ft.ScrollMode.ADAPTIVE, height=400
+        )
+        edit_dialog.actions = [
+            ft.TextButton("Cancel", on_click=close_dialog),
+            ft.ElevatedButton("Save Changes", on_click=save_edited_backlog_item),
+        ]
+        edit_dialog.actions_alignment = ft.MainAxisAlignment.END
+        edit_dialog.on_dismiss = lambda e: self.page.overlay.remove(edit_dialog)
+
+        self.page.overlay.append(edit_dialog)
+        edit_dialog.open = True
+        self.page.update()
+
+    def handle_complete_backlog_item(self, item_data):
+        self.open_add_jav_dialog(initial_data=item_data, backlog_item_id=item_data['id'])
+
+    # --- NEW: The main UI for the Backlog view ---
+    def build_backlog_view(self):
+        backlog_list_view_ref = ft.Ref[ft.ListView]()
+
+        def refresh_view_content():
+            list_view = backlog_list_view_ref.current
+            if not list_view: return
+            list_view.controls.clear()
+            
+            all_items = database.get_all_backlog_items_db()
+            selected_types = self.app_state["backlog_view_selected_entry_types"]
+            filtered_items = [item for item in all_items if item.get('entry_type') in selected_types]
+
+            if not filtered_items:
+                list_view.controls.append(
+                    ft.Container(
+                        content=ft.Text("Your backlog is empty or filters hide all items. Add something!", italic=True, text_align=ft.TextAlign.CENTER, size=16),
+                        alignment=ft.alignment.center, padding=30, expand=True
+                    )
+                )
+            else:
+                for item in filtered_items:
+                    list_view.controls.append(
+                        create_backlog_list_item(
+                            self.page, item,
+                            self.handle_complete_backlog_item,
+                            self.open_edit_backlog_dialog,
+                            delete_backlog_item_action
+                        )
+                    )
+            if list_view.page: list_view.update()
+
+        def on_backlog_view_filter_change():
+            refresh_view_content()
+            database.set_setting_db(config.SAVED_BACKLOG_VIEW_FILTER_KEY, ",".join(sorted(list(self.app_state["backlog_view_selected_entry_types"]))))
+
+        def delete_backlog_item_action(item_id, item_name):
+            database.delete_backlog_item_db(item_id)
+            self.show_snackbar(f"Removed '{item_name}' from backlog.")
+            refresh_view_content()
+
+        filter_button_ui = create_entry_type_filter_button_with_sheet(
+            self.page, config.ALL_ENTRY_TYPES_STR, self.app_state["backlog_view_selected_entry_types"],
+            on_backlog_view_filter_change, button_label_prefix="Filter Backlog"
+        )
+        
+        backlog_list_view = ft.ListView(ref=backlog_list_view_ref, expand=True, spacing=0, padding=0)
+        refresh_view_content()
+
+        # Return a Column directly without the Container and bgcolor
+        return ft.Column(
+            expand=True,
+            controls=[
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Text("Media Backlog", style=ft.TextThemeStyle.HEADLINE_MEDIUM),
+                            filter_button_ui
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                    ),
+                    padding=ft.padding.only(left=20, right=10, top=10, bottom=5)
+                ),
+                ft.Divider(),
+                backlog_list_view
+            ]
+        )
 
     def build_year_view(self, year_str):
         year_grid_view_ref = ft.Ref[ft.GridView]()
@@ -1032,11 +1314,23 @@ class AppUI:
         content_area = self.main_content_area.current
         if not content_area: return
         content_area.controls.clear()
+        
         show_fab, fab_tooltip = False, "Add Entry"
-        if view_id in config.YEARS: content = self.build_year_view(view_id); show_fab = True; fab_tooltip = f"Add Entry to {view_id}"
-        elif view_id == "Stats": content = self.build_stats_view()
-        elif view_id == "Search": content = self.build_search_view(); show_fab = True
-        else: content = ft.Text(f"Error: Unknown view '{view_id}'")
+        if view_id in config.YEARS:
+            content = self.build_year_view(view_id)
+            show_fab = True
+            fab_tooltip = f"Add Entry to {view_id}"
+        elif view_id == "Backlog":
+            content = self.build_backlog_view()
+            show_fab = True
+            fab_tooltip = "Add Item to Backlog"
+        elif view_id == "Stats":
+            content = self.build_stats_view()
+        elif view_id == "Search":
+            content = self.build_search_view()
+            show_fab = True
+        else:
+            content = ft.Text(f"Error: Unknown view '{view_id}'")
         
         content_area.controls.append(content)
         fab = self.fab.current
@@ -1051,10 +1345,16 @@ class AppUI:
 
     def navigation_change(self, e):
         idx = e.control.selected_index
-        if 0 <= idx < len(config.YEARS): new_view = config.YEARS[idx]
-        elif idx == len(config.YEARS): new_view = "Stats"
-        elif idx == len(config.YEARS) + 1: new_view = "Search"
-        else: return
+        if 0 <= idx < len(config.YEARS):
+            new_view = config.YEARS[idx]
+        elif idx == len(config.YEARS):
+            new_view = "Backlog"
+        elif idx == len(config.YEARS) + 1:
+            new_view = "Stats"
+        elif idx == len(config.YEARS) + 2:
+            new_view = "Search"
+        else:
+            return
         
         self.close_form_overlay()
         if self.current_dialog and self.current_dialog.open:
@@ -1064,27 +1364,41 @@ class AppUI:
             self.page.update()
         self.update_main_content(new_view)
 
+    def handle_fab_click(self, e):
+        current_view = self.app_state.get("current_view")
+        if current_view == "Backlog":
+            self.open_add_backlog_dialog(e)
+        else:
+            self.open_add_jav_dialog(e)
+
     def build_main_layout(self):
         self.initialize_app_state()
         self.page.overlay.extend([self.image_file_picker, self.import_dialog, self.export_dialog])
         
-        try: initial_index = config.YEARS.index(self.app_state["current_view"])
+        try:
+            initial_index = config.YEARS.index(self.app_state["current_view"])
         except ValueError:
-            if self.app_state["current_view"] == "Stats": initial_index = len(config.YEARS)
-            elif self.app_state["current_view"] == "Search": initial_index = len(config.YEARS) + 1
-            else: initial_index = 0
+            if self.app_state["current_view"] == "Backlog":
+                initial_index = len(config.YEARS)
+            elif self.app_state["current_view"] == "Stats":
+                initial_index = len(config.YEARS) + 1
+            elif self.app_state["current_view"] == "Search":
+                initial_index = len(config.YEARS) + 2
+            else:
+                initial_index = 0
         
         rail = ft.NavigationRail(
             selected_index=initial_index, label_type=ft.NavigationRailLabelType.ALL, min_width=100,
             destinations=(
                 [ft.NavigationRailDestination(icon=ft.icons.CALENDAR_MONTH_OUTLINED, selected_icon=ft.icons.CALENDAR_MONTH, label=y) for y in config.YEARS] +
+                [ft.NavigationRailDestination(icon=ft.icons.BOOKMARKS_OUTLINED, selected_icon=ft.icons.BOOKMARKS, label="Backlog")] +
                 [ft.NavigationRailDestination(icon=ft.icons.QUERY_STATS_OUTLINED, selected_icon=ft.icons.QUERY_STATS, label="Stats")] +
                 [ft.NavigationRailDestination(icon=ft.icons.SEARCH_OUTLINED, selected_icon=ft.icons.SEARCH, label="Search")]
             ),
             on_change=self.navigation_change
         )
         
-        self.fab.current = ft.FloatingActionButton(ref=self.fab, icon=ft.icons.ADD, on_click=self.open_add_jav_dialog, visible=False)
+        self.fab.current = ft.FloatingActionButton(ref=self.fab, icon=ft.icons.ADD, on_click=self.handle_fab_click, visible=False)
         self.page.floating_action_button = self.fab.current
         self.page.floating_action_button_location = ft.FloatingActionButtonLocation.END_CONTAINED
 
