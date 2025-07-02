@@ -80,6 +80,10 @@ def get_genre_icon_name(genre_str: str) -> str:
     if "school" in genre_str_lower: return ft.icons.SCHOOL_OUTLINED
     return ft.icons.LOCAL_OFFER_OUTLINED
 
+# --- ui.py ---
+
+# ... (keep all the code before create_gallery_card as is) ...
+
 def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_desc_callback):
     name = jav_item.get('name', 'Unknown Title')
     db_image_value = jav_item.get('image_url')
@@ -148,7 +152,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
             'Adult Visual Novel': {'bg': ft.colors.DEEP_ORANGE_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.DEEP_ORANGE_600, ft.colors.DEEP_ORANGE_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
             'Other': {'bg': ft.colors.BLUE_GREY_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.BLUE_GREY_600, ft.colors.BLUE_GREY_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
         }
-        return styles.get(entry_type, styles['Other'])
+        return styles.get(entry_type_str, styles['Other'])
 
     title_text = ft.Text(name, weight=ft.FontWeight.W_600, size=TITLE_SIZE, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS, color=ft.colors.ON_SURFACE, style=ft.TextStyle(letter_spacing=0.2))
     entry_type_style = get_entry_type_styling(entry_type_str)
@@ -156,12 +160,51 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     entry_type_badge = ft.Container(content=ft.Row([ft.Icon(entry_type_icon_name, size=14, color=entry_type_style['fg']), ft.Text(entry_type_str, size=TAG_SIZE, color=entry_type_style['fg'], weight=ft.FontWeight.W_600, style=ft.TextStyle(letter_spacing=0.3))], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True), gradient=entry_type_style['gradient'], padding=ft.padding.symmetric(horizontal=12, vertical=6), border_radius=ft.border_radius.all(20), shadow=ft.BoxShadow(spread_radius=0, blur_radius=4, color=ft.colors.with_opacity(0.3, entry_type_style['bg']), offset=ft.Offset(0, 2)))
 
     def create_enhanced_rating_badge(score):
-        if score is None: return ft.Container()
-        if score >= 9: color, bg_color = ft.colors.GREEN_600, ft.colors.with_opacity(0.1, ft.colors.GREEN_600)
-        elif score >= 7: color, bg_color = ft.colors.BLUE_600, ft.colors.with_opacity(0.1, ft.colors.BLUE_600)
-        elif score >= 5: color, bg_color = ft.colors.ORANGE_600, ft.colors.with_opacity(0.1, ft.colors.ORANGE_600)
-        else: color, bg_color = ft.colors.RED_600, ft.colors.with_opacity(0.1, ft.colors.RED_600)
-        return ft.Container(content=ft.Row([ft.Icon(ft.icons.STAR_ROUNDED, size=14, color=color), ft.Text(f"{score:.1f}", size=TAG_SIZE + 1, color=color, weight=ft.FontWeight.W_700)], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True), bgcolor=bg_color, padding=ft.padding.symmetric(horizontal=10, vertical=6), border_radius=ft.border_radius.all(20), border=ft.border.all(1, ft.colors.with_opacity(0.2, color)))
+        if score is None: 
+            return ft.Container()
+        
+        if score == 10.0:
+            return ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.icons.STAR_ROUNDED, size=14, color=ft.colors.WHITE),
+                    ft.Text(f"{score:.1f}", size=TAG_SIZE + 1, color=ft.colors.WHITE, weight=ft.FontWeight.W_700)
+                ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
+                gradient=ft.LinearGradient(
+                    colors=[ft.colors.GREEN_400, ft.colors.GREEN_600, ft.colors.GREEN_700],
+                    begin=ft.alignment.top_left,
+                    end=ft.alignment.bottom_right
+                ),
+                padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                border_radius=ft.border_radius.all(20),
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=8,
+                    color=ft.colors.with_opacity(0.4, ft.colors.GREEN_600),
+                    offset=ft.Offset(0, 2)
+                ),
+                border=ft.border.all(1, ft.colors.with_opacity(0.3, ft.colors.GREEN_300))
+            )
+        
+        if score >= 9: 
+            color, bg_color = ft.colors.GREEN_600, ft.colors.with_opacity(0.1, ft.colors.GREEN_600)
+        elif score >= 7: 
+            color, bg_color = ft.colors.BLUE_600, ft.colors.with_opacity(0.1, ft.colors.BLUE_600)
+        elif score >= 5: 
+            color, bg_color = ft.colors.ORANGE_600, ft.colors.with_opacity(0.1, ft.colors.ORANGE_600)
+        else: 
+            color, bg_color = ft.colors.RED_600, ft.colors.with_opacity(0.1, ft.colors.RED_600)
+        
+        return ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.icons.STAR_ROUNDED, size=14, color=color),
+                ft.Text(f"{score:.1f}", size=TAG_SIZE + 1, color=color, weight=ft.FontWeight.W_700)
+            ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
+            bgcolor=bg_color,
+            padding=ft.padding.symmetric(horizontal=10, vertical=6),
+            border_radius=ft.border_radius.all(20),
+            border=ft.border.all(1, ft.colors.with_opacity(0.2, color))
+        )
+
     rating_badge = create_enhanced_rating_badge(score)
 
     def create_genre_tag(genre_text):
@@ -200,7 +243,49 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     if genre_widgets_row.controls: card_content_controls.append(genre_widgets_row)
     card_content_controls.append(ft.Row(alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER, controls=[bottom_indicators_row, ft.Text(display_completion_date, size=DATE_SIZE, color=ft.colors.ON_SURFACE_VARIANT, opacity=0.8, weight=ft.FontWeight.W_500, style=ft.TextStyle(letter_spacing=0.2))]))
     card_content = ft.Column(controls=card_content_controls, spacing=MAIN_SPACING, tight=True)
-    return ft.Card(content=ft.Container(content=ft.Column([image_stack, ft.Container(content=card_content, padding=CONTENT_PADDING)], spacing=0, tight=True), clip_behavior=ft.ClipBehavior.HARD_EDGE), elevation=3, margin=ft.margin.all(8), shape=ft.RoundedRectangleBorder(radius=CARD_RADIUS), shadow_color=ft.colors.with_opacity(0.15, ft.colors.BLACK), surface_tint_color=ft.colors.SURFACE_TINT)
+
+    # =========================================================================
+    # START: CORRECTED code for 10/10 glow effect
+    # =========================================================================
+    
+    # Default styling for the card
+    card_elevation = 3
+    card_shadow_color = ft.colors.with_opacity(0.15, ft.colors.BLACK)
+    # The border is now a full ft.border object, not a BorderSide
+    card_border = None # Default: no border
+
+    # Check for a perfect score to apply the glow
+    if score is not None:
+        try:
+            if int(score) == 10:
+                card_elevation = 6
+                card_shadow_color = ft.colors.with_opacity(0.5, ft.colors.GREEN_300)
+                # Create a full ft.border object for the container
+                card_border = ft.border.all(1.5, ft.colors.with_opacity(0.65, ft.colors.LIGHT_GREEN_ACCENT_200))
+        except (ValueError, TypeError):
+            pass
+
+    # Create the inner card. It has no margin itself.
+    the_card = ft.Card(
+        content=ft.Container(
+            content=ft.Column([image_stack, ft.Container(content=card_content, padding=CONTENT_PADDING)], spacing=0, tight=True),
+            clip_behavior=ft.ClipBehavior.HARD_EDGE
+        ),
+        elevation=card_elevation,
+        margin=0, # Margin is now on the outer container
+        shape=ft.RoundedRectangleBorder(radius=CARD_RADIUS), # No 'side' argument here
+        shadow_color=card_shadow_color,
+        surface_tint_color=ft.colors.SURFACE_TINT
+    )
+
+    # Return the card wrapped in a container that has the border and margin
+    return ft.Container(
+        content=the_card,
+        margin=ft.margin.all(8),
+        border=card_border, # Apply the conditional border here
+        border_radius=ft.border_radius.all(CARD_RADIUS), # Match the card's radius
+        clip_behavior=ft.ClipBehavior.ANTI_ALIAS # Helps with smooth rounded corners on the border
+    )
 
 def update_conditional_fields(selected_type: str, container: ft.Column, initial_data: dict | None = None):
     container.controls.clear()
