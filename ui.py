@@ -370,7 +370,7 @@ def create_backlog_list_item(page, item_data, complete_callback, edit_callback, 
     item_id = item_data['id']
     name = item_data.get('name', 'Unknown Title')
     entry_type = item_data.get('entry_type', 'Other')
-    source = item_data.get('source')
+    progress = item_data.get('progress')
     notes = item_data.get('notes')
     date_added_str = item_data.get('date_added', 'N/A')
     image_url = item_data.get('image_url')
@@ -505,13 +505,13 @@ def create_backlog_list_item(page, item_data, complete_callback, edit_callback, 
         animate=ft.animation.Animation(200, ft.AnimationCurve.EASE_OUT)
     )
     
-    source_chip = ft.Container()
-    if source:
-        source_chip = ft.Container(
+    progress_chip = ft.Container()
+    if progress:
+        progress_chip = ft.Container(
             content=ft.Row([
-                ft.Icon(ft.icons.RECOMMEND_ROUNDED, size=14, color=ft.colors.SECONDARY),
+                ft.Icon(ft.icons.TIMER_OUTLINED, size=14, color=ft.colors.SECONDARY),
                 ft.Text(
-                    source, 
+                    progress, 
                     size=13, 
                     color=ft.colors.ON_SURFACE, 
                     weight=ft.FontWeight.W_500,
@@ -522,7 +522,7 @@ def create_backlog_list_item(page, item_data, complete_callback, edit_callback, 
             padding=ft.padding.symmetric(horizontal=12, vertical=8),
             bgcolor=ft.colors.with_opacity(0.08, ft.colors.SECONDARY),
             border_radius=ft.border_radius.all(12),
-            tooltip=f"Recommended by: {source}",
+            tooltip=f"Current Progress: {progress}",
             animate=ft.animation.Animation(200, ft.AnimationCurve.EASE_OUT)
         )
 
@@ -599,7 +599,7 @@ def create_backlog_list_item(page, item_data, complete_callback, edit_callback, 
     )
     
     chips_row = ft.Row(
-        [date_chip, source_chip] if source else [date_chip], 
+        [date_chip, progress_chip] if progress else [date_chip], 
         spacing=10, 
         wrap=True
     )
@@ -1172,13 +1172,13 @@ class AppUI:
             filled=True
         )
         
-        source_field = ft.TextField(
-            label="Source / Recommendation", 
-            hint_text="e.g., Friend, YouTube, Steam", 
+        progress_field = ft.TextField(
+            label="Current Progress (Optional)", 
+            hint_text="e.g., Ep 5/12, Chapter 3, 50%", 
             capitalization=ft.TextCapitalization.SENTENCES,
             border_radius=ft.border_radius.all(12),
             filled=True,
-            prefix_icon=ft.icons.PERSON_ROUNDED
+            prefix_icon=ft.icons.TIMER_OUTLINED
         )
         
         notes_field = ft.TextField(
@@ -1227,7 +1227,7 @@ class AppUI:
             database.add_backlog_item_db(
                 name,
                 entry_type_dropdown.value,
-                source_field.value,
+                progress_field.value,
                 notes_field.value,
                 final_image_ref
             )
@@ -1242,7 +1242,7 @@ class AppUI:
         
         add_dialog.content = ft.Container(
             content=ft.Column(
-                controls=[name_field, entry_type_dropdown, source_field, notes_field, image_source_field],
+                controls=[name_field, entry_type_dropdown, progress_field, notes_field, image_source_field],
                 spacing=20, 
                 tight=True, 
                 scroll=ft.ScrollMode.ADAPTIVE
@@ -1301,13 +1301,13 @@ class AppUI:
             filled=True
         )
         
-        source_field = ft.TextField(
-            label="Source / Recommendation", 
+        progress_field = ft.TextField(
+            label="Current Progress (Optional)", 
             capitalization=ft.TextCapitalization.SENTENCES, 
-            value=item_data.get('source', ''),
+            value=item_data.get('progress', ''),
             border_radius=ft.border_radius.all(12),
             filled=True,
-            prefix_icon=ft.icons.PERSON_ROUNDED
+            prefix_icon=ft.icons.TIMER_OUTLINED
         )
         
         notes_field = ft.TextField(
@@ -1355,7 +1355,7 @@ class AppUI:
                 final_image_ref = self.process_and_copy_image(image_source_field.value)
 
             database.update_backlog_item_db(
-                item_id, name, entry_type_dropdown.value, source_field.value, notes_field.value, final_image_ref
+                item_id, name, entry_type_dropdown.value, progress_field.value, notes_field.value, final_image_ref
             )
             self.show_snackbar(f"✅ Updated '{name}' in backlog.")
             close_dialog(e)
@@ -1368,7 +1368,7 @@ class AppUI:
         
         edit_dialog.content = ft.Container(
             content=ft.Column(
-                controls=[name_field, entry_type_dropdown, source_field, notes_field, image_source_field],
+                controls=[name_field, entry_type_dropdown, progress_field, notes_field, image_source_field],
                 spacing=20, 
                 tight=True, 
                 scroll=ft.ScrollMode.ADAPTIVE
