@@ -767,19 +767,19 @@ class AppUI:
         self.genre_legend = ft.Ref[ft.Column]()
         self.main_stack = ft.Ref[ft.Stack]()
         self.stats_year_filter = ft.Ref[ft.SegmentedButton]()
-        self.platform_chart_container = ft.Ref[ft.Card]()
+        self.platform_chart_container = ft.Ref[ft.Container]()
         self.platform_pie_chart = ft.Ref[ft.PieChart]()
         self.platform_legend = ft.Ref[ft.Column]()
-        self.author_chart_container = ft.Ref[ft.Card]()
+        self.author_chart_container = ft.Ref[ft.Container]()
         self.author_pie_chart = ft.Ref[ft.PieChart]()
         self.author_legend = ft.Ref[ft.Column]()
-        self.director_chart_container = ft.Ref[ft.Card]()
+        self.director_chart_container = ft.Ref[ft.Container]()
         self.director_pie_chart = ft.Ref[ft.PieChart]()
         self.director_legend = ft.Ref[ft.Column]()
-        self.actress_chart_container = ft.Ref[ft.Card]()
+        self.actress_chart_container = ft.Ref[ft.Container]()
         self.actress_pie_chart = ft.Ref[ft.PieChart]()
         self.actress_legend = ft.Ref[ft.Column]()
-        self.version_chart_container = ft.Ref[ft.Card]()
+        self.version_chart_container = ft.Ref[ft.Container]()
         self.version_pie_chart = ft.Ref[ft.PieChart]()
         self.version_legend = ft.Ref[ft.Column]()
         self.search_text_field = ft.Ref[ft.TextField]()
@@ -787,6 +787,8 @@ class AppUI:
         self.search_results_count_text = ft.Ref[ft.Text]()
         self.main_content_area = ft.Ref[ft.Column]()
         self.fab = ft.Ref[ft.FloatingActionButton]()
+        self.stats_loading_indicator = ft.Ref[ft.ProgressRing]()
+        self.stats_refresh_button = ft.Ref[ft.IconButton]()
 
     def initialize_app_state(self):
         saved_year_filter_str = database.get_setting_db(config.SAVED_YEAR_VIEW_FILTER_KEY)
@@ -1817,44 +1819,435 @@ class AppUI:
             database.set_setting_db("current_theme", new_theme_name)
             self.show_snackbar(f"Theme changed to {new_theme_name}", duration=2000)
 
-    def build_stats_view(self):
-        if not self.stats_year_filter.current:
-            self.stats_year_filter.current = ft.SegmentedButton(segments=[ft.Segment(value="All Time", label=ft.Text("Overall"))] + [ft.Segment(value=year, label=ft.Text(year)) for year in config.YEARS], selected={"All Time"}, allow_empty_selection=False, show_selected_icon=False, on_change=self.on_stats_filter_change)
+    def on_stats_refresh(self, e):
+        """Refresh statistics with visual feedback."""
+        self.stats_refresh_button.current.disabled = True
+        self.stats_loading_indicator.current.visible = True
+        self.page.update()
         
+        # Get current filter
+        current_year_filter = list(self.stats_year_filter.current.selected)[0] if self.stats_year_filter.current.selected else "All Time"
+        
+        # Refresh data in background
+        self.page.run_thread(self._refresh_stats_with_feedback, current_year_filter)
+
+    def _refresh_stats_with_feedback(self, year_filter):
+        """Background thread to refresh stats with UI feedback."""
+        try:
+            self.calculate_and_update_stats_display(year_filter)
+            self.show_snackbar("Statistics refreshed successfully", duration=2000)
+        except Exception as e:
+            self.show_snackbar(f"Error refreshing stats: {str(e)}", duration=3000)
+        finally:
+            # Re-enable button and hide loading indicator
+            self.stats_refresh_button.current.disabled = False
+            self.stats_loading_indicator.current.visible = False
+            self.page.update()
+
+    def _create_enhanced_stat_card(self, icon: str, value_ref: ft.Ref[ft.Text], label: str, color: str, 
+                                  subtitle: str = None, trend_icon: str = None, trend_color: str = None):
+        """Creates an enhanced stat card with optional subtitle and trend indicators."""
+        
+        # Build the content list dynamically
+        content_items = []
+        
+        # Icon row
+        content_items.append(
+            ft.Row([
+                ft.Container(
+                    content=ft.Icon(icon, color=color, size=28),
+                    padding=14,
+                    bgcolor=ft.colors.with_opacity(0.12, color),
+                    border_radius=16,
+                    animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT)
+                ),
+                ft.Container(expand=True),  # Spacer
+                # Trend indicator (if provided)
+                ft.Container(
+                    content=ft.Icon(trend_icon, color=trend_color, size=18),
+                    visible=bool(trend_icon),
+                    padding=6,
+                    bgcolor=ft.colors.with_opacity(0.1, trend_color or ft.colors.GREY),
+                    border_radius=8
+                ) if trend_icon else ft.Container()
+            ])
+        )
+        
+        # Value with animation
+        content_items.append(
+            ft.AnimatedSwitcher(
+                ft.Text(
+                    ref=value_ref, 
+                    value="...", 
+                    size=32, 
+                    weight=ft.FontWeight.BOLD,
+                    color=color
+                ),
+                duration=300,
+                transition=ft.AnimatedSwitcherTransition.SCALE
+            )
+        )
+        
+        # Label
+        content_items.append(
+            ft.Text(
+                label, 
+                size=14, 
+                color=ft.colors.ON_SURFACE_VARIANT, 
+                weight=ft.FontWeight.W_500
+            )
+        )
+        
+        # Subtitle (if provided)
+        if subtitle:
+            content_items.append(
+                ft.Text(
+                    subtitle, 
+                    size=12, 
+                    color=ft.colors.ON_SURFACE_VARIANT,
+                    opacity=0.8
+                )
+            )
+        
+        return ft.Container(
+            content=ft.Column(content_items, spacing=12),
+            padding=ft.padding.all(24),
+            border_radius=20,
+            border=ft.border.all(1, ft.colors.with_opacity(0.08, ft.colors.OUTLINE)),
+            bgcolor=ft.colors.SURFACE_VARIANT,
+            expand=True,
+            animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+            on_hover=self._on_stat_card_hover,
+            ink=True
+        )
+
+    def _on_stat_card_hover(self, e):
+        """Add subtle hover effect to stat cards."""
+        if e.data == "true":  # Hover enter
+            e.control.elevation = 4
+            e.control.scale = 1.02
+        else:  # Hover exit
+            e.control.elevation = 0
+            e.control.scale = 1.0
+        e.control.update()
+
+    def _create_expandable_breakdown_card(self, container_ref, chart_ref, legend_ref, title, icon, color):
+        """Creates an expandable breakdown card with modern styling."""
+        return ft.ExpansionTile(
+            ref=container_ref,
+            leading=ft.Icon(icon, color=color),
+            title=ft.Text(title, style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.W_500),
+            subtitle=ft.Text("Tap to view breakdown", size=12, color=ft.colors.ON_SURFACE_VARIANT),
+            controls=[
+                ft.Container(
+                    content=ft.Row([
+                        # Chart section
+                        ft.Container(
+                            content=ft.Column([
+                                ft.PieChart(
+                                    ref=chart_ref,
+                                    sections=[],
+                                    center_space_radius=50,
+                                    animate=ft.Animation(500, ft.AnimationCurve.EASE_OUT)
+                                )
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            expand=3,
+                            padding=20
+                        ),
+                        # Legend section
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Row([
+                                    ft.Icon(ft.icons.LIST_ROUNDED, size=16, color=color),
+                                    ft.Text("Top Entries", weight=ft.FontWeight.BOLD, size=14)
+                                ], spacing=8),
+                                ft.Divider(height=10),
+                                ft.Container(
+                                    content=ft.Column(
+                                        ref=legend_ref, 
+                                        controls=[], 
+                                        spacing=8, 
+                                        scroll=ft.ScrollMode.ADAPTIVE
+                                    ),
+                                    height=220
+                                )
+                            ]),
+                            expand=2,
+                            padding=20
+                        )
+                    ], vertical_alignment=ft.CrossAxisAlignment.START),
+                    bgcolor=ft.colors.with_opacity(0.03, ft.colors.SURFACE_VARIANT),
+                    border_radius=12,
+                    margin=ft.margin.symmetric(horizontal=8, vertical=4)
+                )
+            ],
+            bgcolor=ft.colors.SURFACE_VARIANT,
+            collapsed_bgcolor=ft.colors.SURFACE_VARIANT,
+            text_color=ft.colors.ON_SURFACE,
+            icon_color=color,
+            visible=False
+        )
+
+    def _create_settings_section(self):
+        """Creates a modern settings section with better organization."""
+        theme_dropdown = ft.Dropdown(
+            label="App Theme",
+            options=[ft.dropdown.Option(name) for name in config.THEMES.keys()],
+            value=database.get_setting_db("current_theme", config.DEFAULT_THEME_NAME),
+            on_change=self.on_theme_change,
+            expand=True,
+            border_radius=12
+        )
+        
+        return ft.Container(
+            content=ft.Column([
+                # Settings header
+                ft.Row([
+                    ft.Icon(ft.icons.SETTINGS_ROUNDED, color=ft.colors.PRIMARY, size=24),
+                    ft.Text("Application Settings", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_500)
+                ], spacing=12),
+                
+                ft.Divider(height=20, color=ft.colors.with_opacity(0.1, ft.colors.OUTLINE)),
+                
+                # Theme setting
+                ft.Row([
+                    ft.Icon(ft.icons.PALETTE_ROUNDED, color=ft.colors.SECONDARY, size=20),
+                    ft.Text("Theme", weight=ft.FontWeight.W_500, expand=True),
+                    ft.Container(content=theme_dropdown, expand=2)
+                ], spacing=12, alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                
+                ft.Divider(height=20, color=ft.colors.with_opacity(0.1, ft.colors.OUTLINE)),
+                
+                # Data management
+                ft.Column([
+                    ft.Row([
+                        ft.Icon(ft.icons.STORAGE_ROUNDED, color=ft.colors.TERTIARY, size=20),
+                        ft.Text("Data Management", weight=ft.FontWeight.W_500)
+                    ], spacing=12),
+                    ft.Row([
+                        ft.ElevatedButton(
+                            "Import CSV", 
+                            icon=ft.icons.UPLOAD_FILE_ROUNDED, 
+                            on_click=self.open_import_dialog, 
+                            expand=True,
+                            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=12))
+                        ),
+                        ft.ElevatedButton(
+                            "Export CSV", 
+                            icon=ft.icons.DOWNLOAD_FOR_OFFLINE_ROUNDED, 
+                            on_click=self.open_export_dialog, 
+                            expand=True,
+                            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=12))
+                        )
+                    ], spacing=12)
+                ], spacing=12)
+            ], spacing=16),
+            padding=28,
+            border_radius=20,
+            border=ft.border.all(1, ft.colors.with_opacity(0.08, ft.colors.OUTLINE)),
+            bgcolor=ft.colors.SURFACE_VARIANT,
+            animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT)
+        )
+
+    def build_stats_view(self):
+        """Builds the enhanced statistics view with improved UI and animations."""
+        
+        # Initialize year filter if not exists
+        if not self.stats_year_filter.current:
+            self.stats_year_filter.current = ft.SegmentedButton(
+                segments=[ft.Segment(value="All Time", label=ft.Text("Overall"))] + 
+                         [ft.Segment(value=year, label=ft.Text(year)) for year in config.YEARS],
+                selected={"All Time"},
+                allow_empty_selection=False,
+                show_selected_icon=False,
+                on_change=self.on_stats_filter_change
+            )
+
+        # Initialize loading indicator and refresh button
+        if not self.stats_loading_indicator.current:
+            self.stats_loading_indicator.current = ft.ProgressRing(
+                visible=False,
+                width=20,
+                height=20,
+                stroke_width=2
+            )
+            
+        if not self.stats_refresh_button.current:
+            self.stats_refresh_button.current = ft.IconButton(
+                icon=ft.icons.REFRESH_ROUNDED,
+                tooltip="Refresh Statistics",
+                on_click=self.on_stats_refresh,
+                icon_size=20
+            )
+
         def on_stats_entry_type_filter_change():
             current_year_filter = list(self.stats_year_filter.current.selected)[0] if self.stats_year_filter.current.selected else "All Time"
             self.page.run_thread(self.calculate_and_update_stats_display, current_year_filter)
             database.set_setting_db(config.SAVED_STATS_VIEW_FILTER_KEY, ",".join(sorted(list(self.app_state["stats_view_selected_entry_types"]))))
 
-        stats_entry_type_filter_button = create_entry_type_filter_button_with_sheet(self.page, config.ALL_ENTRY_TYPES_STR, self.app_state["stats_view_selected_entry_types"], on_stats_entry_type_filter_change, button_label_prefix="Filter Stats")
-        
-        self.page.run_thread(self.calculate_and_update_stats_display, "All Time")
-        
-        def _create_breakdown_card(container_ref, chart_ref, legend_ref, title):
-            return ft.Card(ref=container_ref, visible=False, content=ft.Container(padding=20, content=ft.Row([ft.Column([ft.Text(title, style=ft.TextThemeStyle.TITLE_MEDIUM), ft.PieChart(ref=chart_ref, sections=[], center_space_radius=40)], expand=3, horizontal_alignment=ft.CrossAxisAlignment.CENTER), ft.Column([ft.Text("Top Entries", weight=ft.FontWeight.BOLD), ft.Column(ref=legend_ref, controls=[], spacing=8, scroll=ft.ScrollMode.ADAPTIVE)], expand=2, scroll=ft.ScrollMode.ADAPTIVE, height=250)], vertical_alignment=ft.CrossAxisAlignment.CENTER, height=260)))
+        stats_entry_type_filter_button = create_entry_type_filter_button_with_sheet(
+            self.page, config.ALL_ENTRY_TYPES_STR, self.app_state["stats_view_selected_entry_types"],
+            on_stats_entry_type_filter_change, button_label_prefix="Filter Stats"
+        )
 
-        theme_dropdown = ft.Dropdown(label="App Theme", options=[ft.dropdown.Option(name) for name in config.THEMES.keys()], value=database.get_setting_db("current_theme", config.DEFAULT_THEME_NAME), on_change=self.on_theme_change, width=250)
-        
-        return ft.Container(content=ft.Column(scroll=ft.ScrollMode.ADAPTIVE, spacing=20, controls=[
-            ft.Text("Statistics", style=ft.TextThemeStyle.HEADLINE_MEDIUM),
-            ft.Row([self.stats_year_filter.current, stats_entry_type_filter_button], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            ft.GridView(runs_count=4, max_extent=200, child_aspect_ratio=1.1, spacing=10, run_spacing=10, controls=[
-                ft.Card(content=ft.Container(padding=15, content=ft.Column([ft.Icon(ft.icons.MOVIE_FILTER_ROUNDED), ft.Text(ref=self.stats_total_javs_text, value="..."), ft.Text("Total Entries")], horizontal_alignment=ft.CrossAxisAlignment.CENTER))),
-                ft.Card(content=ft.Container(padding=15, content=ft.Column([ft.Icon(ft.icons.STAR_RATE_ROUNDED), ft.Text(ref=self.stats_avg_score_text, value="..."), ft.Text("Average Rating")], horizontal_alignment=ft.CrossAxisAlignment.CENTER))),
-                ft.Card(content=ft.Container(padding=15, content=ft.Column([ft.Icon(ft.icons.REPLAY_CIRCLE_FILLED_ROUNDED), ft.Text(ref=self.stats_total_rewatches_text, value="..."), ft.Text("Rewatches")], horizontal_alignment=ft.CrossAxisAlignment.CENTER))),
-                ft.Card(content=ft.Container(padding=15, content=ft.Column([ft.Icon(ft.icons.CATEGORY_ROUNDED), ft.Text(ref=self.stats_unique_genres_text, value="..."), ft.Text("Unique Genres")], horizontal_alignment=ft.CrossAxisAlignment.CENTER))),
-            ]),
-            ft.Card(content=ft.Container(padding=20, content=ft.Row([ft.Column([ft.Text("Genre Breakdown"), ft.PieChart(ref=self.genre_pie_chart, sections=[], center_space_radius=40)], expand=3, horizontal_alignment=ft.CrossAxisAlignment.CENTER), ft.Column([ft.Text("Genres"), ft.Column(ref=self.genre_legend, controls=[], scroll=ft.ScrollMode.ADAPTIVE)], expand=2, height=250, scroll=ft.ScrollMode.ADAPTIVE)], height=260))),
-            _create_breakdown_card(self.platform_chart_container, self.platform_pie_chart, self.platform_legend, "Platform Breakdown"),
-            _create_breakdown_card(self.author_chart_container, self.author_pie_chart, self.author_legend, "Author Breakdown"),
-            _create_breakdown_card(self.director_chart_container, self.director_pie_chart, self.director_legend, "Studio Breakdown"),
-            _create_breakdown_card(self.actress_chart_container, self.actress_pie_chart, self.actress_legend, "Actress Breakdown"),
-            _create_breakdown_card(self.version_chart_container, self.version_pie_chart, self.version_legend, "Version Breakdown"),
-            ft.Divider(),
-            ft.Text("Settings", style=ft.TextThemeStyle.TITLE_MEDIUM),
-            ft.Row([ft.Text("Theme:"), theme_dropdown]),
-            ft.Row([ft.ElevatedButton("Import from CSV", on_click=self.open_import_dialog), ft.ElevatedButton("Export to CSV", on_click=self.open_export_dialog)])
-        ]), padding=20, expand=True)
+        # Initial data load
+        self.page.run_thread(self.calculate_and_update_stats_display, "All Time")
+
+        # Enhanced stat cards with additional context
+        overview_stats = ft.Row(
+            spacing=24,
+            controls=[
+                self._create_enhanced_stat_card(
+                    ft.icons.MOVIE_FILTER_ROUNDED, 
+                    self.stats_total_javs_text, 
+                    "Total Entries", 
+                    ft.colors.BLUE_400,
+                    subtitle="All time collection"
+                ),
+                self._create_enhanced_stat_card(
+                    ft.icons.STAR_RATE_ROUNDED, 
+                    self.stats_avg_score_text, 
+                    "Average Rating", 
+                    ft.colors.AMBER_400,
+                    subtitle="Quality score"
+                ),
+                self._create_enhanced_stat_card(
+                    ft.icons.REPLAY_CIRCLE_FILLED_ROUNDED, 
+                    self.stats_total_rewatches_text, 
+                    "Total Rewatches", 
+                    ft.colors.GREEN_400,
+                    subtitle="Favorite content"
+                ),
+                self._create_enhanced_stat_card(
+                    ft.icons.CATEGORY_ROUNDED, 
+                    self.stats_unique_genres_text, 
+                    "Unique Genres", 
+                    ft.colors.PURPLE_400,
+                    subtitle="Content variety"
+                ),
+            ]
+        )
+
+        # Main Genre Breakdown Card (always visible)
+        genre_breakdown_card = ft.Container(
+            content=ft.Card(
+                elevation=2,
+                content=ft.Container(
+                    padding=28,
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Icon(ft.icons.PIE_CHART_ROUNDED, color=ft.colors.PRIMARY, size=24),
+                            ft.Text("Genre Distribution", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600)
+                        ], spacing=12),
+                        ft.Divider(height=20),
+                        ft.Row([
+                            ft.Column([
+                                ft.PieChart(
+                                    ref=self.genre_pie_chart, 
+                                    sections=[], 
+                                    center_space_radius=50,
+                                    animate=ft.Animation(500, ft.AnimationCurve.EASE_OUT)
+                                )
+                            ], expand=3, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            ft.Column([
+                                ft.Row([
+                                    ft.Icon(ft.icons.LIST_ROUNDED, size=16, color=ft.colors.PRIMARY),
+                                    ft.Text("Top Genres", weight=ft.FontWeight.BOLD, size=14)
+                                ], spacing=8),
+                                ft.Divider(height=10),
+                                ft.Container(
+                                    content=ft.Column(
+                                        ref=self.genre_legend, 
+                                        controls=[], 
+                                        scroll=ft.ScrollMode.ADAPTIVE
+                                    ),
+                                    height=250
+                                )
+                            ], expand=2, scroll=ft.ScrollMode.ADAPTIVE)
+                        ], height=280)
+                    ])
+                )
+            ),
+            border_radius=20
+        )
+
+        return ft.Container(
+            content=ft.Column(
+                scroll=ft.ScrollMode.ADAPTIVE,
+                spacing=32,
+                controls=[
+                    # Enhanced header with loading indicator
+                    ft.Row([
+                        ft.Icon(ft.icons.ANALYTICS_ROUNDED, size=36, color=ft.colors.PRIMARY),
+                        ft.Column([
+                            ft.Text("Statistics & Analytics", style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.W_600),
+                            ft.Text("View your collection insights", size=14, color=ft.colors.ON_SURFACE_VARIANT)
+                        ], spacing=4, expand=True),
+                        ft.Row([
+                            self.stats_loading_indicator.current,
+                            self.stats_refresh_button.current
+                        ], spacing=8)
+                    ], spacing=16, alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+
+                    # Enhanced filters section
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Column([
+                                ft.Text("Time Period", size=12, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500),
+                                self.stats_year_filter.current
+                            ], spacing=8),
+                            ft.Column([
+                                ft.Text("Content Filter", size=12, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500),
+                                stats_entry_type_filter_button
+                            ], spacing=8)
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        padding=20,
+                        border_radius=16,
+                        bgcolor=ft.colors.with_opacity(0.03, ft.colors.SURFACE_VARIANT),
+                        border=ft.border.all(1, ft.colors.with_opacity(0.08, ft.colors.OUTLINE))
+                    ),
+
+                    # Overview statistics
+                    overview_stats,
+
+                    # Main genre breakdown
+                    genre_breakdown_card,
+
+                    # Expandable breakdown cards
+                    ft.Column([
+                        ft.Text("Detailed Breakdowns", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.W_500),
+                        self._create_expandable_breakdown_card(
+                            self.platform_chart_container, self.platform_pie_chart, self.platform_legend,
+                            "Platform Distribution", ft.icons.DEVICES_ROUNDED, ft.colors.BLUE_400
+                        ),
+                        self._create_expandable_breakdown_card(
+                            self.author_chart_container, self.author_pie_chart, self.author_legend,
+                            "Author Analysis", ft.icons.PERSON_ROUNDED, ft.colors.GREEN_400
+                        ),
+                        self._create_expandable_breakdown_card(
+                            self.director_chart_container, self.director_pie_chart, self.director_legend,
+                            "Studio Breakdown", ft.icons.BUSINESS_ROUNDED, ft.colors.ORANGE_400
+                        ),
+                        self._create_expandable_breakdown_card(
+                            self.actress_chart_container, self.actress_pie_chart, self.actress_legend,
+                            "Actress Statistics", ft.icons.FACE_ROUNDED, ft.colors.PINK_400
+                        ),
+                        self._create_expandable_breakdown_card(
+                            self.version_chart_container, self.version_pie_chart, self.version_legend,
+                            "Version Analysis", ft.icons.LAYERS_ROUNDED, ft.colors.PURPLE_400
+                        ),
+                    ], spacing=8),
+
+                    ft.Divider(height=32, color=ft.colors.with_opacity(0.1, ft.colors.OUTLINE)),
+
+                    # Enhanced settings section
+                    self._create_settings_section()
+                ]
+            ),
+            padding=ft.padding.symmetric(horizontal=28, vertical=20),
+            expand=True,
+            animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT)
+        )
 
     def update_main_content(self, view_id):
         self.app_state["current_view"] = view_id
