@@ -82,6 +82,7 @@ def init_db():
             'entry_type': "ALTER TABLE javs ADD COLUMN entry_type TEXT",
             'platform': "ALTER TABLE javs ADD COLUMN platform TEXT",
             'author': "ALTER TABLE javs ADD COLUMN author TEXT",
+            'artist': "ALTER TABLE javs ADD COLUMN artist TEXT",
             'director': "ALTER TABLE javs ADD COLUMN director TEXT",
             'actress': "ALTER TABLE javs ADD COLUMN actress TEXT",
             'update_version': "ALTER TABLE javs ADD COLUMN update_version TEXT",
@@ -247,13 +248,14 @@ def add_jav_db(name, genre_str, completion_date_str, score, description, is_rewa
         
         platform_to_db = conditional_data.get("platform", "").strip() or None
         author_to_db = conditional_data.get("author", "").strip() or None
+        artist_to_db = conditional_data.get("artist", "").strip() or None
         director_to_db = conditional_data.get("director", "").strip() or None
         actress_to_db = conditional_data.get("actress", "").strip() or None
         version_to_db = conditional_data.get("update_version", "").strip() or None
 
         cursor.execute(
-            "INSERT INTO javs (name, genre, completion_date, review_score, description, year_completed, is_rewatch, own_local_copy, image_url, entry_type, platform, author, director, actress, update_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, own_local_copy_int, image_to_db, entry_type_to_db, platform_to_db, author_to_db, director_to_db, actress_to_db, version_to_db)
+            "INSERT INTO javs (name, genre, completion_date, review_score, description, year_completed, is_rewatch, own_local_copy, image_url, entry_type, platform, author, artist, director, actress, update_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, own_local_copy_int, image_to_db, entry_type_to_db, platform_to_db, author_to_db, artist_to_db, director_to_db, actress_to_db, version_to_db)
         )
         conn.commit()
         print(f"Entry added: {name}")
@@ -389,14 +391,15 @@ def update_jav_db(jav_id, name, genre_str, completion_date_str, score, descripti
         
         platform_to_db = conditional_data.get("platform", "").strip() or None
         author_to_db = conditional_data.get("author", "").strip() or None
+        artist_to_db = conditional_data.get("artist", "").strip() or None
         director_to_db = conditional_data.get("director", "").strip() or None
         actress_to_db = conditional_data.get("actress", "").strip() or None
         version_to_db = conditional_data.get("update_version", "").strip() or None
 
         cursor.execute("""
-            UPDATE javs SET name = ?, genre = ?, completion_date = ?, review_score = ?, description = ?, year_completed = ?, is_rewatch = ?, own_local_copy = ?, image_url = ?, entry_type = ?, platform = ?, author = ?, director = ?, actress = ?, update_version = ?
+            UPDATE javs SET name = ?, genre = ?, completion_date = ?, review_score = ?, description = ?, year_completed = ?, is_rewatch = ?, own_local_copy = ?, image_url = ?, entry_type = ?, platform = ?, author = ?, artist = ?, director = ?, actress = ?, update_version = ?
             WHERE id = ?
-        """, (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, own_local_copy_int, image_to_db, entry_type_to_db, platform_to_db, author_to_db, director_to_db, actress_to_db, version_to_db, jav_id))
+        """, (name, genre_to_db, completion_date_str, score_to_db, description_to_db, year_completed, rewatch_int, own_local_copy_int, image_to_db, entry_type_to_db, platform_to_db, author_to_db, artist_to_db, director_to_db, actress_to_db, version_to_db, jav_id))
         conn.commit()
         print(f"Entry updated: ID {jav_id} - {name}")
     except sqlite3.Error as e:

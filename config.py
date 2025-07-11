@@ -43,7 +43,7 @@ DEFAULT_THEME_NAME = "Deep Purple (Dark)"
 # --- Entry Type Definitions ---
 ENTRY_TYPE_OPTIONS = [
     ft.dropdown.Option("Movie"), ft.dropdown.Option("Show"), ft.dropdown.Option("Anime"),
-    ft.dropdown.Option("Book"),
+    ft.dropdown.Option("Book"), ft.dropdown.Option("Album"),
     ft.dropdown.Option("K-Drama"), ft.dropdown.Option("JAV"), ft.dropdown.Option("Hentai"),
     ft.dropdown.Option("Game"), ft.dropdown.Option("Adult Visual Novel"),
     ft.dropdown.Option("Other"),
@@ -60,6 +60,7 @@ SAVED_BACKLOG_VIEW_FILTER_KEY = "backlog_view_last_filter_v1" # <-- NEW
 SEARCH_FIELD_OPTIONS = [
     {"key": "name", "label": "Title/Name"},
     {"key": "author", "label": "Author"},
+    {"key": "artist", "label": "Artist/Group"},
     {"key": "platform", "label": "Platform"},
     {"key": "director", "label": "Studio"},
     {"key": "actress", "label": "Actress"},

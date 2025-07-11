@@ -52,6 +52,7 @@ def get_entry_type_icon_name(entry_type_str: str) -> str:
     if "show" in entry_type_str_lower: return ft.icons.TV_OUTLINED
     if "anime" in entry_type_str_lower: return ft.icons.ANIMATION_OUTLINED
     if "book" in entry_type_str_lower: return ft.icons.BOOK_OUTLINED
+    if "album" in entry_type_str_lower: return ft.icons.ALBUM_OUTLINED
     if "k-drama" in entry_type_str_lower: return ft.icons.LIVE_TV_OUTLINED
     if "jav" in entry_type_str_lower: return ft.icons.VIDEO_CAMERA_BACK_OUTLINED
     if "hentai" in entry_type_str_lower: return ft.icons.FILTER_FRAMES_OUTLINED
@@ -147,6 +148,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
             'K-Drama': {'bg': ft.colors.GREEN_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.GREEN_600, ft.colors.GREEN_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
             'Anime': {'bg': ft.colors.PINK_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.PINK_600, ft.colors.PINK_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
             'Book': {'bg': ft.colors.BROWN_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.BROWN_600, ft.colors.BROWN_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
+            'Album': {'bg': ft.colors.CYAN_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.CYAN_600, ft.colors.CYAN_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
             'Hentai': {'bg': ft.colors.DEEP_PURPLE_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.DEEP_PURPLE_600, ft.colors.DEEP_PURPLE_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
             'JAV': {'bg': ft.colors.INDIGO_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.INDIGO_600, ft.colors.INDIGO_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
             'Adult Visual Novel': {'bg': ft.colors.DEEP_ORANGE_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.DEEP_ORANGE_600, ft.colors.DEEP_ORANGE_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
@@ -233,6 +235,8 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     type_specific_info_container = ft.Row(wrap=True, spacing=6, run_spacing=6)
     if jav_item.get('platform'): type_specific_info_container.controls.append(create_info_chip(ft.icons.VIDEOGAME_ASSET_OUTLINED, jav_item['platform'], "Platform"))
     if jav_item.get('author'): type_specific_info_container.controls.append(create_info_chip(ft.icons.PERSON_OUTLINE, jav_item['author'], "Author"))
+    if jav_item.get('artist'):
+        for artist_name in utils.parse_multi_value_field(jav_item['artist']): type_specific_info_container.controls.append(create_info_chip(ft.icons.HEADSET_OUTLINED, artist_name, f"Artist: {artist_name}"))
     if jav_item.get('director'): type_specific_info_container.controls.append(create_info_chip(ft.icons.BUSINESS_OUTLINED, jav_item['director'], "Studio"))
     if jav_item.get('actress'):
         for actress_name in utils.parse_multi_value_field(jav_item['actress']): type_specific_info_container.controls.append(create_info_chip(ft.icons.WOMAN_2_OUTLINED, actress_name, f"Actress: {actress_name}"))
@@ -294,6 +298,8 @@ def update_conditional_fields(selected_type: str, container: ft.Column, initial_
         container.controls.append(ft.Dropdown(label="Platform", options=platform_options, hint_text="Select the game platform", value=initial_data.get('platform') if initial_data else None, data="platform"))
     elif selected_type == "Book":
         container.controls.append(ft.TextField(label="Author", capitalization=ft.TextCapitalization.WORDS, value=initial_data.get('author') if initial_data else None, data="author"))
+    elif selected_type == "Album":
+        container.controls.append(ft.TextField(label="Artist/Group", capitalization=ft.TextCapitalization.WORDS, value=initial_data.get('artist') if initial_data else None, data="artist"))
     elif selected_type == "JAV":
         container.controls.extend([ft.TextField(label="Studio", capitalization=ft.TextCapitalization.WORDS, value=initial_data.get('director') if initial_data else None, data="director"), ft.TextField(label="Actress(es)", capitalization=ft.TextCapitalization.WORDS, value=initial_data.get('actress') if initial_data else None, data="actress")])
     elif selected_type == "Adult Visual Novel":
@@ -545,6 +551,7 @@ def create_backlog_list_item(page, item_data, complete_callback, edit_callback, 
         "TV Show": [ft.colors.BLUE_600],
         "Game": [ft.colors.GREEN_600],
         "Book": [ft.colors.ORANGE_600],
+        "Album": [ft.colors.CYAN_600],
         "Anime": [ft.colors.PINK_600],
         "K-Drama": [ft.colors.LIGHT_GREEN_600],
         "Hentai": [ft.colors.DEEP_PURPLE_600],
@@ -773,6 +780,9 @@ class AppUI:
         self.author_chart_container = ft.Ref[ft.Container]()
         self.author_pie_chart = ft.Ref[ft.PieChart]()
         self.author_legend = ft.Ref[ft.Column]()
+        self.artist_chart_container = ft.Ref[ft.Container]()
+        self.artist_pie_chart = ft.Ref[ft.PieChart]()
+        self.artist_legend = ft.Ref[ft.Column]()
         self.director_chart_container = ft.Ref[ft.Container]()
         self.director_pie_chart = ft.Ref[ft.PieChart]()
         self.director_legend = ft.Ref[ft.Column]()
@@ -809,7 +819,7 @@ class AppUI:
             "stats_view_selected_entry_types": stats_view_selected_types,
             "search_view_selected_entry_types": search_view_selected_types,
             "backlog_view_selected_entry_types": backlog_view_selected_types,
-            "search_selected_fields": {"name", "author", "platform", "director", "actress", "update_version"},
+            "search_selected_fields": {"name", "author", "artist", "platform", "director", "actress", "update_version"},
             "current_search_term": "",
             "search_results": [],
         }
@@ -901,7 +911,7 @@ class AppUI:
             if not all_entries:
                 self.page.run_thread(self.show_export_summary, file_path, False, "No data to export.")
                 return
-            fieldnames = ["Name", "Genre", "Review_Score", "Completion_Date", "Description", "IsRewatch", "OwnLocalCopy", "EntryType", "ImageURL", "Platform", "Author", "Studio", "Actress", "UpdateVersion"]
+            fieldnames = ["Name", "Genre", "Review_Score", "Completion_Date", "Description", "IsRewatch", "OwnLocalCopy", "EntryType", "ImageURL", "Platform", "Author", "Artist", "Studio", "Actress", "UpdateVersion"]
             with open(file_path, 'w', newline='', encoding='utf-8-sig') as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                 writer.writeheader()
@@ -911,7 +921,7 @@ class AppUI:
                         "Completion_Date": entry.get('completion_date', ''), "Description": entry.get('description', ''),
                         "IsRewatch": bool(entry.get('is_rewatch')), "OwnLocalCopy": bool(entry.get('own_local_copy')),
                         "EntryType": entry.get('entry_type', ''), "ImageURL": entry.get('image_url', ''),
-                        "Platform": entry.get('platform', ''), "Author": entry.get('author', ''),
+                        "Platform": entry.get('platform', ''), "Author": entry.get('author', ''), "Artist": entry.get('artist', ''),
                         "Studio": entry.get('director', ''), "Actress": entry.get('actress', ''),
                         "UpdateVersion": entry.get('update_version', '')
                     })
@@ -933,8 +943,8 @@ class AppUI:
             self.show_snackbar(f"Export failed: {error_message}", color=ft.colors.ERROR_CONTAINER, duration=6000)
 
     def import_csv_data(self, file_path):
-        expected_headers_lower = ["name", "genre", "review_score", "completion_date", "description", "isrewatch", "ownlocalcopy", "entrytype", "imageurl", "platform", "author", "studio", "actress", "updateversion"]
-        header_map = {"name": "name", "genre": "genre_str", "review_score": "score", "completion_date": "completion_date_str", "description": "description", "isrewatch": "is_rewatch_csv", "ownlocalcopy": "own_local_copy_csv", "entrytype": "entry_type_csv", "imageurl": "image_url_csv", "platform": "platform_csv", "author": "author_csv", "studio": "director_csv", "actress": "actress_csv", "updateversion": "update_version_csv"}
+        expected_headers_lower = ["name", "genre", "review_score", "completion_date", "description", "isrewatch", "ownlocalcopy", "entrytype", "imageurl", "platform", "author", "artist", "studio", "actress", "updateversion"]
+        header_map = {"name": "name", "genre": "genre_str", "review_score": "score", "completion_date": "completion_date_str", "description": "description", "isrewatch": "is_rewatch_csv", "ownlocalcopy": "own_local_copy_csv", "entrytype": "entry_type_csv", "imageurl": "image_url_csv", "platform": "platform_csv", "author": "author_csv", "artist": "artist_csv", "studio": "director_csv", "actress": "actress_csv", "updateversion": "update_version_csv"}
         added_count, skipped_count = 0, 0
         error_messages, warning_messages = [], []
         try:
@@ -981,7 +991,7 @@ class AppUI:
                         own_local_copy = jav_data_for_db.get("own_local_copy_csv", "false").lower() in ['true', '1', 'yes', 't', 'y']
                         
                         if valid_row and not row_errors:
-                            database.add_jav_db(name_val, jav_data_for_db.get("genre_str"), db_date_str, score_int, jav_data_for_db.get("description"), is_rewatch, own_local_copy, jav_data_for_db.get("image_url_csv"), entry_type_from_csv, {"platform": jav_data_for_db.get("platform_csv"), "author": jav_data_for_db.get("author_csv"), "director": jav_data_for_db.get("director_csv"), "actress": jav_data_for_db.get("actress_csv"), "update_version": jav_data_for_db.get("update_version_csv")})
+                            database.add_jav_db(name_val, jav_data_for_db.get("genre_str"), db_date_str, score_int, jav_data_for_db.get("description"), is_rewatch, own_local_copy, jav_data_for_db.get("image_url_csv"), entry_type_from_csv, {"platform": jav_data_for_db.get("platform_csv"), "author": jav_data_for_db.get("author_csv"), "artist": jav_data_for_db.get("artist_csv"), "director": jav_data_for_db.get("director_csv"), "actress": jav_data_for_db.get("actress_csv"), "update_version": jav_data_for_db.get("update_version_csv")})
                             added_count += 1
                             if row_warnings: warning_messages.extend([f"Row {row_num} ('{name_val}'): {w}" for w in row_warnings])
                         else:
@@ -1770,12 +1780,14 @@ class AppUI:
         
         platforms = [jav['platform'] for jav in jav_data if jav.get('entry_type') == 'Game' and jav.get('platform')]
         authors = [author for jav in jav_data if jav.get('entry_type') == 'Book' and jav.get('author') for author in utils.parse_multi_value_field(jav['author'])]
+        artists = [artist for jav in jav_data if jav.get('entry_type') == 'Album' and jav.get('artist') for artist in utils.parse_multi_value_field(jav['artist'])]
         directors = [director for jav in jav_data if jav.get('entry_type') == 'JAV' and jav.get('director') for director in utils.parse_multi_value_field(jav['director'])]
         actresses = [actress for jav in jav_data if jav.get('entry_type') == 'JAV' and jav.get('actress') for actress in utils.parse_multi_value_field(jav['actress'])]
         versions = [jav['update_version'] for jav in jav_data if jav.get('entry_type') == 'Adult Visual Novel' and jav.get('update_version')]
 
         platform_pie_sections, platform_legend_items = utils._generate_pie_data_from_list(platforms, [ft.colors.BLUE_700, ft.colors.GREEN_700, ft.colors.RED_700, ft.colors.ORANGE_700])
         author_pie_sections, author_legend_items = utils._generate_pie_data_from_list(authors, [ft.colors.TEAL_400, ft.colors.AMBER_600])
+        artist_pie_sections, artist_legend_items = utils._generate_pie_data_from_list(artists, [ft.colors.CYAN_400, ft.colors.LIGHT_GREEN_500])
         director_pie_sections, director_legend_items = utils._generate_pie_data_from_list(directors, [ft.colors.LIGHT_BLUE_400, ft.colors.LIME_700])
         actress_pie_sections, actress_legend_items = utils._generate_pie_data_from_list(actresses, [ft.colors.DEEP_PURPLE_300, ft.colors.PINK_300])
         version_pie_sections, version_legend_items = utils._generate_pie_data_from_list(versions, [ft.colors.BROWN_400, ft.colors.BLUE_GREY_500])
@@ -1796,6 +1808,7 @@ class AppUI:
         for container, sections, legend, data, pie_data, legend_data in [
             (self.platform_chart_container, self.platform_pie_chart, self.platform_legend, platforms, platform_pie_sections, platform_legend_items),
             (self.author_chart_container, self.author_pie_chart, self.author_legend, authors, author_pie_sections, author_legend_items),
+            (self.artist_chart_container, self.artist_pie_chart, self.artist_legend, artists, artist_pie_sections, artist_legend_items),
             (self.director_chart_container, self.director_pie_chart, self.director_legend, directors, director_pie_sections, director_legend_items),
             (self.actress_chart_container, self.actress_pie_chart, self.actress_legend, actresses, actress_pie_sections, actress_legend_items),
             (self.version_chart_container, self.version_pie_chart, self.version_legend, versions, version_pie_sections, version_legend_items)
@@ -2223,6 +2236,10 @@ class AppUI:
                         self._create_expandable_breakdown_card(
                             self.author_chart_container, self.author_pie_chart, self.author_legend,
                             "Author Analysis", ft.icons.PERSON_ROUNDED, ft.colors.GREEN_400
+                        ),
+                        self._create_expandable_breakdown_card(
+                            self.artist_chart_container, self.artist_pie_chart, self.artist_legend,
+                            "Artist Analysis", ft.icons.HEADSET_ROUNDED, ft.colors.CYAN_400
                         ),
                         self._create_expandable_breakdown_card(
                             self.director_chart_container, self.director_pie_chart, self.director_legend,
