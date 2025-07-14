@@ -407,3 +407,221 @@ def update_jav_db(jav_id, name, genre_str, completion_date_str, score, descripti
     finally:
         if conn:
             conn.close()
+
+# --- Paginated Database Functions ---
+
+def get_javs_by_year_paginated_db(year, page=0, page_size=50):
+    """
+    Retrieves entries for a specific year with pagination.
+    Returns tuple of (entries_list, has_more_pages).
+    """
+    conn = None
+    javs = []
+    has_more = False
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Get one extra record to check if there are more pages
+        offset = page * page_size
+        limit = page_size + 1
+        
+        cursor.execute(
+            "SELECT * FROM javs WHERE year_completed = ? ORDER BY completion_date ASC, id ASC LIMIT ? OFFSET ?",
+            (year, limit, offset)
+        )
+        results = [dict(row) for row in cursor.fetchall()]
+        
+        # Check if we have more pages
+        if len(results) > page_size:
+            has_more = True
+            javs = results[:-1]  # Remove the extra record
+        else:
+            has_more = False
+            javs = results
+            
+    except sqlite3.Error as e:
+        print(f"Database Error getting paginated entries for year {year}: {e}")
+    finally:
+        if conn:
+            conn.close()
+    
+    return javs, has_more
+
+def search_javs_paginated_db(search_term, search_fields, entry_types=None, page=0, page_size=50):
+    """
+    Searches for entries with pagination based on a term, specific fields, and optional entry types.
+    Returns tuple of (entries_list, has_more_pages).
+    """
+    conn = None
+    javs = []
+    has_more = False
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        if not search_term or not search_term.strip():
+            return [], False
+        
+        search_term_lower = search_term.strip().lower()
+        
+        where_conditions = []
+        params = []
+        
+        valid_db_columns = {opt["key"] for opt in config.SEARCH_FIELD_OPTIONS}
+        
+        for field in search_fields:
+            if field in valid_db_columns:
+                where_conditions.append(f"LOWER(IFNULL({field}, '')) LIKE ?")
+                params.append(f"%{search_term_lower}%")
+        
+        if not where_conditions:
+            return [], False
+        
+        search_where = " OR ".join(where_conditions)
+        
+        if entry_types:
+            entry_type_placeholders = ",".join("?" * len(entry_types))
+            full_where = f"({search_where}) AND entry_type IN ({entry_type_placeholders})"
+            params.extend(entry_types)
+        else:
+            full_where = search_where
+        
+        # Get one extra record to check if there are more pages
+        offset = page * page_size
+        limit = page_size + 1
+        params.extend([limit, offset])
+        
+        query = f"SELECT * FROM javs WHERE {full_where} ORDER BY completion_date DESC, id DESC LIMIT ? OFFSET ?"
+        
+        cursor.execute(query, params)
+        results = [dict(row) for row in cursor.fetchall()]
+        
+        # Check if we have more pages
+        if len(results) > page_size:
+            has_more = True
+            javs = results[:-1]  # Remove the extra record
+        else:
+            has_more = False
+            javs = results
+        
+    except sqlite3.Error as e:
+        print(f"Database error during paginated search: {e}")
+        traceback.print_exc()
+    finally:
+        if conn:
+            conn.close()
+    
+    return javs, has_more
+
+def get_collection_stats_db():
+    """
+    Retrieves collection statistics for the home dashboard.
+    Returns dictionary with aggregated statistics.
+    """
+    conn = None
+    stats = {
+        "total_entries": 0,
+        "average_rating": 0.0,
+        "most_common_type": "N/A",
+        "most_productive_year": None,
+        "total_rated_entries": 0,
+        "featured_entry": None
+    }
+    
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Total entries
+        cursor.execute("SELECT COUNT(*) as total FROM javs")
+        stats["total_entries"] = cursor.fetchone()["total"]
+        
+        # Average rating (only for rated entries)
+        cursor.execute("SELECT AVG(review_score) as avg_rating, COUNT(*) as rated_count FROM javs WHERE review_score IS NOT NULL")
+        rating_result = cursor.fetchone()
+        if rating_result["avg_rating"] is not None:
+            stats["average_rating"] = round(rating_result["avg_rating"], 1)
+            stats["total_rated_entries"] = rating_result["rated_count"]
+        
+        # Most common entry type
+        cursor.execute("""
+            SELECT entry_type, COUNT(*) as count 
+            FROM javs 
+            WHERE entry_type IS NOT NULL 
+            GROUP BY entry_type 
+            ORDER BY count DESC 
+            LIMIT 1
+        """)
+        type_result = cursor.fetchone()
+        if type_result:
+            stats["most_common_type"] = type_result["entry_type"]
+        
+        # Most productive year
+        cursor.execute("""
+            SELECT year_completed, COUNT(*) as count 
+            FROM javs 
+            WHERE year_completed IS NOT NULL 
+            GROUP BY year_completed 
+            ORDER BY count DESC 
+            LIMIT 1
+        """)
+        year_result = cursor.fetchone()
+        if year_result:
+            stats["most_productive_year"] = year_result["year_completed"]
+        
+        # Featured entry (random high-rated or recent entry)
+        cursor.execute("""
+            SELECT * FROM javs 
+            WHERE review_score >= 8 OR completion_date >= date('now', '-30 days')
+            ORDER BY RANDOM() 
+            LIMIT 1
+        """)
+        featured_result = cursor.fetchone()
+        if featured_result:
+            stats["featured_entry"] = dict(featured_result)
+        else:
+            # Fallback to any random entry if no high-rated/recent entries
+            cursor.execute("SELECT * FROM javs ORDER BY RANDOM() LIMIT 1")
+            fallback_result = cursor.fetchone()
+            if fallback_result:
+                stats["featured_entry"] = dict(fallback_result)
+        
+    except sqlite3.Error as e:
+        print(f"Database error getting collection stats: {e}")
+        traceback.print_exc()
+    finally:
+        if conn:
+            conn.close()
+    
+    return stats
+
+def get_recent_entries_db(limit=6):
+    """
+    Retrieves the most recently completed entries.
+    Returns list of recent entries.
+    """
+    conn = None
+    entries = []
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT * FROM javs WHERE completion_date IS NOT NULL ORDER BY completion_date DESC, id DESC LIMIT ?",
+            (limit,)
+        )
+        entries = [dict(row) for row in cursor.fetchall()]
+        
+    except sqlite3.Error as e:
+        print(f"Database error getting recent entries: {e}")
+        traceback.print_exc()
+    finally:
+        if conn:
+            conn.close()
+    
+    return entries
