@@ -251,8 +251,10 @@ class InfiniteScrollContainer:
         Args:
             e: Scroll event containing scroll position information
         """
-        # Check if we're near the bottom of the scroll area
-        if e.pixels >= e.max_scroll_extent - 200:  # Load when 200px from bottom
+        # Check if we're near the bottom of the scroll area and not already loading
+        if (e.pixels >= e.max_scroll_extent - 200 and  # Load when 200px from bottom
+            not self.pagination_manager.loading and 
+            self.pagination_manager.has_more):
             self._load_more_content()
     
     def _load_more_content(self):
@@ -280,16 +282,19 @@ class InfiniteScrollContainer:
                     card = self.card_creator_func(entry)
                     grid_view.controls.append(card)
                 
-                # Update grid view
-                if grid_view.page:
-                    grid_view.update()
+                # Update grid view safely
+                try:
+                    if grid_view.page:
+                        grid_view.update()
+                except Exception as update_error:
+                    print(f"Error updating grid view: {update_error}")
             
             # Update no more content indicator
             self._update_no_more_content_indicator()
             
         except Exception as e:
             print(f"Error loading more content: {e}")
-            self._show_error(f"Failed to load more content: {str(e)}")
+            # Don't show error UI for loading more content, just log it
         finally:
             # Hide loading indicator
             self._show_loading_more_indicator(False)
@@ -299,7 +304,10 @@ class InfiniteScrollContainer:
         if self.loading_indicator_ref.current:
             self.loading_indicator_ref.current.visible = show
             if self.loading_indicator_ref.current.page:
-                self.loading_indicator_ref.current.update()
+                try:
+                    self.loading_indicator_ref.current.update()
+                except Exception as e:
+                    print(f"Error updating loading indicator: {e}")
     
     def _update_no_more_content_indicator(self):
         """Update the visibility of the no more content indicator."""
@@ -345,13 +353,18 @@ class InfiniteScrollContainer:
         else:
             self.grid_view.visible = True
         
-        if self.initial_loading_indicator.page:
-            self.initial_loading_indicator.update()
-            self.grid_view.update()
+        # Update components safely
+        try:
+            if self.initial_loading_indicator.page:
+                self.initial_loading_indicator.update()
+            if self.grid_view.page:
+                self.grid_view.update()
             if self.error_container.page:
                 self.error_container.update()
             if self.empty_state_container.page:
                 self.empty_state_container.update()
+        except Exception as e:
+            print(f"Error updating initial loading state: {e}")
     
     def _show_empty_state(self, show: bool):
         """Show or hide the empty state."""

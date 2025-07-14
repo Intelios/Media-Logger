@@ -1669,44 +1669,193 @@ class AppUI:
 
     def build_year_view(self, year_str):
         year_grid_view_ref = ft.Ref[ft.GridView]()
+        loading_indicator_ref = ft.Ref[ft.Container]()
+        
+        # Pagination state
+        current_page = [0]  # Use list to make it mutable in nested functions
+        has_more_pages = [True]
+        is_loading = [False]
+        
+        def load_year_page(page_num):
+            """Load a specific page of year entries."""
+            try:
+                javs, has_more = database.get_javs_by_year_paginated_db(int(year_str), page_num, 50)
+                filtered_javs = [jav for jav in javs if jav.get('entry_type') in self.app_state["year_view_selected_entry_types"]]
+                return filtered_javs, has_more
+            except Exception as e:
+                print(f"Error loading year page {page_num}: {e}")
+                return [], False
+        
         def refresh_view_content():
+            """Refresh the year view content by loading from the beginning."""
             grid_view = year_grid_view_ref.current
-            if not grid_view: return
+            if not grid_view:
+                return
+                
+            # Reset pagination state
+            current_page[0] = 0
+            has_more_pages[0] = True
+            is_loading[0] = False
+            
+            # Clear grid and load first page
             grid_view.controls.clear()
-            javs = database.get_javs_by_year_db(int(year_str))
-            filtered_javs = [jav for jav in javs if jav.get('entry_type') in self.app_state["year_view_selected_entry_types"]]
-            if not filtered_javs:
-                grid_view.controls.append(ft.Container(content=ft.Text(f"No entries for {year_str} match the selected filters.", italic=True, text_align=ft.TextAlign.CENTER, size=16), alignment=ft.alignment.center, padding=30, expand=True))
-            else:
-                for jav_item in filtered_javs:
-                    grid_view.controls.append(create_gallery_card(self.page, jav_item, delete_jav_action, open_edit_jav_dialog_wrapper, self.show_description_dialog))
-            if grid_view.page: grid_view.update()
+            load_next_page()
+        
+        def load_next_page():
+            """Load the next page of content."""
+            if is_loading[0] or not has_more_pages[0]:
+                return
+                
+            grid_view = year_grid_view_ref.current
+            loading_indicator = loading_indicator_ref.current
+            
+            if not grid_view:
+                return
+                
+            is_loading[0] = True
+            
+            # Show loading indicator
+            if loading_indicator:
+                loading_indicator.visible = True
+                if loading_indicator.page:
+                    loading_indicator.update()
+            
+            try:
+                # Load page data
+                entries, has_more = load_year_page(current_page[0])
+                has_more_pages[0] = has_more
+                
+                if not entries and current_page[0] == 0:
+                    # No entries found for first page
+                    grid_view.controls.append(
+                        ft.Container(
+                            content=ft.Text(
+                                f"No entries for {year_str} match the selected filters.", 
+                                italic=True, 
+                                text_align=ft.TextAlign.CENTER, 
+                                size=16
+                            ), 
+                            alignment=ft.alignment.center, 
+                            padding=30, 
+                            expand=True
+                        )
+                    )
+                else:
+                    # Add entries to grid
+                    for jav_item in entries:
+                        grid_view.controls.append(
+                            create_gallery_card(
+                                self.page, 
+                                jav_item, 
+                                delete_jav_action, 
+                                open_edit_jav_dialog_wrapper, 
+                                self.show_description_dialog
+                            )
+                        )
+                
+                current_page[0] += 1
+                
+                # Update grid
+                if grid_view.page:
+                    grid_view.update()
+                    
+            except Exception as e:
+                print(f"Error loading page: {e}")
+            finally:
+                is_loading[0] = False
+                # Hide loading indicator
+                if loading_indicator:
+                    loading_indicator.visible = False
+                    if loading_indicator.page:
+                        loading_indicator.update()
+        
+        def on_scroll(e):
+            """Handle scroll events to load more content."""
+            if (e.pixels >= e.max_scroll_extent - 200 and 
+                not is_loading[0] and 
+                has_more_pages[0]):
+                load_next_page()
 
         def on_year_view_filter_change():
+            """Handle filter changes by refreshing the view."""
             refresh_view_content()
             database.set_setting_db(config.SAVED_YEAR_VIEW_FILTER_KEY, ",".join(sorted(list(self.app_state["year_view_selected_entry_types"]))))
 
         def delete_jav_action(jav_id, jav_name):
+            """Handle deletion of an entry."""
             jav_to_delete = next((j for j in database.get_all_javs_db() if j['id'] == jav_id), None)
             database.delete_jav_db(jav_id)
             if jav_to_delete and jav_to_delete.get('image_url') and jav_to_delete['image_url'].startswith("images/"):
                 full_image_path = os.path.join(config.ASSETS_DIR, jav_to_delete['image_url'])
                 if os.path.exists(full_image_path):
-                    try: os.remove(full_image_path); self.show_snackbar(f"Deleted '{jav_name}' and its local image.")
-                    except OSError as e: self.show_snackbar(f"Deleted '{jav_name}', but failed to delete image: {e}", color=ft.colors.WARNING_CONTAINER)
-                else: self.show_snackbar(f"Deleted '{jav_name}'.")
-            else: self.show_snackbar(f"Deleted '{jav_name}'.")
+                    try: 
+                        os.remove(full_image_path)
+                        self.show_snackbar(f"Deleted '{jav_name}' and its local image.")
+                    except OSError as e: 
+                        self.show_snackbar(f"Deleted '{jav_name}', but failed to delete image: {e}", color=ft.colors.WARNING_CONTAINER)
+                else: 
+                    self.show_snackbar(f"Deleted '{jav_name}'.")
+            else: 
+                self.show_snackbar(f"Deleted '{jav_name}'.")
             refresh_view_content()
             current_stats_filter = list(self.stats_year_filter.current.selected)[0] if self.stats_year_filter.current and self.stats_year_filter.current.selected else "All Time"
             self.page.run_thread(self.calculate_and_update_stats_display, current_stats_filter)
 
         def open_edit_jav_dialog_wrapper(jav_item_data):
+            """Handle editing of an entry."""
             self.open_edit_jav_dialog(jav_item_data, refresh_view_content)
         
-        filter_button_ui = create_entry_type_filter_button_with_sheet(self.page, config.ALL_ENTRY_TYPES_STR, self.app_state["year_view_selected_entry_types"], on_year_view_filter_change, button_label_prefix="Filter Entries")
-        year_grid_view = ft.GridView(ref=year_grid_view_ref, expand=True, runs_count=5, max_extent=270, child_aspect_ratio=0.55, spacing=10, run_spacing=10, padding=10)
+        filter_button_ui = create_entry_type_filter_button_with_sheet(
+            self.page, 
+            config.ALL_ENTRY_TYPES_STR, 
+            self.app_state["year_view_selected_entry_types"], 
+            on_year_view_filter_change, 
+            button_label_prefix="Filter Entries"
+        )
+        
+        # Create grid view with scroll detection
+        year_grid_view = ft.GridView(
+            ref=year_grid_view_ref, 
+            expand=True, 
+            runs_count=5, 
+            max_extent=270, 
+            child_aspect_ratio=0.55, 
+            spacing=10, 
+            run_spacing=10, 
+            padding=10,
+            on_scroll=on_scroll
+        )
+        
+        # Loading indicator
+        loading_indicator = ft.Container(
+            ref=loading_indicator_ref,
+            content=ft.Row(
+                controls=[
+                    ft.ProgressRing(width=20, height=20, stroke_width=3),
+                    ft.Text("Loading more...", size=14, color=ft.colors.ON_SURFACE_VARIANT)
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=12
+            ),
+            padding=ft.padding.all(20),
+            visible=False
+        )
+        
+        # Load initial content
         refresh_view_content()
-        return ft.Column(expand=True, controls=[ft.Container(content=ft.Row([filter_button_ui], alignment=ft.MainAxisAlignment.END), padding=ft.padding.only(left=10, right=10, top=10, bottom=5)), year_grid_view])
+        
+        return ft.Column(
+            expand=True, 
+            controls=[
+                ft.Container(
+                    content=ft.Row([filter_button_ui], alignment=ft.MainAxisAlignment.END), 
+                    padding=ft.padding.only(left=10, right=10, top=10, bottom=5)
+                ), 
+                year_grid_view,
+                loading_indicator
+            ]
+        )
 
     def build_search_view(self):
         search_task = None

@@ -55,13 +55,18 @@
   - Add quick navigation buttons and prominent add entry action
   - _Requirements: 3.1, 4.1, 4.2_
 
-- [ ] 6. Update navigation system for Home as default
+- [X] 6. Update navigation system for Home as default
   - Modify NavigationRail to include Home destination as first item
   - Update app initialization to default to Home view instead of year view
   - Ensure navigation state persistence works with new Home view
   - _Requirements: 3.1_
 
-- [ ] 7. Integrate pagination into Year View
+- [x] 7. Integrate pagination into Year View
+
+
+
+
+
   - Replace existing get_javs_by_year_db calls with paginated version
   - Update year view UI to use InfiniteScrollContainer
   - Maintain existing filtering and sorting functionality
@@ -91,7 +96,12 @@
   - Add empty state messages for views with no content
   - _Requirements: 1.3, 1.4, 2.3, 2.4_
 
-- [ ] 12. Update configuration and constants
+- [x] 12. Update configuration and constants
+
+
+
+
+
   - Add pagination-related constants to config.py
   - Update navigation configuration for new Home view
   - Add settings for cache size and performance tuning
