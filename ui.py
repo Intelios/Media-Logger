@@ -814,7 +814,7 @@ class AppUI:
         backlog_view_selected_types = set(s_type for s_type in saved_backlog_filter_str.split(',')) if saved_backlog_filter_str is not None else set(config.ALL_ENTRY_TYPES_STR)
 
         self.app_state = {
-            "current_view": config.YEARS[0] if config.YEARS else "Stats",
+            "current_view": "Home",
             "year_view_selected_entry_types": year_view_selected_types,
             "stats_view_selected_entry_types": stats_view_selected_types,
             "search_view_selected_entry_types": search_view_selected_types,
@@ -2266,6 +2266,275 @@ class AppUI:
             animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT)
         )
 
+    def build_home_dashboard_view(self):
+        """Builds the Home Dashboard view with statistics cards and recent entries."""
+        
+        # Initialize dashboard stats calculator
+        from dashboard_stats import DashboardStatsCalculator
+        stats_calculator = DashboardStatsCalculator()
+        
+        # Get statistics and recent entries
+        collection_stats = stats_calculator.get_collection_statistics()
+        recent_entries = stats_calculator.get_recent_entries(limit=6)
+        featured_entry = stats_calculator.get_featured_entry()
+        
+        # Create welcome header
+        welcome_header = ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Icon(ft.icons.HOME_ROUNDED, size=40, color=ft.colors.PRIMARY),
+                    ft.Column([
+                        ft.Text("Welcome to Media Logger", style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.W_600),
+                        ft.Text("Your personal media collection dashboard", size=16, color=ft.colors.ON_SURFACE_VARIANT)
+                    ], spacing=4, expand=True)
+                ], spacing=16, alignment=ft.MainAxisAlignment.START),
+            ], spacing=8),
+            padding=ft.padding.symmetric(horizontal=28, vertical=20),
+            margin=ft.margin.only(bottom=20)
+        )
+        
+        # Create statistics cards
+        stats_cards = ft.Row(
+            spacing=20,
+            wrap=True,
+            controls=[
+                self._create_dashboard_stat_card(
+                    ft.icons.LIBRARY_BOOKS_ROUNDED,
+                    str(collection_stats["total_entries"]),
+                    "Total Entries",
+                    "Your complete collection",
+                    ft.colors.BLUE_400
+                ),
+                self._create_dashboard_stat_card(
+                    ft.icons.STAR_RATE_ROUNDED,
+                    collection_stats["average_rating_display"],
+                    "Average Rating",
+                    "Quality of your collection",
+                    ft.colors.AMBER_400
+                ),
+                self._create_dashboard_stat_card(
+                    ft.icons.CATEGORY_ROUNDED,
+                    collection_stats["most_common_type"] or "No entries",
+                    "Most Common Type",
+                    "Your preferred content",
+                    ft.colors.GREEN_400
+                ),
+                self._create_dashboard_stat_card(
+                    ft.icons.CALENDAR_TODAY_ROUNDED,
+                    collection_stats["most_productive_year_display"],
+                    "Most Productive Year",
+                    "Your peak activity",
+                    ft.colors.PURPLE_400
+                )
+            ]
+        )
+        
+        # Create featured entry section
+        featured_section = None
+        if featured_entry:
+            featured_section = ft.Container(
+                content=ft.Card(
+                    elevation=3,
+                    content=ft.Container(
+                        padding=24,
+                        content=ft.Column([
+                            ft.Row([
+                                ft.Icon(ft.icons.STAR_ROUNDED, color=ft.colors.AMBER_400, size=24),
+                                ft.Text("Featured Entry", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600)
+                            ], spacing=12),
+                            ft.Divider(height=16),
+                            ft.Row([
+                                ft.Container(
+                                    content=ft.Image(
+                                        src=featured_entry.get('image_url', config.DEFAULT_IMAGE_URL),
+                                        width=120,
+                                        height=80,
+                                        fit=ft.ImageFit.COVER,
+                                        border_radius=ft.border_radius.all(8)
+                                    ),
+                                    border_radius=ft.border_radius.all(8),
+                                    clip_behavior=ft.ClipBehavior.HARD_EDGE
+                                ),
+                                ft.Column([
+                                    ft.Text(featured_entry.get('name', 'Unknown'), 
+                                           style=ft.TextThemeStyle.TITLE_MEDIUM, 
+                                           weight=ft.FontWeight.W_600,
+                                           max_lines=2,
+                                           overflow=ft.TextOverflow.ELLIPSIS),
+                                    ft.Text(f"{featured_entry.get('entry_type', 'Media')} • {featured_entry.get('completion_date', 'N/A')}", 
+                                           color=ft.colors.ON_SURFACE_VARIANT),
+                                    ft.Row([
+                                        ft.Icon(ft.icons.STAR_ROUNDED, size=16, color=ft.colors.AMBER_400),
+                                        ft.Text(f"{featured_entry.get('review_score', 'N/A')}/10", 
+                                               weight=ft.FontWeight.W_500)
+                                    ], spacing=4) if featured_entry.get('review_score') else ft.Container()
+                                ], spacing=8, expand=True)
+                            ], spacing=16)
+                        ])
+                    )
+                ),
+                border_radius=16,
+                margin=ft.margin.only(bottom=24)
+            )
+        
+        # Create recent entries section
+        recent_entries_grid = ft.GridView(
+            expand=False,
+            runs_count=3,
+            max_extent=300,
+            child_aspect_ratio=0.8,
+            spacing=16,
+            run_spacing=16,
+            controls=[]
+        )
+        
+        # Define callback functions for recent entries
+        def delete_jav_action_home(jav_id, jav_name):
+            jav_to_delete = next((j for j in database.get_all_javs_db() if j['id'] == jav_id), None)
+            database.delete_jav_db(jav_id)
+            if jav_to_delete and jav_to_delete.get('image_url') and jav_to_delete['image_url'].startswith("images/"):
+                full_image_path = os.path.join(config.ASSETS_DIR, jav_to_delete['image_url'])
+                if os.path.exists(full_image_path):
+                    try: 
+                        os.remove(full_image_path)
+                        self.show_snackbar(f"Deleted '{jav_name}' and its local image.")
+                    except OSError as e: 
+                        self.show_snackbar(f"Deleted '{jav_name}', but failed to delete image: {e}", color=ft.colors.WARNING_CONTAINER)
+                else: 
+                    self.show_snackbar(f"Deleted '{jav_name}'.")
+            else: 
+                self.show_snackbar(f"Deleted '{jav_name}'.")
+            # Refresh the home dashboard
+            self.update_main_content("Home")
+            # Update stats
+            current_stats_filter = list(self.stats_year_filter.current.selected)[0] if self.stats_year_filter.current and self.stats_year_filter.current.selected else "All Time"
+            self.page.run_thread(self.calculate_and_update_stats_display, current_stats_filter)
+
+        def open_edit_jav_dialog_wrapper_home(jav_item_data):
+            def refresh_home_view():
+                self.update_main_content("Home")
+            self.open_edit_jav_dialog(jav_item_data, refresh_home_view)
+
+        # Add recent entries to grid
+        for entry in recent_entries:
+            card = create_gallery_card(
+                self.page, 
+                entry, 
+                delete_jav_action_home, 
+                open_edit_jav_dialog_wrapper_home, 
+                self.show_description_dialog
+            )
+            recent_entries_grid.controls.append(card)
+        
+        recent_entries_section = ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Icon(ft.icons.HISTORY_ROUNDED, color=ft.colors.PRIMARY, size=24),
+                    ft.Text("Recent Completions", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600)
+                ], spacing=12),
+                ft.Divider(height=16),
+                recent_entries_grid if recent_entries else ft.Container(
+                    content=ft.Column([
+                        ft.Icon(ft.icons.INBOX_ROUNDED, size=48, color=ft.colors.ON_SURFACE_VARIANT),
+                        ft.Text("No recent entries", style=ft.TextThemeStyle.BODY_LARGE, color=ft.colors.ON_SURFACE_VARIANT),
+                        ft.Text("Start adding entries to see them here", color=ft.colors.ON_SURFACE_VARIANT)
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                    padding=ft.padding.all(40),
+                    alignment=ft.alignment.center
+                )
+            ]),
+            margin=ft.margin.only(bottom=24)
+        )
+        
+        # Create quick navigation section
+        quick_nav_section = ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Icon(ft.icons.EXPLORE_ROUNDED, color=ft.colors.PRIMARY, size=24),
+                    ft.Text("Quick Navigation", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600)
+                ], spacing=12),
+                ft.Divider(height=16),
+                ft.Row([
+                    ft.ElevatedButton(
+                        content=ft.Row([
+                            ft.Icon(ft.icons.CALENDAR_MONTH_ROUNDED, size=20),
+                            ft.Text("Browse Years", weight=ft.FontWeight.W_500)
+                        ], spacing=8, tight=True),
+                        on_click=lambda _: self.update_main_content(config.YEARS[0]),
+                        style=ft.ButtonStyle(
+                            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                            shape=ft.RoundedRectangleBorder(radius=12)
+                        )
+                    ),
+                    ft.ElevatedButton(
+                        content=ft.Row([
+                            ft.Icon(ft.icons.SEARCH_ROUNDED, size=20),
+                            ft.Text("Search Collection", weight=ft.FontWeight.W_500)
+                        ], spacing=8, tight=True),
+                        on_click=lambda _: self.update_main_content("Search"),
+                        style=ft.ButtonStyle(
+                            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                            shape=ft.RoundedRectangleBorder(radius=12)
+                        )
+                    ),
+                    ft.ElevatedButton(
+                        content=ft.Row([
+                            ft.Icon(ft.icons.ANALYTICS_ROUNDED, size=20),
+                            ft.Text("View Statistics", weight=ft.FontWeight.W_500)
+                        ], spacing=8, tight=True),
+                        on_click=lambda _: self.update_main_content("Stats"),
+                        style=ft.ButtonStyle(
+                            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                            shape=ft.RoundedRectangleBorder(radius=12)
+                        )
+                    )
+                ], spacing=16, wrap=True)
+            ]),
+            margin=ft.margin.only(bottom=24)
+        )
+        
+        # Create main dashboard layout
+        dashboard_content = ft.Column(
+            scroll=ft.ScrollMode.ADAPTIVE,
+            spacing=24,
+            controls=[
+                welcome_header,
+                stats_cards,
+                featured_section if featured_section else ft.Container(),
+                recent_entries_section,
+                quick_nav_section
+            ]
+        )
+        
+        return ft.Container(
+            content=dashboard_content,
+            padding=ft.padding.symmetric(horizontal=28, vertical=20),
+            expand=True
+        )
+    
+    def _create_dashboard_stat_card(self, icon, value, title, subtitle, color):
+        """Create a statistics card for the dashboard."""
+        return ft.Container(
+            content=ft.Card(
+                elevation=2,
+                content=ft.Container(
+                    padding=20,
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Icon(icon, color=color, size=28),
+                            ft.Column([
+                                ft.Text(value, style=ft.TextThemeStyle.HEADLINE_SMALL, weight=ft.FontWeight.W_700),
+                                ft.Text(title, style=ft.TextThemeStyle.BODY_MEDIUM, weight=ft.FontWeight.W_500)
+                            ], spacing=2, expand=True)
+                        ], spacing=12, alignment=ft.MainAxisAlignment.START),
+                        ft.Text(subtitle, size=12, color=ft.colors.ON_SURFACE_VARIANT)
+                    ], spacing=8)
+                )
+            ),
+            width=280,
+            border_radius=16
+        )
+
     def update_main_content(self, view_id):
         self.app_state["current_view"] = view_id
         content_area = self.main_content_area.current
@@ -2273,7 +2542,11 @@ class AppUI:
         content_area.controls.clear()
         
         show_fab, fab_tooltip = False, "Add Entry"
-        if view_id in config.YEARS:
+        if view_id == "Home":
+            content = self.build_home_dashboard_view()
+            show_fab = True
+            fab_tooltip = "Add New Entry"
+        elif view_id in config.YEARS:
             content = self.build_year_view(view_id)
             show_fab = True
             fab_tooltip = f"Add Entry to {view_id}"
@@ -2302,13 +2575,15 @@ class AppUI:
 
     def navigation_change(self, e):
         idx = e.control.selected_index
-        if 0 <= idx < len(config.YEARS):
-            new_view = config.YEARS[idx]
-        elif idx == len(config.YEARS):
-            new_view = "Backlog"
+        if idx == 0:
+            new_view = "Home"
+        elif 1 <= idx <= len(config.YEARS):
+            new_view = config.YEARS[idx - 1]
         elif idx == len(config.YEARS) + 1:
-            new_view = "Stats"
+            new_view = "Backlog"
         elif idx == len(config.YEARS) + 2:
+            new_view = "Stats"
+        elif idx == len(config.YEARS) + 3:
             new_view = "Search"
         else:
             return
@@ -2333,20 +2608,23 @@ class AppUI:
         self.page.overlay.extend([self.image_file_picker, self.import_dialog, self.export_dialog])
         
         try:
-            initial_index = config.YEARS.index(self.app_state["current_view"])
+            initial_index = config.YEARS.index(self.app_state["current_view"]) + 1  # +1 because Home is now index 0
         except ValueError:
-            if self.app_state["current_view"] == "Backlog":
-                initial_index = len(config.YEARS)
-            elif self.app_state["current_view"] == "Stats":
-                initial_index = len(config.YEARS) + 1
-            elif self.app_state["current_view"] == "Search":
-                initial_index = len(config.YEARS) + 2
-            else:
+            if self.app_state["current_view"] == "Home":
                 initial_index = 0
+            elif self.app_state["current_view"] == "Backlog":
+                initial_index = len(config.YEARS) + 1
+            elif self.app_state["current_view"] == "Stats":
+                initial_index = len(config.YEARS) + 2
+            elif self.app_state["current_view"] == "Search":
+                initial_index = len(config.YEARS) + 3
+            else:
+                initial_index = 0  # Default to Home
         
         rail = ft.NavigationRail(
             selected_index=initial_index, label_type=ft.NavigationRailLabelType.ALL, min_width=100,
             destinations=(
+                [ft.NavigationRailDestination(icon=ft.icons.HOME_OUTLINED, selected_icon=ft.icons.HOME, label="Home")] +
                 [ft.NavigationRailDestination(icon=ft.icons.CALENDAR_MONTH_OUTLINED, selected_icon=ft.icons.CALENDAR_MONTH, label=y) for y in config.YEARS] +
                 [ft.NavigationRailDestination(icon=ft.icons.BOOKMARKS_OUTLINED, selected_icon=ft.icons.BOOKMARKS, label="Backlog")] +
                 [ft.NavigationRailDestination(icon=ft.icons.QUERY_STATS_OUTLINED, selected_icon=ft.icons.QUERY_STATS, label="Stats")] +
