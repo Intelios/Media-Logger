@@ -12,6 +12,16 @@ import config
 import database
 import utils
 
+# Import enhanced UI components
+from ui_enhanced import (
+    GlassmorphismStyles, 
+    ModernCardStyles, 
+    ColorThemeManager, 
+    AnimationHelpers, 
+    MicroInteractions, 
+    EnhancedComponentFactory
+)
+
 # --- UI Helper Functions (These are general and don't need to be in the class) ---
 
 def create_rating_badge(score):
@@ -2442,7 +2452,27 @@ class AppUI:
             margin=ft.margin.only(bottom=20)
         )
         
-        # Create statistics cards
+        # Get trend data for enhanced statistics
+        year_comparison = stats_calculator.get_year_comparison_stats()
+        
+        # Calculate trend data for total entries
+        total_entries_trend = None
+        if year_comparison.get("has_trend_data"):
+            trend_direction = year_comparison["trend_direction"]
+            trend_amount = year_comparison["trend_amount"]
+            if trend_direction != "stable":
+                total_entries_trend = {
+                    "value": trend_amount,
+                    "positive": trend_direction == "up"
+                }
+        
+        # Calculate completion rate progress
+        completion_rate = collection_stats.get("completion_rate", 0)
+        
+        # Get collection diversity info for progress values
+        diversity_info = collection_stats.get("collection_diversity", {})
+        
+        # Create enhanced statistics cards with glassmorphism design, animations, and trends
         stats_cards = ft.Row(
             spacing=20,
             wrap=True,
@@ -2452,28 +2482,32 @@ class AppUI:
                     str(collection_stats["total_entries"]),
                     "Total Entries",
                     "Your complete collection",
-                    ft.colors.BLUE_400
+                    ft.colors.BLUE_400,
+                    trend_data=total_entries_trend
                 ),
                 self._create_dashboard_stat_card(
                     ft.icons.STAR_RATE_ROUNDED,
                     collection_stats["average_rating_display"],
                     "Average Rating",
                     "Quality of your collection",
-                    ft.colors.AMBER_400
+                    ft.colors.AMBER_400,
+                    progress_value=collection_stats.get("average_rating", 0) * 10 if collection_stats.get("average_rating", 0) > 0 else None
                 ),
                 self._create_dashboard_stat_card(
                     ft.icons.CATEGORY_ROUNDED,
                     collection_stats["most_common_type"] or "No entries",
                     "Most Common Type",
                     "Your preferred content",
-                    ft.colors.GREEN_400
+                    ft.colors.GREEN_400,
+                    progress_value=diversity_info.get("score", 0)
                 ),
                 self._create_dashboard_stat_card(
                     ft.icons.CALENDAR_TODAY_ROUNDED,
                     collection_stats["most_productive_year_display"],
                     "Most Productive Year",
                     "Your peak activity",
-                    ft.colors.PURPLE_400
+                    ft.colors.PURPLE_400,
+                    progress_value=completion_rate
                 )
             ]
         )
@@ -2661,28 +2695,201 @@ class AppUI:
             expand=True
         )
     
-    def _create_dashboard_stat_card(self, icon, value, title, subtitle, color):
-        """Create a statistics card for the dashboard."""
-        return ft.Container(
-            content=ft.Card(
-                elevation=2,
-                content=ft.Container(
-                    padding=20,
-                    content=ft.Column([
-                        ft.Row([
-                            ft.Icon(icon, color=color, size=28),
-                            ft.Column([
-                                ft.Text(value, style=ft.TextThemeStyle.HEADLINE_SMALL, weight=ft.FontWeight.W_700),
-                                ft.Text(title, style=ft.TextThemeStyle.BODY_MEDIUM, weight=ft.FontWeight.W_500)
-                            ], spacing=2, expand=True)
-                        ], spacing=12, alignment=ft.MainAxisAlignment.START),
-                        ft.Text(subtitle, size=12, color=ft.colors.ON_SURFACE_VARIANT)
-                    ], spacing=8)
-                )
-            ),
-            width=280,
-            border_radius=16
+    def _create_dashboard_stat_card(self, icon, value, title, subtitle, color, trend_data=None, progress_value=None):
+        """Create a modern statistics card with glassmorphism effects, animated counters, and trend indicators."""
+        # Create glassmorphism background with subtle transparency
+        glass_bg = ft.colors.with_opacity(0.08, ft.colors.WHITE)
+        glass_border = ft.colors.with_opacity(0.15, ft.colors.WHITE)
+        
+        # Enhanced shadow for depth
+        enhanced_shadow = ft.BoxShadow(
+            spread_radius=0,
+            blur_radius=20,
+            color=ft.colors.with_opacity(0.12, ft.colors.BLACK),
+            offset=ft.Offset(0, 8)
         )
+        
+        # Create icon container with themed background and hover animation
+        icon_container = ft.Container(
+            content=ft.Icon(icon, size=24, color=color),
+            bgcolor=ft.colors.with_opacity(0.12, color),
+            padding=ft.padding.all(10),
+            border_radius=ft.border_radius.all(12),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.colors.with_opacity(0.2, color),
+                offset=ft.Offset(0, 2)
+            ),
+            animate=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
+        )
+        
+        # Enhanced typography with better hierarchy and animation
+        value_text = ft.Text(
+            value,
+            size=32,
+            weight=ft.FontWeight.BOLD,
+            color=ft.colors.ON_SURFACE,
+            style=ft.TextStyle(letter_spacing=0.5),
+            animate_opacity=ft.animation.Animation(duration=600, curve=ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.animation.Animation(duration=400, curve=ft.AnimationCurve.BOUNCE_OUT)
+        )
+        
+        title_text = ft.Text(
+            title,
+            size=16,
+            weight=ft.FontWeight.W_600,
+            color=ft.colors.ON_SURFACE,
+            style=ft.TextStyle(letter_spacing=0.2)
+        )
+        
+        subtitle_text = ft.Text(
+            subtitle,
+            size=13,
+            color=ft.colors.ON_SURFACE_VARIANT,
+            weight=ft.FontWeight.W_500,
+            style=ft.TextStyle(letter_spacing=0.1)
+        )
+        
+        # Create trend indicator if trend data is provided
+        trend_indicator = None
+        if trend_data:
+            trend_value = trend_data.get('value', 0)
+            trend_positive = trend_data.get('positive', True)
+            trend_color = ft.colors.GREEN_600 if trend_positive else ft.colors.RED_600
+            trend_bg_color = ft.colors.with_opacity(0.1, trend_color)
+            trend_icon = ft.icons.TRENDING_UP if trend_positive else ft.icons.TRENDING_DOWN
+            
+            trend_indicator = ft.Container(
+                content=ft.Row([
+                    ft.Icon(trend_icon, size=14, color=trend_color),
+                    ft.Text(
+                        f"{'+' if trend_positive else ''}{trend_value:.1f}%",
+                        size=12,
+                        color=trend_color,
+                        weight=ft.FontWeight.W_600
+                    )
+                ], spacing=4, tight=True),
+                bgcolor=trend_bg_color,
+                padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                border_radius=ft.border_radius.all(12),
+                border=ft.border.all(1, ft.colors.with_opacity(0.2, trend_color)),
+                animate_opacity=ft.animation.Animation(duration=800, curve=ft.AnimationCurve.EASE_OUT),
+                animate_scale=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
+            )
+        
+        # Create progress bar if progress value is provided
+        progress_bar = None
+        if progress_value is not None:
+            progress_bar = ft.Container(
+                content=ft.ProgressBar(
+                    value=progress_value / 100.0,
+                    color=color,
+                    bgcolor=ft.colors.with_opacity(0.1, color),
+                    height=6,
+                    border_radius=ft.border_radius.all(3)
+                ),
+                margin=ft.margin.only(top=8),
+                animate_opacity=ft.animation.Animation(duration=1000, curve=ft.AnimationCurve.EASE_OUT)
+            )
+        
+        # Create gradient overlay for modern look
+        gradient_overlay = ft.LinearGradient(
+            colors=[
+                ft.colors.with_opacity(0.05, color),
+                ft.colors.with_opacity(0.02, color)
+            ],
+            begin=ft.alignment.top_left,
+            end=ft.alignment.bottom_right
+        )
+        
+        # Build card content with conditional elements
+        content_elements = [
+            ft.Row([
+                icon_container,
+                ft.Column([
+                    value_text,
+                    title_text
+                ], spacing=4, expand=True, horizontal_alignment=ft.CrossAxisAlignment.START)
+            ], spacing=16, alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+        ]
+        
+        # Add progress bar if available
+        if progress_bar:
+            content_elements.append(progress_bar)
+        
+        # Add spacer
+        content_elements.append(ft.Container(height=8))
+        
+        # Bottom row with subtitle and trend
+        if trend_indicator:
+            bottom_row = ft.Row([
+                ft.Container(content=subtitle_text, expand=True),
+                trend_indicator
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+            content_elements.append(bottom_row)
+        else:
+            content_elements.append(subtitle_text)
+        
+        # Card content with improved spacing
+        card_content = ft.Column(content_elements, spacing=0, tight=True)
+        
+        # Create the glassmorphism card with hover animation
+        glass_card = ft.Card(
+            content=ft.Container(
+                content=card_content,
+                padding=ft.padding.all(24),
+                gradient=gradient_overlay,
+                border_radius=ft.border_radius.all(18),
+                animate=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT),
+                animate_scale=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
+            ),
+            elevation=6,
+            shape=ft.RoundedRectangleBorder(radius=18),
+            shadow_color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
+            surface_tint_color=ft.colors.SURFACE_TINT,
+            margin=ft.margin.all(0)
+        )
+        
+        # Wrap in container with glassmorphism effects and hover animation
+        card_container = ft.Container(
+            content=glass_card,
+            width=300,
+            bgcolor=glass_bg,
+            border=ft.border.all(1, glass_border),
+            border_radius=ft.border_radius.all(18),
+            shadow=enhanced_shadow,
+            margin=ft.margin.all(8),
+            padding=ft.padding.all(2),  # Small padding for glass border effect
+            animate=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
+        )
+        
+        # Add smooth hover effects
+        def on_hover(e):
+            if e.data == "true":  # Mouse enter
+                card_container.scale = 1.02
+                card_container.shadow = ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=25,
+                    color=ft.colors.with_opacity(0.18, ft.colors.BLACK),
+                    offset=ft.Offset(0, 10)
+                )
+                # Animate icon on hover
+                if icon_container:
+                    icon_container.bgcolor = ft.colors.with_opacity(0.18, color)
+                    icon_container.update()
+            else:  # Mouse leave
+                card_container.scale = 1.0
+                card_container.shadow = enhanced_shadow
+                # Reset icon background
+                if icon_container:
+                    icon_container.bgcolor = ft.colors.with_opacity(0.12, color)
+                    icon_container.update()
+            card_container.update()
+        
+        card_container.on_hover = on_hover
+        return card_container
 
     def update_main_content(self, view_id):
         self.app_state["current_view"] = view_id
