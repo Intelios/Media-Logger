@@ -688,6 +688,381 @@ class EnhancedComponentFactory:
             margin=ft.margin.only(bottom=24)
         )
 # ============================================================================
+# RESPONSIVE LAYOUT UTILITIES
+# ============================================================================
+
+class ResponsiveLayoutManager:
+    """Enhanced responsive layout utilities for adaptive grid systems with improved spacing and organization"""
+    
+    # Responsive breakpoints for different screen sizes
+    BREAKPOINTS = {
+        'xs': 0,      # Extra small devices (phones)
+        'sm': 576,    # Small devices (landscape phones)
+        'md': 768,    # Medium devices (tablets)
+        'lg': 992,    # Large devices (desktops)
+        'xl': 1200,   # Extra large devices (large desktops)
+        'xxl': 1400   # Extra extra large devices
+    }
+    
+    # Grid column configurations for different content types
+    GRID_CONFIGS = {
+        'stats_cards': {
+            'xs': 12,  # 1 column on mobile
+            'sm': 6,   # 2 columns on small screens
+            'md': 6,   # 2 columns on medium screens
+            'lg': 3,   # 4 columns on large screens
+            'xl': 3    # 4 columns on extra large screens
+        },
+        'media_cards': {
+            'xs': 12,  # 1 column on mobile
+            'sm': 6,   # 2 columns on small screens
+            'md': 4,   # 3 columns on medium screens
+            'lg': 3,   # 4 columns on large screens
+            'xl': 2    # 6 columns on extra large screens
+        },
+        'feature_cards': {
+            'xs': 12,  # Full width on mobile
+            'sm': 12,  # Full width on small screens
+            'md': 6,   # Half width on medium screens
+            'lg': 4,   # Third width on large screens
+            'xl': 3    # Quarter width on extra large screens
+        },
+        'navigation_buttons': {
+            'xs': 12,  # Full width on mobile
+            'sm': 6,   # Half width on small screens
+            'md': 4,   # Third width on medium screens
+            'lg': 4,   # Third width on large screens
+            'xl': 4    # Third width on extra large screens
+        }
+    }
+    
+    @staticmethod
+    def create_responsive_grid(
+        items: List[ft.Control],
+        grid_type: str = 'media_cards',
+        spacing: float = 20,
+        run_spacing: float = 20,
+        min_item_width: Optional[float] = None,
+        max_columns: Optional[int] = None
+    ) -> ft.ResponsiveRow:
+        """Create an enhanced responsive grid that adapts to screen size with improved spacing"""
+        
+        # Get grid configuration for the specified type
+        grid_config = ResponsiveLayoutManager.GRID_CONFIGS.get(
+            grid_type, 
+            ResponsiveLayoutManager.GRID_CONFIGS['media_cards']
+        )
+        
+        # Create responsive items with proper column configurations
+        responsive_items = []
+        
+        for item in items:
+            # Wrap each item in a responsive column with enhanced styling
+            responsive_item = ft.Column(
+                col=grid_config,
+                controls=[
+                    ft.Container(
+                        content=item,
+                        padding=ft.padding.all(4),  # Small padding for visual separation
+                        expand=True
+                    )
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH
+            )
+            responsive_items.append(responsive_item)
+        
+        return ft.ResponsiveRow(
+            controls=responsive_items,
+            spacing=spacing,
+            run_spacing=run_spacing,
+            vertical_alignment=ft.CrossAxisAlignment.START
+        )
+    
+    @staticmethod
+    def create_dashboard_section(
+        title: str,
+        content: ft.Control,
+        icon: Optional[str] = None,
+        spacing: float = 16,
+        padding: Optional[ft.Padding] = None,
+        section_type: str = 'default',
+        collapsible: bool = False
+    ) -> ft.Container:
+        """Create a well-organized dashboard section with enhanced styling and logical grouping"""
+        
+        if padding is None:
+            padding = ft.padding.symmetric(horizontal=2, vertical=4)
+        
+        # Create enhanced section header with better visual hierarchy
+        header_elements = []
+        
+        if icon:
+            # Enhanced icon with themed background
+            icon_container = ft.Container(
+                content=ft.Icon(icon, size=18, color=ft.colors.PRIMARY),
+                bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
+                padding=ft.padding.all(6),
+                border_radius=ft.border_radius.all(6)
+            )
+            header_elements.append(icon_container)
+        
+        # Enhanced title with better typography
+        title_text = ft.Text(
+            title,
+            size=18,
+            weight=ft.FontWeight.W_600,
+            color=ft.colors.ON_SURFACE
+        )
+        header_elements.append(title_text)
+        
+        # Add collapse/expand button if collapsible
+        if collapsible:
+            collapse_button = ft.IconButton(
+                icon=ft.icons.EXPAND_LESS,
+                icon_size=18,
+                tooltip="Collapse section"
+            )
+            header_elements.append(collapse_button)
+        
+        section_header = ft.Row(
+            header_elements,
+            spacing=10,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            alignment=ft.MainAxisAlignment.START
+        )
+        
+        # Create section content with optimized spacing
+        section_content = ft.Column([
+            section_header,
+            ft.Container(height=spacing * 0.6),  # Reduced proportional spacing
+            content
+        ], spacing=0, tight=True)
+        
+        # Apply section-specific styling
+        container_style = ResponsiveLayoutManager._get_section_style(section_type)
+        
+        return ft.Container(
+            content=section_content,
+            padding=padding,
+            margin=container_style.get('margin', ft.margin.only(bottom=24)),
+            bgcolor=container_style.get('bgcolor'),
+            border=container_style.get('border'),
+            border_radius=container_style.get('border_radius'),
+            shadow=container_style.get('shadow')
+        )
+    
+    @staticmethod
+    def _get_section_style(section_type: str) -> Dict[str, Any]:
+        """Get styling configuration for different section types"""
+        
+        styles = {
+            'default': {
+                'margin': ft.margin.only(bottom=20),
+                'bgcolor': None,
+                'border': None,
+                'border_radius': None,
+                'shadow': None
+            },
+            'highlighted': {
+                'margin': ft.margin.only(bottom=20),
+                'bgcolor': ft.colors.with_opacity(0.02, ft.colors.PRIMARY),
+                'border': ft.border.all(1, ft.colors.with_opacity(0.08, ft.colors.PRIMARY)),
+                'border_radius': ft.border_radius.all(8),
+                'shadow': ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=6,
+                    color=ft.colors.with_opacity(0.03, ft.colors.BLACK),
+                    offset=ft.Offset(0, 1)
+                )
+            },
+            'card': {
+                'margin': ft.margin.only(bottom=20),
+                'bgcolor': ft.colors.with_opacity(0.02, ft.colors.SURFACE_VARIANT),
+                'border': None,
+                'border_radius': ft.border_radius.all(12),
+                'shadow': ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=8,
+                    color=ft.colors.with_opacity(0.05, ft.colors.BLACK),
+                    offset=ft.Offset(0, 2)
+                )
+            }
+        }
+        
+        return styles.get(section_type, styles['default'])
+    
+    @staticmethod
+    def create_adaptive_layout(
+        sections: List[Dict[str, Any]],
+        main_spacing: float = 40,
+        section_spacing: float = 24,
+        max_width: Optional[float] = None,
+        center_content: bool = True
+    ) -> ft.Column:
+        """Create an enhanced adaptive layout with improved content organization and logical grouping"""
+        
+        layout_sections = []
+        
+        for i, section_config in enumerate(sections):
+            section_title = section_config.get('title', '')
+            section_content = section_config.get('content')
+            section_icon = section_config.get('icon')
+            section_full_width = section_config.get('full_width', False)
+            section_type = section_config.get('type', 'default')
+            section_collapsible = section_config.get('collapsible', False)
+            section_priority = section_config.get('priority', 'normal')  # 'high', 'normal', 'low'
+            
+            if section_content:
+                if section_full_width:
+                    # Full-width sections (like welcome header) with enhanced styling
+                    enhanced_content = ft.Container(
+                        content=section_content,
+                        margin=ft.margin.only(bottom=main_spacing * 0.75)
+                    )
+                    layout_sections.append(enhanced_content)
+                else:
+                    # Regular sections with enhanced headers and organization
+                    section = ResponsiveLayoutManager.create_dashboard_section(
+                        title=section_title,
+                        content=section_content,
+                        icon=section_icon,
+                        spacing=section_spacing,
+                        section_type=section_type,
+                        collapsible=section_collapsible
+                    )
+                    layout_sections.append(section)
+                
+                # Add priority-based spacing
+                if section_priority == 'high' and i < len(sections) - 1:
+                    layout_sections.append(ft.Container(height=main_spacing * 0.5))
+        
+        # Create the main layout column with enhanced properties
+        main_column = ft.Column(
+            controls=layout_sections,
+            spacing=main_spacing,
+            scroll=ft.ScrollMode.ADAPTIVE,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH if not center_content else ft.CrossAxisAlignment.CENTER
+        )
+        
+        # Wrap in container with max width if specified
+        if max_width:
+            return ft.Container(
+                content=main_column,
+                width=max_width,
+                alignment=ft.alignment.top_center
+            )
+        
+        return main_column
+    
+    @staticmethod
+    def create_two_column_layout(
+        left_content: ft.Control,
+        right_content: ft.Control,
+        left_flex: int = 2,
+        right_flex: int = 1,
+        spacing: float = 24,
+        responsive_breakpoint: str = 'md'
+    ) -> ft.ResponsiveRow:
+        """Create a responsive two-column layout that stacks on smaller screens"""
+        
+        # Define responsive behavior based on breakpoint
+        if responsive_breakpoint == 'lg':
+            left_col = {"xs": 12, "sm": 12, "md": 12, "lg": 8, "xl": 8}
+            right_col = {"xs": 12, "sm": 12, "md": 12, "lg": 4, "xl": 4}
+        elif responsive_breakpoint == 'md':
+            left_col = {"xs": 12, "sm": 12, "md": 8, "lg": 8, "xl": 8}
+            right_col = {"xs": 12, "sm": 12, "md": 4, "lg": 4, "xl": 4}
+        else:  # sm
+            left_col = {"xs": 12, "sm": 8, "md": 8, "lg": 8, "xl": 8}
+            right_col = {"xs": 12, "sm": 4, "md": 4, "lg": 4, "xl": 4}
+        
+        return ft.ResponsiveRow([
+            ft.Column(
+                col=left_col,
+                controls=[
+                    ft.Container(
+                        content=left_content,
+                        padding=ft.padding.only(right=spacing/2)
+                    )
+                ]
+            ),
+            ft.Column(
+                col=right_col,
+                controls=[
+                    ft.Container(
+                        content=right_content,
+                        padding=ft.padding.only(left=spacing/2)
+                    )
+                ]
+            )
+        ], spacing=spacing)
+    
+    @staticmethod
+    def create_masonry_layout(
+        items: List[ft.Control],
+        columns: int = 3,
+        spacing: float = 16
+    ) -> ft.Row:
+        """Create a masonry-style layout for items of varying heights"""
+        
+        # Initialize columns
+        column_controls = [[] for _ in range(columns)]
+        column_heights = [0] * columns
+        
+        # Distribute items to columns (simplified masonry algorithm)
+        for item in items:
+            # Find column with minimum height
+            min_height_index = column_heights.index(min(column_heights))
+            
+            # Add item to that column
+            column_controls[min_height_index].append(
+                ft.Container(
+                    content=item,
+                    margin=ft.margin.only(bottom=spacing)
+                )
+            )
+            
+            # Estimate height increase (simplified)
+            column_heights[min_height_index] += 200  # Estimated item height
+        
+        # Create column widgets
+        columns_widgets = []
+        for column_items in column_controls:
+            column_widget = ft.Column(
+                controls=column_items,
+                spacing=0,
+                expand=True
+            )
+            columns_widgets.append(column_widget)
+        
+        return ft.Row(
+            controls=columns_widgets,
+            spacing=spacing,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+            expand=True
+        )
+    
+    @staticmethod
+    def create_content_container(
+        content: ft.Control,
+        max_width: float = 1200,
+        padding: Optional[ft.Padding] = None,
+        center: bool = True
+    ) -> ft.Container:
+        """Create a content container with consistent max-width and centering"""
+        
+        if padding is None:
+            padding = ft.padding.symmetric(horizontal=24, vertical=20)
+        
+        return ft.Container(
+            content=content,
+            width=max_width,
+            padding=padding,
+            alignment=ft.alignment.top_center if center else None,
+            expand=True
+        )
+
+# ============================================================================
 # DASHBOARD-SPECIFIC ENHANCED UTILITIES
 # ============================================================================
 

@@ -19,7 +19,8 @@ from ui_enhanced import (
     ColorThemeManager, 
     AnimationHelpers, 
     MicroInteractions, 
-    EnhancedComponentFactory
+    EnhancedComponentFactory,
+    ResponsiveLayoutManager
 )
 
 # --- UI Helper Functions (These are general and don't need to be in the class) ---
@@ -2437,19 +2438,11 @@ class AppUI:
         recent_entries = stats_calculator.get_recent_entries(limit=6)
         featured_entry = stats_calculator.get_featured_entry()
         
-        # Create welcome header
-        welcome_header = ft.Container(
-            content=ft.Column([
-                ft.Row([
-                    ft.Icon(ft.icons.HOME_ROUNDED, size=40, color=ft.colors.PRIMARY),
-                    ft.Column([
-                        ft.Text("Welcome to Media Logger", style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.W_600),
-                        ft.Text("Your personal media collection dashboard", size=16, color=ft.colors.ON_SURFACE_VARIANT)
-                    ], spacing=4, expand=True)
-                ], spacing=16, alignment=ft.MainAxisAlignment.START),
-            ], spacing=8),
-            padding=ft.padding.symmetric(horizontal=28, vertical=20),
-            margin=ft.margin.only(bottom=20)
+        # Create enhanced welcome header with modern design
+        welcome_header = EnhancedComponentFactory.create_enhanced_welcome_header(
+            greeting_text="Welcome to Media Logger",
+            subtitle="Your personal media collection dashboard",
+            show_time_based_greeting=True
         )
         
         # Get trend data for enhanced statistics
@@ -2472,44 +2465,48 @@ class AppUI:
         # Get collection diversity info for progress values
         diversity_info = collection_stats.get("collection_diversity", {})
         
-        # Create enhanced statistics cards with glassmorphism design, animations, and trends
-        stats_cards = ft.Row(
-            spacing=20,
-            wrap=True,
-            controls=[
-                self._create_dashboard_stat_card(
-                    ft.icons.LIBRARY_BOOKS_ROUNDED,
-                    str(collection_stats["total_entries"]),
-                    "Total Entries",
-                    "Your complete collection",
-                    ft.colors.BLUE_400,
-                    trend_data=total_entries_trend
-                ),
-                self._create_dashboard_stat_card(
-                    ft.icons.STAR_RATE_ROUNDED,
-                    collection_stats["average_rating_display"],
-                    "Average Rating",
-                    "Quality of your collection",
-                    ft.colors.AMBER_400,
-                    progress_value=collection_stats.get("average_rating", 0) * 10 if collection_stats.get("average_rating", 0) > 0 else None
-                ),
-                self._create_dashboard_stat_card(
-                    ft.icons.CATEGORY_ROUNDED,
-                    collection_stats["most_common_type"] or "No entries",
-                    "Most Common Type",
-                    "Your preferred content",
-                    ft.colors.GREEN_400,
-                    progress_value=diversity_info.get("score", 0)
-                ),
-                self._create_dashboard_stat_card(
-                    ft.icons.CALENDAR_TODAY_ROUNDED,
-                    collection_stats["most_productive_year_display"],
-                    "Most Productive Year",
-                    "Your peak activity",
-                    ft.colors.PURPLE_400,
-                    progress_value=completion_rate
-                )
-            ]
+        # Create enhanced statistics cards with responsive grid layout
+        stat_cards_list = [
+            self._create_dashboard_stat_card(
+                ft.icons.LIBRARY_BOOKS_ROUNDED,
+                str(collection_stats["total_entries"]),
+                "Total Entries",
+                "Your complete collection",
+                ft.colors.BLUE_400,
+                trend_data=total_entries_trend
+            ),
+            self._create_dashboard_stat_card(
+                ft.icons.STAR_RATE_ROUNDED,
+                collection_stats["average_rating_display"],
+                "Average Rating",
+                "Quality of your collection",
+                ft.colors.AMBER_400,
+                progress_value=collection_stats.get("average_rating", 0) * 10 if collection_stats.get("average_rating", 0) > 0 else None
+            ),
+            self._create_dashboard_stat_card(
+                ft.icons.CATEGORY_ROUNDED,
+                collection_stats["most_common_type"] or "No entries",
+                "Most Common Type",
+                "Your preferred content",
+                ft.colors.GREEN_400,
+                progress_value=diversity_info.get("score", 0)
+            ),
+            self._create_dashboard_stat_card(
+                ft.icons.CALENDAR_TODAY_ROUNDED,
+                collection_stats["most_productive_year_display"],
+                "Most Productive Year",
+                "Your peak activity",
+                ft.colors.PURPLE_400,
+                progress_value=completion_rate
+            )
+        ]
+        
+        # Create enhanced responsive grid for statistics cards with improved spacing
+        stats_cards = ResponsiveLayoutManager.create_responsive_grid(
+            items=stat_cards_list,
+            grid_type='stats_cards',
+            spacing=24,
+            run_spacing=24
         )
         
         # Create featured entry section
@@ -2560,16 +2557,8 @@ class AppUI:
                 margin=ft.margin.only(bottom=24)
             )
         
-        # Create recent entries section
-        recent_entries_grid = ft.GridView(
-            expand=False,
-            runs_count=3,
-            max_extent=300,
-            child_aspect_ratio=0.8,
-            spacing=16,
-            run_spacing=16,
-            controls=[]
-        )
+        # Create recent entries section with enhanced responsive grid
+        recent_entries_cards = []
         
         # Define callback functions for recent entries
         def delete_jav_action_home(jav_id, jav_name):
@@ -2598,7 +2587,7 @@ class AppUI:
                 self.update_main_content("Home")
             self.open_edit_jav_dialog(jav_item_data, refresh_home_view)
 
-        # Add recent entries to grid
+        # Add recent entries to responsive grid
         for entry in recent_entries:
             card = create_gallery_card(
                 self.page, 
@@ -2607,92 +2596,134 @@ class AppUI:
                 open_edit_jav_dialog_wrapper_home, 
                 self.show_description_dialog
             )
-            recent_entries_grid.controls.append(card)
+            recent_entries_cards.append(card)
         
-        recent_entries_section = ft.Container(
+        # Create enhanced responsive grid for recent entries
+        recent_entries_grid = ResponsiveLayoutManager.create_responsive_grid(
+            items=recent_entries_cards,
+            grid_type='media_cards',
+            spacing=20,
+            run_spacing=20
+        ) if recent_entries_cards else None
+        
+        # Create enhanced recent entries section content
+        recent_entries_content = recent_entries_grid if recent_entries_grid else ft.Container(
             content=ft.Column([
-                ft.Row([
-                    ft.Icon(ft.icons.HISTORY_ROUNDED, color=ft.colors.PRIMARY, size=24),
-                    ft.Text("Recent Completions", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600)
-                ], spacing=12),
-                ft.Divider(height=16),
-                recent_entries_grid if recent_entries else ft.Container(
-                    content=ft.Column([
-                        ft.Icon(ft.icons.INBOX_ROUNDED, size=48, color=ft.colors.ON_SURFACE_VARIANT),
-                        ft.Text("No recent entries", style=ft.TextThemeStyle.BODY_LARGE, color=ft.colors.ON_SURFACE_VARIANT),
-                        ft.Text("Start adding entries to see them here", color=ft.colors.ON_SURFACE_VARIANT)
-                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
-                    padding=ft.padding.all(40),
-                    alignment=ft.alignment.center
+                ft.Icon(ft.icons.INBOX_ROUNDED, size=48, color=ft.colors.ON_SURFACE_VARIANT),
+                ft.Text("No recent entries", style=ft.TextThemeStyle.BODY_LARGE, color=ft.colors.ON_SURFACE_VARIANT),
+                ft.Text("Start adding entries to see them here", color=ft.colors.ON_SURFACE_VARIANT)
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+            padding=ft.padding.all(40),
+            alignment=ft.alignment.center
+        )
+        
+        # Create enhanced quick navigation buttons with responsive layout
+        nav_buttons = [
+            ft.ElevatedButton(
+                content=ft.Row([
+                    ft.Icon(ft.icons.CALENDAR_MONTH_ROUNDED, size=20),
+                    ft.Text("Browse Years", weight=ft.FontWeight.W_500)
+                ], spacing=8, tight=True),
+                on_click=lambda _: self.update_main_content(config.YEARS[0]),
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                    shape=ft.RoundedRectangleBorder(radius=12)
                 )
-            ]),
-            margin=ft.margin.only(bottom=24)
+            ),
+            ft.ElevatedButton(
+                content=ft.Row([
+                    ft.Icon(ft.icons.SEARCH_ROUNDED, size=20),
+                    ft.Text("Search Collection", weight=ft.FontWeight.W_500)
+                ], spacing=8, tight=True),
+                on_click=lambda _: self.update_main_content("Search"),
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                    shape=ft.RoundedRectangleBorder(radius=12)
+                )
+            ),
+            ft.ElevatedButton(
+                content=ft.Row([
+                    ft.Icon(ft.icons.ANALYTICS_ROUNDED, size=20),
+                    ft.Text("View Statistics", weight=ft.FontWeight.W_500)
+                ], spacing=8, tight=True),
+                on_click=lambda _: self.update_main_content("Stats"),
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                    shape=ft.RoundedRectangleBorder(radius=12)
+                )
+            )
+        ]
+        
+        # Create responsive grid for navigation buttons
+        quick_nav_grid = ResponsiveLayoutManager.create_responsive_grid(
+            items=nav_buttons,
+            grid_type='navigation_buttons',
+            spacing=16,
+            run_spacing=16
         )
         
-        # Create quick navigation section
-        quick_nav_section = ft.Container(
-            content=ft.Column([
-                ft.Row([
-                    ft.Icon(ft.icons.EXPLORE_ROUNDED, color=ft.colors.PRIMARY, size=24),
-                    ft.Text("Quick Navigation", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600)
-                ], spacing=12),
-                ft.Divider(height=16),
-                ft.Row([
-                    ft.ElevatedButton(
-                        content=ft.Row([
-                            ft.Icon(ft.icons.CALENDAR_MONTH_ROUNDED, size=20),
-                            ft.Text("Browse Years", weight=ft.FontWeight.W_500)
-                        ], spacing=8, tight=True),
-                        on_click=lambda _: self.update_main_content(config.YEARS[0]),
-                        style=ft.ButtonStyle(
-                            padding=ft.padding.symmetric(horizontal=20, vertical=12),
-                            shape=ft.RoundedRectangleBorder(radius=12)
-                        )
-                    ),
-                    ft.ElevatedButton(
-                        content=ft.Row([
-                            ft.Icon(ft.icons.SEARCH_ROUNDED, size=20),
-                            ft.Text("Search Collection", weight=ft.FontWeight.W_500)
-                        ], spacing=8, tight=True),
-                        on_click=lambda _: self.update_main_content("Search"),
-                        style=ft.ButtonStyle(
-                            padding=ft.padding.symmetric(horizontal=20, vertical=12),
-                            shape=ft.RoundedRectangleBorder(radius=12)
-                        )
-                    ),
-                    ft.ElevatedButton(
-                        content=ft.Row([
-                            ft.Icon(ft.icons.ANALYTICS_ROUNDED, size=20),
-                            ft.Text("View Statistics", weight=ft.FontWeight.W_500)
-                        ], spacing=8, tight=True),
-                        on_click=lambda _: self.update_main_content("Stats"),
-                        style=ft.ButtonStyle(
-                            padding=ft.padding.symmetric(horizontal=20, vertical=12),
-                            shape=ft.RoundedRectangleBorder(radius=12)
-                        )
-                    )
-                ], spacing=16, wrap=True)
-            ]),
-            margin=ft.margin.only(bottom=24)
+        quick_nav_content = quick_nav_grid
+        
+        # Create enhanced responsive dashboard layout with improved organization and logical grouping
+        dashboard_sections = [
+            {
+                'title': '',
+                'content': welcome_header,
+                'full_width': True,
+                'priority': 'high'
+            },
+            {
+                'title': 'Collection Overview',
+                'content': stats_cards,
+                'icon': ft.icons.ANALYTICS_OUTLINED,
+                'type': 'highlighted',
+                'priority': 'high'
+            }
+        ]
+        
+        # Add featured section if available
+        if featured_section:
+            dashboard_sections.append({
+                'title': 'Featured Entry',
+                'content': featured_section,
+                'icon': ft.icons.STAR_OUTLINED,
+                'type': 'card',
+                'priority': 'normal'
+            })
+        
+        # Add recent entries section with enhanced styling
+        dashboard_sections.append({
+            'title': 'Recent Completions',
+            'content': recent_entries_content,
+            'icon': ft.icons.HISTORY_OUTLINED,
+            'type': 'default',
+            'priority': 'normal'
+        })
+        
+        # Add quick navigation section with enhanced styling
+        dashboard_sections.append({
+            'title': 'Quick Actions',
+            'content': quick_nav_content,
+            'icon': ft.icons.DASHBOARD_OUTLINED,
+            'type': 'highlighted',
+            'priority': 'normal'
+        })
+        
+        # Create enhanced adaptive layout with improved content organization
+        dashboard_content = ResponsiveLayoutManager.create_adaptive_layout(
+            sections=dashboard_sections,
+            main_spacing=24,
+            section_spacing=16,
+            max_width=None,  # Allow full width utilization
+            center_content=False
         )
         
-        # Create main dashboard layout
-        dashboard_content = ft.Column(
-            scroll=ft.ScrollMode.ADAPTIVE,
-            spacing=24,
-            controls=[
-                welcome_header,
-                stats_cards,
-                featured_section if featured_section else ft.Container(),
-                recent_entries_section,
-                quick_nav_section
-            ]
-        )
-        
-        return ft.Container(
+        # Wrap in responsive content container optimized for full screen
+        return ResponsiveLayoutManager.create_content_container(
             content=dashboard_content,
-            padding=ft.padding.symmetric(horizontal=28, vertical=20),
-            expand=True
+            max_width=None,  # Remove max-width constraint for full screen
+            padding=ft.padding.symmetric(horizontal=16, vertical=16),
+            center=False
         )
     
     def _create_dashboard_stat_card(self, icon, value, title, subtitle, color, trend_data=None, progress_value=None):
