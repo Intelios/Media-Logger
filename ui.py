@@ -92,10 +92,6 @@ def get_genre_icon_name(genre_str: str) -> str:
     if "school" in genre_str_lower: return ft.icons.SCHOOL_OUTLINED
     return ft.icons.LOCAL_OFFER_OUTLINED
 
-# --- ui.py ---
-
-# ... (keep all the code before create_gallery_card as is) ...
-
 def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_desc_callback):
     name = jav_item.get('name', 'Unknown Title')
     db_image_value = jav_item.get('image_url')
@@ -1682,48 +1678,23 @@ class AppUI:
         year_grid_view_ref = ft.Ref[ft.GridView]()
         loading_indicator_ref = ft.Ref[ft.Container]()
         
-        # Pagination state
-        current_page = [0]  # Use list to make it mutable in nested functions
-        has_more_pages = [True]
-        is_loading = [False]
-        
-        def load_year_page(page_num):
-            """Load a specific page of year entries."""
+        def load_all_entries():
+            """Load all entries for the year at once."""
             try:
-                javs, has_more = database.get_javs_by_year_paginated_db(int(year_str), page_num, 50)
+                javs = database.get_javs_by_year_db(int(year_str))
                 filtered_javs = [jav for jav in javs if jav.get('entry_type') in self.app_state["year_view_selected_entry_types"]]
-                return filtered_javs, has_more
+                return filtered_javs
             except Exception as e:
-                print(f"Error loading year page {page_num}: {e}")
-                return [], False
+                print(f"Error loading entries for year {year_str}: {e}")
+                return []
         
         def refresh_view_content():
-            """Refresh the year view content by loading from the beginning."""
-            grid_view = year_grid_view_ref.current
-            if not grid_view:
-                return
-                
-            # Reset pagination state
-            current_page[0] = 0
-            has_more_pages[0] = True
-            is_loading[0] = False
-            
-            # Clear grid and load first page
-            grid_view.controls.clear()
-            load_next_page()
-        
-        def load_next_page():
-            """Load the next page of content."""
-            if is_loading[0] or not has_more_pages[0]:
-                return
-                
+            """Refresh the year view content by loading all entries."""
             grid_view = year_grid_view_ref.current
             loading_indicator = loading_indicator_ref.current
             
             if not grid_view:
                 return
-                
-            is_loading[0] = True
             
             # Show loading indicator
             if loading_indicator:
@@ -1732,12 +1703,12 @@ class AppUI:
                     loading_indicator.update()
             
             try:
-                # Load page data
-                entries, has_more = load_year_page(current_page[0])
-                has_more_pages[0] = has_more
+                # Clear grid and load all entries
+                grid_view.controls.clear()
+                entries = load_all_entries()
                 
-                if not entries and current_page[0] == 0:
-                    # No entries found for first page
+                if not entries:
+                    # No entries found
                     grid_view.controls.append(
                         ft.Container(
                             content=ft.Text(
@@ -1752,7 +1723,7 @@ class AppUI:
                         )
                     )
                 else:
-                    # Add entries to grid
+                    # Add all entries to grid
                     for jav_item in entries:
                         grid_view.controls.append(
                             create_gallery_card(
@@ -1764,28 +1735,18 @@ class AppUI:
                             )
                         )
                 
-                current_page[0] += 1
-                
                 # Update grid
                 if grid_view.page:
                     grid_view.update()
                     
             except Exception as e:
-                print(f"Error loading page: {e}")
+                print(f"Error loading entries: {e}")
             finally:
-                is_loading[0] = False
                 # Hide loading indicator
                 if loading_indicator:
                     loading_indicator.visible = False
                     if loading_indicator.page:
                         loading_indicator.update()
-        
-        def on_scroll(e):
-            """Handle scroll events to load more content."""
-            if (e.pixels >= e.max_scroll_extent - 200 and 
-                not is_loading[0] and 
-                has_more_pages[0]):
-                load_next_page()
 
         def on_year_view_filter_change():
             """Handle filter changes by refreshing the view."""
@@ -1824,7 +1785,7 @@ class AppUI:
             button_label_prefix="Filter Entries"
         )
         
-        # Create grid view with scroll detection
+        # Create grid view without scroll detection
         year_grid_view = ft.GridView(
             ref=year_grid_view_ref, 
             expand=True, 
@@ -1833,28 +1794,37 @@ class AppUI:
             child_aspect_ratio=0.55, 
             spacing=10, 
             run_spacing=10, 
-            padding=10,
-            on_scroll=on_scroll
+            padding=10
         )
         
-        # Loading indicator
+        # Loading indicator - simplified for single load pattern
         loading_indicator = ft.Container(
             ref=loading_indicator_ref,
             content=ft.Row(
                 controls=[
-                    ft.ProgressRing(width=20, height=20, stroke_width=3),
-                    ft.Text("Loading more...", size=14, color=ft.colors.ON_SURFACE_VARIANT)
+                    ft.ProgressRing(width=24, height=24, stroke_width=3),
+                    ft.Text("Loading entries...", size=14, color=ft.colors.ON_SURFACE_VARIANT)
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=12
             ),
-            padding=ft.padding.all(20),
-            visible=False
+            padding=ft.padding.all(30),
+            visible=False,
+            alignment=ft.alignment.center
         )
         
         # Load initial content
         refresh_view_content()
+        
+        # Create a stack to overlay loading indicator on the grid view
+        content_stack = ft.Stack(
+            expand=True,
+            controls=[
+                year_grid_view,
+                loading_indicator
+            ]
+        )
         
         return ft.Column(
             expand=True, 
@@ -1863,8 +1833,7 @@ class AppUI:
                     content=ft.Row([filter_button_ui], alignment=ft.MainAxisAlignment.END), 
                     padding=ft.padding.only(left=10, right=10, top=10, bottom=5)
                 ), 
-                year_grid_view,
-                loading_indicator
+                content_stack
             ]
         )
 
