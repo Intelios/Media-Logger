@@ -829,6 +829,8 @@ class AppUI:
             "search_selected_fields": {"name", "author", "artist", "platform", "director", "actress", "update_version"},
             "current_search_term": "",
             "search_results": [],
+            "awards_current_year": None,
+            "awards_selected_category": None,
         }
 
     def show_snackbar(self, message: str, color: str = None, duration: int = 4000):
@@ -2891,6 +2893,1585 @@ class AppUI:
         card_container.on_hover = on_hover
         return card_container
 
+    def show_awards_view(self):
+        """Display the Awards section with year selection interface."""
+        # Check if we're in summary mode
+        if self.app_state.get("awards_summary_mode") and self.app_state.get("awards_current_year"):
+            return self.show_awards_summary(self.app_state.get("awards_current_year"))
+        # Check if a specific year is selected
+        elif self.app_state.get("awards_current_year"):
+            return self.show_awards_categories()
+        else:
+            return self.build_awards_year_selection_ui()
+
+    def build_awards_year_selection_ui(self):
+        """Build the year selection interface for awards."""
+        # Get all available award years from database
+        award_years = database.get_all_award_years_db()
+        
+        # Create header section
+        header_section = ft.Column([
+            ft.Text(
+                "Awards",
+                size=32,
+                weight=ft.FontWeight.BOLD,
+                color=ft.colors.ON_SURFACE
+            ),
+            ft.Text(
+                "Create and manage yearly awards for your media collection",
+                size=16,
+                color=ft.colors.ON_SURFACE_VARIANT
+            ),
+            ft.Container(height=20)
+        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        
+        # Handle empty state or show year selection
+        if not award_years:
+            # Empty state - no award years exist yet
+            empty_state_content = ft.Column([
+                ft.Icon(
+                    ft.icons.EMOJI_EVENTS_OUTLINED,
+                    size=80,
+                    color=ft.colors.ON_SURFACE_VARIANT
+                ),
+                ft.Container(height=20),
+                ft.Text(
+                    "No Award Years Yet",
+                    size=24,
+                    weight=ft.FontWeight.BOLD,
+                    color=ft.colors.ON_SURFACE
+                ),
+                ft.Text(
+                    "Start creating awards for your media collection",
+                    size=16,
+                    color=ft.colors.ON_SURFACE_VARIANT,
+                    text_align=ft.TextAlign.CENTER
+                ),
+                ft.Container(height=30),
+                ft.ElevatedButton(
+                    text="Create Awards for 2025",
+                    icon=ft.icons.ADD,
+                    on_click=lambda _: self.select_awards_year(2025),
+                    style=ft.ButtonStyle(
+                        padding=ft.padding.symmetric(horizontal=24, vertical=12),
+                        shape=ft.RoundedRectangleBorder(radius=12)
+                    )
+                )
+            ], 
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=10
+            )
+            
+            content_section = ft.Container(
+                content=empty_state_content,
+                alignment=ft.alignment.center,
+                expand=True
+            )
+        else:
+            # Show available years with option to add current year (2025) if not present
+            year_cards = []
+            
+            # Add current year (2025) as first option if not already present
+            current_year = 2025
+            if current_year not in award_years:
+                year_cards.append(self.create_year_card(current_year, is_new=True))
+            
+            # Add existing years
+            for year in sorted(award_years, reverse=True):
+                year_cards.append(self.create_year_card(year, is_new=False))
+            
+            # Create responsive grid for year cards
+            year_grid = ResponsiveLayoutManager.create_responsive_grid(
+                items=year_cards,
+                grid_type='navigation_buttons',
+                spacing=20,
+                run_spacing=20
+            )
+            
+            content_section = ft.Column([
+                ft.Text(
+                    "Select Award Year",
+                    size=20,
+                    weight=ft.FontWeight.W_600,
+                    color=ft.colors.ON_SURFACE
+                ),
+                ft.Container(height=20),
+                ft.Container(
+                    content=year_grid,
+                    expand=True
+                )
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        
+        return ft.Container(
+            content=ft.Column([
+                header_section,
+                content_section
+            ], spacing=20),
+            padding=ft.padding.all(40),
+            expand=True
+        )
+
+    def create_year_card(self, year, is_new=False):
+        """Create a card for a specific award year."""
+        # Get category count for existing years
+        if not is_new:
+            categories = database.get_award_categories_by_year_db(year)
+            category_count = len(categories)
+            
+            # Count categories with winners
+            winners_count = 0
+            for category in categories:
+                winner = database.get_award_winner_db(category['id'])
+                if winner:
+                    winners_count += 1
+            
+            if category_count > 0:
+                subtitle = f"{category_count} categories • {winners_count} winners"
+                completion_percentage = (winners_count / category_count) * 100 if category_count > 0 else 0
+            else:
+                subtitle = "No categories yet"
+                completion_percentage = 0
+        else:
+            subtitle = "Start creating awards"
+            completion_percentage = 0
+            category_count = 0
+            winners_count = 0
+        
+        # Create progress indicator for existing years with categories
+        progress_indicator = ft.Container()
+        if not is_new and category_count > 0:
+            progress_color = ft.colors.GREEN_600 if completion_percentage == 100 else ft.colors.AMBER_600 if completion_percentage > 0 else ft.colors.BLUE_GREY_400
+            progress_indicator = ft.Container(
+                content=ft.Row([
+                    ft.Text(f"{completion_percentage:.0f}%", size=12, color=progress_color, weight=ft.FontWeight.W_600),
+                    ft.Container(
+                        content=ft.ProgressBar(
+                            value=completion_percentage / 100,
+                            color=progress_color,
+                            bgcolor=ft.colors.with_opacity(0.2, progress_color),
+                            height=4
+                        ),
+                        width=60
+                    )
+                ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                margin=ft.margin.only(top=8)
+            )
+        
+        # Create card content
+        card_content = ft.Column([
+            ft.Row([
+                ft.Icon(
+                    ft.icons.EMOJI_EVENTS if not is_new else ft.icons.ADD_CIRCLE_OUTLINE,
+                    size=32,
+                    color=ColorThemeManager.BRAND_COLORS['primary']
+                ),
+                ft.Column([
+                    ft.Text(
+                        str(year),
+                        size=24,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.colors.ON_SURFACE
+                    ),
+                    ft.Text(
+                        subtitle,
+                        size=14,
+                        color=ft.colors.ON_SURFACE_VARIANT
+                    ),
+                    progress_indicator
+                ], spacing=4, expand=True)
+            ], spacing=16, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            
+            ft.Container(height=10),
+            
+            # Action buttons
+            ft.Row([
+                # Summary button for existing years with categories
+                ft.TextButton(
+                    text="Summary",
+                    icon=ft.icons.VISIBILITY,
+                    on_click=lambda _, y=year: self.navigate_to_awards_summary(y),
+                    style=ft.ButtonStyle(
+                        color=ft.colors.ON_SURFACE_VARIANT
+                    )
+                ) if not is_new and category_count > 0 else ft.Container(),
+                
+                ft.Container(expand=True),
+                
+                ft.TextButton(
+                    text="Manage" if not is_new else "Create",
+                    icon=ft.icons.EDIT if not is_new else ft.icons.ADD,
+                    on_click=lambda _, y=year: self.select_awards_year(y),
+                    style=ft.ButtonStyle(
+                        color=ColorThemeManager.BRAND_COLORS['primary']
+                    )
+                )
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+        ], spacing=8)
+        
+        # Create hover animation container
+        hover_card = AnimationHelpers.create_hover_animation_container(
+            content=card_content,
+            hover_elevation=8.0,
+            normal_elevation=4.0,
+            hover_scale=1.02,
+            border_radius=16.0,
+            padding=ft.padding.all(20)
+        )
+        
+        return ft.Card(
+            content=hover_card,
+            elevation=4,
+            shape=ft.RoundedRectangleBorder(radius=16),
+            surface_tint_color=ft.colors.SURFACE_TINT
+        )
+
+    def select_awards_year(self, year):
+        """Select a specific year for awards management."""
+        self.app_state["awards_current_year"] = year
+        self.app_state["awards_selected_category"] = None
+        
+        # Refresh the awards view to show categories for the selected year
+        self.update_main_content("Awards")
+    
+    def show_awards_summary(self, year):
+        """Display a comprehensive awards summary view for a specific year."""
+        # Get categories and their winners for the year
+        categories = database.get_award_categories_by_year_db(year)
+        
+        # Create header with back button and summary title
+        header = ft.Row([
+            ft.IconButton(
+                icon=ft.icons.ARROW_BACK,
+                on_click=lambda _: self.back_to_year_selection(),
+                tooltip="Back to awards"
+            ),
+            ft.Text(
+                f"{year} Awards Summary",
+                size=28,
+                weight=ft.FontWeight.BOLD,
+                color=ft.colors.ON_SURFACE
+            ),
+            ft.Container(expand=True),  # Spacer
+            ft.ElevatedButton(
+                text="Edit Awards",
+                icon=ft.icons.EDIT,
+                on_click=lambda _: self.show_awards_for_year(year),
+                style=ft.ButtonStyle(
+                    bgcolor=ft.colors.PRIMARY,
+                    color=ft.colors.ON_PRIMARY,
+                    padding=ft.padding.symmetric(horizontal=20, vertical=12)
+                )
+            )
+        ], vertical_alignment=ft.CrossAxisAlignment.CENTER)
+        
+        if not categories:
+            # Empty state
+            empty_state = ft.Container(
+                content=ft.Column([
+                    ft.Icon(
+                        ft.icons.EMOJI_EVENTS_OUTLINED,
+                        size=80,
+                        color=ft.colors.ON_SURFACE_VARIANT
+                    ),
+                    ft.Container(height=20),
+                    ft.Text(
+                        f"No awards for {year}",
+                        size=24,
+                        weight=ft.FontWeight.W_500,
+                        color=ft.colors.ON_SURFACE
+                    ),
+                    ft.Container(height=10),
+                    ft.Text(
+                        f"Create award categories for {year} to see them here",
+                        size=16,
+                        color=ft.colors.ON_SURFACE_VARIANT,
+                        text_align=ft.TextAlign.CENTER
+                    )
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                alignment=ft.alignment.center,
+                expand=True
+            )
+            
+            content = ft.Column([
+                header,
+                ft.Container(height=40),
+                empty_state
+            ])
+        else:
+            # Create summary cards
+            summary_cards = []
+            categories_with_winners = 0
+            
+            for category in categories:
+                winner = database.get_award_winner_with_media_db(category['id'])
+                if winner:
+                    categories_with_winners += 1
+                
+                summary_card = self.build_awards_summary_card(category, winner)
+                summary_cards.append(summary_card)
+            
+            # Create stats header
+            stats_header = ft.Container(
+                content=ft.Row([
+                    ft.Column([
+                        ft.Text(
+                            str(len(categories)),
+                            size=32,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.colors.PRIMARY
+                        ),
+                        ft.Text(
+                            "Categories",
+                            size=14,
+                            color=ft.colors.ON_SURFACE_VARIANT
+                        )
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    
+                    ft.Container(width=40),
+                    
+                    ft.Column([
+                        ft.Text(
+                            str(categories_with_winners),
+                            size=32,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.colors.AMBER_600
+                        ),
+                        ft.Text(
+                            "Winners",
+                            size=14,
+                            color=ft.colors.ON_SURFACE_VARIANT
+                        )
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    
+                    ft.Container(width=40),
+                    
+                    ft.Column([
+                        ft.Text(
+                            f"{(categories_with_winners/len(categories)*100):.0f}%" if categories else "0%",
+                            size=32,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.colors.GREEN_600
+                        ),
+                        ft.Text(
+                            "Complete",
+                            size=14,
+                            color=ft.colors.ON_SURFACE_VARIANT
+                        )
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+                ], alignment=ft.MainAxisAlignment.CENTER),
+                bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                padding=ft.padding.all(24),
+                border_radius=ft.border_radius.all(16),
+                margin=ft.margin.only(bottom=24)
+            )
+            
+            # Create awards grid
+            awards_grid = ft.Column(
+                controls=summary_cards,
+                spacing=16
+            )
+            
+            content = ft.Column([
+                header,
+                ft.Container(height=30),
+                stats_header,
+                awards_grid
+            ], scroll=ft.ScrollMode.AUTO)
+        
+        return ft.Container(
+            content=content,
+            padding=ft.padding.all(40),
+            expand=True
+        )
+    
+    def build_awards_summary_card(self, category, winner):
+        """Build a summary card for displaying award category and winner in summary view."""
+        category_name = category['name']
+        has_winner = winner is not None
+        
+        if has_winner:
+            # Winner details
+            media_name = winner.get('media_name', 'Unknown')
+            entry_type = winner.get('entry_type', 'Media')
+            score = winner.get('review_score')
+            completion_date = winner.get('completion_date')
+            image_url = winner.get('image_url')
+            
+            # Format completion date
+            display_date = 'N/A'
+            if completion_date:
+                try:
+                    from datetime import datetime
+                    date_obj = datetime.strptime(completion_date, '%Y-%m-%d')
+                    display_date = date_obj.strftime('%b %Y')
+                except ValueError:
+                    display_date = completion_date
+            
+            # Get image source
+            image_src = config.DEFAULT_IMAGE_URL
+            if image_url:
+                if image_url.lower().startswith(("http://", "https://")):
+                    image_src = image_url
+                else:
+                    full_local_path = os.path.join(config.ASSETS_DIR, image_url)
+                    if os.path.exists(full_local_path):
+                        image_src = image_url
+            
+            # Create rating display
+            rating_display = ft.Container()
+            if score is not None:
+                try:
+                    score_val = float(score)
+                    if score_val >= 9:
+                        color = ft.colors.GREEN_600
+                    elif score_val >= 7:
+                        color = ft.colors.BLUE_600
+                    elif score_val >= 5:
+                        color = ft.colors.ORANGE_600
+                    else:
+                        color = ft.colors.RED_600
+                    
+                    rating_display = ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.icons.STAR, size=16, color=color),
+                            ft.Text(f"{score_val:.1f}", size=14, color=color, weight=ft.FontWeight.W_600)
+                        ], spacing=4, tight=True),
+                        bgcolor=ft.colors.with_opacity(0.1, color),
+                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                        border_radius=ft.border_radius.all(12),
+                        border=ft.border.all(1, ft.colors.with_opacity(0.3, color))
+                    )
+                except (ValueError, TypeError):
+                    pass
+            
+            # Entry type styling
+            entry_type_colors = {
+                'Game': ft.colors.BLUE_600,
+                'Movie': ft.colors.RED_600,
+                'Show': ft.colors.PURPLE_600,
+                'K-Drama': ft.colors.GREEN_600,
+                'Anime': ft.colors.PINK_600,
+                'Book': ft.colors.BROWN_600,
+                'Album': ft.colors.CYAN_600,
+                'Hentai': ft.colors.DEEP_PURPLE_600,
+                'JAV': ft.colors.INDIGO_600,
+                'Adult Visual Novel': ft.colors.DEEP_ORANGE_600,
+                'Other': ft.colors.BLUE_GREY_600
+            }
+            
+            type_color = entry_type_colors.get(entry_type, entry_type_colors['Other'])
+            
+            # Winner content
+            winner_content = ft.Row([
+                # Winner image
+                ft.Container(
+                    content=ft.Image(
+                        src=image_src,
+                        width=80,
+                        height=120,
+                        fit=ft.ImageFit.COVER,
+                        error_content=ft.Container(
+                            content=ft.Icon(ft.icons.BROKEN_IMAGE, size=30, color=ft.colors.ON_SURFACE_VARIANT),
+                            width=80,
+                            height=120,
+                            bgcolor=ft.colors.SURFACE_VARIANT,
+                            alignment=ft.alignment.center
+                        )
+                    ),
+                    border_radius=ft.border_radius.all(12),
+                    clip_behavior=ft.ClipBehavior.HARD_EDGE
+                ),
+                
+                ft.Container(width=20),
+                
+                # Winner details
+                ft.Column([
+                    ft.Text(
+                        media_name,
+                        size=20,
+                        weight=ft.FontWeight.W_600,
+                        color=ft.colors.ON_SURFACE,
+                        max_lines=2,
+                        overflow=ft.TextOverflow.ELLIPSIS
+                    ),
+                    
+                    ft.Container(height=8),
+                    
+                    # Entry type and rating
+                    ft.Row([
+                        ft.Container(
+                            content=ft.Text(
+                                entry_type,
+                                size=12,
+                                color=ft.colors.WHITE,
+                                weight=ft.FontWeight.W_500
+                            ),
+                            bgcolor=type_color,
+                            padding=ft.padding.symmetric(horizontal=10, vertical=4),
+                            border_radius=ft.border_radius.all(12)
+                        ),
+                        rating_display
+                    ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    
+                    ft.Container(height=8),
+                    
+                    ft.Text(
+                        f"Completed: {display_date}",
+                        size=14,
+                        color=ft.colors.ON_SURFACE_VARIANT
+                    )
+                ], spacing=0, tight=True, expand=True)
+            ], vertical_alignment=ft.CrossAxisAlignment.START)
+            
+            status_color = ft.colors.AMBER_600
+            status_bg = ft.colors.with_opacity(0.05, ft.colors.AMBER_600)
+            border_color = ft.colors.with_opacity(0.3, ft.colors.AMBER_600)
+        else:
+            # No winner content
+            winner_content = ft.Row([
+                ft.Container(
+                    content=ft.Icon(
+                        ft.icons.EMOJI_EVENTS_OUTLINED,
+                        size=40,
+                        color=ft.colors.ON_SURFACE_VARIANT
+                    ),
+                    width=80,
+                    height=120,
+                    bgcolor=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE),
+                    border_radius=ft.border_radius.all(12),
+                    alignment=ft.alignment.center
+                ),
+                
+                ft.Container(width=20),
+                
+                ft.Column([
+                    ft.Text(
+                        "No winner selected",
+                        size=18,
+                        weight=ft.FontWeight.W_500,
+                        color=ft.colors.ON_SURFACE_VARIANT,
+                        italic=True
+                    ),
+                    ft.Container(height=8),
+                    ft.Text(
+                        "This category is waiting for a winner",
+                        size=14,
+                        color=ft.colors.ON_SURFACE_VARIANT
+                    )
+                ], spacing=0, tight=True, expand=True)
+            ], vertical_alignment=ft.CrossAxisAlignment.CENTER)
+            
+            status_color = ft.colors.ON_SURFACE_VARIANT
+            status_bg = ft.colors.with_opacity(0.02, ft.colors.ON_SURFACE)
+            border_color = ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE)
+        
+        # Create card content
+        card_content = ft.Container(
+            content=ft.Column([
+                # Category header with trophy icon
+                ft.Row([
+                    ft.Icon(
+                        ft.icons.EMOJI_EVENTS if has_winner else ft.icons.EMOJI_EVENTS_OUTLINED,
+                        size=24,
+                        color=status_color
+                    ),
+                    ft.Container(width=12),
+                    ft.Text(
+                        category_name,
+                        size=22,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.colors.ON_SURFACE,
+                        expand=True
+                    )
+                ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                
+                ft.Container(height=20),
+                
+                # Winner content
+                winner_content
+            ], spacing=0),
+            padding=ft.padding.all(24),
+            bgcolor=status_bg,
+            border_radius=ft.border_radius.all(16),
+            border=ft.border.all(1, border_color)
+        )
+        
+        return ft.Card(
+            content=card_content,
+            elevation=2,
+            margin=ft.margin.all(4),
+            shape=ft.RoundedRectangleBorder(radius=16),
+            surface_tint_color=ft.colors.SURFACE_TINT
+        )
+    
+    def show_awards_for_year(self, year):
+        """Navigate to awards categories view for a specific year."""
+        self.app_state["awards_current_year"] = year
+        self.app_state["awards_summary_mode"] = False
+        self.update_main_content("Awards")
+    
+    def navigate_to_awards_summary(self, year):
+        """Navigate to awards summary view for a specific year."""
+        self.app_state["awards_current_year"] = year
+        self.app_state["awards_summary_mode"] = True
+        self.update_main_content("Awards")
+
+    def show_awards_categories(self):
+        """Display award categories for the selected year."""
+        current_year = self.app_state.get("awards_current_year")
+        if not current_year:
+            return self.build_awards_year_selection_ui()
+        
+        # Get categories for the current year
+        categories = database.get_award_categories_by_year_db(current_year)
+        
+        # Create header with back button, summary button, and add category button
+        header = ft.Row([
+            ft.IconButton(
+                icon=ft.icons.ARROW_BACK,
+                on_click=lambda _: self.back_to_year_selection(),
+                tooltip="Back to year selection"
+            ),
+            ft.Text(
+                f"Awards {current_year}",
+                size=28,
+                weight=ft.FontWeight.BOLD,
+                color=ft.colors.ON_SURFACE
+            ),
+            ft.Container(expand=True),  # Spacer
+            ft.OutlinedButton(
+                text="View Summary",
+                icon=ft.icons.VISIBILITY,
+                on_click=lambda _: self.navigate_to_awards_summary(current_year),
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=16, vertical=12)
+                )
+            ) if categories else ft.Container(),
+            ft.Container(width=12) if categories else ft.Container(),
+            ft.ElevatedButton(
+                text="Add Category",
+                icon=ft.icons.ADD,
+                on_click=lambda _: self.open_add_category_dialog(),
+                style=ft.ButtonStyle(
+                    bgcolor=ft.colors.PRIMARY,
+                    color=ft.colors.ON_PRIMARY,
+                    padding=ft.padding.symmetric(horizontal=20, vertical=12)
+                )
+            )
+        ], vertical_alignment=ft.CrossAxisAlignment.CENTER)
+        
+        # Create categories grid or empty state
+        if categories:
+            category_cards = []
+            for category in categories:
+                # Get winner information for this category
+                winner = database.get_award_winner_with_media_db(category['id'])
+                category_card = self.build_category_card(category, winner)
+                category_cards.append(category_card)
+            
+            # Create responsive grid for category cards
+            categories_grid = ft.ResponsiveRow(
+                controls=[
+                    ft.Column(
+                        col={"sm": 12, "md": 6, "lg": 4, "xl": 3},
+                        controls=[card]
+                    ) for card in category_cards
+                ],
+                spacing=20,
+                run_spacing=20
+            )
+            
+            content = ft.Column([
+                header,
+                ft.Container(height=30),
+                categories_grid
+            ], scroll=ft.ScrollMode.AUTO)
+        else:
+            # Empty state
+            empty_state = ft.Container(
+                content=ft.Column([
+                    ft.Icon(
+                        ft.icons.EMOJI_EVENTS_OUTLINED,
+                        size=80,
+                        color=ft.colors.ON_SURFACE_VARIANT
+                    ),
+                    ft.Container(height=20),
+                    ft.Text(
+                        "No award categories yet",
+                        size=24,
+                        weight=ft.FontWeight.W_500,
+                        color=ft.colors.ON_SURFACE
+                    ),
+                    ft.Container(height=10),
+                    ft.Text(
+                        f"Create your first award category for {current_year}",
+                        size=16,
+                        color=ft.colors.ON_SURFACE_VARIANT,
+                        text_align=ft.TextAlign.CENTER
+                    ),
+                    ft.Container(height=30),
+                    ft.ElevatedButton(
+                        text="Add First Category",
+                        icon=ft.icons.ADD,
+                        on_click=lambda _: self.open_add_category_dialog(),
+                        style=ft.ButtonStyle(
+                            bgcolor=ft.colors.PRIMARY,
+                            color=ft.colors.ON_PRIMARY,
+                            padding=ft.padding.symmetric(horizontal=24, vertical=16)
+                        )
+                    )
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                alignment=ft.alignment.center,
+                expand=True
+            )
+            
+            content = ft.Column([
+                header,
+                ft.Container(height=40),
+                empty_state
+            ])
+        
+        return ft.Container(
+            content=content,
+            padding=ft.padding.all(40),
+            expand=True
+        )
+
+    def build_category_card(self, category, winner):
+        """Build a card for displaying an award category with winner status."""
+        category_name = category['name']
+        category_id = category['id']
+        has_winner = winner is not None
+        
+        # Create winner display or placeholder
+        if has_winner:
+            # Enhanced winner display with media details
+            media_name = winner.get('media_name', 'Unknown')
+            entry_type = winner.get('entry_type', 'Media')
+            score = winner.get('review_score')
+            completion_date = winner.get('completion_date')
+            image_url = winner.get('image_url')
+            
+            # Format completion date
+            display_date = 'N/A'
+            if completion_date:
+                try:
+                    from datetime import datetime
+                    date_obj = datetime.strptime(completion_date, '%Y-%m-%d')
+                    display_date = date_obj.strftime('%b %Y')
+                except ValueError:
+                    display_date = completion_date
+            
+            # Create rating display
+            rating_display = ft.Container()
+            if score is not None:
+                try:
+                    score_val = float(score)
+                    if score_val >= 9:
+                        color = ft.colors.GREEN_600
+                    elif score_val >= 7:
+                        color = ft.colors.BLUE_600
+                    elif score_val >= 5:
+                        color = ft.colors.ORANGE_600
+                    else:
+                        color = ft.colors.RED_600
+                    
+                    rating_display = ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.icons.STAR, size=12, color=color),
+                            ft.Text(f"{score_val:.1f}", size=11, color=color, weight=ft.FontWeight.W_600)
+                        ], spacing=2, tight=True),
+                        bgcolor=ft.colors.with_opacity(0.1, color),
+                        padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                        border_radius=ft.border_radius.all(8),
+                        border=ft.border.all(1, ft.colors.with_opacity(0.3, color))
+                    )
+                except (ValueError, TypeError):
+                    pass
+            
+            # Entry type styling
+            entry_type_colors = {
+                'Game': ft.colors.BLUE_600,
+                'Movie': ft.colors.RED_600,
+                'Show': ft.colors.PURPLE_600,
+                'K-Drama': ft.colors.GREEN_600,
+                'Anime': ft.colors.PINK_600,
+                'Book': ft.colors.BROWN_600,
+                'Album': ft.colors.CYAN_600,
+                'Hentai': ft.colors.DEEP_PURPLE_600,
+                'JAV': ft.colors.INDIGO_600,
+                'Adult Visual Novel': ft.colors.DEEP_ORANGE_600,
+                'Other': ft.colors.BLUE_GREY_600
+            }
+            
+            type_color = entry_type_colors.get(entry_type, entry_type_colors['Other'])
+            
+            # Get image source
+            image_src = config.DEFAULT_IMAGE_URL
+            if image_url:
+                if image_url.lower().startswith(("http://", "https://")):
+                    image_src = image_url
+                else:
+                    full_local_path = os.path.join(config.ASSETS_DIR, image_url)
+                    if os.path.exists(full_local_path):
+                        image_src = image_url
+            
+            winner_info = ft.Column([
+                # Winner status header
+                ft.Row([
+                    ft.Icon(ft.icons.EMOJI_EVENTS, size=20, color=ft.colors.AMBER_600),
+                    ft.Text("Winner Selected", size=14, weight=ft.FontWeight.W_500, color=ft.colors.AMBER_600)
+                ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                
+                ft.Container(height=12),
+                
+                # Winner details with image
+                ft.Row([
+                    # Winner image
+                    ft.Container(
+                        content=ft.Image(
+                            src=image_src,
+                            width=50,
+                            height=70,
+                            fit=ft.ImageFit.COVER,
+                            error_content=ft.Container(
+                                content=ft.Icon(ft.icons.BROKEN_IMAGE, size=20, color=ft.colors.ON_SURFACE_VARIANT),
+                                width=50,
+                                height=70,
+                                bgcolor=ft.colors.SURFACE_VARIANT,
+                                alignment=ft.alignment.center
+                            )
+                        ),
+                        border_radius=ft.border_radius.all(8),
+                        clip_behavior=ft.ClipBehavior.HARD_EDGE
+                    ),
+                    
+                    ft.Container(width=12),
+                    
+                    # Winner info
+                    ft.Column([
+                        ft.Text(
+                            media_name,
+                            size=16,
+                            weight=ft.FontWeight.W_600,
+                            color=ft.colors.ON_SURFACE,
+                            max_lines=2,
+                            overflow=ft.TextOverflow.ELLIPSIS
+                        ),
+                        
+                        ft.Container(height=4),
+                        
+                        # Entry type and rating
+                        ft.Row([
+                            ft.Container(
+                                content=ft.Text(
+                                    entry_type,
+                                    size=10,
+                                    color=ft.colors.WHITE,
+                                    weight=ft.FontWeight.W_500
+                                ),
+                                bgcolor=type_color,
+                                padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                                border_radius=ft.border_radius.all(8)
+                            ),
+                            rating_display
+                        ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                        
+                        ft.Container(height=4),
+                        
+                        ft.Text(
+                            display_date,
+                            size=11,
+                            color=ft.colors.ON_SURFACE_VARIANT
+                        )
+                    ], spacing=0, tight=True, expand=True)
+                ], vertical_alignment=ft.CrossAxisAlignment.START)
+            ], spacing=0)
+            
+            status_color = ft.colors.AMBER_600
+            status_bg = ft.colors.with_opacity(0.1, ft.colors.AMBER_600)
+        else:
+            winner_info = ft.Column([
+                ft.Row([
+                    ft.Icon(ft.icons.EMOJI_EVENTS_OUTLINED, size=20, color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Text("No Winner Yet", size=14, weight=ft.FontWeight.W_500, color=ft.colors.ON_SURFACE_VARIANT)
+                ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ft.Container(height=8),
+                ft.Text(
+                    "Click to select winner",
+                    size=14,
+                    color=ft.colors.ON_SURFACE_VARIANT,
+                    italic=True
+                )
+            ], spacing=4)
+            
+            status_color = ft.colors.ON_SURFACE_VARIANT
+            status_bg = ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE)
+        
+        # Create action buttons
+        action_buttons = ft.Row([
+            ft.IconButton(
+                icon=ft.icons.EDIT_OUTLINED,
+                tooltip="Select/Change Winner",
+                on_click=lambda _: self.open_winner_selection_dialog(category_id, category_name),
+                icon_color=ft.colors.PRIMARY
+            ),
+            ft.IconButton(
+                icon=ft.icons.DELETE_OUTLINE,
+                tooltip="Delete Category",
+                on_click=lambda _: self.confirm_delete_category(category_id, category_name),
+                icon_color=ft.colors.ERROR
+            )
+        ], spacing=4, alignment=ft.MainAxisAlignment.END)
+        
+        # Create card content
+        card_content = ft.Container(
+            content=ft.Column([
+                # Category header
+                ft.Row([
+                    ft.Text(
+                        category_name,
+                        size=18,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.colors.ON_SURFACE,
+                        expand=True,
+                        max_lines=1,
+                        overflow=ft.TextOverflow.ELLIPSIS
+                    ),
+                    action_buttons
+                ], vertical_alignment=ft.CrossAxisAlignment.START),
+                
+                ft.Container(height=16),
+                
+                # Winner information
+                winner_info
+            ], spacing=0),
+            padding=ft.padding.all(20),
+            bgcolor=status_bg,
+            border_radius=ft.border_radius.all(12),
+            border=ft.border.all(1, ft.colors.with_opacity(0.2, status_color))
+        )
+        
+        # Wrap in card with hover effect
+        return ft.Card(
+            content=card_content,
+            elevation=2,
+            margin=ft.margin.all(4),
+            shape=ft.RoundedRectangleBorder(radius=12),
+            surface_tint_color=ft.colors.SURFACE_TINT
+        )
+
+    def open_add_category_dialog(self):
+        """Open dialog to add a new award category."""
+        current_year = self.app_state.get("awards_current_year")
+        if not current_year:
+            return
+        
+        # Prevent multiple dialogs
+        if hasattr(self.page, '_dialog_is_opening') and self.page._dialog_is_opening:
+            return
+        self.page._dialog_is_opening = True
+        
+        dialog_overlay_ref = ft.Ref[ft.Container]()
+        
+        try:
+            category_name_field = ft.TextField(
+                label="Category Name",
+                hint_text="e.g., Best Game, Best Movie, Best Anime...",
+                capitalization=ft.TextCapitalization.WORDS,
+                autofocus=True,
+                border_radius=ft.border_radius.all(12),
+                filled=True
+            )
+            
+            def close_dialog(e=None):
+                if dialog_overlay_ref.current and dialog_overlay_ref.current in self.main_stack.current.controls:
+                    self.main_stack.current.controls.remove(dialog_overlay_ref.current)
+                    self.main_stack.current.update()
+            
+            def create_category():
+                category_name = category_name_field.value
+                if category_name and category_name.strip():
+                    self.handle_category_creation(category_name.strip())
+                    close_dialog()
+                else:
+                    self.show_snackbar("Please enter a category name", ft.colors.ERROR)
+            
+            # Handle Enter key submission
+            category_name_field.on_submit = lambda _: create_category()
+            
+            # Dialog header
+            header = ft.Container(
+                content=ft.Column([
+                    ft.Row([
+                        ft.Icon(ft.icons.EMOJI_EVENTS, size=28, color=ft.colors.PRIMARY),
+                        ft.Text(
+                            f"Add Award Category - {current_year}",
+                            style=ft.TextThemeStyle.TITLE_LARGE,
+                            weight=ft.FontWeight.W_600
+                        )
+                    ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    ft.Container(height=1, bgcolor=ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE), margin=ft.margin.symmetric(vertical=16))
+                ]),
+                padding=24,
+                bgcolor=ft.colors.with_opacity(0.02, ft.colors.PRIMARY)
+            )
+            
+            # Dialog content
+            content = ft.Container(
+                content=ft.Column([
+                    ft.Text(
+                        "Create a new award category for this year. You can select a winner for this category after creating it.",
+                        size=14,
+                        color=ft.colors.ON_SURFACE_VARIANT
+                    ),
+                    ft.Container(height=20),
+                    category_name_field
+                ], tight=True),
+                padding=ft.padding.symmetric(horizontal=24, vertical=16)
+            )
+            
+            # Dialog buttons
+            buttons = ft.Container(
+                content=ft.Row([
+                    ft.TextButton(
+                        "Cancel",
+                        on_click=close_dialog,
+                        style=ft.ButtonStyle(
+                            padding=ft.padding.symmetric(horizontal=20, vertical=12)
+                        )
+                    ),
+                    ft.ElevatedButton(
+                        "Create Category",
+                        icon=ft.icons.ADD,
+                        on_click=lambda _: create_category(),
+                        style=ft.ButtonStyle(
+                            bgcolor=ft.colors.PRIMARY,
+                            color=ft.colors.ON_PRIMARY,
+                            padding=ft.padding.symmetric(horizontal=20, vertical=12)
+                        )
+                    )
+                ], alignment=ft.MainAxisAlignment.END, spacing=12),
+                padding=ft.padding.only(right=24, bottom=20, top=16)
+            )
+            
+            # Complete dialog
+            dialog_content = ft.Container(
+                content=ft.Column([header, content, buttons], spacing=0, tight=True),
+                width=min(500, self.page.window_width * 0.8 if self.page.window_width else 500),
+                bgcolor=ft.colors.SURFACE,
+                border_radius=20,
+                shadow=ft.BoxShadow(
+                    blur_radius=24,
+                    color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
+                    offset=ft.Offset(0, 8)
+                ),
+                on_click=lambda e: None  # Prevent click-through
+            )
+            
+            dialog_overlay = ft.Container(
+                ref=dialog_overlay_ref,
+                content=dialog_content,
+                alignment=ft.alignment.center,
+                bgcolor=ft.colors.with_opacity(0.5, ft.colors.BLACK),
+                expand=True,
+                on_click=close_dialog
+            )
+            
+            self.main_stack.current.controls.append(dialog_overlay)
+            self.main_stack.current.update()
+            
+        finally:
+            self.page._dialog_is_opening = False
+
+    def handle_category_creation(self, category_name):
+        """Handle the creation of a new award category."""
+        if not category_name or not category_name.strip():
+            self.show_snackbar("Please enter a category name", ft.colors.ERROR)
+            return
+        
+        current_year = self.app_state.get("awards_current_year")
+        if not current_year:
+            self.show_snackbar("No year selected", ft.colors.ERROR)
+            return
+        
+        try:
+            # Create the category in database
+            database.create_award_category_db(category_name.strip(), current_year)
+            
+            # Show success message
+            self.show_snackbar(f"Category '{category_name}' created successfully!", ft.colors.GREEN)
+            
+            # Refresh the categories view
+            self.update_main_content("Awards")
+            
+        except Exception as e:
+            print(f"Error creating award category: {e}")
+            self.show_snackbar("Failed to create category. Please try again.", ft.colors.ERROR)
+
+    def confirm_delete_category(self, category_id, category_name):
+        """Show confirmation dialog before deleting a category."""
+        def close_dialog():
+            self.page.dialog.open = False
+            self.page.update()
+        
+        def delete_category():
+            try:
+                database.delete_award_category_db(category_id)
+                self.show_snackbar(f"Category '{category_name}' deleted successfully!", ft.colors.GREEN)
+                self.update_main_content("Awards")
+            except Exception as e:
+                print(f"Error deleting award category: {e}")
+                self.show_snackbar("Failed to delete category. Please try again.", ft.colors.ERROR)
+            close_dialog()
+        
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Delete Award Category"),
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Icon(ft.icons.WARNING_AMBER, size=48, color=ft.colors.AMBER_600),
+                    ft.Container(height=16),
+                    ft.Text(
+                        f"Are you sure you want to delete the category '{category_name}'?",
+                        size=16,
+                        color=ft.colors.ON_SURFACE,
+                        text_align=ft.TextAlign.CENTER
+                    ),
+                    ft.Container(height=8),
+                    ft.Text(
+                        "This will also remove any selected winner for this category. This action cannot be undone.",
+                        size=14,
+                        color=ft.colors.ON_SURFACE_VARIANT,
+                        text_align=ft.TextAlign.CENTER
+                    )
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
+                width=400
+            ),
+            actions=[
+                ft.TextButton("Cancel", on_click=lambda _: close_dialog()),
+                ft.ElevatedButton(
+                    "Delete",
+                    icon=ft.icons.DELETE,
+                    on_click=lambda _: delete_category(),
+                    style=ft.ButtonStyle(
+                        bgcolor=ft.colors.ERROR,
+                        color=ft.colors.ON_ERROR
+                    )
+                )
+            ],
+            actions_alignment=ft.MainAxisAlignment.END
+        )
+        
+        self.page.dialog = dialog
+        dialog.open = True
+        self.page.update()
+
+    def open_winner_selection_dialog(self, category_id, category_name):
+        """Open dialog to select winner for a category."""
+        current_year = self.app_state.get("awards_current_year")
+        if not current_year:
+            return
+        
+        # Prevent multiple dialogs
+        if hasattr(self.page, '_dialog_is_opening') and self.page._dialog_is_opening:
+            return
+        self.page._dialog_is_opening = True
+        
+        dialog_overlay_ref = ft.Ref[ft.Container]()
+        
+        try:
+            # Get media entries for the current year
+            media_entries = database.get_javs_by_year_db(current_year)
+            
+            # Get current winner if exists
+            current_winner = database.get_award_winner_with_media_db(category_id)
+            
+            def close_dialog(e=None):
+                try:
+                    if dialog_overlay_ref.current:
+                        self.page.overlay.remove(dialog_overlay_ref.current)
+                        self.page.update()
+                except Exception as ex:
+                    print(f"Error closing winner selection dialog: {ex}")
+                finally:
+                    if hasattr(self.page, '_dialog_is_opening'):
+                        self.page._dialog_is_opening = False
+            
+            def handle_winner_selection(media_id, media_name):
+                """Handle the selection of a winner for the category."""
+                try:
+                    # Set the winner in the database
+                    database.set_award_winner_db(category_id, media_id)
+                    
+                    # Show success message
+                    self.show_snackbar(f"'{media_name}' selected as winner for '{category_name}'", ft.colors.GREEN)
+                    
+                    # Close dialog and refresh the view
+                    close_dialog()
+                    self.update_main_content("Awards")
+                    
+                except Exception as e:
+                    print(f"Error setting award winner: {e}")
+                    self.show_snackbar("Error selecting winner. Please try again.", ft.colors.ERROR)
+            
+            def remove_current_winner():
+                """Remove the current winner from the category."""
+                try:
+                    database.remove_award_winner_db(category_id)
+                    self.show_snackbar(f"Winner removed from '{category_name}'", ft.colors.ORANGE)
+                    close_dialog()
+                    self.update_main_content("Awards")
+                except Exception as e:
+                    print(f"Error removing award winner: {e}")
+                    self.show_snackbar("Error removing winner. Please try again.", ft.colors.ERROR)
+            
+            # Build media selection UI
+            media_cards = []
+            
+            if not media_entries:
+                # No media for this year
+                no_media_content = ft.Container(
+                    content=ft.Column([
+                        ft.Icon(
+                            ft.icons.MOVIE_OUTLINED,
+                            size=60,
+                            color=ft.colors.ON_SURFACE_VARIANT
+                        ),
+                        ft.Container(height=16),
+                        ft.Text(
+                            f"No media entries found for {current_year}",
+                            size=18,
+                            weight=ft.FontWeight.W_500,
+                            color=ft.colors.ON_SURFACE
+                        ),
+                        ft.Text(
+                            "Add some media entries for this year first",
+                            size=14,
+                            color=ft.colors.ON_SURFACE_VARIANT
+                        )
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    alignment=ft.alignment.center,
+                    height=200
+                )
+                media_cards.append(no_media_content)
+            else:
+                # Create cards for each media entry
+                for media in media_entries:
+                    is_current_winner = current_winner and current_winner.get('media_id') == media['id']
+                    
+                    # Create media card
+                    media_card = self.build_winner_selection_card(
+                        media, 
+                        is_current_winner, 
+                        lambda m=media: handle_winner_selection(m['id'], m['name'])
+                    )
+                    media_cards.append(media_card)
+            
+            # Create scrollable content
+            media_grid = ft.ResponsiveRow(
+                controls=[
+                    ft.Column(
+                        col={"sm": 12, "md": 6, "lg": 4, "xl": 3},
+                        controls=[card]
+                    ) for card in media_cards
+                ],
+                spacing=16,
+                run_spacing=16
+            )
+            
+            scrollable_content = ft.Container(
+                content=media_grid,
+                height=400,
+                padding=ft.padding.all(16)
+            )
+            
+            # Create dialog header with current winner info
+            header_content = [
+                ft.Text(
+                    f"Select Winner for '{category_name}'",
+                    size=20,
+                    weight=ft.FontWeight.BOLD,
+                    color=ft.colors.ON_SURFACE
+                ),
+                ft.Text(
+                    f"Choose from {current_year} media entries",
+                    size=14,
+                    color=ft.colors.ON_SURFACE_VARIANT
+                )
+            ]
+            
+            # Add current winner info if exists
+            if current_winner:
+                current_winner_info = ft.Container(
+                    content=ft.Row([
+                        ft.Icon(ft.icons.EMOJI_EVENTS, size=20, color=ft.colors.AMBER_600),
+                        ft.Text(
+                            f"Current winner: {current_winner.get('media_name', 'Unknown')}",
+                            size=14,
+                            weight=ft.FontWeight.W_500,
+                            color=ft.colors.AMBER_600
+                        ),
+                        ft.Container(expand=True),
+                        ft.TextButton(
+                            text="Remove Winner",
+                            icon=ft.icons.CLEAR,
+                            on_click=lambda _: remove_current_winner(),
+                            style=ft.ButtonStyle(color=ft.colors.ERROR)
+                        )
+                    ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    bgcolor=ft.colors.with_opacity(0.1, ft.colors.AMBER_600),
+                    padding=ft.padding.all(12),
+                    border_radius=ft.border_radius.all(8),
+                    margin=ft.margin.only(top=16)
+                )
+                header_content.append(current_winner_info)
+            
+            # Create dialog content
+            dialog_content = ft.Container(
+                content=ft.Column([
+                    # Header
+                    ft.Container(
+                        content=ft.Column(header_content, spacing=8),
+                        padding=ft.padding.all(24)
+                    ),
+                    
+                    # Divider
+                    ft.Divider(height=1, color=ft.colors.OUTLINE_VARIANT),
+                    
+                    # Media selection area
+                    scrollable_content,
+                    
+                    # Footer with close button
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Container(expand=True),
+                            ft.TextButton(
+                                text="Cancel",
+                                on_click=close_dialog,
+                                style=ft.ButtonStyle(
+                                    color=ft.colors.ON_SURFACE_VARIANT
+                                )
+                            )
+                        ], alignment=ft.MainAxisAlignment.END),
+                        padding=ft.padding.all(24)
+                    )
+                ], spacing=0),
+                width=800,
+                bgcolor=ft.colors.SURFACE,
+                border_radius=ft.border_radius.all(16),
+                shadow=ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=20,
+                    color=ft.colors.with_opacity(0.3, ft.colors.BLACK),
+                    offset=ft.Offset(0, 10)
+                )
+            )
+            
+            # Create overlay
+            dialog_overlay = ft.Container(
+                ref=dialog_overlay_ref,
+                content=ft.Stack([
+                    # Background overlay
+                    ft.Container(
+                        bgcolor=ft.colors.with_opacity(0.5, ft.colors.BLACK),
+                        expand=True,
+                        on_click=close_dialog
+                    ),
+                    # Dialog
+                    ft.Container(
+                        content=dialog_content,
+                        alignment=ft.alignment.center,
+                        expand=True
+                    )
+                ]),
+                expand=True
+            )
+            
+            self.page.overlay.append(dialog_overlay)
+            self.page.update()
+            
+        except Exception as e:
+            print(f"Error opening winner selection dialog: {e}")
+            if hasattr(self.page, '_dialog_is_opening'):
+                self.page._dialog_is_opening = False
+            self.show_snackbar("Error opening winner selection. Please try again.", ft.colors.ERROR)
+
+    def build_winner_selection_card(self, media, is_current_winner, on_select_callback):
+        """Build a card for media selection in winner dialog."""
+        name = media.get('name', 'Unknown Title')
+        entry_type = media.get('entry_type', 'Media')
+        score = media.get('review_score')
+        completion_date = media.get('completion_date', 'N/A')
+        
+        # Get image
+        db_image_value = media.get('image_url')
+        image_src = config.DEFAULT_IMAGE_URL
+        
+        if db_image_value:
+            if db_image_value.lower().startswith(("http://", "https://")):
+                image_src = db_image_value
+            else:
+                full_local_path = os.path.join(config.ASSETS_DIR, db_image_value)
+                if os.path.exists(full_local_path):
+                    image_src = db_image_value
+        
+        # Format completion date
+        display_date = 'N/A'
+        if completion_date and completion_date != 'N/A':
+            try:
+                date_obj = datetime.strptime(completion_date, '%Y-%m-%d')
+                display_date = date_obj.strftime('%b %Y')
+            except ValueError:
+                display_date = completion_date
+        
+        # Create rating display
+        rating_display = ft.Container()
+        if score is not None:
+            try:
+                score_val = float(score)
+                if score_val >= 9:
+                    color = ft.colors.GREEN_600
+                elif score_val >= 7:
+                    color = ft.colors.BLUE_600
+                elif score_val >= 5:
+                    color = ft.colors.ORANGE_600
+                else:
+                    color = ft.colors.RED_600
+                
+                rating_display = ft.Container(
+                    content=ft.Row([
+                        ft.Icon(ft.icons.STAR, size=14, color=color),
+                        ft.Text(f"{score_val:.1f}", size=12, color=color, weight=ft.FontWeight.W_600)
+                    ], spacing=4, tight=True),
+                    bgcolor=ft.colors.with_opacity(0.1, color),
+                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                    border_radius=ft.border_radius.all(12),
+                    border=ft.border.all(1, ft.colors.with_opacity(0.3, color))
+                )
+            except (ValueError, TypeError):
+                pass
+        
+        # Entry type styling
+        entry_type_colors = {
+            'Game': ft.colors.BLUE_600,
+            'Movie': ft.colors.RED_600,
+            'Show': ft.colors.PURPLE_600,
+            'K-Drama': ft.colors.GREEN_600,
+            'Anime': ft.colors.PINK_600,
+            'Book': ft.colors.BROWN_600,
+            'Album': ft.colors.CYAN_600,
+            'Hentai': ft.colors.DEEP_PURPLE_600,
+            'JAV': ft.colors.INDIGO_600,
+            'Adult Visual Novel': ft.colors.DEEP_ORANGE_600,
+            'Other': ft.colors.BLUE_GREY_600
+        }
+        
+        type_color = entry_type_colors.get(entry_type, entry_type_colors['Other'])
+        
+        # Create card content
+        card_content = ft.Container(
+            content=ft.Column([
+                # Image
+                ft.Container(
+                    content=ft.Image(
+                        src=image_src,
+                        height=120,
+                        width=float('inf'),
+                        fit=ft.ImageFit.COVER,
+                        error_content=ft.Container(
+                            content=ft.Column([
+                                ft.Icon(ft.icons.BROKEN_IMAGE, size=30, color=ft.colors.ON_SURFACE_VARIANT),
+                                ft.Text("No Image", size=10, color=ft.colors.ON_SURFACE_VARIANT)
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, 
+                               alignment=ft.MainAxisAlignment.CENTER, spacing=4),
+                            height=120,
+                            bgcolor=ft.colors.SURFACE_VARIANT,
+                            alignment=ft.alignment.center
+                        )
+                    ),
+                    border_radius=ft.border_radius.only(top_left=12, top_right=12),
+                    clip_behavior=ft.ClipBehavior.HARD_EDGE
+                ),
+                
+                # Content
+                ft.Container(
+                    content=ft.Column([
+                        # Title
+                        ft.Text(
+                            name,
+                            size=14,
+                            weight=ft.FontWeight.W_600,
+                            color=ft.colors.ON_SURFACE,
+                            max_lines=2,
+                            overflow=ft.TextOverflow.ELLIPSIS
+                        ),
+                        
+                        # Entry type and rating
+                        ft.Row([
+                            ft.Container(
+                                content=ft.Text(
+                                    entry_type,
+                                    size=11,
+                                    color=ft.colors.WHITE,
+                                    weight=ft.FontWeight.W_500
+                                ),
+                                bgcolor=type_color,
+                                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                border_radius=ft.border_radius.all(12)
+                            ),
+                            rating_display
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, 
+                           vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                        
+                        # Date
+                        ft.Text(
+                            display_date,
+                            size=11,
+                            color=ft.colors.ON_SURFACE_VARIANT
+                        ),
+                        
+                        # Select button
+                        ft.Container(height=8),
+                        ft.ElevatedButton(
+                            text="Select as Winner" if not is_current_winner else "Current Winner",
+                            icon=ft.icons.EMOJI_EVENTS if not is_current_winner else ft.icons.EMOJI_EVENTS,
+                            on_click=lambda _: on_select_callback() if not is_current_winner else None,
+                            disabled=is_current_winner,
+                            style=ft.ButtonStyle(
+                                bgcolor=ft.colors.AMBER_600 if is_current_winner else ft.colors.PRIMARY,
+                                color=ft.colors.WHITE,
+                                padding=ft.padding.symmetric(horizontal=16, vertical=8)
+                            )
+                        )
+                    ], spacing=8),
+                    padding=ft.padding.all(12)
+                )
+            ], spacing=0),
+            bgcolor=ft.colors.SURFACE,
+            border_radius=ft.border_radius.all(12),
+            border=ft.border.all(2, ft.colors.AMBER_600) if is_current_winner else ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8 if is_current_winner else 4,
+                color=ft.colors.with_opacity(0.3 if is_current_winner else 0.1, ft.colors.AMBER_600 if is_current_winner else ft.colors.BLACK),
+                offset=ft.Offset(0, 2)
+            )
+        )
+        
+        return ft.Card(
+            content=card_content,
+            elevation=0,
+            margin=ft.margin.all(4)
+        )
+
+    def back_to_year_selection(self):
+        """Navigate back to year selection from categories view."""
+        self.app_state["awards_current_year"] = None
+        self.app_state["awards_selected_category"] = None
+        self.app_state["awards_summary_mode"] = False
+        self.update_main_content("Awards")
+
     def update_main_content(self, view_id):
         self.app_state["current_view"] = view_id
         content_area = self.main_content_area.current
@@ -2915,6 +4496,8 @@ class AppUI:
         elif view_id == "Search":
             content = self.build_search_view()
             show_fab = True
+        elif view_id == "Awards":
+            content = self.show_awards_view()
         else:
             content = ft.Text(f"Error: Unknown view '{view_id}'")
         
@@ -2941,6 +4524,8 @@ class AppUI:
             new_view = "Stats"
         elif idx == len(config.YEARS) + 3:
             new_view = "Search"
+        elif idx == len(config.YEARS) + 4:
+            new_view = "Awards"
         else:
             return
         
@@ -2974,6 +4559,8 @@ class AppUI:
                 initial_index = len(config.YEARS) + 2
             elif self.app_state["current_view"] == "Search":
                 initial_index = len(config.YEARS) + 3
+            elif self.app_state["current_view"] == "Awards":
+                initial_index = len(config.YEARS) + 4
             else:
                 initial_index = 0  # Default to Home
         
@@ -2984,7 +4571,8 @@ class AppUI:
                 [ft.NavigationRailDestination(icon=ft.icons.CALENDAR_MONTH_OUTLINED, selected_icon=ft.icons.CALENDAR_MONTH, label=y) for y in config.YEARS] +
                 [ft.NavigationRailDestination(icon=ft.icons.BOOKMARKS_OUTLINED, selected_icon=ft.icons.BOOKMARKS, label="Backlog")] +
                 [ft.NavigationRailDestination(icon=ft.icons.QUERY_STATS_OUTLINED, selected_icon=ft.icons.QUERY_STATS, label="Stats")] +
-                [ft.NavigationRailDestination(icon=ft.icons.SEARCH_OUTLINED, selected_icon=ft.icons.SEARCH, label="Search")]
+                [ft.NavigationRailDestination(icon=ft.icons.SEARCH_OUTLINED, selected_icon=ft.icons.SEARCH, label="Search")] +
+                [ft.NavigationRailDestination(icon=ft.icons.EMOJI_EVENTS_OUTLINED, selected_icon=ft.icons.EMOJI_EVENTS, label="Awards")]
             ),
             on_change=self.navigation_change
         )

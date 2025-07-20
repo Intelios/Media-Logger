@@ -71,6 +71,29 @@ def init_db():
             )
         """)
 
+        # Awards tables
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS award_categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                year INTEGER NOT NULL,
+                created_date TEXT NOT NULL,
+                UNIQUE(name, year)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS award_winners (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category_id INTEGER NOT NULL,
+                media_id INTEGER NOT NULL,
+                selected_date TEXT NOT NULL,
+                FOREIGN KEY (category_id) REFERENCES award_categories (id) ON DELETE CASCADE,
+                FOREIGN KEY (media_id) REFERENCES javs (id) ON DELETE CASCADE,
+                UNIQUE(category_id)
+            )
+        """)
+
         # --- Migration Logic ---
         # Check for missing columns and add them if necessary for backward compatibility
         table_info = cursor.execute("PRAGMA table_info(javs)").fetchall()
@@ -625,3 +648,232 @@ def get_recent_entries_db(limit=6):
             conn.close()
     
     return entries
+
+# --- Awards Database Functions ---
+
+def create_award_category_db(name, year):
+    """Creates a new award category for a specific year."""
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        cursor = conn.cursor()
+        created_date_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        name_to_db = name.strip()
+        
+        cursor.execute(
+            "INSERT INTO award_categories (name, year, created_date) VALUES (?, ?, ?)",
+            (name_to_db, year, created_date_str)
+        )
+        conn.commit()
+        category_id = cursor.lastrowid
+        print(f"Award category created: {name} for year {year}")
+        return category_id
+    except sqlite3.IntegrityError as e:
+        print(f"Award category '{name}' already exists for year {year}")
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error creating award category '{name}': {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_award_categories_by_year_db(year):
+    """Retrieves all award categories for a specific year."""
+    conn = None
+    categories = []
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM award_categories WHERE year = ? ORDER BY created_date ASC, id ASC", 
+            (year,)
+        )
+        categories = [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        print(f"Database error getting award categories for year {year}: {e}")
+    finally:
+        if conn:
+            conn.close()
+    return categories
+
+def get_all_award_years_db():
+    """Retrieves all years that have award categories."""
+    conn = None
+    years = []
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT DISTINCT year FROM award_categories ORDER BY year DESC"
+        )
+        years = [row[0] for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        print(f"Database error getting award years: {e}")
+    finally:
+        if conn:
+            conn.close()
+    return years
+
+def delete_award_category_db(category_id):
+    """Deletes an award category and its associated winner."""
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        cursor = conn.cursor()
+        # Delete the category (winner will be deleted automatically due to CASCADE)
+        cursor.execute("DELETE FROM award_categories WHERE id = ?", (category_id,))
+        conn.commit()
+        print(f"Award category deleted: ID {category_id}")
+    except sqlite3.Error as e:
+        print(f"Database error deleting award category ID {category_id}: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def set_award_winner_db(category_id, media_id):
+    """Sets or updates the winner for an award category."""
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        cursor = conn.cursor()
+        selected_date_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        cursor.execute(
+            "INSERT OR REPLACE INTO award_winners (category_id, media_id, selected_date) VALUES (?, ?, ?)",
+            (category_id, media_id, selected_date_str)
+        )
+        conn.commit()
+        print(f"Award winner set: Category ID {category_id}, Media ID {media_id}")
+    except sqlite3.Error as e:
+        print(f"Database error setting award winner for category {category_id}: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def get_award_winner_db(category_id):
+    """Retrieves the winner for a specific award category."""
+    conn = None
+    winner = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM award_winners WHERE category_id = ?", 
+            (category_id,)
+        )
+        result = cursor.fetchone()
+        if result:
+            winner = dict(result)
+    except sqlite3.Error as e:
+        print(f"Database error getting award winner for category {category_id}: {e}")
+    finally:
+        if conn:
+            conn.close()
+    return winner
+
+def get_award_winner_with_media_db(category_id):
+    """Retrieves the winner for a specific award category with media details."""
+    conn = None
+    winner = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                aw.id as winner_id,
+                aw.category_id,
+                aw.media_id,
+                aw.selected_date,
+                j.name as media_name,
+                j.entry_type,
+                j.image_url,
+                j.review_score,
+                j.completion_date
+            FROM award_winners aw
+            JOIN javs j ON aw.media_id = j.id
+            WHERE aw.category_id = ?
+        """, (category_id,))
+        result = cursor.fetchone()
+        if result:
+            winner = dict(result)
+    except sqlite3.Error as e:
+        print(f"Database error getting award winner with media for category {category_id}: {e}")
+    finally:
+        if conn:
+            conn.close()
+    return winner
+
+def get_awards_with_winners_by_year_db(year):
+    """Retrieves all award categories for a year with their winner information."""
+    conn = None
+    awards = []
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                ac.id as category_id,
+                ac.name as category_name,
+                ac.year,
+                ac.created_date,
+                aw.id as winner_id,
+                aw.media_id,
+                aw.selected_date,
+                j.name as media_name,
+                j.entry_type,
+                j.image_url,
+                j.review_score,
+                j.completion_date
+            FROM award_categories ac
+            LEFT JOIN award_winners aw ON ac.id = aw.category_id
+            LEFT JOIN javs j ON aw.media_id = j.id
+            WHERE ac.year = ?
+            ORDER BY ac.created_date ASC, ac.id ASC
+        """, (year,))
+        awards = [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        print(f"Database error getting awards with winners for year {year}: {e}")
+    finally:
+        if conn:
+            conn.close()
+    return awards
+
+def remove_award_winner_db(category_id):
+    """Removes the winner from an award category."""
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM award_winners WHERE category_id = ?", (category_id,))
+        conn.commit()
+        print(f"Award winner removed from category ID {category_id}")
+    except sqlite3.Error as e:
+        print(f"Database error removing award winner from category {category_id}: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def get_award_category_db(category_id):
+    """Retrieves a specific award category by ID."""
+    conn = None
+    category = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM award_categories WHERE id = ?", (category_id,))
+        result = cursor.fetchone()
+        if result:
+            category = dict(result)
+    except sqlite3.Error as e:
+        print(f"Database error getting award category ID {category_id}: {e}")
+    finally:
+        if conn:
+            conn.close()
+    return category
