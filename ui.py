@@ -4213,22 +4213,32 @@ class AppUI:
                     )
                     media_cards.append(media_card)
             
-            # Create scrollable content
+            # Create responsive grid layout with proper spacing and alignment
             media_grid = ft.ResponsiveRow(
                 controls=[
-                    ft.Column(
+                    ft.Container(
                         col={"sm": 12, "md": 6, "lg": 4, "xl": 3},
-                        controls=[card]
+                        content=card,
+                        padding=ft.padding.all(8)  # Consistent padding around each card
                     ) for card in media_cards
                 ],
-                spacing=16,
-                run_spacing=16
+                spacing=0,  # Use container padding instead for better control
+                run_spacing=0,
+                vertical_alignment=ft.CrossAxisAlignment.START,
+                alignment=ft.MainAxisAlignment.START
             )
             
+            # Implement proper scrollable container with explicit height constraints
             scrollable_content = ft.Container(
-                content=media_grid,
-                height=400,
-                padding=ft.padding.all(16)
+                content=ft.Column(
+                    controls=[media_grid],
+                    scroll=ft.ScrollMode.AUTO,
+                    spacing=0,
+                    expand=True
+                ),
+                height=500,  # Increased height for better viewing
+                padding=ft.padding.all(16),
+                clip_behavior=ft.ClipBehavior.HARD_EDGE
             )
             
             # Create dialog header with current winner info
@@ -4302,7 +4312,7 @@ class AppUI:
                         padding=ft.padding.all(24)
                     )
                 ], spacing=0),
-                width=800,
+                width=min(1200, self.page.window_width * 0.9) if self.page.window_width else 800,
                 bgcolor=ft.colors.SURFACE,
                 border_radius=ft.border_radius.all(16),
                 shadow=ft.BoxShadow(
@@ -4476,11 +4486,11 @@ class AppUI:
                             color=ft.colors.ON_SURFACE_VARIANT
                         ),
                         
-                        # Select button
+                        # Select button with proper click handling
                         ft.Container(height=8),
                         ft.ElevatedButton(
                             text="Select as Winner" if not is_current_winner else "Current Winner",
-                            icon=ft.icons.EMOJI_EVENTS if not is_current_winner else ft.icons.EMOJI_EVENTS,
+                            icon=ft.icons.EMOJI_EVENTS,
                             on_click=lambda _: on_select_callback() if not is_current_winner else None,
                             disabled=is_current_winner,
                             style=ft.ButtonStyle(
@@ -4504,6 +4514,7 @@ class AppUI:
             )
         )
         
+        # Create the card with proper click handling for scrollable content
         return ft.Card(
             content=card_content,
             elevation=0,
