@@ -3343,6 +3343,253 @@ class AppUI:
             expand=True
         )
     
+    def build_enhanced_awards_summary_card(self, category, winner):
+        """Build an enhanced summary card for displaying award category and winner with prominent image display."""
+        category_name = category['name']
+        has_winner = winner is not None
+        
+        if has_winner:
+            # Winner details
+            media_name = winner.get('media_name', 'Unknown')
+            entry_type = winner.get('entry_type', 'Media')
+            score = winner.get('review_score')
+            completion_date = winner.get('completion_date')
+            image_url = winner.get('image_url')
+            
+            # Format completion date with enhanced styling
+            display_date = 'N/A'
+            if completion_date:
+                try:
+                    from datetime import datetime
+                    date_obj = datetime.strptime(completion_date, '%Y-%m-%d')
+                    display_date = date_obj.strftime('%b %Y')
+                except ValueError:
+                    display_date = completion_date
+            
+            # Get image source
+            image_src = config.DEFAULT_IMAGE_URL
+            if image_url:
+                if image_url.lower().startswith(("http://", "https://")):
+                    image_src = image_url
+                else:
+                    full_local_path = os.path.join(config.ASSETS_DIR, image_url)
+                    if os.path.exists(full_local_path):
+                        image_src = image_url
+            
+            # Create enhanced rating badge using ColorThemeManager
+            rating_display = ft.Container()
+            if score is not None:
+                try:
+                    score_val = float(score)
+                    color_scheme = ColorThemeManager.get_rating_color_scheme(score_val)
+                    
+                    # Special styling for perfect scores
+                    if score_val == 10.0:
+                        rating_display = ft.Container(
+                            content=ft.Row([
+                                ft.Icon(ft.icons.STAR_ROUNDED, size=18, color=ft.colors.WHITE),
+                                ft.Text(f"{score_val:.1f}", size=16, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD)
+                            ], spacing=6, tight=True),
+                            gradient=ft.LinearGradient(
+                                colors=[ft.colors.GREEN_400, ft.colors.GREEN_600, ft.colors.GREEN_700],
+                                begin=ft.alignment.top_left,
+                                end=ft.alignment.bottom_right
+                            ),
+                            padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                            border_radius=ft.border_radius.all(20),
+                            shadow=ft.BoxShadow(
+                                spread_radius=1,
+                                blur_radius=8,
+                                color=ft.colors.with_opacity(0.4, ft.colors.GREEN_600),
+                                offset=ft.Offset(0, 2)
+                            ),
+                            border=ft.border.all(1, ft.colors.with_opacity(0.3, ft.colors.GREEN_300))
+                        )
+                    else:
+                        rating_display = ft.Container(
+                            content=ft.Row([
+                                ft.Icon(ft.icons.STAR_ROUNDED, size=18, color=color_scheme['primary']),
+                                ft.Text(f"{score_val:.1f}", size=16, color=color_scheme['primary'], weight=ft.FontWeight.BOLD)
+                            ], spacing=6, tight=True),
+                            bgcolor=color_scheme['bg'],
+                            padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                            border_radius=ft.border_radius.all(20),
+                            border=ft.border.all(1, ft.colors.with_opacity(0.2, color_scheme['primary']))
+                        )
+                except (ValueError, TypeError):
+                    pass
+            
+            # Enhanced entry type styling with gradients
+            entry_type_gradient = ColorThemeManager.get_entry_type_gradient(entry_type)
+            entry_type_icon = get_entry_type_icon_name(entry_type)
+            
+            entry_type_badge = ft.Container(
+                content=ft.Row([
+                    ft.Icon(entry_type_icon, size=16, color=ft.colors.WHITE),
+                    ft.Text(
+                        entry_type,
+                        size=14,
+                        color=ft.colors.WHITE,
+                        weight=ft.FontWeight.W_600
+                    )
+                ], spacing=8, tight=True),
+                gradient=entry_type_gradient,
+                padding=ft.padding.symmetric(horizontal=14, vertical=8),
+                border_radius=ft.border_radius.all(20),
+                shadow=ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=6,
+                    color=ft.colors.with_opacity(0.3, ColorThemeManager.get_entry_type_color(entry_type)),
+                    offset=ft.Offset(0, 2)
+                )
+            )
+            
+            # Winner content with prominent image display (140x200px)
+            winner_content = ft.Row([
+                # Prominent winner image
+                ft.Container(
+                    content=ft.Image(
+                        src=image_src,
+                        width=140,
+                        height=200,
+                        fit=ft.ImageFit.COVER,
+                        error_content=ft.Container(
+                            content=ft.Column([
+                                ft.Icon(ft.icons.BROKEN_IMAGE, size=40, color=ft.colors.ON_SURFACE_VARIANT),
+                                ft.Text("Image Error", size=12, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500)
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=8),
+                            width=140,
+                            height=200,
+                            bgcolor=ft.colors.SURFACE_VARIANT,
+                            alignment=ft.alignment.center
+                        )
+                    ),
+                    border_radius=ft.border_radius.all(16),
+                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                    shadow=ft.BoxShadow(
+                        spread_radius=0,
+                        blur_radius=8,
+                        color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
+                        offset=ft.Offset(0, 4)
+                    )
+                ),
+                
+                ft.Container(width=24),
+                
+                # Enhanced winner details with better typography hierarchy
+                ft.Column([
+                    ft.Text(
+                        media_name,
+                        size=24,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.colors.ON_SURFACE,
+                        max_lines=2,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                        style=ft.TextStyle(letter_spacing=0.5)
+                    ),
+                    
+                    ft.Container(height=16),
+                    
+                    # Entry type and rating with enhanced spacing
+                    ft.Row([
+                        entry_type_badge,
+                        rating_display
+                    ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    
+                    ft.Container(height=16),
+                    
+                    ft.Text(
+                        f"Completed: {display_date}",
+                        size=16,
+                        color=ft.colors.ON_SURFACE_VARIANT,
+                        weight=ft.FontWeight.W_500,
+                        style=ft.TextStyle(letter_spacing=0.3)
+                    )
+                ], spacing=0, tight=True, expand=True)
+            ], vertical_alignment=ft.CrossAxisAlignment.START)
+            
+        else:
+            # Enhanced no winner content with attractive placeholder
+            winner_content = ft.Row([
+                ft.Container(
+                    content=ft.Column([
+                        ft.Icon(
+                            ft.icons.EMOJI_EVENTS_OUTLINED,
+                            size=50,
+                            color=ft.colors.ON_SURFACE_VARIANT
+                        ),
+                        ft.Text(
+                            "Awaiting Winner",
+                            size=14,
+                            color=ft.colors.ON_SURFACE_VARIANT,
+                            weight=ft.FontWeight.W_500,
+                            text_align=ft.TextAlign.CENTER
+                        )
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=12),
+                    width=140,
+                    height=200,
+                    bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                    border_radius=ft.border_radius.all(16),
+                    border=ft.border.all(2, ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE), ft.BorderStyle.DASHED),
+                    alignment=ft.alignment.center
+                ),
+                
+                ft.Container(width=24),
+                
+                ft.Column([
+                    ft.Text(
+                        "No winner selected",
+                        size=22,
+                        weight=ft.FontWeight.W_600,
+                        color=ft.colors.ON_SURFACE_VARIANT,
+                        italic=True
+                    ),
+                    ft.Container(height=12),
+                    ft.Text(
+                        "This category is waiting for a winner to be selected",
+                        size=16,
+                        color=ft.colors.ON_SURFACE_VARIANT,
+                        style=ft.TextStyle(letter_spacing=0.2)
+                    )
+                ], spacing=0, tight=True, expand=True)
+            ], vertical_alignment=ft.CrossAxisAlignment.CENTER)
+        
+        # Create glassmorphism card content
+        card_content = ft.Column([
+            # Enhanced category header with trophy icon
+            ft.Row([
+                ft.Icon(
+                    ft.icons.EMOJI_EVENTS if has_winner else ft.icons.EMOJI_EVENTS_OUTLINED,
+                    size=28,
+                    color=ft.colors.AMBER_600 if has_winner else ft.colors.ON_SURFACE_VARIANT
+                ),
+                ft.Container(width=16),
+                ft.Text(
+                    category_name,
+                    size=26,
+                    weight=ft.FontWeight.BOLD,
+                    color=ft.colors.ON_SURFACE,
+                    expand=True,
+                    style=ft.TextStyle(letter_spacing=0.5)
+                )
+            ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            
+            ft.Container(height=24),
+            
+            # Winner content
+            winner_content
+        ], spacing=0)
+        
+        # Apply glassmorphism styling using GlassmorphismStyles
+        return GlassmorphismStyles.create_glass_card(
+            content=card_content,
+            elevation=6.0,
+            blur_intensity=12.0,
+            glass_opacity=0.08,
+            border_radius=20.0,
+            padding=ft.padding.all(28)
+        )
+
     def build_awards_summary_card(self, category, winner):
         """Build a summary card for displaying award category and winner in summary view."""
         category_name = category['name']
@@ -3918,6 +4165,338 @@ class AppUI:
             margin=ft.margin.all(4),
             shape=ft.RoundedRectangleBorder(radius=12),
             surface_tint_color=ft.colors.SURFACE_TINT
+        )
+
+    def build_enhanced_category_card(self, category, winner):
+        """Build an enhanced card for displaying an award category with prominent image design."""
+        category_name = category['name']
+        category_id = category['id']
+        has_winner = winner is not None
+        
+        # Card dimensions
+        CARD_WIDTH = 320
+        IMAGE_HEIGHT = 200
+        CONTENT_HEIGHT = 140
+        CARD_RADIUS = 20
+        
+        if has_winner:
+            # Enhanced winner display with media details
+            media_name = winner.get('media_name', 'Unknown')
+            entry_type = winner.get('entry_type', 'Media')
+            score = winner.get('review_score')
+            completion_date = winner.get('completion_date')
+            image_url = winner.get('image_url')
+            
+            # Format completion date
+            display_date = 'N/A'
+            if completion_date:
+                try:
+                    from datetime import datetime
+                    date_obj = datetime.strptime(completion_date, '%Y-%m-%d')
+                    display_date = date_obj.strftime('%b %Y')
+                except ValueError:
+                    display_date = completion_date
+            
+            # Get image source
+            image_src = config.DEFAULT_IMAGE_URL
+            if image_url:
+                if image_url.lower().startswith(("http://", "https://")):
+                    image_src = image_url
+                else:
+                    full_local_path = os.path.join(config.ASSETS_DIR, image_url)
+                    if os.path.exists(full_local_path):
+                        image_src = image_url
+            
+            # Create enhanced rating display
+            rating_badge = ft.Container()
+            if score is not None:
+                try:
+                    score_val = float(score)
+                    color_scheme = ColorThemeManager.get_rating_color_scheme(score_val)
+                    
+                    rating_badge = ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.icons.STAR_ROUNDED, size=16, color=ft.colors.WHITE),
+                            ft.Text(f"{score_val:.1f}", size=14, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD)
+                        ], spacing=4, tight=True),
+                        bgcolor=color_scheme['primary'],
+                        padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                        border_radius=ft.border_radius.all(20),
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=8,
+                            color=ft.colors.with_opacity(0.4, color_scheme['primary']),
+                            offset=ft.Offset(0, 2)
+                        )
+                    )
+                except (ValueError, TypeError):
+                    pass
+            
+            # Enhanced entry type badge
+            entry_type_gradient = ColorThemeManager.get_entry_type_gradient(entry_type)
+            entry_type_badge = ft.Container(
+                content=ft.Text(
+                    entry_type,
+                    size=12,
+                    color=ft.colors.WHITE,
+                    weight=ft.FontWeight.W_600
+                ),
+                gradient=entry_type_gradient,
+                padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                border_radius=ft.border_radius.all(20),
+                shadow=ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=6,
+                    color=ft.colors.with_opacity(0.3, ColorThemeManager.get_entry_type_color(entry_type)),
+                    offset=ft.Offset(0, 2)
+                )
+            )
+            
+            # Winner status overlay for image
+            winner_status_overlay = ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.icons.EMOJI_EVENTS, size=16, color=ft.colors.WHITE),
+                    ft.Text("Winner", size=12, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE)
+                ], spacing=4, tight=True),
+                gradient=ft.LinearGradient(
+                    colors=[ft.colors.AMBER_500, ft.colors.AMBER_700],
+                    begin=ft.alignment.top_left,
+                    end=ft.alignment.bottom_right
+                ),
+                padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                border_radius=ft.border_radius.all(16),
+                shadow=ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=8,
+                    color=ft.colors.with_opacity(0.4, ft.colors.AMBER_600),
+                    offset=ft.Offset(0, 2)
+                )
+            )
+            
+            # Create prominent image section with overlays
+            image_section = ft.Stack([
+                # Main image taking up significant space
+                ft.Container(
+                    content=ft.Image(
+                        src=image_src,
+                        width=CARD_WIDTH,
+                        height=IMAGE_HEIGHT,
+                        fit=ft.ImageFit.COVER,
+                        error_content=ft.Container(
+                            content=ft.Column([
+                                ft.Icon(ft.icons.BROKEN_IMAGE_OUTLINED, size=48, color=ft.colors.ON_SURFACE_VARIANT),
+                                ft.Text("No Image Available", size=14, color=ft.colors.ON_SURFACE_VARIANT, text_align=ft.TextAlign.CENTER)
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=8),
+                            width=CARD_WIDTH,
+                            height=IMAGE_HEIGHT,
+                            bgcolor=ft.colors.SURFACE_VARIANT,
+                            alignment=ft.alignment.center
+                        )
+                    ),
+                    border_radius=ft.border_radius.only(top_left=CARD_RADIUS, top_right=CARD_RADIUS),
+                    clip_behavior=ft.ClipBehavior.HARD_EDGE
+                ),
+                
+                # Gradient overlay for better text readability
+                ft.Container(
+                    width=CARD_WIDTH,
+                    height=IMAGE_HEIGHT,
+                    gradient=ft.LinearGradient(
+                        colors=[
+                            ft.colors.with_opacity(0, ft.colors.BLACK),
+                            ft.colors.with_opacity(0.3, ft.colors.BLACK),
+                            ft.colors.with_opacity(0.7, ft.colors.BLACK)
+                        ],
+                        begin=ft.alignment.top_center,
+                        end=ft.alignment.bottom_center
+                    ),
+                    border_radius=ft.border_radius.only(top_left=CARD_RADIUS, top_right=CARD_RADIUS)
+                ),
+                
+                # Winner status badge (top-left)
+                ft.Container(
+                    content=winner_status_overlay,
+                    top=12,
+                    left=12
+                ),
+                
+                # Rating badge (top-right)
+                ft.Container(
+                    content=rating_badge,
+                    top=12,
+                    right=12
+                ) if rating_badge.content else ft.Container(),
+                
+                # Entry type badge (bottom-left of image)
+                ft.Container(
+                    content=entry_type_badge,
+                    bottom=12,
+                    left=12
+                )
+            ])
+            
+            # Content section below image
+            content_section = ft.Container(
+                content=ft.Column([
+                    # Media title
+                    ft.Text(
+                        media_name,
+                        size=18,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.colors.ON_SURFACE,
+                        max_lines=2,
+                        overflow=ft.TextOverflow.ELLIPSIS
+                    ),
+                    
+                    ft.Container(height=8),
+                    
+                    # Completion date
+                    ft.Text(
+                        f"Completed: {display_date}",
+                        size=13,
+                        color=ft.colors.ON_SURFACE_VARIANT,
+                        weight=ft.FontWeight.W_500
+                    ),
+                    
+                    ft.Container(height=12),
+                    
+                    # Action buttons
+                    ft.Row([
+                        ft.ElevatedButton(
+                            text="Change Winner",
+                            icon=ft.icons.EDIT_OUTLINED,
+                            on_click=lambda _: self.open_winner_selection_dialog(category_id, category_name),
+                            style=ft.ButtonStyle(
+                                padding=ft.padding.symmetric(horizontal=16, vertical=8),
+                                shape=ft.RoundedRectangleBorder(radius=12)
+                            )
+                        ),
+                        ft.IconButton(
+                            icon=ft.icons.DELETE_OUTLINE,
+                            tooltip="Delete Category",
+                            on_click=lambda _: self.confirm_delete_category(category_id, category_name),
+                            icon_color=ft.colors.ERROR,
+                            style=ft.ButtonStyle(
+                                shape=ft.CircleBorder(),
+                                padding=ft.padding.all(8)
+                            )
+                        )
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+                ], spacing=0),
+                padding=ft.padding.all(20),
+                height=CONTENT_HEIGHT
+            )
+            
+        else:
+            # Enhanced empty state with prominent placeholder
+            image_section = ft.Container(
+                content=ft.Column([
+                    ft.Icon(ft.icons.EMOJI_EVENTS_OUTLINED, size=64, color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Container(height=12),
+                    ft.Text("No Winner Selected", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Container(height=8),
+                    ft.Text(
+                        "Select a winner to showcase here",
+                        size=14,
+                        color=ft.colors.ON_SURFACE_VARIANT,
+                        text_align=ft.TextAlign.CENTER
+                    )
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                width=CARD_WIDTH,
+                height=IMAGE_HEIGHT,
+                bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                border_radius=ft.border_radius.only(top_left=CARD_RADIUS, top_right=CARD_RADIUS),
+                border=ft.border.all(2, ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE), style=ft.BorderStyle.DASHED)
+            )
+            
+            # Content section for empty state
+            content_section = ft.Container(
+                content=ft.Column([
+                    ft.Text(
+                        "Ready to select a winner",
+                        size=16,
+                        weight=ft.FontWeight.W_600,
+                        color=ft.colors.ON_SURFACE_VARIANT
+                    ),
+                    
+                    ft.Container(height=12),
+                    
+                    # Action buttons
+                    ft.Row([
+                        ft.ElevatedButton(
+                            text="Select Winner",
+                            icon=ft.icons.ADD_OUTLINED,
+                            on_click=lambda _: self.open_winner_selection_dialog(category_id, category_name),
+                            style=ft.ButtonStyle(
+                                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                                shape=ft.RoundedRectangleBorder(radius=12),
+                                bgcolor=ft.colors.PRIMARY
+                            )
+                        ),
+                        ft.IconButton(
+                            icon=ft.icons.DELETE_OUTLINE,
+                            tooltip="Delete Category",
+                            on_click=lambda _: self.confirm_delete_category(category_id, category_name),
+                            icon_color=ft.colors.ERROR,
+                            style=ft.ButtonStyle(
+                                shape=ft.CircleBorder(),
+                                padding=ft.padding.all(8)
+                            )
+                        )
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+                ], spacing=0),
+                padding=ft.padding.all(20),
+                height=CONTENT_HEIGHT
+            )
+        
+        # Category header overlay on top of the card
+        category_header = ft.Container(
+            content=ft.Text(
+                category_name,
+                size=16,
+                weight=ft.FontWeight.BOLD,
+                color=ft.colors.WHITE,
+                max_lines=1,
+                overflow=ft.TextOverflow.ELLIPSIS,
+                text_align=ft.TextAlign.CENTER
+            ),
+            bgcolor=ft.colors.with_opacity(0.9, ft.colors.BLACK),
+            padding=ft.padding.symmetric(horizontal=16, vertical=8),
+            border_radius=ft.border_radius.all(12),
+            margin=ft.margin.only(bottom=8)
+        )
+        
+        # Combine all sections
+        card_content = ft.Column([
+            category_header,
+            image_section,
+            content_section
+        ], spacing=0, tight=True)
+        
+        # Create the final card with modern styling
+        final_card = ft.Container(
+            content=card_content,
+            width=CARD_WIDTH,
+            border_radius=ft.border_radius.all(CARD_RADIUS),
+            bgcolor=ft.colors.SURFACE,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=12,
+                color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
+                offset=ft.Offset(0, 4)
+            ),
+            clip_behavior=ft.ClipBehavior.HARD_EDGE
+        )
+        
+        # Add hover animation
+        return AnimationHelpers.create_hover_animation_container(
+            content=final_card,
+            hover_elevation=16.0,
+            normal_elevation=8.0,
+            hover_scale=1.03,
+            animation_duration=250,
+            border_radius=CARD_RADIUS,
+            padding=ft.padding.all(0)
         )
 
     def open_add_category_dialog(self):
