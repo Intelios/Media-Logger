@@ -722,13 +722,43 @@ def delete_award_category_db(category_id):
     conn = None
     try:
         conn = sqlite3.connect(config.DB_FILE)
+        # Enable foreign keys for this connection
+        conn.execute("PRAGMA foreign_keys = ON")
         cursor = conn.cursor()
-        # Delete the category (winner will be deleted automatically due to CASCADE)
+        
+        # First, check if the category exists
+        cursor.execute("SELECT name FROM award_categories WHERE id = ?", (category_id,))
+        category_result = cursor.fetchone()
+        if not category_result:
+            raise sqlite3.Error(f"Award category with ID {category_id} does not exist")
+        
+        category_name = category_result[0]
+        
+        # Check if there's a winner for this category
+        cursor.execute("SELECT id FROM award_winners WHERE category_id = ?", (category_id,))
+        winner_result = cursor.fetchone()
+        
+        # Delete the winner first (if exists) to avoid foreign key constraint issues
+        if winner_result:
+            cursor.execute("DELETE FROM award_winners WHERE category_id = ?", (category_id,))
+            print(f"Award winner removed for category ID {category_id}")
+        
+        # Now delete the category
         cursor.execute("DELETE FROM award_categories WHERE id = ?", (category_id,))
+        
+        # Verify the deletion was successful
+        if cursor.rowcount == 0:
+            raise sqlite3.Error(f"Failed to delete award category ID {category_id}")
+        
         conn.commit()
-        print(f"Award category deleted: ID {category_id}")
+        print(f"Award category deleted successfully: ID {category_id} - '{category_name}'")
+        return True
+        
     except sqlite3.Error as e:
         print(f"Database error deleting award category ID {category_id}: {e}")
+        if conn:
+            conn.rollback()
+        raise e  # Re-raise the exception so the UI can handle it
     finally:
         if conn:
             conn.close()

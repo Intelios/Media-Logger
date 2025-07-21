@@ -6,6 +6,7 @@ import traceback
 import shutil
 import uuid
 import asyncio
+import sqlite3
 
 # Import our new, separated modules
 import config
@@ -836,7 +837,17 @@ class AppUI:
     def show_snackbar(self, message: str, color: str = None, duration: int = 4000):
         if not self.page: return
         try:
-            self.page.snack_bar = ft.SnackBar(content=ft.Text(message, max_lines=3, overflow=ft.TextOverflow.ELLIPSIS), bgcolor=color, duration=duration, open=True)
+            # Clear any existing snackbar first
+            if hasattr(self.page, 'snack_bar') and self.page.snack_bar:
+                self.page.snack_bar.open = False
+            
+            # Create and show new snackbar
+            self.page.snack_bar = ft.SnackBar(
+                content=ft.Text(message, max_lines=3, overflow=ft.TextOverflow.ELLIPSIS), 
+                bgcolor=color, 
+                duration=duration, 
+                open=True
+            )
             self.page.update()
         except Exception as e:
             print(f"Error displaying snackbar '{message}': {e}")
@@ -4011,49 +4022,82 @@ class AppUI:
 
     def confirm_delete_category(self, category_id, category_name):
         """Show confirmation dialog before deleting a category."""
-        def close_dialog():
-            self.page.dialog.open = False
-            self.page.update()
-        
-        def delete_category():
+        if hasattr(self, 'current_dialog') and self.current_dialog and self.current_dialog.open:
+            return
+
+        delete_button_ref = ft.Ref[ft.ElevatedButton]()
+
+        def close_dialog(e=None):
+            if hasattr(self, 'current_dialog') and self.current_dialog:
+                self.current_dialog.open = False
+                if self.current_dialog in self.page.overlay:
+                    self.page.overlay.remove(self.current_dialog)
+                self.current_dialog = None
+                self.page.update()
+
+        # Make the action async to allow for a small, crucial delay
+        async def delete_category_action(e):
+            delete_btn = delete_button_ref.current
+            if delete_btn:
+                delete_btn.disabled = True
+                delete_btn.text = "Deleting..."
+                delete_btn.update()
+
             try:
+                # Perform the database deletion
                 database.delete_award_category_db(category_id)
-                self.show_snackbar(f"Category '{category_name}' deleted successfully!", ft.colors.GREEN)
-                self.update_main_content("Awards")
-            except Exception as e:
-                print(f"Error deleting award category: {e}")
-                self.show_snackbar("Failed to delete category. Please try again.", ft.colors.ERROR)
-            close_dialog()
-        
+                
+                # IMPORTANT: Close the dialog first
+                close_dialog()
+                
+                # Give the UI a moment to process the dialog closing
+                await asyncio.sleep(0.05)
+
+                # Now, with the dialog gone, provide feedback and refresh the view
+                self.show_snackbar(f"Deleted category '{category_name}'", color=ft.colors.GREEN_700)
+                self.refresh_current_view()
+
+            except Exception as ex:
+                # On error, still close the dialog and then show an error message
+                close_dialog()
+                await asyncio.sleep(0.05)
+                print(f"Error deleting award category '{category_name}': {ex}")
+                self.show_snackbar(f"Failed to delete category: {ex}", color=ft.colors.ERROR_CONTAINER)
+
         dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Delete Award Category"),
+            shape=ft.RoundedRectangleBorder(radius=16),
+            title=ft.Row([
+                ft.Icon(ft.icons.WARNING_AMBER_ROUNDED, color=ft.colors.AMBER_600),
+                ft.Text("Delete Category")
+            ], spacing=10),
             content=ft.Container(
                 content=ft.Column([
-                    ft.Icon(ft.icons.WARNING_AMBER, size=48, color=ft.colors.AMBER_600),
-                    ft.Container(height=16),
                     ft.Text(
                         f"Are you sure you want to delete the category '{category_name}'?",
                         size=16,
                         color=ft.colors.ON_SURFACE,
-                        text_align=ft.TextAlign.CENTER
+                        text_align=ft.TextAlign.CENTER,
+                        weight=ft.FontWeight.W_500
                     ),
                     ft.Container(height=8),
                     ft.Text(
-                        "This will also remove any selected winner for this category. This action cannot be undone.",
+                        "This will also remove any selected winner. This action cannot be undone.",
                         size=14,
                         color=ft.colors.ON_SURFACE_VARIANT,
                         text_align=ft.TextAlign.CENTER
                     )
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
-                width=400
+                width=400,
+                padding=ft.padding.only(top=8, bottom=24)
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=lambda _: close_dialog()),
+                ft.TextButton("Cancel", on_click=close_dialog),
                 ft.ElevatedButton(
-                    "Delete",
-                    icon=ft.icons.DELETE,
-                    on_click=lambda _: delete_category(),
+                    ref=delete_button_ref,
+                    text="Delete",
+                    icon=ft.icons.DELETE_FOREVER_ROUNDED,
+                    on_click=delete_category_action, # This is now an async handler
                     style=ft.ButtonStyle(
                         bgcolor=ft.colors.ERROR,
                         color=ft.colors.ON_ERROR
@@ -4062,8 +4106,9 @@ class AppUI:
             ],
             actions_alignment=ft.MainAxisAlignment.END
         )
-        
-        self.page.dialog = dialog
+
+        self.current_dialog = dialog
+        self.page.overlay.append(dialog)
         dialog.open = True
         self.page.update()
 
@@ -4498,6 +4543,8 @@ class AppUI:
             show_fab = True
         elif view_id == "Awards":
             content = self.show_awards_view()
+            # Awards view doesn't need FAB as it has its own action buttons
+            show_fab = False
         else:
             content = ft.Text(f"Error: Unknown view '{view_id}'")
         
@@ -4506,8 +4553,9 @@ class AppUI:
         if fab:
             fab.visible = show_fab
             fab.tooltip = fab_tooltip
-            fab.update()
-        content_area.update()
+        
+        # Use a full page update to ensure all states are synchronized
+        self.page.update()
 
     def refresh_current_view(self):
         self.update_main_content(self.app_state['current_view'])
