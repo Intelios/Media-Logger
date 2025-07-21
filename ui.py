@@ -3023,7 +3023,7 @@ class AppUI:
         )
 
     def create_year_card(self, year, is_new=False):
-        """Create a card for a specific award year."""
+        """Create a modern glassmorphism-styled card for a specific award year."""
         # Get category count for existing years
         if not is_new:
             categories = database.get_award_categories_by_year_db(year)
@@ -3048,93 +3048,141 @@ class AppUI:
             category_count = 0
             winners_count = 0
         
-        # Create progress indicator for existing years with categories
+        # Create enhanced progress indicator with modern styling
         progress_indicator = ft.Container()
         if not is_new and category_count > 0:
-            progress_color = ft.colors.GREEN_600 if completion_percentage == 100 else ft.colors.AMBER_600 if completion_percentage > 0 else ft.colors.BLUE_GREY_400
+            progress_color = ColorThemeManager.SEMANTIC_COLORS['success'] if completion_percentage == 100 else ColorThemeManager.SEMANTIC_COLORS['warning'] if completion_percentage > 0 else ft.colors.BLUE_GREY_400
+            
+            # Enhanced progress bar with glassmorphism styling
+            progress_bar = MicroInteractions.create_smooth_progress_bar(
+                value=completion_percentage / 100,
+                color=progress_color,
+                background_color=ft.colors.with_opacity(0.1, progress_color),
+                height=6,
+                border_radius=3
+            )
+            
             progress_indicator = ft.Container(
                 content=ft.Row([
-                    ft.Text(f"{completion_percentage:.0f}%", size=12, color=progress_color, weight=ft.FontWeight.W_600),
                     ft.Container(
-                        content=ft.ProgressBar(
-                            value=completion_percentage / 100,
-                            color=progress_color,
-                            bgcolor=ft.colors.with_opacity(0.2, progress_color),
-                            height=4
+                        content=ft.Text(
+                            f"{completion_percentage:.0f}%", 
+                            size=12, 
+                            color=progress_color, 
+                            weight=ft.FontWeight.W_700
                         ),
-                        width=60
+                        bgcolor=ft.colors.with_opacity(0.1, progress_color),
+                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                        border_radius=ft.border_radius.all(12),
+                        border=ft.border.all(1, ft.colors.with_opacity(0.2, progress_color))
+                    ),
+                    ft.Container(
+                        content=progress_bar,
+                        width=80,
+                        expand=True
                     )
-                ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                margin=ft.margin.only(top=8)
+                ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                margin=ft.margin.only(top=12)
             )
         
-        # Create card content
+        # Create enhanced icon with glassmorphism background
+        icon_container = ft.Container(
+            content=ft.Icon(
+                ft.icons.EMOJI_EVENTS if not is_new else ft.icons.ADD_CIRCLE_OUTLINE,
+                size=28,
+                color=ColorThemeManager.BRAND_COLORS['primary']
+            ),
+            bgcolor=ft.colors.with_opacity(0.1, ColorThemeManager.BRAND_COLORS['primary']),
+            padding=ft.padding.all(12),
+            border_radius=ft.border_radius.all(16),
+            border=ft.border.all(1, ft.colors.with_opacity(0.2, ColorThemeManager.BRAND_COLORS['primary'])),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.colors.with_opacity(0.1, ColorThemeManager.BRAND_COLORS['primary']),
+                offset=ft.Offset(0, 2)
+            )
+        )
+        
+        # Create enhanced action buttons with modern styling
+        action_buttons = []
+        
+        # Summary button for existing years with categories
+        if not is_new and category_count > 0:
+            summary_button = MicroInteractions.create_ripple_button(
+                text="Summary",
+                icon=ft.icons.VISIBILITY_OUTLINED,
+                on_click=lambda _, y=year: self.navigate_to_awards_summary(y),
+                style="outlined",
+                color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE_VARIANT)
+            )
+            action_buttons.append(summary_button)
+        
+        # Main action button
+        main_button = MicroInteractions.create_ripple_button(
+            text="Manage" if not is_new else "Create",
+            icon=ft.icons.EDIT_OUTLINED if not is_new else ft.icons.ADD,
+            on_click=lambda _, y=year: self.select_awards_year(y),
+            style="filled",
+            color=ColorThemeManager.BRAND_COLORS['primary']
+        )
+        action_buttons.append(main_button)
+        
+        # Create card content with enhanced spacing and typography
         card_content = ft.Column([
+            # Header section with icon and title
             ft.Row([
-                ft.Icon(
-                    ft.icons.EMOJI_EVENTS if not is_new else ft.icons.ADD_CIRCLE_OUTLINE,
-                    size=32,
-                    color=ColorThemeManager.BRAND_COLORS['primary']
-                ),
+                icon_container,
                 ft.Column([
                     ft.Text(
                         str(year),
-                        size=24,
+                        size=26,
                         weight=ft.FontWeight.BOLD,
-                        color=ft.colors.ON_SURFACE
+                        color=ft.colors.ON_SURFACE,
+                        style=ft.TextStyle(letter_spacing=0.5)
                     ),
                     ft.Text(
                         subtitle,
                         size=14,
-                        color=ft.colors.ON_SURFACE_VARIANT
+                        color=ft.colors.ON_SURFACE_VARIANT,
+                        weight=ft.FontWeight.W_500
                     ),
                     progress_indicator
-                ], spacing=4, expand=True)
-            ], spacing=16, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ], spacing=6, expand=True)
+            ], spacing=16, vertical_alignment=ft.CrossAxisAlignment.START),
             
-            ft.Container(height=10),
+            ft.Container(height=16),
             
-            # Action buttons
-            ft.Row([
-                # Summary button for existing years with categories
-                ft.TextButton(
-                    text="Summary",
-                    icon=ft.icons.VISIBILITY,
-                    on_click=lambda _, y=year: self.navigate_to_awards_summary(y),
-                    style=ft.ButtonStyle(
-                        color=ft.colors.ON_SURFACE_VARIANT
-                    )
-                ) if not is_new and category_count > 0 else ft.Container(),
-                
-                ft.Container(expand=True),
-                
-                ft.TextButton(
-                    text="Manage" if not is_new else "Create",
-                    icon=ft.icons.EDIT if not is_new else ft.icons.ADD,
-                    on_click=lambda _, y=year: self.select_awards_year(y),
-                    style=ft.ButtonStyle(
-                        color=ColorThemeManager.BRAND_COLORS['primary']
-                    )
-                )
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-        ], spacing=8)
+            # Action buttons section
+            ft.Row(
+                action_buttons,
+                alignment=ft.MainAxisAlignment.END if len(action_buttons) == 1 else ft.MainAxisAlignment.SPACE_BETWEEN,
+                spacing=12
+            )
+        ], spacing=12)
         
-        # Create hover animation container
-        hover_card = AnimationHelpers.create_hover_animation_container(
+        # Create glassmorphism card with enhanced visual effects
+        glass_card = GlassmorphismStyles.create_glass_card(
             content=card_content,
-            hover_elevation=8.0,
-            normal_elevation=4.0,
-            hover_scale=1.02,
-            border_radius=16.0,
-            padding=ft.padding.all(20)
+            elevation=6.0,
+            blur_intensity=12.0,
+            glass_opacity=0.15,
+            border_radius=20.0,
+            padding=ft.padding.all(24)
         )
         
-        return ft.Card(
-            content=hover_card,
-            elevation=4,
-            shape=ft.RoundedRectangleBorder(radius=16),
-            surface_tint_color=ft.colors.SURFACE_TINT
+        # Add hover animation effects
+        hover_container = AnimationHelpers.create_hover_animation_container(
+            content=glass_card,
+            hover_elevation=12.0,
+            normal_elevation=6.0,
+            hover_scale=1.03,
+            animation_duration=250,
+            border_radius=20.0,
+            padding=ft.padding.all(0)  # No additional padding since glass_card already has it
         )
+        
+        return hover_container
 
     def select_awards_year(self, year):
         """Select a specific year for awards management."""
