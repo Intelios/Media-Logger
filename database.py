@@ -907,3 +907,27 @@ def get_award_category_db(category_id):
         if conn:
             conn.close()
     return category
+
+def is_award_winner(media_id):
+    """
+    Checks if a media entry has won at least one award.
+    
+    Args:
+        media_id: The ID of the media entry to check
+        
+    Returns:
+        bool: True if the media has won at least one award, False otherwise
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM award_winners WHERE media_id = ?", (media_id,))
+        count = cursor.fetchone()[0]
+        return count > 0
+    except sqlite3.Error as e:
+        print(f"Database error checking award winner status for media ID {media_id}: {e}")
+        return False  # Default to False on error (fail gracefully)
+    finally:
+        if conn:
+            conn.close()

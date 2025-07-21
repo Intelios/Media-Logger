@@ -230,7 +230,31 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
 
     def create_indicator(icon, tooltip, color):
         return ft.Container(content=ft.Icon(icon, size=16, color=color), bgcolor=ft.colors.with_opacity(0.1, color), padding=ft.padding.all(6), border_radius=ft.border_radius.all(20), tooltip=tooltip, border=ft.border.all(1, ft.colors.with_opacity(0.3, color)))
+    
+    def create_trophy_indicator():
+        return ft.Container(
+            content=ft.Icon(ft.icons.EMOJI_EVENTS, size=16, color=ft.colors.AMBER_100),
+            gradient=ft.LinearGradient(
+                colors=[ft.colors.AMBER_400, ft.colors.AMBER_600, ft.colors.AMBER_700],
+                begin=ft.alignment.top_left,
+                end=ft.alignment.bottom_right
+            ),
+            padding=ft.padding.all(6),
+            border_radius=ft.border_radius.all(20),
+            tooltip="Award Winner",
+            border=ft.border.all(1.5, ft.colors.with_opacity(0.4, ft.colors.AMBER_300)),
+            shadow=ft.BoxShadow(
+                spread_radius=1,
+                blur_radius=6,
+                color=ft.colors.with_opacity(0.4, ft.colors.AMBER_600),
+                offset=ft.Offset(0, 2)
+            )
+        )
+    
     bottom_indicators_list = []
+    # Check if media is an award winner and add trophy badge first
+    if database.is_award_winner(jav_item.get('id')):
+        bottom_indicators_list.append(create_trophy_indicator())
     if is_rewatch: bottom_indicators_list.append(create_indicator(ft.icons.REPLAY_ROUNDED, "Rewatched", ft.colors.AMBER_600))
     if owns_local_copy: bottom_indicators_list.append(create_indicator(ft.icons.DOWNLOAD_DONE_ROUNDED, "Owns Local Copy", ft.colors.GREEN_600))
     bottom_indicators_row = ft.Row(controls=bottom_indicators_list, spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)
