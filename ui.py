@@ -661,304 +661,7 @@ def create_property_filter_button_with_sheet(page_ref: ft.Page, filter_state: di
     update_button_text()
     return button
 
-# --- ENHANCED: UI Helper for Backlog List Item ---
-def create_backlog_list_item(page, item_data, complete_callback, edit_callback, delete_callback):
-    """Creates a visually enhanced list item for a backlog item with modern design."""
-    item_id = item_data['id']
-    name = item_data.get('name', 'Unknown Title')
-    entry_type = item_data.get('entry_type', 'Other')
-    progress = item_data.get('progress')
-    notes = item_data.get('notes')
-    date_added_str = item_data.get('date_added', 'N/A')
-    image_url = item_data.get('image_url')
 
-    # Date formatting
-    display_date = date_added_str
-    try:
-        date_obj = datetime.strptime(date_added_str, '%Y-%m-%d')
-        display_date = date_obj.strftime('%d %b %Y')
-    except (ValueError, TypeError):
-        pass
-
-    # --- Enhanced Components ---
-
-    # 1. Enhanced Image Container with gradient overlay
-    image_container = ft.Container(
-        width=90,
-        height=120,
-        clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-        border_radius=ft.border_radius.all(16),
-        shadow=ft.BoxShadow(
-            spread_radius=0,
-            blur_radius=12,
-            color=ft.colors.with_opacity(0.25, ft.colors.BLACK),
-            offset=ft.Offset(0, 4),
-        ),
-        animate=ft.animation.Animation(300, ft.AnimationCurve.EASE_OUT_CUBIC)
-    )
-    
-    if image_url:
-        if image_url.lower().startswith("http"):
-            image_src = image_url
-        else:
-            # Check if the image exists in the assets directory
-            full_local_path_check = os.path.join(config.ASSETS_DIR, image_url)
-            if os.path.exists(full_local_path_check):
-                image_src = image_url # Use the relative path for Flet
-            else:
-                image_src = config.DEFAULT_IMAGE_URL # Fallback if local file is missing
-        
-        # Image with subtle gradient overlay
-        image_stack = ft.Stack([
-            ft.Image(src=image_src, fit=ft.ImageFit.COVER, width=90, height=120),
-            ft.Container(
-                width=90,
-                height=120,
-                gradient=ft.LinearGradient(
-                    colors=[
-                        ft.colors.with_opacity(0.0, ft.colors.BLACK),
-                        ft.colors.with_opacity(0.1, ft.colors.BLACK)
-                    ],
-                    begin=ft.alignment.top_center,
-                    end=ft.alignment.bottom_center
-                )
-            )
-        ])
-        image_container.content = image_stack
-    else:
-        image_container.content = ft.Container(
-            gradient=ft.LinearGradient(
-                colors=[ft.colors.SURFACE_VARIANT, ft.colors.with_opacity(0.8, ft.colors.SURFACE_VARIANT)],
-                begin=ft.alignment.top_left,
-                end=ft.alignment.bottom_right
-            ),
-            alignment=ft.alignment.center,
-            content=ft.Icon(
-                get_entry_type_icon_name(entry_type), 
-                size=36, 
-                color=ft.colors.ON_SURFACE_VARIANT, 
-                opacity=0.6
-            )
-        )
-
-    # 2. Enhanced Title and Type Badge
-    title_text = ft.Text(
-        name, 
-        weight=ft.FontWeight.W_600, 
-        size=19, 
-        max_lines=2, 
-        overflow=ft.TextOverflow.ELLIPSIS,
-        color=ft.colors.ON_SURFACE
-    )
-    
-    # Entry type colors mapping
-    type_colors = {
-        "Movie": [ft.colors.PURPLE_600],
-        "TV Show": [ft.colors.BLUE_600],
-        "Game": [ft.colors.GREEN_600],
-        "Book": [ft.colors.ORANGE_600],
-        "Album": [ft.colors.CYAN_600],
-        "Anime": [ft.colors.PINK_600],
-        "K-Drama": [ft.colors.LIGHT_GREEN_600],
-        "Hentai": [ft.colors.DEEP_PURPLE_600],
-        "JAV": [ft.colors.INDIGO_600],
-        "Adult Visual Novel": [ft.colors.DEEP_ORANGE_600],
-        "Other": [ft.colors.GREY_400, ft.colors.GREY_600]
-    }
-    
-    gradient_colors = type_colors.get(entry_type, [ft.colors.PRIMARY, ft.colors.with_opacity(0.8, ft.colors.PRIMARY)])
-    
-    type_badge = ft.Container(
-        content=ft.Text(
-            entry_type, 
-            size=12, 
-            weight=ft.FontWeight.W_600, 
-            color=ft.colors.WHITE
-        ),
-        gradient=ft.LinearGradient(
-            colors=gradient_colors,
-            begin=ft.alignment.top_left,
-            end=ft.alignment.bottom_right
-        ),
-        padding=ft.padding.symmetric(horizontal=12, vertical=6),
-        border_radius=ft.border_radius.all(20),
-        shadow=ft.BoxShadow(
-            spread_radius=0,
-            blur_radius=4,
-            color=ft.colors.with_opacity(0.3, gradient_colors[0]),
-            offset=ft.Offset(0, 2),
-        ),
-        animate=ft.animation.Animation(200, ft.AnimationCurve.EASE_OUT)
-    )
-
-    # 3. Enhanced Info Chips
-    date_chip = ft.Container(
-        content=ft.Row([
-            ft.Icon(ft.icons.SCHEDULE_ROUNDED, size=14, color=ft.colors.PRIMARY),
-            ft.Text(display_date, size=13, color=ft.colors.ON_SURFACE, weight=ft.FontWeight.W_500)
-        ], spacing=6),
-        padding=ft.padding.symmetric(horizontal=12, vertical=8),
-        bgcolor=ft.colors.with_opacity(0.08, ft.colors.PRIMARY),
-        border_radius=ft.border_radius.all(12),
-        animate=ft.animation.Animation(200, ft.AnimationCurve.EASE_OUT)
-    )
-    
-    progress_chip = ft.Container()
-    if progress:
-        progress_chip = ft.Container(
-            content=ft.Row([
-                ft.Icon(ft.icons.TIMER_OUTLINED, size=14, color=ft.colors.SECONDARY),
-                ft.Text(
-                    progress, 
-                    size=13, 
-                    color=ft.colors.ON_SURFACE, 
-                    weight=ft.FontWeight.W_500,
-                    max_lines=1, 
-                    overflow=ft.TextOverflow.ELLIPSIS
-                )
-            ], spacing=6),
-            padding=ft.padding.symmetric(horizontal=12, vertical=8),
-            bgcolor=ft.colors.with_opacity(0.08, ft.colors.SECONDARY),
-            border_radius=ft.border_radius.all(12),
-            tooltip=f"Current Progress: {progress}",
-            animate=ft.animation.Animation(200, ft.AnimationCurve.EASE_OUT)
-        )
-
-    # 4. Enhanced Notes Section
-    notes_display = ft.Container()
-    if notes:
-        notes_display = ft.Container(
-            content=ft.Text(
-                notes, 
-                size=14, 
-                max_lines=3, 
-                overflow=ft.TextOverflow.ELLIPSIS, 
-                color=ft.colors.ON_SURFACE_VARIANT,
-                style=ft.TextStyle(height=1.4)
-            ),
-            padding=ft.padding.all(12),
-            margin=ft.margin.only(top=12),
-            bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
-            border_radius=ft.border_radius.all(12),
-            border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE))
-        )
-
-    # 5. Enhanced Action Buttons with hover effects
-    def create_action_button(icon, color, tooltip, callback, hover_color=None):
-        if hover_color is None:
-            hover_color = ft.colors.with_opacity(0.1, color)
-        
-        return ft.Container(
-            content=ft.Icon(icon, size=20, color=color),
-            width=44,
-            height=44,
-            border_radius=ft.border_radius.all(12),
-            alignment=ft.alignment.center,
-            tooltip=tooltip,
-            animate=ft.animation.Animation(200, ft.AnimationCurve.EASE_OUT),
-            on_click=callback,
-            ink=True,
-            on_hover=lambda e: setattr(e.control, 'bgcolor', hover_color if e.data == "true" else ft.colors.TRANSPARENT) or e.control.update()
-        )
-
-    action_buttons = ft.Row(
-        spacing=8,
-        alignment=ft.MainAxisAlignment.END,
-        controls=[
-            create_action_button(
-                ft.icons.CHECK_CIRCLE_ROUNDED,
-                ft.colors.GREEN_600,
-                "Mark as Completed",
-                lambda _, item=item_data: complete_callback(item),
-                ft.colors.with_opacity(0.1, ft.colors.GREEN_600)
-            ),
-            create_action_button(
-                ft.icons.EDIT_ROUNDED,
-                ft.colors.BLUE_600,
-                "Edit Item",
-                lambda _, item=item_data: edit_callback(item),
-                ft.colors.with_opacity(0.1, ft.colors.BLUE_600)
-            ),
-            create_action_button(
-                ft.icons.DELETE_ROUNDED,
-                ft.colors.RED_600,
-                "Delete Item",
-                lambda _, item_id=item_id, item_name=name: delete_callback(item_id, item_name),
-                ft.colors.with_opacity(0.1, ft.colors.RED_600)
-            ),
-        ]
-    )
-
-    # --- Enhanced Layout Assembly ---
-    header_row = ft.Row(
-        [title_text, type_badge], 
-        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-        vertical_alignment=ft.CrossAxisAlignment.START
-    )
-    
-    chips_row = ft.Row(
-        [date_chip, progress_chip] if progress else [date_chip], 
-        spacing=10, 
-        wrap=True
-    )
-
-    main_content = ft.Column(
-        [header_row, chips_row, notes_display],
-        spacing=12,
-        expand=True,
-    )
-
-    item_layout = ft.Row(
-        controls=[image_container, main_content],
-        vertical_alignment=ft.CrossAxisAlignment.START,
-        spacing=16,
-    )
-
-    # Main card with enhanced styling
-    card_container = ft.Container(
-        content=ft.Column([
-            item_layout,
-            ft.Divider(height=1, color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE)),
-            action_buttons
-        ], spacing=16),
-        padding=ft.padding.all(20),
-        bgcolor=ft.colors.SURFACE,
-        border_radius=ft.border_radius.all(20),
-        border=ft.border.all(1, ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE)),
-        shadow=ft.BoxShadow(
-            spread_radius=0,
-            blur_radius=8,
-            color=ft.colors.with_opacity(0.1, ft.colors.BLACK),
-            offset=ft.Offset(0, 2),
-        ),
-        animate=ft.animation.Animation(300, ft.AnimationCurve.EASE_OUT_CUBIC),
-        on_hover=lambda e: animate_card_hover(e.control, e.data == "true")
-    )
-
-    def animate_card_hover(control, is_hovering):
-        if is_hovering:
-            control.shadow = ft.BoxShadow(
-                spread_radius=0,
-                blur_radius=16,
-                color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
-                offset=ft.Offset(0, 4),
-            )
-            control.scale = ft.transform.Scale(1.02)
-        else:
-            control.shadow = ft.BoxShadow(
-                spread_radius=0,
-                blur_radius=8,
-                color=ft.colors.with_opacity(0.1, ft.colors.BLACK),
-                offset=ft.Offset(0, 2),
-            )
-            control.scale = ft.transform.Scale(1.0)
-        control.update()
-
-    return ft.Container(
-        content=card_container,
-        margin=ft.margin.symmetric(vertical=8, horizontal=16),
-        animate=ft.animation.Animation(200, ft.AnimationCurve.EASE_OUT)
-    )
 
 
 
@@ -1015,9 +718,6 @@ class AppUI:
         
         saved_search_filter_str = database.get_setting_db(config.SAVED_SEARCH_VIEW_FILTER_KEY)
         search_view_selected_types = set(s_type for s_type in saved_search_filter_str.split(',')) if saved_search_filter_str is not None else set(config.ALL_ENTRY_TYPES_STR)
-        
-        saved_backlog_filter_str = database.get_setting_db(config.SAVED_BACKLOG_VIEW_FILTER_KEY)
-        backlog_view_selected_types = set(s_type for s_type in saved_backlog_filter_str.split(',')) if saved_backlog_filter_str is not None else set(config.ALL_ENTRY_TYPES_STR)
 
         default_props_filter = {
             "score_min": 0, "score_max": 10, "rewatch": "any", 
@@ -1037,12 +737,21 @@ class AppUI:
         except json.JSONDecodeError:
             search_view_props = default_props_filter.copy()
 
+        # Load saved current view, defaulting to "Home"
+        current_view = "Home"
+        saved_current_view = database.get_setting_db("current_view")
+        if saved_current_view:
+            # Redirect from removed Backlog view to Home
+            if saved_current_view == "Backlog":
+                current_view = "Home"
+            else:
+                current_view = saved_current_view
+
         self.app_state = {
-            "current_view": "Home",
+            "current_view": current_view,
             "year_view_selected_entry_types": year_view_selected_types,
             "stats_view_selected_entry_types": stats_view_selected_types,
             "search_view_selected_entry_types": search_view_selected_types,
-            "backlog_view_selected_entry_types": backlog_view_selected_types,
             "search_selected_fields": {"name", "author", "artist", "platform", "director", "actress", "update_version"},
             "current_search_term": "",
             "search_results": [],
@@ -1351,7 +1060,7 @@ class AppUI:
         finally:
             self.page._dialog_is_opening = False
 
-    def open_add_jav_dialog(self, e=None, initial_data=None, backlog_item_id=None):
+    def open_add_jav_dialog(self, e=None, initial_data=None):
         if initial_data is None:
             initial_data = {}
 
@@ -1412,11 +1121,7 @@ class AppUI:
             conditional_data = get_data_from_conditional_fields(conditional_fields_container)
             database.add_jav_db(name, genre_input_str, date_str, score_int, description, is_rewatch, own_local_copy, final_image_ref_for_db, entry_type_val, conditional_data)
             
-            if backlog_item_id:
-                database.delete_backlog_item_db(backlog_item_id)
-                self.show_snackbar(f"Moved '{name}' from backlog to log!")
-            else:
-                self.show_snackbar(f"Added '{name}'")
+            self.show_snackbar(f"Added '{name}'")
 
             self.close_form_overlay()
             self.refresh_current_view()
@@ -1488,262 +1193,11 @@ class AppUI:
         self.main_stack.current.controls.append(form_view)
         self.main_stack.current.update()
 
-    def open_add_backlog_dialog(self, e=None):
-        """Enhanced add backlog dialog with better styling and validation."""
-        name_field = ft.TextField(
-            label="Title", 
-            autofocus=True, 
-            capitalization=ft.TextCapitalization.WORDS,
-            border_radius=ft.border_radius.all(12),
-            filled=True,
-            prefix_icon=ft.icons.TITLE_ROUNDED
-        )
-        
-        entry_type_dropdown = ft.Dropdown(
-            label="Entry Type", 
-            options=config.ENTRY_TYPE_OPTIONS, 
-            hint_text="Select the type of media",
-            border_radius=ft.border_radius.all(12),
-            filled=True
-        )
-        
-        progress_field = ft.TextField(
-            label="Current Progress (Optional)", 
-            hint_text="e.g., Ep 5/12, Chapter 3, 50%", 
-            capitalization=ft.TextCapitalization.SENTENCES,
-            border_radius=ft.border_radius.all(12),
-            filled=True,
-            prefix_icon=ft.icons.TIMER_OUTLINED
-        )
-        
-        notes_field = ft.TextField(
-            label="Notes", 
-            hint_text="Why do you want to watch/play this?", 
-            multiline=True, 
-            min_lines=3, 
-            max_lines=5, 
-            capitalization=ft.TextCapitalization.SENTENCES,
-            border_radius=ft.border_radius.all(12),
-            filled=True
-        )
-        
-        image_source_field = ft.TextField(
-            label="Image URL (Optional)", 
-            hint_text="https://example.com/image.jpg",
-            border_radius=ft.border_radius.all(12),
-            filled=True,
-            prefix_icon=ft.icons.IMAGE_ROUNDED
-        )
 
-        # Enhanced dialog
-        add_dialog = ft.AlertDialog(
-            modal=True,
-            shape=ft.RoundedRectangleBorder(radius=20),
-            bgcolor=ft.colors.SURFACE,
-            surface_tint_color=ft.colors.PRIMARY
-        )
 
-        def close_dialog(e):
-            add_dialog.open = False
-            self.page.update()
 
-        def save_new_backlog_item(e):
-            name = name_field.value.strip()
-            if not name:
-                name_field.error_text = "Title is required."
-                name_field.update()
-                return
-            
-            # Clear any previous errors
-            name_field.error_text = None
-            name_field.update()
-            
-            final_image_ref = self.process_and_copy_image(image_source_field.value)
-            database.add_backlog_item_db(
-                name,
-                entry_type_dropdown.value,
-                progress_field.value,
-                notes_field.value,
-                final_image_ref
-            )
-            self.show_snackbar(f"✅ Added '{name}' to backlog.")
-            close_dialog(e)
-            self.refresh_current_view()
 
-        add_dialog.title = ft.Row([
-            ft.Icon(ft.icons.ADD_CIRCLE_ROUNDED, color=ft.colors.PRIMARY, size=28),
-            ft.Text("Add to Backlog", style=ft.TextThemeStyle.HEADLINE_SMALL, weight=ft.FontWeight.W_600)
-        ], spacing=12)
-        
-        add_dialog.content = ft.Container(
-            content=ft.Column(
-                controls=[name_field, entry_type_dropdown, progress_field, notes_field, image_source_field],
-                spacing=20, 
-                tight=True, 
-                scroll=ft.ScrollMode.ADAPTIVE
-            ),
-            width=450,
-            height=480,
-            padding=ft.padding.symmetric(horizontal=4)
-        )
-        
-        add_dialog.actions = [
-            ft.TextButton(
-                "Cancel", 
-                on_click=close_dialog,
-                style=ft.ButtonStyle(
-                    shape=ft.RoundedRectangleBorder(radius=12),
-                    padding=ft.padding.symmetric(horizontal=20, vertical=12)
-                )
-            ),
-            ft.ElevatedButton(
-                "Add to Backlog", 
-                on_click=save_new_backlog_item,
-                icon=ft.icons.ADD_ROUNDED,
-                style=ft.ButtonStyle(
-                    shape=ft.RoundedRectangleBorder(radius=12),
-                    padding=ft.padding.symmetric(horizontal=20, vertical=12),
-                    bgcolor=ft.colors.PRIMARY,
-                    color=ft.colors.ON_PRIMARY
-                )
-            ),
-        ]
-        add_dialog.actions_alignment = ft.MainAxisAlignment.END
-        add_dialog.on_dismiss = lambda e: self.page.overlay.remove(add_dialog)
 
-        self.page.overlay.append(add_dialog)
-        add_dialog.open = True
-        self.page.update()
-
-    def open_edit_backlog_dialog(self, item_data):
-        """Enhanced edit backlog dialog with better styling."""
-        item_id = item_data['id']
-        
-        name_field = ft.TextField(
-            label="Title", 
-            capitalization=ft.TextCapitalization.WORDS, 
-            value=item_data.get('name', ''),
-            border_radius=ft.border_radius.all(12),
-            filled=True,
-            prefix_icon=ft.icons.TITLE_ROUNDED
-        )
-        
-        entry_type_dropdown = ft.Dropdown(
-            label="Entry Type", 
-            options=config.ENTRY_TYPE_OPTIONS, 
-            value=item_data.get('entry_type'),
-            border_radius=ft.border_radius.all(12),
-            filled=True
-        )
-        
-        progress_field = ft.TextField(
-            label="Current Progress (Optional)", 
-            capitalization=ft.TextCapitalization.SENTENCES, 
-            value=item_data.get('progress', ''),
-            border_radius=ft.border_radius.all(12),
-            filled=True,
-            prefix_icon=ft.icons.TIMER_OUTLINED
-        )
-        
-        notes_field = ft.TextField(
-            label="Notes", 
-            multiline=True, 
-            min_lines=3, 
-            max_lines=5, 
-            capitalization=ft.TextCapitalization.SENTENCES, 
-            value=item_data.get('notes', ''),
-            border_radius=ft.border_radius.all(12),
-            filled=True
-        )
-        
-        image_source_field = ft.TextField(
-            label="Image URL (Optional)", 
-            value=item_data.get('image_url', ''),
-            border_radius=ft.border_radius.all(12),
-            filled=True,
-            prefix_icon=ft.icons.IMAGE_ROUNDED
-        )
-
-        edit_dialog = ft.AlertDialog(
-            modal=True,
-            shape=ft.RoundedRectangleBorder(radius=20),
-            bgcolor=ft.colors.SURFACE,
-            surface_tint_color=ft.colors.PRIMARY
-        )
-
-        def close_dialog(e):
-            edit_dialog.open = False
-            self.page.update()
-
-        def save_edited_backlog_item(e):
-            name = name_field.value.strip()
-            if not name:
-                name_field.error_text = "Title is required."
-                name_field.update()
-                return
-            
-            name_field.error_text = None
-            name_field.update()
-            
-            final_image_ref = item_data.get('image_url')
-            if image_source_field.value != item_data.get('image_url'):
-                final_image_ref = self.process_and_copy_image(image_source_field.value)
-
-            database.update_backlog_item_db(
-                item_id, name, entry_type_dropdown.value, progress_field.value, notes_field.value, final_image_ref
-            )
-            self.show_snackbar(f"✅ Updated '{name}' in backlog.")
-            close_dialog(e)
-            self.refresh_current_view()
-
-        edit_dialog.title = ft.Row([
-            ft.Icon(ft.icons.EDIT_ROUNDED, color=ft.colors.BLUE_600, size=28),
-            ft.Text("Edit Backlog Item", style=ft.TextThemeStyle.HEADLINE_SMALL, weight=ft.FontWeight.W_600)
-        ], spacing=12)
-        
-        edit_dialog.content = ft.Container(
-            content=ft.Column(
-                controls=[name_field, entry_type_dropdown, progress_field, notes_field, image_source_field],
-                spacing=20, 
-                tight=True, 
-                scroll=ft.ScrollMode.ADAPTIVE
-            ),
-            width=450,
-            height=480,
-            padding=ft.padding.symmetric(horizontal=4)
-        )
-        
-        edit_dialog.actions = [
-            ft.TextButton(
-                "Cancel", 
-                on_click=close_dialog,
-                style=ft.ButtonStyle(
-                    shape=ft.RoundedRectangleBorder(radius=12),
-                    padding=ft.padding.symmetric(horizontal=20, vertical=12)
-                )
-            ),
-            ft.ElevatedButton(
-                "Save Changes", 
-                on_click=save_edited_backlog_item,
-                icon=ft.icons.SAVE_ROUNDED,
-                style=ft.ButtonStyle(
-                    shape=ft.RoundedRectangleBorder(radius=12),
-                    padding=ft.padding.symmetric(horizontal=20, vertical=12),
-                    bgcolor=ft.colors.BLUE_600,
-                    color=ft.colors.WHITE
-                )
-            ),
-        ]
-        edit_dialog.actions_alignment = ft.MainAxisAlignment.END
-        edit_dialog.on_dismiss = lambda e: self.page.overlay.remove(edit_dialog)
-
-        self.page.overlay.append(edit_dialog)
-        edit_dialog.open = True
-        self.page.update()
-
-    def handle_complete_backlog_item(self, item_data):
-        """Handle completing a backlog item."""
-        self.open_add_jav_dialog(initial_data=item_data, backlog_item_id=item_data['id'])
 
     def _apply_property_filters(self, entries: list[dict], filters: dict) -> list[dict]:
         """
@@ -1789,165 +1243,7 @@ class AppUI:
 
         return filtered_entries
 
-    # --- ENHANCED: Main Backlog View ---
-    def build_backlog_view(self):
-        """Enhanced backlog view with modern design and animations."""
-        backlog_list_view_ref = ft.Ref[ft.ListView]()
 
-        def refresh_view_content():
-            list_view = backlog_list_view_ref.current
-            if not list_view: return
-            list_view.controls.clear()
-            
-            all_items = database.get_all_backlog_items_db()
-            selected_types = self.app_state["backlog_view_selected_entry_types"]
-            filtered_items = [item for item in all_items if item.get('entry_type') in selected_types]
-
-            if not filtered_items:
-                # Enhanced empty state
-                empty_state = ft.Container(
-                    content=ft.Column([
-                        ft.Icon(
-                            ft.icons.MOVIE_FILTER_ROUNDED, 
-                            size=64, 
-                            color=ft.colors.with_opacity(0.4, ft.colors.ON_SURFACE)
-                        ),
-                        ft.Text(
-                            "Your backlog is empty!", 
-                            style=ft.TextThemeStyle.HEADLINE_SMALL,
-                            weight=ft.FontWeight.W_600,
-                            color=ft.colors.ON_SURFACE,
-                            text_align=ft.TextAlign.CENTER
-                        ),
-                        ft.Text(
-                            "Add movies, shows, games, and more to keep track of what you want to experience next.",
-                            style=ft.TextThemeStyle.BODY_MEDIUM,
-                            color=ft.colors.ON_SURFACE_VARIANT,
-                            text_align=ft.TextAlign.CENTER,
-                            width=300
-                        ),
-                        ft.ElevatedButton(
-                            "Add Your First Item",
-                            icon=ft.icons.ADD_ROUNDED,
-                            on_click=self.open_add_backlog_dialog,
-                            style=ft.ButtonStyle(
-                                shape=ft.RoundedRectangleBorder(radius=16),
-                                padding=ft.padding.symmetric(horizontal=24, vertical=12),
-                                bgcolor=ft.colors.PRIMARY,
-                                color=ft.colors.ON_PRIMARY
-                            )
-                        )
-                    ], 
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=16),
-                    alignment=ft.alignment.center,
-                    padding=40,
-                    expand=True
-                )
-                list_view.controls.append(empty_state)
-            else:
-                # Add items with staggered animation
-                for i, item in enumerate(filtered_items):
-                    item_widget = create_backlog_list_item(
-                        self.page, item,
-                        self.handle_complete_backlog_item,
-                        self.open_edit_backlog_dialog,
-                        delete_backlog_item_action
-                    )
-                    # Add slight delay for staggered animation effect
-                    item_widget.animate_opacity = ft.animation.Animation(
-                        duration=300 + (i * 50), 
-                        curve=ft.AnimationCurve.EASE_OUT_CUBIC
-                    )
-                    list_view.controls.append(item_widget)
-                    
-            if list_view.page: list_view.update()
-
-        def on_backlog_view_filter_change():
-            refresh_view_content()
-            database.set_setting_db(
-                config.SAVED_BACKLOG_VIEW_FILTER_KEY, 
-                ",".join(sorted(list(self.app_state["backlog_view_selected_entry_types"])))
-            )
-
-        def delete_backlog_item_action(item_id, item_name):
-            database.delete_backlog_item_db(item_id)
-            self.show_snackbar(f"🗑️ Removed '{item_name}' from backlog.")
-            refresh_view_content()
-
-        # Enhanced filter button
-        filter_button_ui = create_entry_type_filter_button_with_sheet(
-            self.page, config.ALL_ENTRY_TYPES_STR, self.app_state["backlog_view_selected_entry_types"],
-            on_backlog_view_filter_change, button_label_prefix="Filter Backlog"
-        )
-        
-        # Enhanced header with gradient background
-        header_container = ft.Container(
-            content=ft.Row([
-                ft.Column([
-                    ft.Row([
-                        ft.Icon(ft.icons.LIST_ALT_ROUNDED, size=32, color=ft.colors.PRIMARY),
-                        ft.Text(
-                            "Media Backlog", 
-                            style=ft.TextThemeStyle.HEADLINE_MEDIUM,
-                            weight=ft.FontWeight.W_700,
-                            color=ft.colors.ON_SURFACE
-                        )
-                    ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                    ft.Text(
-                        f"{len(database.get_all_backlog_items_db())} items waiting to be discovered",
-                        style=ft.TextThemeStyle.BODY_MEDIUM,
-                        color=ft.colors.ON_SURFACE_VARIANT
-                    )
-                ], spacing=4),
-                ft.Row([
-                    filter_button_ui,
-                    ft.ElevatedButton(
-                        "Add Item",
-                        icon=ft.icons.ADD_ROUNDED,
-                        on_click=self.open_add_backlog_dialog,
-                        style=ft.ButtonStyle(
-                            shape=ft.RoundedRectangleBorder(radius=16),
-                            padding=ft.padding.symmetric(horizontal=20, vertical=12),
-                            bgcolor=ft.colors.PRIMARY,
-                            color=ft.colors.ON_PRIMARY,
-                            elevation=2
-                        )
-                    )
-                ], spacing=12)
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            padding=ft.padding.only(left=24, right=24, top=20, bottom=16),
-            gradient=ft.LinearGradient(
-                colors=[
-                    ft.colors.with_opacity(0.02, ft.colors.PRIMARY),
-                    ft.colors.TRANSPARENT
-                ],
-                begin=ft.alignment.top_center,
-                end=ft.alignment.bottom_center
-            )
-        )
-        
-        # Enhanced list view with better scrolling
-        backlog_list_view = ft.ListView(
-            ref=backlog_list_view_ref, 
-            expand=True, 
-            spacing=0, 
-            padding=ft.padding.only(bottom=24),
-            auto_scroll=False
-        )
-        
-        refresh_view_content()
-
-        # Return enhanced layout
-        return ft.Column(
-            expand=True,
-            spacing=0,
-            controls=[
-                header_container,
-                ft.Divider(height=1, color=ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE)),
-                backlog_list_view
-            ]
-        )
 
     def build_year_view(self, year_str):
         year_grid_view_ref = ft.Ref[ft.GridView]()
@@ -5489,10 +4785,21 @@ class AppUI:
     def update_main_content(self, view_id):
         self.app_state["current_view"] = view_id
         content_area = self.main_content_area.current
-        if not content_area: return
+        if not content_area: 
+            return
         content_area.controls.clear()
         
+        # Define valid views for error handling
+        valid_views = ["Home", "Stats", "Search", "Awards"] + config.YEARS
+        
+        # Handle invalid view states by defaulting to Home
+        if view_id not in valid_views:
+            print(f"Warning: Invalid view '{view_id}' requested, defaulting to Home")
+            view_id = "Home"
+            self.app_state["current_view"] = view_id
+        
         show_fab, fab_tooltip = False, "Add Entry"
+        
         if view_id == "Home":
             content = self.build_home_dashboard_view()
             show_fab = True
@@ -5501,10 +4808,6 @@ class AppUI:
             content = self.build_year_view(view_id)
             show_fab = True
             fab_tooltip = f"Add Entry to {view_id}"
-        elif view_id == "Backlog":
-            content = self.build_backlog_view()
-            show_fab = True
-            fab_tooltip = "Add Item to Backlog"
         elif view_id == "Stats":
             content = self.build_stats_view()
         elif view_id == "Search":
@@ -5515,7 +4818,9 @@ class AppUI:
             # Awards view doesn't need FAB as it has its own action buttons
             show_fab = False
         else:
-            content = ft.Text(f"Error: Unknown view '{view_id}'")
+            # This should not happen due to validation above, but keeping as fallback
+            content = ft.Text(f"Error: Unable to load view '{view_id}'")
+            print(f"Error: Unexpected view state '{view_id}' after validation")
         
         content_area.controls.append(content)
         fab = self.fab.current
@@ -5536,12 +4841,10 @@ class AppUI:
         elif 1 <= idx <= len(config.YEARS):
             new_view = config.YEARS[idx - 1]
         elif idx == len(config.YEARS) + 1:
-            new_view = "Backlog"
-        elif idx == len(config.YEARS) + 2:
             new_view = "Stats"
-        elif idx == len(config.YEARS) + 3:
+        elif idx == len(config.YEARS) + 2:
             new_view = "Search"
-        elif idx == len(config.YEARS) + 4:
+        elif idx == len(config.YEARS) + 3:
             new_view = "Awards"
         else:
             return
@@ -5555,11 +4858,8 @@ class AppUI:
         self.update_main_content(new_view)
 
     def handle_fab_click(self, e):
-        current_view = self.app_state.get("current_view")
-        if current_view == "Backlog":
-            self.open_add_backlog_dialog(e)
-        else:
-            self.open_add_jav_dialog(e)
+        # FAB always opens the add JAV dialog for all views that show it
+        self.open_add_jav_dialog(e)
 
     def build_main_layout(self):
         self.initialize_app_state()
@@ -5570,14 +4870,12 @@ class AppUI:
         except ValueError:
             if self.app_state["current_view"] == "Home":
                 initial_index = 0
-            elif self.app_state["current_view"] == "Backlog":
-                initial_index = len(config.YEARS) + 1
             elif self.app_state["current_view"] == "Stats":
-                initial_index = len(config.YEARS) + 2
+                initial_index = len(config.YEARS) + 1
             elif self.app_state["current_view"] == "Search":
-                initial_index = len(config.YEARS) + 3
+                initial_index = len(config.YEARS) + 2
             elif self.app_state["current_view"] == "Awards":
-                initial_index = len(config.YEARS) + 4
+                initial_index = len(config.YEARS) + 3
             else:
                 initial_index = 0  # Default to Home
         
@@ -5586,7 +4884,6 @@ class AppUI:
             destinations=(
                 [ft.NavigationRailDestination(icon=ft.icons.HOME_OUTLINED, selected_icon=ft.icons.HOME, label="Home")] +
                 [ft.NavigationRailDestination(icon=ft.icons.CALENDAR_MONTH_OUTLINED, selected_icon=ft.icons.CALENDAR_MONTH, label=y) for y in config.YEARS] +
-                [ft.NavigationRailDestination(icon=ft.icons.BOOKMARKS_OUTLINED, selected_icon=ft.icons.BOOKMARKS, label="Backlog")] +
                 [ft.NavigationRailDestination(icon=ft.icons.QUERY_STATS_OUTLINED, selected_icon=ft.icons.QUERY_STATS, label="Stats")] +
                 [ft.NavigationRailDestination(icon=ft.icons.SEARCH_OUTLINED, selected_icon=ft.icons.SEARCH, label="Search")] +
                 [ft.NavigationRailDestination(icon=ft.icons.EMOJI_EVENTS_OUTLINED, selected_icon=ft.icons.EMOJI_EVENTS, label="Awards")]

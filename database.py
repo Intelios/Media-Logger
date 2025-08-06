@@ -57,19 +57,7 @@ def init_db():
             )
         """)
         
-        # --- Backlog table ---
-        # The 'source' column is left for backward compatibility. New entries will use 'progress'.
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS backlog (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                entry_type TEXT,
-                source TEXT,
-                notes TEXT,
-                date_added TEXT NOT NULL,
-                image_url TEXT
-            )
-        """)
+
 
         # Awards tables
         cursor.execute("""
@@ -116,12 +104,7 @@ def init_db():
                 print(f"Applying migration: Adding column '{col}' to 'javs' table.")
                 cursor.execute(statement)
 
-        # Migration for backlog table to add the new 'progress' field
-        backlog_table_info = cursor.execute("PRAGMA table_info(backlog)").fetchall()
-        backlog_column_names = [info[1] for info in backlog_table_info]
-        if 'progress' not in backlog_column_names:
-            print("Applying migration: Adding column 'progress' to 'backlog' table.")
-            cursor.execute("ALTER TABLE backlog ADD COLUMN progress TEXT")
+
 
         conn.commit()
         print("Database initialized and migrations checked successfully.")
@@ -132,90 +115,7 @@ def init_db():
         if conn:
             conn.close()
 
-# --- Backlog DB Functions ---
 
-def add_backlog_item_db(name, entry_type, progress, notes, image_ref_for_db):
-    """Adds a new item to the backlog table."""
-    conn = None
-    try:
-        conn = sqlite3.connect(config.DB_FILE)
-        cursor = conn.cursor()
-        date_added_str = datetime.now().strftime('%Y-%m-%d')
-        
-        name_to_db = name.strip()
-        entry_type_to_db = entry_type.strip() if entry_type and entry_type.strip() else None
-        progress_to_db = progress.strip() if progress and progress.strip() else None
-        notes_to_db = notes.strip() if notes and notes.strip() else None
-        image_to_db = image_ref_for_db.strip() if image_ref_for_db and image_ref_for_db.strip() else None
-
-        cursor.execute(
-            "INSERT INTO backlog (name, entry_type, progress, notes, date_added, image_url) VALUES (?, ?, ?, ?, ?, ?)",
-            (name_to_db, entry_type_to_db, progress_to_db, notes_to_db, date_added_str, image_to_db)
-        )
-        conn.commit()
-        print(f"Backlog item added: {name}")
-    except sqlite3.Error as e:
-        print(f"Database error adding backlog item '{name}': {e}")
-    finally:
-        if conn:
-            conn.close()
-
-def get_all_backlog_items_db():
-    """Retrieves all items from the backlog table."""
-    conn = None
-    items = []
-    try:
-        conn = sqlite3.connect(config.DB_FILE)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM backlog ORDER BY date_added DESC, id DESC")
-        items = [dict(row) for row in cursor.fetchall()]
-    except sqlite3.Error as e:
-        print(f"Database Error getting all backlog items: {e}")
-    finally:
-        if conn:
-            conn.close()
-    return items
-
-def update_backlog_item_db(item_id, name, entry_type, progress, notes, image_ref_for_db):
-    """Updates an existing item in the backlog table."""
-    conn = None
-    try:
-        conn = sqlite3.connect(config.DB_FILE)
-        cursor = conn.cursor()
-        
-        name_to_db = name.strip()
-        entry_type_to_db = entry_type.strip() if entry_type and entry_type.strip() else None
-        progress_to_db = progress.strip() if progress and progress.strip() else None
-        notes_to_db = notes.strip() if notes and notes.strip() else None
-        image_to_db = image_ref_for_db.strip() if image_ref_for_db and image_ref_for_db.strip() else None
-
-        cursor.execute(
-            "UPDATE backlog SET name = ?, entry_type = ?, progress = ?, notes = ?, image_url = ? WHERE id = ?",
-            (name_to_db, entry_type_to_db, progress_to_db, notes_to_db, image_to_db, item_id)
-        )
-        conn.commit()
-        print(f"Backlog item updated: ID {item_id}")
-    except sqlite3.Error as e:
-        print(f"Database error updating backlog item ID {item_id}: {e}")
-    finally:
-        if conn:
-            conn.close()
-
-def delete_backlog_item_db(item_id):
-    """Deletes an item from the backlog table by its ID."""
-    conn = None
-    try:
-        conn = sqlite3.connect(config.DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM backlog WHERE id = ?", (item_id,))
-        conn.commit()
-        print(f"Backlog item deleted: ID {item_id}")
-    except sqlite3.Error as e:
-        print(f"Database error deleting backlog item ID {item_id}: {e}")
-    finally:
-        if conn:
-            conn.close()
 
 # --- Existing Functions (get_setting_db, set_setting_db, add_jav_db, etc.) ---
 def get_setting_db(key, default_value=None):
