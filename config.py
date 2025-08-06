@@ -54,7 +54,9 @@ ALL_ENTRY_TYPES_STR = [opt.key for opt in ENTRY_TYPE_OPTIONS if opt.key]
 SAVED_YEAR_VIEW_FILTER_KEY = "year_view_last_filter_v2"
 SAVED_STATS_VIEW_FILTER_KEY = "stats_view_last_filter_v2"
 SAVED_SEARCH_VIEW_FILTER_KEY = "search_view_last_filter_v2"
-SAVED_BACKLOG_VIEW_FILTER_KEY = "backlog_view_last_filter_v1" # <-- NEW
+SAVED_BACKLOG_VIEW_FILTER_KEY = "backlog_view_last_filter_v1"
+SAVED_YEAR_VIEW_PROPS_FILTER_KEY = "year_view_props_filter_v1" # <-- NEW
+SAVED_SEARCH_VIEW_PROPS_FILTER_KEY = "search_view_props_filter_v1" # <-- NEW
 
 # --- Search Field Options ---
 SEARCH_FIELD_OPTIONS = [

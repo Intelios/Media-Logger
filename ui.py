@@ -7,6 +7,7 @@ import shutil
 import uuid
 import asyncio
 import sqlite3
+import json
 
 # Import our new, separated modules
 import config
@@ -486,6 +487,179 @@ def create_search_fields_filter_button_with_sheet(page_ref: ft.Page, available_f
             filter_bottom_sheet_ref.current.open = True
             page_ref.update()
     return ft.OutlinedButton(ref=filter_button_ref, text=get_button_text(), icon=ft.icons.SEARCH_OUTLINED, on_click=open_filter_bottom_sheet, tooltip="Select which fields to search in")
+    
+def create_property_filter_button_with_sheet(page_ref: ft.Page, filter_state: dict, on_change_callback: callable):
+    """Creates a filter button for properties like score, rewatch, and local copy."""
+    
+    filter_button_ref = ft.Ref[ft.OutlinedButton]()
+
+    def get_active_filters_count():
+        """Counts how many filters are not set to their default 'any' state."""
+        count = 0
+        if filter_state.get('score_min') != 0 or filter_state.get('score_max') != 10:
+            count += 1
+        if filter_state.get('rewatch') != 'any':
+            count += 1
+        if filter_state.get('local_copy') != 'any':
+            count += 1
+        if filter_state.get('rated_status') != 'any':
+            count += 1
+        return count
+
+    def update_button_text():
+        if not filter_button_ref.current:
+            return
+        
+        count = get_active_filters_count()
+        if count > 0:
+            filter_button_ref.current.text = f"More Filters ({count})"
+            filter_button_ref.current.icon_color = ft.colors.PRIMARY # Highlight if active
+        else:
+            filter_button_ref.current.text = "More Filters"
+            filter_button_ref.current.icon_color = None # Default color
+        
+        if filter_button_ref.current.page:
+            try:
+                filter_button_ref.current.update()
+            except:
+                pass
+
+    # --- Refs for controls inside the bottom sheet ---
+    score_slider_ref = ft.Ref[ft.RangeSlider]()
+    rewatch_switch_ref = ft.Ref[ft.Switch]()
+    local_copy_switch_ref = ft.Ref[ft.Switch]()
+    rated_status_radio_ref = ft.Ref[ft.RadioGroup]()
+    
+    def reset_filters(e=None):
+        """Resets all filters to their default state and updates controls."""
+        filter_state['score_min'] = 0
+        filter_state['score_max'] = 10
+        filter_state['rewatch'] = 'any'
+        filter_state['local_copy'] = 'any'
+        filter_state['rated_status'] = 'any'
+
+        if score_slider_ref.current:
+            score_slider_ref.current.start_value = 0
+            score_slider_ref.current.end_value = 10
+        if rewatch_switch_ref.current:
+            rewatch_switch_ref.current.value = False
+        if local_copy_switch_ref.current:
+            local_copy_switch_ref.current.value = False
+        if rated_status_radio_ref.current:
+            rated_status_radio_ref.current.value = 'any'
+        
+        # Update all controls in the sheet
+        if page_ref:
+            try:
+                page_ref.update()
+            except:
+                pass
+        
+        # Manually trigger the change callback after resetting
+        on_change_callback()
+        
+    filter_bottom_sheet_ref = ft.Ref[ft.BottomSheet]()
+
+    def close_bs_and_apply(e=None):
+        """Applies the selected filters and closes the bottom sheet."""
+        if score_slider_ref.current:
+            filter_state['score_min'] = int(score_slider_ref.current.start_value)
+            filter_state['score_max'] = int(score_slider_ref.current.end_value)
+        if rewatch_switch_ref.current:
+            filter_state['rewatch'] = 'yes' if rewatch_switch_ref.current.value else 'any'
+        if local_copy_switch_ref.current:
+            filter_state['local_copy'] = 'yes' if local_copy_switch_ref.current.value else 'any'
+        if rated_status_radio_ref.current:
+            filter_state['rated_status'] = rated_status_radio_ref.current.value
+
+        if filter_bottom_sheet_ref.current:
+            filter_bottom_sheet_ref.current.open = False
+        
+        on_change_callback() # This will trigger the view refresh and save settings
+        update_button_text()
+        if page_ref: page_ref.update()
+
+    # --- Build the Bottom Sheet Content ---
+    bs_content = ft.Container(
+        ft.Column([
+            ft.Text("Advanced Filters", weight=ft.FontWeight.BOLD, size=16),
+            ft.Divider(height=10),
+            
+            ft.Text("Filter by Score", weight=ft.FontWeight.W_500),
+            ft.RangeSlider(
+                ref=score_slider_ref,
+                min=0, max=10, divisions=10,
+                start_value=filter_state.get('score_min', 0),
+                end_value=filter_state.get('score_max', 10),
+                label="{value}",
+                inactive_color=ft.colors.with_opacity(0.3, ft.colors.PRIMARY)
+            ),
+            
+            ft.Divider(height=15),
+            ft.Text("Filter by Rating Status", weight=ft.FontWeight.W_500),
+            ft.RadioGroup(
+                ref=rated_status_radio_ref,
+                value=filter_state.get('rated_status', 'any'),
+                content=ft.Row([
+                    ft.Radio(value="any", label="Any"),
+                    ft.Radio(value="rated", label="Rated Only"),
+                    ft.Radio(value="unrated", label="Unrated Only"),
+                ])
+            ),
+
+            ft.Divider(height=15),
+            ft.Text("Filter by Properties", weight=ft.FontWeight.W_500),
+            ft.Row([
+                ft.Switch(
+                    ref=rewatch_switch_ref,
+                    label="Rewatches Only",
+                    value=(filter_state.get('rewatch') == 'yes')
+                ),
+                ft.Switch(
+                    ref=local_copy_switch_ref,
+                    label="Local Copies Only",
+                    value=(filter_state.get('local_copy') == 'yes')
+                ),
+            ], alignment=ft.MainAxisAlignment.SPACE_AROUND),
+            
+            ft.Divider(height=20),
+            ft.Row([
+                ft.TextButton("Reset Filters", icon=ft.icons.RESTART_ALT, on_click=reset_filters),
+                ft.Container(expand=True),
+                ft.ElevatedButton("Apply Filters", on_click=close_bs_and_apply, icon=ft.icons.CHECK)
+            ], alignment=ft.MainAxisAlignment.END)
+        ], tight=True, spacing=10),
+        padding=ft.padding.only(left=20, right=20, top=10, bottom=20)
+    )
+
+    filter_bottom_sheet = ft.BottomSheet(
+        ref=filter_bottom_sheet_ref,
+        content=bs_content,
+        open=False,
+        on_dismiss=close_bs_and_apply,
+        enable_drag=True,
+        show_drag_handle=True
+    )
+
+    if filter_bottom_sheet not in page_ref.overlay:
+        page_ref.overlay.append(filter_bottom_sheet)
+
+    def open_filter_bottom_sheet(e):
+        if filter_bottom_sheet_ref.current:
+            filter_bottom_sheet_ref.current.open = True
+            page_ref.update()
+
+    # Create the button and initialize its text
+    button = ft.OutlinedButton(
+        ref=filter_button_ref,
+        text="More Filters",
+        icon=ft.icons.TUNE_ROUNDED,
+        on_click=open_filter_bottom_sheet,
+        tooltip="Filter by score, rewatch, etc."
+    )
+    # Set initial button text based on loaded filters
+    update_button_text()
+    return button
 
 # --- ENHANCED: UI Helper for Backlog List Item ---
 def create_backlog_list_item(page, item_data, complete_callback, edit_callback, delete_callback):
@@ -845,6 +1019,24 @@ class AppUI:
         saved_backlog_filter_str = database.get_setting_db(config.SAVED_BACKLOG_VIEW_FILTER_KEY)
         backlog_view_selected_types = set(s_type for s_type in saved_backlog_filter_str.split(',')) if saved_backlog_filter_str is not None else set(config.ALL_ENTRY_TYPES_STR)
 
+        default_props_filter = {
+            "score_min": 0, "score_max": 10, "rewatch": "any", 
+            "local_copy": "any", "rated_status": "any"
+        }
+
+        saved_year_props_str = database.get_setting_db(config.SAVED_YEAR_VIEW_PROPS_FILTER_KEY)
+        try:
+            year_view_props = json.loads(saved_year_props_str) if saved_year_props_str else default_props_filter.copy()
+        except json.JSONDecodeError:
+            year_view_props = default_props_filter.copy()
+
+        # Search View Property Filters
+        saved_search_props_str = database.get_setting_db(config.SAVED_SEARCH_VIEW_PROPS_FILTER_KEY)
+        try:
+            search_view_props = json.loads(saved_search_props_str) if saved_search_props_str else default_props_filter.copy()
+        except json.JSONDecodeError:
+            search_view_props = default_props_filter.copy()
+
         self.app_state = {
             "current_view": "Home",
             "year_view_selected_entry_types": year_view_selected_types,
@@ -856,6 +1048,8 @@ class AppUI:
             "search_results": [],
             "awards_current_year": None,
             "awards_selected_category": None,
+            "year_view_property_filters": year_view_props,
+            "search_view_property_filters": search_view_props,
         }
 
     def show_snackbar(self, message: str, color: str = None, duration: int = 4000):
@@ -1551,6 +1745,50 @@ class AppUI:
         """Handle completing a backlog item."""
         self.open_add_jav_dialog(initial_data=item_data, backlog_item_id=item_data['id'])
 
+    def _apply_property_filters(self, entries: list[dict], filters: dict) -> list[dict]:
+        """
+        Applies advanced property filters to a list of entries.
+        
+        Args:
+            entries: The list of media entry dictionaries to filter.
+            filters: A dictionary containing the filter settings.
+        
+        Returns:
+            A new list of filtered media entries.
+        """
+        if not filters:
+            return entries
+
+        filtered_entries = entries
+
+        # 1. Filter by Rated Status
+        rated_status = filters.get('rated_status', 'any')
+        if rated_status == 'rated':
+            filtered_entries = [e for e in filtered_entries if e.get('review_score') is not None]
+        elif rated_status == 'unrated':
+            filtered_entries = [e for e in filtered_entries if e.get('review_score') is None]
+
+        # 2. Filter by Score Range (only if not filtering for unrated)
+        if rated_status != 'unrated':
+            score_min = filters.get('score_min', 0)
+            score_max = filters.get('score_max', 10)
+            if score_min > 0 or score_max < 10:
+                # We must ensure score is not None before comparing
+                filtered_entries = [
+                    e for e in filtered_entries 
+                    if e.get('review_score') is not None and score_min <= e['review_score'] <= score_max
+                ]
+        
+        # 3. Filter by Rewatch
+        if filters.get('rewatch') == 'yes':
+            filtered_entries = [e for e in filtered_entries if e.get('is_rewatch') == 1]
+            
+        # 4. Filter by Local Copy
+        if filters.get('local_copy') == 'yes':
+            filtered_entries = [e for e in filtered_entries if e.get('own_local_copy') == 1]
+
+        return filtered_entries
+
     # --- ENHANCED: Main Backlog View ---
     def build_backlog_view(self):
         """Enhanced backlog view with modern design and animations."""
@@ -1742,9 +1980,13 @@ class AppUI:
             try:
                 # Clear grid and load all entries
                 grid_view.controls.clear()
-                entries = load_all_entries()
+                entries_from_db = load_all_entries()
+
+                # Apply property filters
+                prop_filters = self.app_state.get("year_view_property_filters", {})
+                final_entries = self._apply_property_filters(entries_from_db, prop_filters)
                 
-                if not entries:
+                if not final_entries:
                     # No entries found
                     grid_view.controls.append(
                         ft.Container(
@@ -1761,7 +2003,7 @@ class AppUI:
                     )
                 else:
                     # Add all entries to grid
-                    for jav_item in entries:
+                    for jav_item in final_entries:
                         grid_view.controls.append(
                             create_gallery_card(
                                 self.page, 
@@ -1789,6 +2031,14 @@ class AppUI:
             """Handle filter changes by refreshing the view."""
             refresh_view_content()
             database.set_setting_db(config.SAVED_YEAR_VIEW_FILTER_KEY, ",".join(sorted(list(self.app_state["year_view_selected_entry_types"]))))
+
+        def on_year_view_props_filter_change():
+            """Handle property filter changes by refreshing the view and saving settings."""
+            refresh_view_content()
+            database.set_setting_db(
+                config.SAVED_YEAR_VIEW_PROPS_FILTER_KEY,
+                json.dumps(self.app_state["year_view_property_filters"])
+            )
 
         def delete_jav_action(jav_id, jav_name):
             """Handle deletion of an entry."""
@@ -1863,11 +2113,25 @@ class AppUI:
             ]
         )
         
+        # Create the property filter button
+        props_filter_button_ui = create_property_filter_button_with_sheet(
+            self.page,
+            self.app_state["year_view_property_filters"],
+            on_year_view_props_filter_change
+        )
+
         return ft.Column(
             expand=True, 
             controls=[
                 ft.Container(
-                    content=ft.Row([filter_button_ui], alignment=ft.MainAxisAlignment.END), 
+                    content=ft.Row(
+                        [
+                            filter_button_ui,
+                            props_filter_button_ui  # New property filter button
+                        ],
+                        alignment=ft.MainAxisAlignment.END,
+                        spacing=10
+                    ),
                     padding=ft.padding.only(left=10, right=10, top=10, bottom=5)
                 ), 
                 content_stack
@@ -1889,7 +2153,16 @@ class AppUI:
         def perform_search():
             search_term = self.search_text_field.current.value.strip() if self.search_text_field.current else ""
             selected_entry_types = list(self.app_state["search_view_selected_entry_types"]) if self.app_state["search_view_selected_entry_types"] else None
-            self.app_state["search_results"] = database.search_javs_db(search_term, list(self.app_state["search_selected_fields"]), selected_entry_types)
+            
+            # Get results from DB
+            results_from_db = database.search_javs_db(search_term, list(self.app_state["search_selected_fields"]), selected_entry_types)
+
+            # --- NEW: Apply property filters to search results ---
+            prop_filters = self.app_state.get("search_view_property_filters", {})
+            final_results = self._apply_property_filters(results_from_db, prop_filters)
+            # --- End of NEW section ---
+
+            self.app_state["search_results"] = final_results
             self.app_state["current_search_term"] = search_term
             refresh_search_results()
         
@@ -1924,12 +2197,46 @@ class AppUI:
             perform_search()
             database.set_setting_db(config.SAVED_SEARCH_VIEW_FILTER_KEY, ",".join(sorted(list(self.app_state["search_view_selected_entry_types"]))))
 
+        # --- NEW: Callback for property filters ---
+        def on_search_props_filter_change():
+            import json
+            perform_search()
+            database.set_setting_db(
+                config.SAVED_SEARCH_VIEW_PROPS_FILTER_KEY,
+                json.dumps(self.app_state["search_view_property_filters"])
+            )
+
         search_entry_type_filter_button = create_entry_type_filter_button_with_sheet(self.page, config.ALL_ENTRY_TYPES_STR, self.app_state["search_view_selected_entry_types"], on_search_entry_type_filter_change, button_label_prefix="Filter Types")
         search_fields_filter_button = create_search_fields_filter_button_with_sheet(self.page, config.SEARCH_FIELD_OPTIONS, self.app_state["search_selected_fields"], perform_search, button_label_prefix="Search In")
         
-        refresh_search_results()
-        return ft.Column(expand=True, controls=[ft.Container(content=ft.Row([ft.TextField(ref=self.search_text_field, label="Search entries...", prefix_icon=ft.icons.SEARCH_ROUNDED, on_change=on_search_text_change, expand=True, autofocus=True), ft.IconButton(icon=ft.icons.CLEAR_ROUNDED, on_click=lambda e: (setattr(self.search_text_field.current, 'value', ''), self.search_text_field.current.update(), perform_search()))]), padding=10), ft.Container(content=ft.Row([search_fields_filter_button, search_entry_type_filter_button]), padding=ft.padding.only(left=10, right=10, bottom=5)), ft.Container(content=ft.Text(ref=self.search_results_count_text, value=""), padding=ft.padding.symmetric(horizontal=10)), ft.GridView(ref=self.search_results_grid, expand=True, runs_count=5, max_extent=270, child_aspect_ratio=0.55, spacing=10, run_spacing=10, padding=10)])
+        props_filter_button_ui = create_property_filter_button_with_sheet(
+            self.page,
+            self.app_state["search_view_property_filters"],
+            on_search_props_filter_change
+        )
+        # --- End of NEW section ---
 
+        refresh_search_results()
+        return ft.Column(
+            expand=True, 
+            controls=[
+                ft.Container(content=ft.Row([ft.TextField(ref=self.search_text_field, label="Search entries...", prefix_icon=ft.icons.SEARCH_ROUNDED, on_change=on_search_text_change, expand=True, autofocus=True), ft.IconButton(icon=ft.icons.CLEAR_ROUNDED, on_click=lambda e: (setattr(self.search_text_field.current, 'value', ''), self.search_text_field.current.update(), perform_search()))]), padding=10), 
+                # --- MODIFIED: Add the new button to the filter row ---
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            search_fields_filter_button, 
+                            search_entry_type_filter_button,
+                            props_filter_button_ui # <-- NEW
+                        ],
+                        spacing=10
+                    ), 
+                    padding=ft.padding.only(left=10, right=10, bottom=5)
+                ), 
+                ft.Container(content=ft.Text(ref=self.search_results_count_text, value=""), padding=ft.padding.symmetric(horizontal=10)), 
+                ft.GridView(ref=self.search_results_grid, expand=True, runs_count=5, max_extent=270, child_aspect_ratio=0.55, spacing=10, run_spacing=10, padding=10)
+            ]
+        )
     def calculate_and_update_stats_display(self, filter_year="All Time"):
         base_jav_data = database.get_all_javs_db() if filter_year == "All Time" else database.get_javs_by_year_db(int(filter_year))
         jav_data = [jav for jav in base_jav_data if jav.get('entry_type') in self.app_state["stats_view_selected_entry_types"]]
