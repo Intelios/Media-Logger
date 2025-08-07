@@ -4,8 +4,8 @@ Provides modern card designs, color theming utilities, and animation helpers
 """
 
 import flet as ft
-from typing import Optional, Dict, Any, List, Union
-import math
+from typing import Optional, Dict, Any, List
+# Removed unused import 'math'
 
 # ============================================================================
 # GLASSMORPHISM AND MODERN CARD DESIGN UTILITIES
@@ -82,70 +82,8 @@ class GlassmorphismStyles:
         )
 
 class ModernCardStyles:
-    """Modern card design utilities with enhanced visual effects"""
-    
-    @staticmethod
-    def create_elevated_card(
-        content: ft.Control,
-        elevation: float = 6.0,
-        border_radius: float = 16.0,
-        padding: Optional[ft.Padding] = None,
-        margin: Optional[ft.Margin] = None,
-        gradient: Optional[ft.LinearGradient] = None,
-        shadow_color: Optional[str] = None,
-        border: Optional[ft.Border] = None
-    ) -> ft.Card:
-        """Create a modern elevated card with enhanced styling"""
-        
-        if padding is None:
-            padding = ft.padding.all(20)
-        if margin is None:
-            margin = ft.margin.all(8)
-        if shadow_color is None:
-            shadow_color = ft.colors.with_opacity(0.15, ft.colors.BLACK)
-            
-        card_container = ft.Container(
-            content=content,
-            padding=padding,
-            gradient=gradient,
-            border=border,
-            border_radius=ft.border_radius.all(border_radius)
-        )
-        
-        return ft.Card(
-            content=card_container,
-            elevation=elevation,
-            margin=margin,
-            shape=ft.RoundedRectangleBorder(radius=border_radius),
-            shadow_color=shadow_color,
-            surface_tint_color=ft.colors.SURFACE_TINT
-        )
-    
-    @staticmethod
-    def create_gradient_card(
-        content: ft.Control,
-        gradient_colors: List[str],
-        gradient_begin: ft.Alignment = ft.alignment.top_left,
-        gradient_end: ft.Alignment = ft.alignment.bottom_right,
-        border_radius: float = 16.0,
-        padding: Optional[ft.Padding] = None,
-        elevation: float = 4.0
-    ) -> ft.Card:
-        """Create a card with gradient background"""
-        
-        gradient = ft.LinearGradient(
-            colors=gradient_colors,
-            begin=gradient_begin,
-            end=gradient_end
-        )
-        
-        return ModernCardStyles.create_elevated_card(
-            content=content,
-            gradient=gradient,
-            border_radius=border_radius,
-            padding=padding,
-            elevation=elevation
-        )
+    """Deprecated; kept for backward compatibility. Prefer GlassmorphismStyles or EnhancedComponentFactory."""
+    pass
 
 # ============================================================================
 # COLOR THEMING UTILITIES
@@ -1346,97 +1284,5 @@ class DashboardEnhancedUtils:
 # ============================================================================
 
 class EnhancedLayoutUtils:
-    """Enhanced layout utilities for modern dashboard design"""
-    
-    @staticmethod
-    def create_responsive_grid(
-        items: List[ft.Control],
-        min_item_width: float = 300,
-        spacing: float = 16,
-        run_spacing: float = 16
-    ) -> ft.Row:
-        """Create a responsive grid layout that adapts to screen size"""
-        
-        return ft.Row(
-            controls=items,
-            wrap=True,
-            spacing=spacing,
-            run_spacing=run_spacing,
-            alignment=ft.MainAxisAlignment.START,
-            vertical_alignment=ft.CrossAxisAlignment.START
-        )
-    
-    @staticmethod
-    def create_section_header(
-        title: str,
-        subtitle: Optional[str] = None,
-        action_button: Optional[ft.Control] = None,
-        icon: Optional[str] = None
-    ) -> ft.Container:
-        """Create a modern section header with optional action button"""
-        
-        # Create title row
-        title_elements = []
-        
-        if icon:
-            title_elements.append(
-                ft.Icon(icon, size=24, color=ColorThemeManager.BRAND_COLORS['primary'])
-            )
-        
-        title_column = [
-            ft.Text(
-                title,
-                size=20,
-                weight=ft.FontWeight.BOLD,
-                color=ft.colors.ON_SURFACE
-            )
-        ]
-        
-        if subtitle:
-            title_column.append(
-                ft.Text(
-                    subtitle,
-                    size=14,
-                    color=ft.colors.ON_SURFACE_VARIANT
-                )
-            )
-        
-        title_elements.append(
-            ft.Column(title_column, spacing=4, tight=True, expand=True)
-        )
-        
-        if action_button:
-            title_elements.append(action_button)
-        
-        header_row = ft.Row(
-            title_elements,
-            spacing=12,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-        )
-        
-        return ft.Container(
-            content=header_row,
-            padding=ft.padding.only(bottom=16),
-            margin=ft.margin.only(bottom=8)
-        )
-    
-    @staticmethod
-    def create_enhanced_divider(
-        height: float = 1,
-        color: Optional[str] = None,
-        margin: Optional[ft.Margin] = None
-    ) -> ft.Container:
-        """Create an enhanced divider with modern styling"""
-        
-        if color is None:
-            color = ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE)
-        if margin is None:
-            margin = ft.margin.symmetric(vertical=16)
-        
-        return ft.Container(
-            height=height,
-            bgcolor=color,
-            margin=margin,
-            border_radius=ft.border_radius.all(height / 2)
-        )
+    """Deprecated; prefer ResponsiveLayoutManager for layout utilities."""
+    pass

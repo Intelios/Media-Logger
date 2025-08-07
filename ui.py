@@ -6,7 +6,6 @@ import traceback
 import shutil
 import uuid
 import asyncio
-import sqlite3
 import json
 
 # Import our new, separated modules
@@ -17,7 +16,6 @@ import utils
 # Import enhanced UI components
 from ui_enhanced import (
     GlassmorphismStyles, 
-    ModernCardStyles, 
     ColorThemeManager, 
     AnimationHelpers, 
     MicroInteractions, 
@@ -27,37 +25,6 @@ from ui_enhanced import (
 
 # --- UI Helper Functions (These are general and don't need to be in the class) ---
 
-def create_rating_badge(score):
-    score_text = "N/A"
-    bgcolor = ft.colors.with_opacity(0.5, ft.colors.ON_SURFACE_VARIANT)
-    text_color = ft.colors.WHITE
-    if score is not None:
-        try:
-            score_val = int(score)
-            score_text = str(score_val)
-            if 0 <= score_val <= 10:
-                if score_val == 10:
-                    bgcolor = ft.colors.LIGHT_GREEN_ACCENT_400
-                    text_color = ft.colors.BLACK
-                elif score_val >= 7:
-                    bgcolor = ft.colors.GREEN_600
-                    text_color = ft.colors.WHITE
-                elif score_val >= 5:
-                    bgcolor = ft.colors.YELLOW_700
-                    text_color = ft.colors.BLACK
-                elif score_val >= 2:
-                    bgcolor = ft.colors.RED_700
-                    text_color = ft.colors.WHITE
-                else:
-                    bgcolor = ft.colors.RED_500
-                    text_color = ft.colors.WHITE
-        except (ValueError, TypeError):
-            pass
-    return ft.Container(
-        content=ft.Text(score_text, size=12, weight=ft.FontWeight.BOLD, color=text_color, text_align=ft.TextAlign.CENTER),
-        width=30, height=30, shape=ft.BoxShape.CIRCLE, bgcolor=bgcolor, alignment=ft.alignment.center,
-        tooltip=f"Score: {score_text}" if score is not None else "Score: Not Rated"
-    )
 
 def get_entry_type_icon_name(entry_type_str: str) -> str:
     entry_type_str_lower = (entry_type_str or "media").lower()
@@ -73,26 +40,7 @@ def get_entry_type_icon_name(entry_type_str: str) -> str:
     if "adult visual novel" in entry_type_str_lower: return ft.icons.MENU_BOOK_OUTLINED
     return ft.icons.LABEL_OUTLINED
 
-def get_genre_icon_name(genre_str: str) -> str:
-    genre_str_lower = (genre_str or "").lower()
-    if "action" in genre_str_lower: return ft.icons.BOLT_OUTLINED
-    if "drama" in genre_str_lower: return ft.icons.THEATER_COMEDY_OUTLINED
-    if "sci-fi" in genre_str_lower or "science fiction" in genre_str_lower : return ft.icons.ROCKET_LAUNCH_OUTLINED
-    if "war" in genre_str_lower: return ft.icons.SHIELD_OUTLINED
-    if "mystery" in genre_str_lower: return ft.icons.QUESTION_MARK_OUTLINED
-    if "thriller" in genre_str_lower: return ft.icons.FLASHLIGHT_ON_OUTLINED
-    if "horror" in genre_str_lower: return ft.icons.SICK_OUTLINED
-    if "comedy" in genre_str_lower: return ft.icons.SENTIMENT_VERY_SATISFIED_OUTLINED
-    if "romance" in genre_str_lower: return ft.icons.FAVORITE_BORDER_OUTLINED
-    if "fantasy" in genre_str_lower: return ft.icons.AUTO_FIX_HIGH_OUTLINED
-    if "adventure" in genre_str_lower: return ft.icons.EXPLORE_OUTLINED
-    if "slice of life" in genre_str_lower: return ft.icons.CAKE_OUTLINED
-    if "supernatural" in genre_str_lower: return ft.icons.AUTO_STORIES_OUTLINED
-    if "sports" in genre_str_lower: return ft.icons.SPORTS_VOLLEYBALL_OUTLINED
-    if "music" in genre_str_lower: return ft.icons.MUSIC_NOTE_OUTLINED
-    if "historical" in genre_str_lower: return ft.icons.ACCOUNT_BALANCE_OUTLINED
-    if "school" in genre_str_lower: return ft.icons.SCHOOL_OUTLINED
-    return ft.icons.LOCAL_OFFER_OUTLINED
+## get_genre_icon_name removed (unused)
 
 def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_desc_callback):
     name = jav_item.get('name', 'Unknown Title')
@@ -149,31 +97,27 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     TAG_SIZE = 11
     DATE_SIZE = 12
 
-    def get_entry_type_styling(entry_type):
-        styles = {
-            'Game': {'bg': ft.colors.BLUE_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.BLUE_600, ft.colors.BLUE_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
-            'Movie': {'bg': ft.colors.RED_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.RED_600, ft.colors.RED_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
-            'Show': {'bg': ft.colors.PURPLE_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.PURPLE_600, ft.colors.PURPLE_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
-            'K-Drama': {'bg': ft.colors.GREEN_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.GREEN_600, ft.colors.GREEN_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
-            'Anime': {'bg': ft.colors.PINK_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.PINK_600, ft.colors.PINK_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
-            'Book': {'bg': ft.colors.BROWN_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.BROWN_600, ft.colors.BROWN_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
-            'Album': {'bg': ft.colors.CYAN_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.CYAN_600, ft.colors.CYAN_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
-            'Hentai': {'bg': ft.colors.DEEP_PURPLE_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.DEEP_PURPLE_600, ft.colors.DEEP_PURPLE_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
-            'JAV': {'bg': ft.colors.INDIGO_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.INDIGO_600, ft.colors.INDIGO_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
-            'Adult Visual Novel': {'bg': ft.colors.DEEP_ORANGE_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.DEEP_ORANGE_600, ft.colors.DEEP_ORANGE_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
-            'Other': {'bg': ft.colors.BLUE_GREY_600, 'fg': ft.colors.WHITE, 'gradient': ft.LinearGradient(colors=[ft.colors.BLUE_GREY_600, ft.colors.BLUE_GREY_700], begin=ft.alignment.top_left, end=ft.alignment.bottom_right)},
-        }
-        return styles.get(entry_type_str, styles['Other'])
+    # Removed local entry type styling in favor of centralized ColorThemeManager
 
     title_text = ft.Text(name, weight=ft.FontWeight.W_600, size=TITLE_SIZE, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS, color=ft.colors.ON_SURFACE, style=ft.TextStyle(letter_spacing=0.2))
-    entry_type_style = get_entry_type_styling(entry_type_str)
     entry_type_icon_name = get_entry_type_icon_name(entry_type_str)
-    entry_type_badge = ft.Container(content=ft.Row([ft.Icon(entry_type_icon_name, size=14, color=entry_type_style['fg']), ft.Text(entry_type_str, size=TAG_SIZE, color=entry_type_style['fg'], weight=ft.FontWeight.W_600, style=ft.TextStyle(letter_spacing=0.3))], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True), gradient=entry_type_style['gradient'], padding=ft.padding.symmetric(horizontal=12, vertical=6), border_radius=ft.border_radius.all(20), shadow=ft.BoxShadow(spread_radius=0, blur_radius=4, color=ft.colors.with_opacity(0.3, entry_type_style['bg']), offset=ft.Offset(0, 2)))
+    entry_type_gradient = ColorThemeManager.get_entry_type_gradient(entry_type_str)
+    entry_type_primary = ColorThemeManager.get_entry_type_color(entry_type_str)
+    entry_type_badge = ft.Container(
+        content=ft.Row([
+            ft.Icon(entry_type_icon_name, size=14, color=ft.colors.WHITE),
+            ft.Text(entry_type_str, size=TAG_SIZE, color=ft.colors.WHITE, weight=ft.FontWeight.W_600, style=ft.TextStyle(letter_spacing=0.3))
+        ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
+        gradient=entry_type_gradient,
+        padding=ft.padding.symmetric(horizontal=12, vertical=6),
+        border_radius=ft.border_radius.all(20),
+        shadow=ft.BoxShadow(spread_radius=0, blur_radius=4, color=ft.colors.with_opacity(0.3, entry_type_primary), offset=ft.Offset(0, 2))
+    )
 
     def create_enhanced_rating_badge(score):
-        if score is None: 
+        if score is None:
             return ft.Container()
-        
+
         if score == 10.0:
             return ft.Container(
                 content=ft.Row([
@@ -195,25 +139,20 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
                 ),
                 border=ft.border.all(1, ft.colors.with_opacity(0.3, ft.colors.GREEN_300))
             )
-        
-        if score >= 9: 
-            color, bg_color = ft.colors.GREEN_600, ft.colors.with_opacity(0.1, ft.colors.GREEN_600)
-        elif score >= 7: 
-            color, bg_color = ft.colors.BLUE_600, ft.colors.with_opacity(0.1, ft.colors.BLUE_600)
-        elif score >= 5: 
-            color, bg_color = ft.colors.ORANGE_600, ft.colors.with_opacity(0.1, ft.colors.ORANGE_600)
-        else: 
-            color, bg_color = ft.colors.RED_600, ft.colors.with_opacity(0.1, ft.colors.RED_600)
-        
+
+        color_scheme = ColorThemeManager.get_rating_color_scheme(score)
+        primary_color = color_scheme['primary']
+        background_color = color_scheme['bg']
+
         return ft.Container(
             content=ft.Row([
-                ft.Icon(ft.icons.STAR_ROUNDED, size=14, color=color),
-                ft.Text(f"{score:.1f}", size=TAG_SIZE + 1, color=color, weight=ft.FontWeight.W_700)
+                ft.Icon(ft.icons.STAR_ROUNDED, size=14, color=primary_color),
+                ft.Text(f"{score:.1f}", size=TAG_SIZE + 1, color=primary_color, weight=ft.FontWeight.W_700)
             ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
-            bgcolor=bg_color,
+            bgcolor=background_color,
             padding=ft.padding.symmetric(horizontal=10, vertical=6),
             border_radius=ft.border_radius.all(20),
-            border=ft.border.all(1, ft.colors.with_opacity(0.2, color))
+            border=ft.border.all(1, ft.colors.with_opacity(0.2, primary_color))
         )
 
     rating_badge = create_enhanced_rating_badge(score)
@@ -1495,7 +1434,6 @@ class AppUI:
 
         # --- NEW: Callback for property filters ---
         def on_search_props_filter_change():
-            import json
             perform_search()
             database.set_setting_db(
                 config.SAVED_SEARCH_VIEW_PROPS_FILTER_KEY,
