@@ -263,10 +263,11 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         clip_behavior=ft.ClipBehavior.ANTI_ALIAS # Helps with smooth rounded corners on the border
     )
 
+
 def update_conditional_fields(selected_type: str, container: ft.Column, initial_data: dict | None = None):
     container.controls.clear()
     if selected_type == "Game":
-        platform_options = [ft.dropdown.Option("PC"), ft.dropdown.Option("PlayStation"), ft.dropdown.Option("Xbox"), ft.dropdown.Option("Nintendo Switch"), ft.dropdown.Option("Mobile"), ft.dropdown.Option("Other")]
+        platform_options = [ft.dropdown.Option("PC"), ft.dropdown.Option("PlayStation"), ft.dropdown.Option("Xbox"), ft.dropdown.Option("Nintendo Switch"), ft.dropdown.Option("Steam Deck"), ft.dropdown.Option("Mobile"), ft.dropdown.Option("Other")]
         container.controls.append(ft.Dropdown(label="Platform", options=platform_options, hint_text="Select the game platform", value=initial_data.get('platform') if initial_data else None, data="platform"))
     elif selected_type == "Book":
         container.controls.append(ft.TextField(label="Author", capitalization=ft.TextCapitalization.WORDS, value=initial_data.get('author') if initial_data else None, data="author"))
@@ -1492,7 +1493,22 @@ class AppUI:
         actresses = [actress for jav in jav_data if jav.get('entry_type') == 'JAV' and jav.get('actress') for actress in utils.parse_multi_value_field(jav['actress'])]
         versions = [jav['update_version'] for jav in jav_data if jav.get('entry_type') == 'Adult Visual Novel' and jav.get('update_version')]
 
-        platform_pie_sections, platform_legend_items = utils._generate_pie_data_from_list(platforms, [ft.colors.BLUE_700, ft.colors.GREEN_700, ft.colors.RED_700, ft.colors.ORANGE_700])
+        # Define the color map for platforms
+        platform_color_map = {
+            "Xbox": ft.colors.GREEN,
+            "PlayStation": ft.colors.BLUE,
+            "Nintendo Switch": ft.colors.RED,
+            "PC": ft.colors.ORANGE,
+            "Steam Deck": ft.colors.PURPLE,
+        }
+
+        # The fallback colors will be used for any platforms not in the map (e.g., "Mobile", "Other")
+        platform_pie_sections, platform_legend_items = utils._generate_pie_data_from_list(
+            platforms, 
+            [ft.colors.CYAN, ft.colors.TEAL, ft.colors.AMBER, ft.colors.BROWN],
+            color_map=platform_color_map
+        )
+
         author_pie_sections, author_legend_items = utils._generate_pie_data_from_list(authors, [ft.colors.TEAL_400, ft.colors.AMBER_600])
         artist_pie_sections, artist_legend_items = utils._generate_pie_data_from_list(artists, [ft.colors.CYAN_400, ft.colors.LIGHT_GREEN_500])
         director_pie_sections, director_legend_items = utils._generate_pie_data_from_list(directors, [ft.colors.LIGHT_BLUE_400, ft.colors.LIME_700])

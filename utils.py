@@ -37,8 +37,7 @@ def format_genres(genre_list: list) -> str:
 
 
 # --- UI Data Generation Functions ---
-
-def _generate_pie_data_from_list(items_list: list, fallback_colors: list):
+def _generate_pie_data_from_list(items_list: list, fallback_colors: list, color_map: dict | None = None):
     """
     Helper to generate Flet PieChart sections and legend controls from a list of strings.
 
@@ -61,11 +60,20 @@ def _generate_pie_data_from_list(items_list: list, fallback_colors: list):
     legend_controls = []
     color_index = 0
 
+    # Initialize color_map if it's None to avoid errors
+    if color_map is None:
+        color_map = {}
+
     # Loop through every unique item, sorted by the most common
     for item, count in counts.most_common():
         percentage = (count / total_items * 100) if total_items > 0 else 0
-        color = fallback_colors[color_index % len(fallback_colors)]
-        color_index += 1
+        
+        # Check for a specific color in the map, otherwise use the fallback list
+        if item in color_map:
+            color = color_map[item]
+        else:
+            color = fallback_colors[color_index % len(fallback_colors)]
+            color_index += 1
 
         pie_sections.append(
             ft.PieChartSection(
