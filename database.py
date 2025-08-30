@@ -5,6 +5,7 @@ from datetime import datetime
 
 # Import the single source of truth for our paths and settings
 import config
+import utils # Import utils for parsing multi-value fields
 
 # --- Database Handling ---
 
@@ -57,6 +58,15 @@ def init_db():
             )
         """)
         
+        # Profiles table (NEW)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS profiles (
+                type TEXT NOT NULL,
+                name TEXT NOT NULL,
+                image_url TEXT,
+                PRIMARY KEY (type, name)
+            )
+        """)
 
 
         # Awards tables
@@ -548,6 +558,123 @@ def get_recent_entries_db(limit=6):
             conn.close()
     
     return entries
+
+# --- Profiles Database Functions (NEW) ---
+
+def get_all_profiles_summary_db():
+    """
+    Analyzes all entries to generate a summary of profiles that meet the minimum entry count.
+    This logic is performed in Python to handle multi-value fields correctly.
+    """
+    # Structure: { 'actress': { 'Lady A': {'count': 5, 'scores': [8,9,7,8,9]} }, ... }
+    profiles = {} 
+
+    all_entries = get_all_javs_db()
+
+    for entry in all_entries:
+        score = entry.get('review_score')
+        for field, is_multi in config.PROFILE_CONFIG.items():
+            value_str = entry.get(field)
+            if not value_str or not value_str.strip():
+                continue
+            
+            # Get or create the dictionary for this profile type
+            if field not in profiles:
+                profiles[field] = {}
+
+            items = utils.parse_multi_value_field(value_str) if is_multi else [value_str.strip()]
+            
+            for item_name in items:
+                if not item_name:
+                    continue
+                
+                # Get or create the dictionary for this specific profile name
+                if item_name not in profiles[field]:
+                    profiles[field][item_name] = {'count': 0, 'scores': []}
+                
+                profiles[field][item_name]['count'] += 1
+                if score is not None:
+                    profiles[field][item_name]['scores'].append(score)
+
+    # Format the data, calculate averages, and filter by minimum entry count
+    summary_list = []
+    for profile_type, names in profiles.items():
+        for name, data in names.items():
+            if data['count'] >= config.PROFILE_MINIMUM_ENTRIES:
+                total_score = sum(data['scores'])
+                num_scores = len(data['scores'])
+                avg_score = round(total_score / num_scores, 1) if num_scores > 0 else None
+                
+                summary_list.append({
+                    'type': profile_type,
+                    'name': name,
+                    'entry_count': data['count'],
+                    'average_score': avg_score
+                })
+
+    # Sort the list by type, then by entry count descending
+    summary_list.sort(key=lambda x: (x['type'], -x['entry_count']))
+    
+    return summary_list
+
+def get_entries_for_profile_db(profile_type, profile_name):
+    """
+    Retrieves all entries associated with a specific profile.
+    Filters in Python to correctly handle multi-value fields.
+    """
+    if profile_type not in config.PROFILE_CONFIG:
+        return []
+        
+    all_entries = get_all_javs_db()
+    matching_entries = []
+    is_multi = config.PROFILE_CONFIG.get(profile_type, False)
+
+    for entry in all_entries:
+        value_str = entry.get(profile_type)
+        if not value_str or not value_str.strip():
+            continue
+        
+        items = utils.parse_multi_value_field(value_str) if is_multi else [value_str.strip()]
+        if profile_name in items:
+            matching_entries.append(entry)
+            
+    return matching_entries
+
+def get_profile_db(profile_type, profile_name):
+    """Retrieves custom data for a specific profile, like a custom image."""
+    conn = None
+    profile_data = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM profiles WHERE type = ? AND name = ?", (profile_type, profile_name))
+        row = cursor.fetchone()
+        if row:
+            profile_data = dict(row)
+    except sqlite3.Error as e:
+        print(f"Database Error getting profile for {profile_type} - {profile_name}: {e}")
+    finally:
+        if conn:
+            conn.close()
+    return profile_data
+
+def set_profile_image_db(profile_type, profile_name, image_url):
+    """Saves or updates the custom image for a profile."""
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO profiles (type, name, image_url) VALUES (?, ?, ?)",
+            (profile_type, profile_name, image_url)
+        )
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Database error saving profile image for {profile_type} - {profile_name}: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 # --- Awards Database Functions ---
 

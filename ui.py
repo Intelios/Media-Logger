@@ -22,6 +22,7 @@ from ui_enhanced import (
     EnhancedComponentFactory,
     ResponsiveLayoutManager
 )
+from profiles import ProfilesView # <-- NEW: Import the ProfilesView
 
 # --- UI Helper Functions (These are general and don't need to be in the class) ---
 
@@ -648,6 +649,10 @@ class AppUI:
         self.fab = ft.Ref[ft.FloatingActionButton]()
         self.stats_loading_indicator = ft.Ref[ft.ProgressRing]()
         self.stats_refresh_button = ft.Ref[ft.IconButton]()
+        
+        # <-- NEW: Instance of ProfilesView for the current session
+        self.profiles_view_instance = None
+
 
     def initialize_app_state(self):
         saved_year_filter_str = database.get_setting_db(config.SAVED_YEAR_VIEW_FILTER_KEY)
@@ -1134,8 +1139,31 @@ class AppUI:
         self.main_stack.current.update()
 
 
-
-
+    # <-- NEW: Wrapper for delete action to handle callbacks
+    def delete_jav_action_with_callback(self, jav_id, jav_name, callback):
+        """Deletes a JAV and then executes a callback, typically to refresh the view."""
+        jav_to_delete = next((j for j in database.get_all_javs_db() if j['id'] == jav_id), None)
+        database.delete_jav_db(jav_id)
+        if jav_to_delete and jav_to_delete.get('image_url') and jav_to_delete['image_url'].startswith("images/"):
+            full_image_path = os.path.join(config.ASSETS_DIR, jav_to_delete['image_url'])
+            if os.path.exists(full_image_path):
+                try: 
+                    os.remove(full_image_path)
+                    self.show_snackbar(f"Deleted '{jav_name}' and its local image.")
+                except OSError as e: 
+                    self.show_snackbar(f"Deleted '{jav_name}', but failed to delete image: {e}", color=ft.colors.WARNING_CONTAINER)
+            else: 
+                self.show_snackbar(f"Deleted '{jav_name}'.")
+        else: 
+            self.show_snackbar(f"Deleted '{jav_name}'.")
+        
+        # Execute the callback to refresh the specific view (e.g., the profile detail view)
+        if callback:
+            callback()
+        
+        # Also refresh the main stats in the background
+        current_stats_filter = list(self.stats_year_filter.current.selected)[0] if self.stats_year_filter.current and self.stats_year_filter.current.selected else "All Time"
+        self.page.run_thread(self.calculate_and_update_stats_display, current_stats_filter)
 
 
 
@@ -1278,23 +1306,7 @@ class AppUI:
 
         def delete_jav_action(jav_id, jav_name):
             """Handle deletion of an entry."""
-            jav_to_delete = next((j for j in database.get_all_javs_db() if j['id'] == jav_id), None)
-            database.delete_jav_db(jav_id)
-            if jav_to_delete and jav_to_delete.get('image_url') and jav_to_delete['image_url'].startswith("images/"):
-                full_image_path = os.path.join(config.ASSETS_DIR, jav_to_delete['image_url'])
-                if os.path.exists(full_image_path):
-                    try: 
-                        os.remove(full_image_path)
-                        self.show_snackbar(f"Deleted '{jav_name}' and its local image.")
-                    except OSError as e: 
-                        self.show_snackbar(f"Deleted '{jav_name}', but failed to delete image: {e}", color=ft.colors.WARNING_CONTAINER)
-                else: 
-                    self.show_snackbar(f"Deleted '{jav_name}'.")
-            else: 
-                self.show_snackbar(f"Deleted '{jav_name}'.")
-            refresh_view_content()
-            current_stats_filter = list(self.stats_year_filter.current.selected)[0] if self.stats_year_filter.current and self.stats_year_filter.current.selected else "All Time"
-            self.page.run_thread(self.calculate_and_update_stats_display, current_stats_filter)
+            self.delete_jav_action_with_callback(jav_id, jav_name, refresh_view_content)
 
         def open_edit_jav_dialog_wrapper(jav_item_data):
             """Handle editing of an entry."""
@@ -1420,11 +1432,7 @@ class AppUI:
             if grid_view.page: grid_view.update()
         
         def delete_jav_action_search(jav_id, jav_name):
-            database.delete_jav_db(jav_id)
-            self.show_snackbar(f"Deleted '{jav_name}'")
-            perform_search()
-            current_stats_filter = list(self.stats_year_filter.current.selected)[0] if self.stats_year_filter.current and self.stats_year_filter.current.selected else "All Time"
-            self.page.run_thread(self.calculate_and_update_stats_display, current_stats_filter)
+            self.delete_jav_action_with_callback(jav_id, jav_name, perform_search)
 
         def open_edit_jav_dialog_wrapper_search(jav_item_data):
             self.open_edit_jav_dialog(jav_item_data, perform_search)
@@ -2125,25 +2133,7 @@ class AppUI:
         
         # Define callback functions for recent entries
         def delete_jav_action_home(jav_id, jav_name):
-            jav_to_delete = next((j for j in database.get_all_javs_db() if j['id'] == jav_id), None)
-            database.delete_jav_db(jav_id)
-            if jav_to_delete and jav_to_delete.get('image_url') and jav_to_delete['image_url'].startswith("images/"):
-                full_image_path = os.path.join(config.ASSETS_DIR, jav_to_delete['image_url'])
-                if os.path.exists(full_image_path):
-                    try: 
-                        os.remove(full_image_path)
-                        self.show_snackbar(f"Deleted '{jav_name}' and its local image.")
-                    except OSError as e: 
-                        self.show_snackbar(f"Deleted '{jav_name}', but failed to delete image: {e}", color=ft.colors.WARNING_CONTAINER)
-                else: 
-                    self.show_snackbar(f"Deleted '{jav_name}'.")
-            else: 
-                self.show_snackbar(f"Deleted '{jav_name}'.")
-            # Refresh the home dashboard
-            self.update_main_content("Home")
-            # Update stats
-            current_stats_filter = list(self.stats_year_filter.current.selected)[0] if self.stats_year_filter.current and self.stats_year_filter.current.selected else "All Time"
-            self.page.run_thread(self.calculate_and_update_stats_display, current_stats_filter)
+            self.delete_jav_action_with_callback(jav_id, jav_name, lambda: self.update_main_content("Home"))
 
         def open_edit_jav_dialog_wrapper_home(jav_item_data):
             def refresh_home_view():
@@ -4722,7 +4712,7 @@ class AppUI:
             )
         )
         
-        # Create the card with proper click handling for scrollable content
+# Create the card with proper click handling for scrollable content
         return ft.Card(
             content=card_content,
             elevation=0,
@@ -4744,7 +4734,7 @@ class AppUI:
         content_area.controls.clear()
         
         # Define valid views for error handling
-        valid_views = ["Home", "Stats", "Search", "Awards"] + config.YEARS
+        valid_views = ["Home", "Stats", "Search", "Awards", "Profiles"] + config.YEARS
         
         # Handle invalid view states by defaulting to Home
         if view_id not in valid_views:
@@ -4771,6 +4761,12 @@ class AppUI:
             content = self.show_awards_view()
             # Awards view doesn't need FAB as it has its own action buttons
             show_fab = False
+        elif view_id == "Profiles": # <-- NEW: Handle Profiles view
+            # Create a single instance of ProfilesView for the session
+            if not self.profiles_view_instance:
+                self.profiles_view_instance = ProfilesView(self)
+            content = self.profiles_view_instance.build()
+            show_fab = False # Profiles view manages its own actions
         else:
             # This should not happen due to validation above, but keeping as fallback
             content = ft.Text(f"Error: Unable to load view '{view_id}'")
@@ -4800,13 +4796,16 @@ class AppUI:
             new_view = "Search"
         elif idx == len(config.YEARS) + 3:
             new_view = "Awards"
+        elif idx == len(config.YEARS) + 4: # <-- NEW: Handle Profiles index
+            new_view = "Profiles"
         else:
             return
         
         self.close_form_overlay()
         if self.current_dialog and self.current_dialog.open:
             self.current_dialog.open = False
-            self.page.overlay.remove(self.current_dialog)
+            if self.current_dialog in self.page.overlay:
+                self.page.overlay.remove(self.current_dialog)
             self.current_dialog = None
             self.page.update()
         self.update_main_content(new_view)
@@ -4822,16 +4821,14 @@ class AppUI:
         try:
             initial_index = config.YEARS.index(self.app_state["current_view"]) + 1  # +1 because Home is now index 0
         except ValueError:
-            if self.app_state["current_view"] == "Home":
-                initial_index = 0
-            elif self.app_state["current_view"] == "Stats":
-                initial_index = len(config.YEARS) + 1
-            elif self.app_state["current_view"] == "Search":
-                initial_index = len(config.YEARS) + 2
-            elif self.app_state["current_view"] == "Awards":
-                initial_index = len(config.YEARS) + 3
-            else:
-                initial_index = 0  # Default to Home
+            view_map = {
+                "Home": 0,
+                "Stats": len(config.YEARS) + 1,
+                "Search": len(config.YEARS) + 2,
+                "Awards": len(config.YEARS) + 3,
+                "Profiles": len(config.YEARS) + 4, # <-- NEW
+            }
+            initial_index = view_map.get(self.app_state["current_view"], 0) # Default to Home
         
         rail = ft.NavigationRail(
             selected_index=initial_index, label_type=ft.NavigationRailLabelType.ALL, min_width=100,
@@ -4840,7 +4837,8 @@ class AppUI:
                 [ft.NavigationRailDestination(icon=ft.icons.CALENDAR_MONTH_OUTLINED, selected_icon=ft.icons.CALENDAR_MONTH, label=y) for y in config.YEARS] +
                 [ft.NavigationRailDestination(icon=ft.icons.QUERY_STATS_OUTLINED, selected_icon=ft.icons.QUERY_STATS, label="Stats")] +
                 [ft.NavigationRailDestination(icon=ft.icons.SEARCH_OUTLINED, selected_icon=ft.icons.SEARCH, label="Search")] +
-                [ft.NavigationRailDestination(icon=ft.icons.EMOJI_EVENTS_OUTLINED, selected_icon=ft.icons.EMOJI_EVENTS, label="Awards")]
+                [ft.NavigationRailDestination(icon=ft.icons.EMOJI_EVENTS_OUTLINED, selected_icon=ft.icons.EMOJI_EVENTS, label="Awards")] +
+                [ft.NavigationRailDestination(icon=ft.icons.PEOPLE_OUTLINE_ROUNDED, selected_icon=ft.icons.PEOPLE_ROUNDED, label="Profiles")] # <-- NEW
             ),
             on_change=self.navigation_change
         )

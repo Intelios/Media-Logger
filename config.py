@@ -69,3 +69,14 @@ SEARCH_FIELD_OPTIONS = [
     {"key": "genre", "label": "Genre"},
     {"key": "description", "label": "Description"},
 ]
+
+# --- Profile Configuration ---
+PROFILE_CONFIG = {
+    # 'db_column_name': is_multi_value
+    'actress': True,
+    'director': True,
+    'artist': True,
+    'author': True,
+    'platform': False,
+}
+PROFILE_MINIMUM_ENTRIES = 3
