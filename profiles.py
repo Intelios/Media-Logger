@@ -134,11 +134,12 @@ class ProfilesView:
 
     def _build_profile_card(self, profile: dict) -> ft.Container:
         """Creates a single, modern card for a profile in the list view."""
-        profile_type_label = profile['type'].replace('_', ' ').capitalize()
+        profile_type = profile['type']
+        profile_type_label = profile_type.replace('_', ' ').capitalize()
         profile_name = profile['name']
         
         # Get profile-specific data (custom image)
-        profile_db_data = database.get_profile_db(profile['type'], profile_name)
+        profile_db_data = database.get_profile_db(profile_type, profile_name)
         image_src = config.DEFAULT_IMAGE_URL
         if profile_db_data and profile_db_data.get('image_url'):
             full_path = os.path.join(config.ASSETS_DIR, profile_db_data['image_url'])
@@ -152,7 +153,7 @@ class ProfilesView:
             "artist": ft.icons.HEADSET_OUTLINED,
             "author": ft.icons.PERSON_OUTLINE,
             "platform": ft.icons.VIDEOGAME_ASSET_OUTLINED
-        }.get(profile['type'], ft.icons.PERSON)
+        }.get(profile_type, ft.icons.PERSON)
 
         image_content = ft.Image(src=image_src, fit=ft.ImageFit.COVER, width=80, height=80) if image_src != config.DEFAULT_IMAGE_URL else ft.Icon(default_icon, size=40, color=ft.colors.PRIMARY)
 
@@ -190,18 +191,38 @@ class ProfilesView:
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
         ], spacing=10)
         
+        # Create a themed gradient for a more interesting glass effect
+        profile_color_light = ColorThemeManager.get_profile_type_color(profile_type, 'light')
+        profile_color_dark = ColorThemeManager.get_profile_type_color(profile_type, 'dark')
+        card_gradient = ft.LinearGradient(
+            begin=ft.alignment.top_left,
+            end=ft.alignment.bottom_right,
+            colors=[
+                ft.colors.with_opacity(0.15, profile_color_light),
+                ft.colors.with_opacity(0.05, profile_color_dark)
+            ]
+        )
+
         glass_card = GlassmorphismStyles.create_glass_card(
             content=card_content,
             elevation=4.0,
-            padding=ft.padding.all(20)
+            padding=ft.padding.all(20),
+            gradient=card_gradient
         )
         
-        # Wrap in a container that handles the click
-        return ft.Container(
+        # Wrap in a hover animation container that also handles the click
+        hover_card = AnimationHelpers.create_hover_animation_container(
             content=glass_card,
-            on_click=lambda e, p=profile: self._handle_profile_click(p),
-            border_radius=ft.border_radius.all(16)
+            hover_elevation=12.0,
+            normal_elevation=4.0,
+            hover_scale=1.03,
+            animation_duration=250,
+            border_radius=16,
+            padding=ft.padding.all(0) # The glass card already has padding
         )
+        hover_card.on_click=lambda e, p=profile: self._handle_profile_click(p)
+        
+        return hover_card
     
     def _handle_profile_click(self, profile_data: dict):
         """Sets the state to detail view and fetches the necessary data."""
@@ -226,17 +247,21 @@ class ProfilesView:
                 image_src = profile_db_data['image_url']
 
         # Header section
+        image_container = ft.Container(
+            content=ft.Image(ref=self.profile_detail_image, src=image_src, fit=ft.ImageFit.COVER, width=150, height=150) if image_src != config.DEFAULT_IMAGE_URL else ft.Icon(ft.icons.PERSON, size=80),
+            width=150, height=150,
+            border_radius=ft.border_radius.all(75),
+            alignment=ft.alignment.center,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            bgcolor=ft.colors.SURFACE_VARIANT,
+            on_click=lambda e, src=image_src: self._show_enlarged_image(src),
+            tooltip="View larger image" if image_src != config.DEFAULT_IMAGE_URL else ""
+        )
+
         header = ft.Container(
             content=ft.Row([
                 ft.Stack([
-                    ft.Container(
-                        content=ft.Image(ref=self.profile_detail_image, src=image_src, fit=ft.ImageFit.COVER, width=150, height=150) if image_src != config.DEFAULT_IMAGE_URL else ft.Icon(ft.icons.PERSON, size=80),
-                        width=150, height=150,
-                        border_radius=ft.border_radius.all(75),
-                        alignment=ft.alignment.center,
-                        clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-                        bgcolor=ft.colors.SURFACE_VARIANT
-                    ),
+                    image_container,
                     ft.Container(
                         content=ft.IconButton(
                             icon=ft.icons.EDIT, icon_size=18,
@@ -325,6 +350,39 @@ class ProfilesView:
         self.current_profile = None
         self.view_mode = "list"
         self._update_view()
+
+    def _show_enlarged_image(self, image_src: str):
+        """Displays the profile image in a larger view within a dialog."""
+        if not image_src or image_src == config.DEFAULT_IMAGE_URL:
+            # Don't show dialog for default/missing images
+            return
+
+        def close_dialog(e):
+            dialog.open = False
+            self.page.update()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            content=ft.Container(
+                content=ft.Image(
+                    src=image_src,
+                    fit=ft.ImageFit.CONTAIN,
+                    border_radius=ft.border_radius.all(12)
+                ),
+                padding=0, # Image will fill the content area
+                clip_behavior=ft.ClipBehavior.ANTI_ALIAS
+            ),
+            actions=[
+                ft.TextButton("Close", on_click=close_dialog)
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+            content_padding=ft.padding.all(24),
+            shape=ft.RoundedRectangleBorder(radius=16)
+        )
+
+        self.page.dialog = dialog
+        dialog.open = True
+        self.page.update()
 
     # --- Image Handling ---
 

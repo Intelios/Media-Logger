@@ -1,8 +1,3 @@
-"""
-Enhanced UI Components Foundation for Dashboard UI Upgrade
-Provides modern card designs, color theming utilities, and animation helpers
-"""
-
 import flet as ft
 from typing import Optional, Dict, Any, List
 # Removed unused import 'math'
@@ -24,7 +19,8 @@ class GlassmorphismStyles:
         padding: Optional[ft.Padding] = None,
         margin: Optional[ft.Margin] = None,
         shadow_blur: float = 20.0,
-        shadow_opacity: float = 0.1
+        shadow_opacity: float = 0.1,
+        gradient: Optional[Any] = None
     ) -> ft.Container:
         """Create a glassmorphism-style container with blur and transparency effects"""
         
@@ -33,7 +29,8 @@ class GlassmorphismStyles:
             
         return ft.Container(
             content=content,
-            bgcolor=ft.colors.with_opacity(opacity, ft.colors.WHITE),
+            bgcolor=ft.colors.with_opacity(opacity, ft.colors.WHITE) if gradient is None else None,
+            gradient=gradient,
             border=ft.border.all(
                 1, 
                 ft.colors.with_opacity(border_opacity, ft.colors.WHITE)
@@ -58,7 +55,8 @@ class GlassmorphismStyles:
         blur_intensity: float = 10.0,
         glass_opacity: float = 0.1,
         border_radius: float = 16.0,
-        padding: Optional[ft.Padding] = None
+        padding: Optional[ft.Padding] = None,
+        gradient: Optional[Any] = None
     ) -> ft.Card:
         """Create a modern glassmorphism card"""
         
@@ -70,7 +68,8 @@ class GlassmorphismStyles:
             blur_intensity=blur_intensity,
             opacity=glass_opacity,
             border_radius=border_radius,
-            padding=padding
+            padding=padding,
+            gradient=gradient
         )
         
         return ft.Card(
@@ -121,6 +120,16 @@ class ColorThemeManager:
         'info_dark': ft.colors.CYAN_800
     }
     
+    # Profile type specific colors
+    PROFILE_TYPE_COLORS = {
+        'actress': {'primary': ft.colors.PINK_500, 'light': ft.colors.PINK_300, 'dark': ft.colors.PINK_700},
+        'director': {'primary': ft.colors.CYAN_500, 'light': ft.colors.CYAN_300, 'dark': ft.colors.CYAN_700},
+        'artist': {'primary': ft.colors.PURPLE_500, 'light': ft.colors.PURPLE_300, 'dark': ft.colors.PURPLE_700},
+        'author': {'primary': ft.colors.BROWN_500, 'light': ft.colors.BROWN_300, 'dark': ft.colors.BROWN_700},
+        'platform': {'primary': ft.colors.BLUE_500, 'light': ft.colors.BLUE_300, 'dark': ft.colors.BLUE_700},
+        'default': {'primary': ft.colors.BLUE_GREY_500, 'light': ft.colors.BLUE_GREY_300, 'dark': ft.colors.BLUE_GREY_700}
+    }
+    
     # Entry type specific colors
     ENTRY_TYPE_COLORS = {
         'Game': {'primary': ft.colors.BLUE_600, 'light': ft.colors.BLUE_400, 'dark': ft.colors.BLUE_800},
@@ -135,6 +144,11 @@ class ColorThemeManager:
         'Adult Visual Novel': {'primary': ft.colors.DEEP_ORANGE_600, 'light': ft.colors.DEEP_ORANGE_400, 'dark': ft.colors.DEEP_ORANGE_800},
         'Other': {'primary': ft.colors.BLUE_GREY_600, 'light': ft.colors.BLUE_GREY_400, 'dark': ft.colors.BLUE_GREY_800}
     }
+    
+    @classmethod
+    def get_profile_type_color(cls, profile_type: str, variant: str = 'primary') -> str:
+        """Get color for specific profile type"""
+        return cls.PROFILE_TYPE_COLORS.get(profile_type, cls.PROFILE_TYPE_COLORS['default']).get(variant, ft.colors.BLUE_GREY_500)
     
     @classmethod
     def get_entry_type_color(cls, entry_type: str, variant: str = 'primary') -> str:
