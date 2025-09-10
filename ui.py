@@ -23,6 +23,7 @@ from ui_enhanced import (
     ResponsiveLayoutManager
 )
 from profiles import ProfilesView # <-- NEW: Import the ProfilesView
+from collections_view import CollectionsView 
 
 # --- UI Helper Functions (These are general and don't need to be in the class) ---
 
@@ -43,7 +44,9 @@ def get_entry_type_icon_name(entry_type_str: str) -> str:
 
 ## get_genre_icon_name removed (unused)
 
-def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_desc_callback):
+# In ui.py
+
+def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_desc_callback, remove_from_collection_callback=None):
     name = jav_item.get('name', 'Unknown Title')
     db_image_value = jav_item.get('image_url')
     image_src_for_flet = config.DEFAULT_IMAGE_URL
@@ -200,7 +203,42 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     if owns_local_copy: bottom_indicators_list.append(create_indicator(ft.icons.DOWNLOAD_DONE_ROUNDED, "Owns Local Copy", ft.colors.GREEN_600))
     bottom_indicators_row = ft.Row(controls=bottom_indicators_list, spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
-    options_button = ft.Container(content=ft.PopupMenuButton(content=ft.Icon(ft.icons.MORE_VERT_ROUNDED, color=ft.colors.WHITE, size=18), tooltip="Options", items=[ft.PopupMenuItem(text="Edit", icon=ft.icons.EDIT_OUTLINED, on_click=lambda _, item=jav_item: edit_callback(item)), ft.PopupMenuItem(text="View Description", icon=ft.icons.DESCRIPTION_OUTLINED, on_click=lambda _, item=jav_item: show_desc_callback(item), disabled=not has_description), ft.PopupMenuItem(), ft.PopupMenuItem(text="Delete", icon=ft.icons.DELETE_OUTLINE, on_click=lambda _, item_id=jav_item['id'], item_name=jav_item['name']: delete_callback(item_id, item_name))]), bgcolor=ft.colors.with_opacity(0.4, ft.colors.BLACK87), padding=ft.padding.all(8), border_radius=ft.border_radius.all(20), shadow=ft.BoxShadow(spread_radius=0, blur_radius=8, color=ft.colors.with_opacity(0.3, ft.colors.BLACK), offset=ft.Offset(0, 2)))
+    popup_items = [
+        ft.PopupMenuItem(text="Edit", icon=ft.icons.EDIT_OUTLINED, on_click=lambda _, item=jav_item: edit_callback(item)),
+        ft.PopupMenuItem(text="View Description", icon=ft.icons.DESCRIPTION_OUTLINED, on_click=lambda _, item=jav_item: show_desc_callback(item), disabled=not has_description),
+    ]
+
+    # Conditionally add "Remove from Collection" option
+    if remove_from_collection_callback:
+        popup_items.append(ft.PopupMenuItem()) # separator
+        popup_items.append(
+            ft.PopupMenuItem(
+                text="Remove from Collection", 
+                icon=ft.icons.REMOVE_CIRCLE_OUTLINE, 
+                on_click=lambda _, item_id=jav_item['id'], item_name=jav_item['name']: remove_from_collection_callback(item_id, item_name)
+            )
+        )
+
+    popup_items.extend([
+        ft.PopupMenuItem(), 
+        ft.PopupMenuItem(
+            text="Delete Permanently", 
+            icon=ft.icons.DELETE_FOREVER, # <-- CORRECTED ICON NAME
+            on_click=lambda _, item_id=jav_item['id'], item_name=jav_item['name']: delete_callback(item_id, item_name)
+        )
+    ])
+
+    options_button = ft.Container(
+        content=ft.PopupMenuButton(
+            content=ft.Icon(ft.icons.MORE_VERT_ROUNDED, color=ft.colors.WHITE, size=18), 
+            tooltip="Options", 
+            items=popup_items
+        ), 
+        bgcolor=ft.colors.with_opacity(0.4, ft.colors.BLACK87), 
+        padding=ft.padding.all(8), 
+        border_radius=ft.border_radius.all(20), 
+        shadow=ft.BoxShadow(spread_radius=0, blur_radius=8, color=ft.colors.with_opacity(0.3, ft.colors.BLACK), offset=ft.Offset(0, 2))
+    )
     image_stack = ft.Stack([ft.Container(content=ft.Image(src=image_src_for_flet, height=IMAGE_HEIGHT, width=float('inf'), fit=ft.ImageFit.COVER, error_content=ft.Container(content=ft.Column([ft.Icon(ft.icons.BROKEN_IMAGE, size=40, color=ft.colors.ON_SURFACE_VARIANT), ft.Text("Image Error", size=12, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500)], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=8), height=IMAGE_HEIGHT, width=float('inf'), bgcolor=ft.colors.SURFACE_VARIANT, alignment=ft.alignment.center)), border_radius=ft.border_radius.only(top_left=CARD_RADIUS, top_right=CARD_RADIUS), clip_behavior=ft.ClipBehavior.HARD_EDGE), ft.Container(height=IMAGE_HEIGHT, width=float('inf'), gradient=ft.LinearGradient(colors=[ft.colors.with_opacity(0, ft.colors.BLACK), ft.colors.with_opacity(0.2, ft.colors.BLACK)], begin=ft.alignment.top_center, end=ft.alignment.bottom_center), border_radius=ft.border_radius.only(top_left=CARD_RADIUS, top_right=CARD_RADIUS)), ft.Container(content=options_button, top=12, right=12)])
 
     def create_info_chip(icon, text, tooltip_prefix):
@@ -263,7 +301,6 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         border_radius=ft.border_radius.all(CARD_RADIUS), # Match the card's radius
         clip_behavior=ft.ClipBehavior.ANTI_ALIAS # Helps with smooth rounded corners on the border
     )
-
 
 def update_conditional_fields(selected_type: str, container: ft.Column, initial_data: dict | None = None):
     container.controls.clear()
@@ -649,9 +686,8 @@ class AppUI:
         self.fab = ft.Ref[ft.FloatingActionButton]()
         self.stats_loading_indicator = ft.Ref[ft.ProgressRing]()
         self.stats_refresh_button = ft.Ref[ft.IconButton]()
-        
-        # <-- NEW: Instance of ProfilesView for the current session
         self.profiles_view_instance = None
+        self.collections_view_instance = None
 
 
     def initialize_app_state(self):
@@ -4550,6 +4586,69 @@ class AppUI:
                 self.page._dialog_is_opening = False
             self.show_snackbar("Error opening winner selection. Please try again.", ft.colors.ERROR)
 
+    def show_confirmation_dialog(self, title, content, on_confirm):
+        """A generic confirmation dialog."""
+        def close_dialog(e):
+            dialog.open = False
+            self.page.update()
+
+        def confirm_action(e):
+            on_confirm(e)
+            close_dialog(e)
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(title),
+            content=ft.Text(content),
+            actions=[
+                ft.TextButton("Cancel", on_click=close_dialog),
+                ft.ElevatedButton("Confirm", on_click=confirm_action, bgcolor=ft.colors.ERROR, color=ft.colors.WHITE),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.dialog = dialog
+        dialog.open = True
+        self.page.update()
+
+    def show_form_dialog(self, title: str, content_controls: list, on_save_callback: callable):
+        """
+        A generic dialog for simple forms with Save and Cancel buttons.
+        This version correctly uses the page.overlay for robust display.
+        """
+        dialog_ref = ft.Ref[ft.AlertDialog]()
+
+        def close_dialog(e=None):
+            dialog = dialog_ref.current
+            if dialog:
+                dialog.open = False
+                # Crucially, remove the dialog from the overlay list
+                if dialog in self.page.overlay:
+                    self.page.overlay.remove(dialog)
+                self.page.update()
+
+        def save_action(e):
+            # Call the logic function. If it returns True (success), close the dialog.
+            if on_save_callback():
+                close_dialog()
+
+        dialog = ft.AlertDialog(
+            ref=dialog_ref,
+            modal=True,
+            title=ft.Text(title),
+            content=ft.Column(content_controls, tight=True, spacing=15, width=400),
+            actions=[
+                ft.TextButton("Cancel", on_click=close_dialog),
+                ft.ElevatedButton("Save", on_click=save_action),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+        # THIS IS THE KEY CHANGE:
+        # Instead of assigning to self.page.dialog, we add it to the overlay.
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
+
     def build_winner_selection_card(self, media, is_current_winner, on_select_callback):
         """Build a card for media selection in winner dialog."""
         name = media.get('name', 'Unknown Title')
@@ -4734,7 +4833,7 @@ class AppUI:
         content_area.controls.clear()
         
         # Define valid views for error handling
-        valid_views = ["Home", "Stats", "Search", "Awards", "Profiles"] + config.YEARS
+        valid_views = ["Home", "Stats", "Search", "Awards", "Profiles", "Collections"] + config.YEARS
         
         # Handle invalid view states by defaulting to Home
         if view_id not in valid_views:
@@ -4767,6 +4866,11 @@ class AppUI:
                 self.profiles_view_instance = ProfilesView(self)
             content = self.profiles_view_instance.build()
             show_fab = False # Profiles view manages its own actions
+        elif view_id == "Collections": # <-- NEW: Handle Collections view
+            if not self.collections_view_instance:
+                self.collections_view_instance = CollectionsView(self)
+            content = self.collections_view_instance.build()
+            show_fab = False # Collections view manages its own actions
         else:
             # This should not happen due to validation above, but keeping as fallback
             content = ft.Text(f"Error: Unable to load view '{view_id}'")
@@ -4796,8 +4900,10 @@ class AppUI:
             new_view = "Search"
         elif idx == len(config.YEARS) + 3:
             new_view = "Awards"
-        elif idx == len(config.YEARS) + 4: # <-- NEW: Handle Profiles index
+        elif idx == len(config.YEARS) + 4:
             new_view = "Profiles"
+        elif idx == len(config.YEARS) + 5: # <-- NEW: Handle Collections index
+            new_view = "Collections"
         else:
             return
         
@@ -4826,7 +4932,8 @@ class AppUI:
                 "Stats": len(config.YEARS) + 1,
                 "Search": len(config.YEARS) + 2,
                 "Awards": len(config.YEARS) + 3,
-                "Profiles": len(config.YEARS) + 4, # <-- NEW
+                "Profiles": len(config.YEARS) + 4,
+                "Collections": len(config.YEARS) + 5, # <-- NEW
             }
             initial_index = view_map.get(self.app_state["current_view"], 0) # Default to Home
         
@@ -4838,7 +4945,8 @@ class AppUI:
                 [ft.NavigationRailDestination(icon=ft.icons.QUERY_STATS_OUTLINED, selected_icon=ft.icons.QUERY_STATS, label="Stats")] +
                 [ft.NavigationRailDestination(icon=ft.icons.SEARCH_OUTLINED, selected_icon=ft.icons.SEARCH, label="Search")] +
                 [ft.NavigationRailDestination(icon=ft.icons.EMOJI_EVENTS_OUTLINED, selected_icon=ft.icons.EMOJI_EVENTS, label="Awards")] +
-                [ft.NavigationRailDestination(icon=ft.icons.PEOPLE_OUTLINE_ROUNDED, selected_icon=ft.icons.PEOPLE_ROUNDED, label="Profiles")] # <-- NEW
+                [ft.NavigationRailDestination(icon=ft.icons.PEOPLE_OUTLINE_ROUNDED, selected_icon=ft.icons.PEOPLE_ROUNDED, label="Profiles")] +
+                [ft.NavigationRailDestination(icon=ft.icons.COLLECTIONS_BOOKMARK_OUTLINED, selected_icon=ft.icons.COLLECTIONS_BOOKMARK, label="Collections")] # <-- NEW
             ),
             on_change=self.navigation_change
         )

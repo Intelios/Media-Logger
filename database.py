@@ -68,6 +68,27 @@ def init_db():
             )
         """)
 
+        # Collections tables
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS collections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                created_date TEXT NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS collection_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                collection_id INTEGER NOT NULL,
+                media_id INTEGER NOT NULL,
+                sort_order INTEGER NOT NULL,
+                FOREIGN KEY (collection_id) REFERENCES collections (id) ON DELETE CASCADE,
+                FOREIGN KEY (media_id) REFERENCES javs (id) ON DELETE CASCADE,
+                UNIQUE(collection_id, media_id)
+            )
+        """)
 
         # Awards tables
         cursor.execute("""
@@ -955,6 +976,170 @@ def is_award_winner(media_id):
     except sqlite3.Error as e:
         print(f"Database error checking award winner status for media ID {media_id}: {e}")
         return False  # Default to False on error (fail gracefully)
+    finally:
+        if conn:
+            conn.close()
+
+def create_collection_db(name: str, description: str | None):
+    """Creates a new collection."""
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        cursor = conn.cursor()
+        created_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        cursor.execute(
+            "INSERT INTO collections (name, description, created_date) VALUES (?, ?, ?)",
+            (name, description, created_date)
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        print(f"Error: A collection with the name '{name}' already exists.")
+        raise  # Re-raise to be handled by UI
+    except sqlite3.Error as e:
+        print(f"Database error creating collection: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def get_all_collections_with_stats_db():
+    """Retrieves all collections with a count of items in each."""
+    conn = None
+    collections = []
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT c.*, COUNT(ci.id) as item_count
+            FROM collections c
+            LEFT JOIN collection_items ci ON c.id = ci.collection_id
+            GROUP BY c.id
+            ORDER BY c.name ASC
+        """)
+        collections = [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        print(f"Database error getting all collections: {e}")
+    finally:
+        if conn:
+            conn.close()
+    return collections
+
+def update_collection_db(collection_id: int, name: str, description: str | None):
+    """Updates a collection's name and description."""
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE collections SET name = ?, description = ? WHERE id = ?",
+            (name, description, collection_id)
+        )
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Database error updating collection {collection_id}: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def delete_collection_db(collection_id: int):
+    """Deletes a collection and all its item associations."""
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.execute("PRAGMA foreign_keys = ON")
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM collections WHERE id = ?", (collection_id,))
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Database error deleting collection {collection_id}: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def get_collection_items_db(collection_id: int):
+    """Retrieves all media items for a specific collection, ordered correctly."""
+    conn = None
+    items = []
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT j.* FROM collection_items ci
+            JOIN javs j ON ci.media_id = j.id
+            WHERE ci.collection_id = ?
+            ORDER BY ci.sort_order ASC
+        """, (collection_id,))
+        items = [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        print(f"Database error getting items for collection {collection_id}: {e}")
+    finally:
+        if conn:
+            conn.close()
+    return items
+
+def add_items_to_collection_db(collection_id: int, media_ids: list[int]):
+    """Adds a list of media items to a collection."""
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        cursor = conn.cursor()
+        # Get the current highest sort order
+        cursor.execute("SELECT MAX(sort_order) FROM collection_items WHERE collection_id = ?", (collection_id,))
+        max_order = cursor.fetchone()[0] or 0
+        
+        items_to_insert = [
+            (collection_id, media_id, max_order + i + 1)
+            for i, media_id in enumerate(media_ids)
+        ]
+        
+        cursor.executemany(
+            "INSERT OR IGNORE INTO collection_items (collection_id, media_id, sort_order) VALUES (?, ?, ?)",
+            items_to_insert
+        )
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Database error adding items to collection {collection_id}: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def remove_item_from_collection_by_media_id_db(collection_id: int, media_id: int):
+    """Removes a media item from a collection."""
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM collection_items WHERE collection_id = ? AND media_id = ?",
+            (collection_id, media_id)
+        )
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Database error removing item {media_id} from collection {collection_id}: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def update_collection_item_order_db(collection_id: int, ordered_media_ids: list[int]):
+    """Updates the sort order for all items in a collection."""
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        cursor = conn.cursor()
+        
+        update_data = [
+            (i, collection_id, media_id)
+            for i, media_id in enumerate(ordered_media_ids)
+        ]
+        
+        cursor.executemany(
+            "UPDATE collection_items SET sort_order = ? WHERE collection_id = ? AND media_id = ?",
+            update_data
+        )
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Database error updating order for collection {collection_id}: {e}")
     finally:
         if conn:
             conn.close()
