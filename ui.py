@@ -740,6 +740,9 @@ class AppUI:
             "awards_selected_category": None,
             "year_view_property_filters": year_view_props,
             "search_view_property_filters": search_view_props,
+            # --- NEW STATE KEYS ---
+            "year_view_active_preset": None,
+            "search_view_active_preset": None,
         }
 
     def show_snackbar(self, message: str, color: str = None, duration: int = 4000):
@@ -1252,6 +1255,8 @@ class AppUI:
     def build_year_view(self, year_str):
         year_grid_view_ref = ft.Ref[ft.GridView]()
         loading_indicator_ref = ft.Ref[ft.Container]()
+        # --- NEW: Ref for the quick filter buttons ---
+        quick_filter_ref = ft.Ref[ft.SegmentedButton]()
         
         def load_all_entries():
             """Load all entries for the year at once."""
@@ -1329,6 +1334,19 @@ class AppUI:
 
         def on_year_view_filter_change():
             """Handle filter changes by refreshing the view."""
+            # --- NEW: Sync quick filter button state ---
+            current_selection = self.app_state["year_view_selected_entry_types"]
+            active_preset_label = None
+            for preset in config.QUICK_FILTER_PRESETS:
+                if current_selection == preset["types"]:
+                    active_preset_label = preset["label"]
+                    break
+            self.app_state["year_view_active_preset"] = active_preset_label
+            if quick_filter_ref.current:
+                quick_filter_ref.current.selected = {active_preset_label} if active_preset_label else set()
+                quick_filter_ref.current.update()
+            # --- END NEW ---
+            
             refresh_view_content()
             database.set_setting_db(config.SAVED_YEAR_VIEW_FILTER_KEY, ",".join(sorted(list(self.app_state["year_view_selected_entry_types"]))))
 
@@ -1339,6 +1357,24 @@ class AppUI:
                 config.SAVED_YEAR_VIEW_PROPS_FILTER_KEY,
                 json.dumps(self.app_state["year_view_property_filters"])
             )
+            
+        # --- NEW: Handler for quick filter clicks ---
+        def on_quick_filter_change(e):
+            selected_label = e.control.selected.pop() if e.control.selected else None
+            self.app_state["year_view_active_preset"] = selected_label
+
+            if selected_label:
+                # Find the preset and apply its types
+                for preset in config.QUICK_FILTER_PRESETS:
+                    if preset["label"] == selected_label:
+                        self.app_state["year_view_selected_entry_types"] = preset["types"].copy()
+                        break
+            else:
+                # If deselected, default to all types
+                self.app_state["year_view_selected_entry_types"] = set(config.ALL_ENTRY_TYPES_STR)
+
+            # Trigger the main filter change handler to update everything else
+            on_year_view_filter_change()
 
         def delete_jav_action(jav_id, jav_name):
             """Handle deletion of an entry."""
@@ -1348,6 +1384,21 @@ class AppUI:
             """Handle editing of an entry."""
             self.open_edit_jav_dialog(jav_item_data, refresh_view_content)
         
+        # --- NEW: Create the quick filter buttons ---
+        quick_filter_buttons = ft.SegmentedButton(
+            ref=quick_filter_ref,
+            on_change=on_quick_filter_change,
+            allow_empty_selection=True,
+            selected={self.app_state["year_view_active_preset"]} if self.app_state["year_view_active_preset"] else set(),
+            segments=[
+                ft.Segment(
+                    value=preset["label"],
+                    label=ft.Text(preset["label"]),
+                    icon=ft.Icon(preset["icon"])
+                ) for preset in config.QUICK_FILTER_PRESETS
+            ]
+        )
+
         filter_button_ui = create_entry_type_filter_button_with_sheet(
             self.page, 
             config.ALL_ENTRY_TYPES_STR, 
@@ -1410,11 +1461,14 @@ class AppUI:
                 ft.Container(
                     content=ft.Row(
                         [
+                            # --- MODIFIED: Add the new quick filters ---
+                            ft.Container(content=quick_filter_buttons, expand=True), # Expands to take available space
                             filter_button_ui,
-                            props_filter_button_ui  # New property filter button
+                            props_filter_button_ui
                         ],
                         alignment=ft.MainAxisAlignment.END,
-                        spacing=10
+                        spacing=10,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     padding=ft.padding.only(left=10, right=10, top=10, bottom=5)
                 ), 
@@ -1424,6 +1478,9 @@ class AppUI:
 
     def build_search_view(self):
         search_task = None
+        # --- NEW: Ref for the quick filter buttons ---
+        quick_filter_ref = ft.Ref[ft.SegmentedButton]()
+
         async def on_search_text_change(e):
             nonlocal search_task
             if search_task: search_task.cancel()
@@ -1474,8 +1531,36 @@ class AppUI:
             self.open_edit_jav_dialog(jav_item_data, perform_search)
 
         def on_search_entry_type_filter_change():
+            # --- NEW: Sync quick filter button state ---
+            current_selection = self.app_state["search_view_selected_entry_types"]
+            active_preset_label = None
+            for preset in config.QUICK_FILTER_PRESETS:
+                if current_selection == preset["types"]:
+                    active_preset_label = preset["label"]
+                    break
+            self.app_state["search_view_active_preset"] = active_preset_label
+            if quick_filter_ref.current:
+                quick_filter_ref.current.selected = {active_preset_label} if active_preset_label else set()
+                quick_filter_ref.current.update()
+            # --- END NEW ---
+
             perform_search()
             database.set_setting_db(config.SAVED_SEARCH_VIEW_FILTER_KEY, ",".join(sorted(list(self.app_state["search_view_selected_entry_types"]))))
+
+        # --- NEW: Handler for quick filter clicks ---
+        def on_search_quick_filter_change(e):
+            selected_label = e.control.selected.pop() if e.control.selected else None
+            self.app_state["search_view_active_preset"] = selected_label
+
+            if selected_label:
+                for preset in config.QUICK_FILTER_PRESETS:
+                    if preset["label"] == selected_label:
+                        self.app_state["search_view_selected_entry_types"] = preset["types"].copy()
+                        break
+            else:
+                self.app_state["search_view_selected_entry_types"] = set(config.ALL_ENTRY_TYPES_STR)
+            
+            on_search_entry_type_filter_change()
 
         # --- NEW: Callback for property filters ---
         def on_search_props_filter_change():
@@ -1484,6 +1569,21 @@ class AppUI:
                 config.SAVED_SEARCH_VIEW_PROPS_FILTER_KEY,
                 json.dumps(self.app_state["search_view_property_filters"])
             )
+            
+        # --- NEW: Create the quick filter buttons ---
+        search_quick_filter_buttons = ft.SegmentedButton(
+            ref=quick_filter_ref,
+            on_change=on_search_quick_filter_change,
+            allow_empty_selection=True,
+            selected={self.app_state["search_view_active_preset"]} if self.app_state["search_view_active_preset"] else set(),
+            segments=[
+                ft.Segment(
+                    value=preset["label"],
+                    label=ft.Text(preset["label"]),
+                    icon=ft.Icon(preset["icon"])
+                ) for preset in config.QUICK_FILTER_PRESETS
+            ]
+        )
 
         search_entry_type_filter_button = create_entry_type_filter_button_with_sheet(self.page, config.ALL_ENTRY_TYPES_STR, self.app_state["search_view_selected_entry_types"], on_search_entry_type_filter_change, button_label_prefix="Filter Types")
         search_fields_filter_button = create_search_fields_filter_button_with_sheet(self.page, config.SEARCH_FIELD_OPTIONS, self.app_state["search_selected_fields"], perform_search, button_label_prefix="Search In")
@@ -1504,11 +1604,13 @@ class AppUI:
                 ft.Container(
                     content=ft.Row(
                         [
+                            ft.Container(content=search_quick_filter_buttons, expand=True),
                             search_fields_filter_button, 
                             search_entry_type_filter_button,
                             props_filter_button_ui # <-- NEW
                         ],
-                        spacing=10
+                        spacing=10,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ), 
                     padding=ft.padding.only(left=10, right=10, bottom=5)
                 ), 

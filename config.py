@@ -1,3 +1,5 @@
+# --- START OF FILE config.py ---
+
 import flet as ft
 import sys
 import os
@@ -49,6 +51,26 @@ ENTRY_TYPE_OPTIONS = [
     ft.dropdown.Option("Other"),
 ]
 ALL_ENTRY_TYPES_STR = [opt.key for opt in ENTRY_TYPE_OPTIONS if opt.key]
+
+# --- Quick Filter Presets (NEW) ---
+QUICK_FILTER_PRESETS = [
+    {
+        "label": "Gaming",
+        "icon": ft.icons.SPORTS_ESPORTS_OUTLINED,
+        "types": {"Game"}
+    },
+    {
+        "label": "Media",
+        "icon": ft.icons.TV_OUTLINED,
+        "types": {"Movie", "Show", "Anime", "K-Drama"}
+    },
+    {
+        "label": "Adult",
+        "icon": ft.icons.FILTER_FRAMES_OUTLINED,
+        "types": {"JAV", "Hentai", "Adult Visual Novel"}
+    }
+]
+
 
 # --- Saved Preferences Keys (for database settings) ---
 SAVED_YEAR_VIEW_FILTER_KEY = "year_view_last_filter_v2"
