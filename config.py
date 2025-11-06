@@ -62,7 +62,7 @@ QUICK_FILTER_PRESETS = [
     {
         "label": "Media",
         "icon": ft.icons.TV_OUTLINED,
-        "types": {"Movie", "Show", "Anime", "K-Drama"}
+        "types": {"Movie", "Show", "Anime", "K-Drama", "Book"}
     },
     {
         "label": "Adult",
