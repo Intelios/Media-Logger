@@ -301,7 +301,8 @@ class ProfilesView:
                 entry, 
                 self.app_ui.delete_jav_action_with_callback, # Use a wrapper in AppUI
                 lambda item, cb=refresh_profile_view: self.app_ui.open_edit_jav_dialog(item, cb),
-                self.app_ui.show_description_dialog
+                self.app_ui.show_description_dialog,
+                self.app_ui.show_image_dialog
             ) for entry in self.profile_entries
         ]
         

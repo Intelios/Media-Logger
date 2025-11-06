@@ -46,7 +46,7 @@ def get_entry_type_icon_name(entry_type_str: str) -> str:
 
 # In ui.py
 
-def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_desc_callback, remove_from_collection_callback=None):
+def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_desc_callback, view_image_callback, remove_from_collection_callback=None):
     name = jav_item.get('name', 'Unknown Title')
     db_image_value = jav_item.get('image_url')
     image_src_for_flet = config.DEFAULT_IMAGE_URL
@@ -203,9 +203,12 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     if owns_local_copy: bottom_indicators_list.append(create_indicator(ft.icons.DOWNLOAD_DONE_ROUNDED, "Owns Local Copy", ft.colors.GREEN_600))
     bottom_indicators_row = ft.Row(controls=bottom_indicators_list, spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
+    has_image = bool(db_image_value and db_image_value.strip())
+    
     popup_items = [
         ft.PopupMenuItem(text="Edit", icon=ft.icons.EDIT_OUTLINED, on_click=lambda _, item=jav_item: edit_callback(item)),
         ft.PopupMenuItem(text="View Description", icon=ft.icons.DESCRIPTION_OUTLINED, on_click=lambda _, item=jav_item: show_desc_callback(item), disabled=not has_description),
+        ft.PopupMenuItem(text="View Image", icon=ft.icons.IMAGE_OUTLINED, on_click=lambda _, item=jav_item: view_image_callback(item), disabled=not has_image),
     ]
 
     # Conditionally add "Remove from Collection" option
@@ -1044,6 +1047,103 @@ class AppUI:
         finally:
             self.page._dialog_is_opening = False
 
+    def show_image_dialog(self, jav_data):
+        if (hasattr(self.page, '_dialog_is_opening') and self.page._dialog_is_opening) or (self.form_overlay_container.current and self.form_overlay_container.current in self.main_stack.current.controls): return
+        self.page._dialog_is_opening = True
+        dialog_overlay_ref = ft.Ref[ft.Container]()
+        try:
+            entry_name = jav_data.get('name', 'Unknown Title')
+            entry_type = jav_data.get('entry_type', 'Media')
+            db_image_value = jav_data.get('image_url')
+            
+            # Determine the image source
+            image_src = config.DEFAULT_IMAGE_URL
+            if db_image_value:
+                if db_image_value.lower().startswith("http://") or db_image_value.lower().startswith("https://"):
+                    image_src = db_image_value
+                else:
+                    full_local_path = os.path.join(config.ASSETS_DIR, db_image_value)
+                    if os.path.exists(full_local_path):
+                        image_src = db_image_value
+            
+            def close_dialog(e=None):
+                if dialog_overlay_ref.current and dialog_overlay_ref.current in self.main_stack.current.controls:
+                    self.main_stack.current.controls.remove(dialog_overlay_ref.current)
+                    self.main_stack.current.update()
+            
+            header = ft.Container(
+                content=ft.Column([
+                    ft.Row([
+                        ft.Container(
+                            content=ft.Icon(get_entry_type_icon_name(entry_type), size=28, color=ft.colors.PRIMARY),
+                            bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
+                            padding=12,
+                            border_radius=12
+                        ),
+                        ft.Column([
+                            ft.Text(entry_name, style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600, max_lines=2),
+                            ft.Container(
+                                content=ft.Text(entry_type, size=14, color=ft.colors.PRIMARY, weight=ft.FontWeight.W_500),
+                                bgcolor=ft.colors.with_opacity(0.08, ft.colors.PRIMARY),
+                                padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                                border_radius=16,
+                                margin=ft.margin.only(top=4)
+                            )
+                        ], spacing=8, tight=True, expand=True)
+                    ], spacing=16, vertical_alignment=ft.CrossAxisAlignment.START),
+                    ft.Container(height=1, bgcolor=ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE), margin=ft.margin.symmetric(vertical=20))
+                ]),
+                padding=24,
+                bgcolor=ft.colors.with_opacity(0.02, ft.colors.PRIMARY)
+            )
+            
+            image_content = ft.Container(
+                content=ft.Image(
+                    src=image_src,
+                    fit=ft.ImageFit.CONTAIN,
+                    error_content=ft.Container(
+                        content=ft.Column([
+                            ft.Icon(ft.icons.BROKEN_IMAGE, size=64, color=ft.colors.ON_SURFACE_VARIANT),
+                            ft.Text("Failed to load image", size=16, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500)
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=12),
+                        bgcolor=ft.colors.SURFACE_VARIANT,
+                        alignment=ft.alignment.center
+                    )
+                ),
+                padding=ft.padding.all(16),
+                alignment=ft.alignment.center,
+                height=min(600, self.page.window_height * 0.6 if self.page.window_height else 600)
+            )
+            
+            close_button = ft.Container(
+                content=ft.ElevatedButton(text="Close", icon=ft.icons.CLOSE_ROUNDED, on_click=close_dialog),
+                alignment=ft.alignment.center_right,
+                padding=ft.padding.only(right=24, bottom=20, top=16)
+            )
+            
+            dialog_content = ft.Container(
+                content=ft.Column([header, image_content, close_button], spacing=0, tight=True),
+                width=min(800, self.page.window_width * 0.9 if self.page.window_width else 800),
+                bgcolor=ft.colors.SURFACE,
+                border_radius=20,
+                shadow=ft.BoxShadow(blur_radius=24, color=ft.colors.with_opacity(0.15, ft.colors.BLACK), offset=ft.Offset(0, 8)),
+                on_click=lambda e: None  # Prevent clicks from closing the dialog
+            )
+            
+            dialog_overlay = ft.Container(
+                ref=dialog_overlay_ref,
+                content=dialog_content,
+                alignment=ft.alignment.center,
+                bgcolor=ft.colors.with_opacity(0.5, ft.colors.BLACK),
+                expand=True,
+                on_click=close_dialog
+            )
+            
+            self.main_stack.current.controls.append(dialog_overlay)
+            self.main_stack.current.update()
+        finally:
+            self.page._dialog_is_opening = False
+
     def open_add_jav_dialog(self, e=None, initial_data=None):
         if initial_data is None:
             initial_data = {}
@@ -1315,7 +1415,8 @@ class AppUI:
                                 jav_item, 
                                 delete_jav_action, 
                                 open_edit_jav_dialog_wrapper, 
-                                self.show_description_dialog
+                                self.show_description_dialog,
+                                self.show_image_dialog
                             )
                         )
                 
@@ -1521,7 +1622,7 @@ class AppUI:
                 grid_view.controls.append(ft.Container(content=ft.Column([ft.Icon(ft.icons.SEARCH_OFF_OUTLINED, size=64), ft.Text(f"No results found for '{search_term}'", size=16)], horizontal_alignment=ft.CrossAxisAlignment.CENTER), alignment=ft.alignment.center, expand=True))
             else:
                 for jav_item in results:
-                    grid_view.controls.append(create_gallery_card(self.page, jav_item, delete_jav_action_search, open_edit_jav_dialog_wrapper_search, self.show_description_dialog))
+                    grid_view.controls.append(create_gallery_card(self.page, jav_item, delete_jav_action_search, open_edit_jav_dialog_wrapper_search, self.show_description_dialog, self.show_image_dialog))
             if grid_view.page: grid_view.update()
         
         def delete_jav_action_search(jav_id, jav_name):
@@ -2252,6 +2353,18 @@ class AppUI:
                                            overflow=ft.TextOverflow.ELLIPSIS),
                                     ft.Text(f"{featured_entry.get('entry_type', 'Media')} • {featured_entry.get('completion_date', 'N/A')}", 
                                            color=ft.colors.ON_SURFACE_VARIANT),
+                                    (lambda genres: ft.Container(
+                                        content=ft.Row([
+                                            ft.Container(
+                                                content=ft.Text(genre, size=12, weight=ft.FontWeight.W_500),
+                                                padding=ft.padding.symmetric(horizontal=10, vertical=4),
+                                                bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
+                                                border_radius=12,
+                                                border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.PRIMARY))
+                                            ) for genre in genres[:3]  # Show max 3 genres
+                                        ], spacing=6, wrap=True),
+                                        margin=ft.margin.only(top=4, bottom=4)
+                                    ) if genres else ft.Container())(utils.parse_genres(featured_entry.get('genre'))),
                                     ft.Row([
                                         ft.Icon(ft.icons.STAR_ROUNDED, size=16, color=ft.colors.AMBER_400),
                                         ft.Text(f"{featured_entry.get('review_score', 'N/A')}/10", 
@@ -2285,7 +2398,8 @@ class AppUI:
                 entry, 
                 delete_jav_action_home, 
                 open_edit_jav_dialog_wrapper_home, 
-                self.show_description_dialog
+                self.show_description_dialog,
+                self.show_image_dialog
             )
             recent_entries_cards.append(card)
         

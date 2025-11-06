@@ -132,6 +132,7 @@ class CollectionsView:
                 lambda mid, mname: self.app_ui.delete_jav_action_with_callback(mid, mname, self.app_ui.refresh_current_view),
                 open_edit_dialog_wrapper, 
                 self.app_ui.show_description_dialog,
+                self.app_ui.show_image_dialog,
                 remove_from_collection_callback=remove_item_from_this_collection
             ) for item in items
         ]
