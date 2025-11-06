@@ -93,29 +93,38 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
 
     parsed_genres = utils.parse_genres(genres_str)
 
-    CARD_RADIUS = 16
-    IMAGE_HEIGHT = 160
-    CONTENT_PADDING = ft.padding.symmetric(horizontal=20, vertical=16)
-    MAIN_SPACING = 14
-    TITLE_SIZE = 17
-    TAG_SIZE = 11
-    DATE_SIZE = 12
+    CARD_RADIUS = 18
+    IMAGE_HEIGHT = 180
+    CONTENT_PADDING = ft.padding.symmetric(horizontal=22, vertical=18)
+    MAIN_SPACING = 16
+    TITLE_SIZE = 18
+    TAG_SIZE = 11.5
+    DATE_SIZE = 12.5
 
     # Removed local entry type styling in favor of centralized ColorThemeManager
 
-    title_text = ft.Text(name, weight=ft.FontWeight.W_600, size=TITLE_SIZE, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS, color=ft.colors.ON_SURFACE, style=ft.TextStyle(letter_spacing=0.2))
+    title_text = ft.Text(
+        name, 
+        weight=ft.FontWeight.W_700, 
+        size=TITLE_SIZE, 
+        max_lines=2, 
+        overflow=ft.TextOverflow.ELLIPSIS, 
+        color=ft.colors.ON_SURFACE, 
+        style=ft.TextStyle(letter_spacing=0.15, height=1.3)
+    )
     entry_type_icon_name = get_entry_type_icon_name(entry_type_str)
     entry_type_gradient = ColorThemeManager.get_entry_type_gradient(entry_type_str)
     entry_type_primary = ColorThemeManager.get_entry_type_color(entry_type_str)
     entry_type_badge = ft.Container(
         content=ft.Row([
-            ft.Icon(entry_type_icon_name, size=14, color=ft.colors.WHITE),
-            ft.Text(entry_type_str, size=TAG_SIZE, color=ft.colors.WHITE, weight=ft.FontWeight.W_600, style=ft.TextStyle(letter_spacing=0.3))
-        ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
+            ft.Icon(entry_type_icon_name, size=15, color=ft.colors.WHITE),
+            ft.Text(entry_type_str, size=TAG_SIZE, color=ft.colors.WHITE, weight=ft.FontWeight.W_700, style=ft.TextStyle(letter_spacing=0.4))
+        ], spacing=7, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
         gradient=entry_type_gradient,
-        padding=ft.padding.symmetric(horizontal=12, vertical=6),
-        border_radius=ft.border_radius.all(20),
-        shadow=ft.BoxShadow(spread_radius=0, blur_radius=4, color=ft.colors.with_opacity(0.3, entry_type_primary), offset=ft.Offset(0, 2))
+        padding=ft.padding.symmetric(horizontal=14, vertical=7),
+        border_radius=ft.border_radius.all(22),
+        shadow=ft.BoxShadow(spread_radius=0, blur_radius=8, color=ft.colors.with_opacity(0.35, entry_type_primary), offset=ft.Offset(0, 3)),
+        border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.WHITE))
     )
 
     def create_enhanced_rating_badge(score):
@@ -125,23 +134,23 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         if score == 10.0:
             return ft.Container(
                 content=ft.Row([
-                    ft.Icon(ft.icons.STAR_ROUNDED, size=14, color=ft.colors.WHITE),
-                    ft.Text(f"{score:.1f}", size=TAG_SIZE + 1, color=ft.colors.WHITE, weight=ft.FontWeight.W_700)
-                ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
+                    ft.Icon(ft.icons.STAR_ROUNDED, size=15, color=ft.colors.WHITE),
+                    ft.Text(f"{score:.1f}", size=TAG_SIZE + 1.5, color=ft.colors.WHITE, weight=ft.FontWeight.W_800)
+                ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
                 gradient=ft.LinearGradient(
                     colors=[ft.colors.GREEN_400, ft.colors.GREEN_600, ft.colors.GREEN_700],
                     begin=ft.alignment.top_left,
                     end=ft.alignment.bottom_right
                 ),
-                padding=ft.padding.symmetric(horizontal=10, vertical=6),
-                border_radius=ft.border_radius.all(20),
+                padding=ft.padding.symmetric(horizontal=12, vertical=7),
+                border_radius=ft.border_radius.all(22),
                 shadow=ft.BoxShadow(
                     spread_radius=1,
-                    blur_radius=8,
-                    color=ft.colors.with_opacity(0.4, ft.colors.GREEN_600),
-                    offset=ft.Offset(0, 2)
+                    blur_radius=10,
+                    color=ft.colors.with_opacity(0.45, ft.colors.GREEN_600),
+                    offset=ft.Offset(0, 3)
                 ),
-                border=ft.border.all(1, ft.colors.with_opacity(0.3, ft.colors.GREEN_300))
+                border=ft.border.all(1.5, ft.colors.with_opacity(0.4, ft.colors.GREEN_200))
             )
 
         color_scheme = ColorThemeManager.get_rating_color_scheme(score)
@@ -150,47 +159,94 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
 
         return ft.Container(
             content=ft.Row([
-                ft.Icon(ft.icons.STAR_ROUNDED, size=14, color=primary_color),
-                ft.Text(f"{score:.1f}", size=TAG_SIZE + 1, color=primary_color, weight=ft.FontWeight.W_700)
-            ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
+                ft.Icon(ft.icons.STAR_ROUNDED, size=15, color=primary_color),
+                ft.Text(f"{score:.1f}", size=TAG_SIZE + 1.5, color=primary_color, weight=ft.FontWeight.W_800)
+            ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
             bgcolor=background_color,
-            padding=ft.padding.symmetric(horizontal=10, vertical=6),
-            border_radius=ft.border_radius.all(20),
-            border=ft.border.all(1, ft.colors.with_opacity(0.2, primary_color))
+            padding=ft.padding.symmetric(horizontal=12, vertical=7),
+            border_radius=ft.border_radius.all(22),
+            border=ft.border.all(1.5, ft.colors.with_opacity(0.3, primary_color)),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=6,
+                color=ft.colors.with_opacity(0.2, primary_color),
+                offset=ft.Offset(0, 2)
+            )
         )
 
     rating_badge = create_enhanced_rating_badge(score)
 
     def create_genre_tag(genre_text):
-        return ft.Container(content=ft.Text(genre_text, size=TAG_SIZE - 1, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS), bgcolor=ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE), padding=ft.padding.symmetric(horizontal=8, vertical=4), border_radius=ft.border_radius.all(12), border=ft.border.all(1, ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE)))
-    genre_widgets_row = ft.Row(wrap=True, spacing=6, run_spacing=6, tight=True)
+        return ft.Container(
+            content=ft.Text(
+                genre_text, 
+                size=TAG_SIZE, 
+                color=ft.colors.ON_SURFACE_VARIANT, 
+                weight=ft.FontWeight.W_600, 
+                max_lines=1, 
+                overflow=ft.TextOverflow.ELLIPSIS
+            ), 
+            bgcolor=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE), 
+            padding=ft.padding.symmetric(horizontal=10, vertical=5), 
+            border_radius=ft.border_radius.all(14), 
+            border=ft.border.all(1, ft.colors.with_opacity(0.15, ft.colors.ON_SURFACE))
+        )
+    genre_widgets_row = ft.Row(wrap=True, spacing=7, run_spacing=7, tight=True)
     if parsed_genres:
         display_genres = parsed_genres[:3]
-        for genre_text in display_genres: genre_widgets_row.controls.append(create_genre_tag(genre_text))
+        for genre_text in display_genres: 
+            genre_widgets_row.controls.append(create_genre_tag(genre_text))
         if len(parsed_genres) > 3:
             remaining_genres = parsed_genres[3:]
             tooltip_text = ", ".join(remaining_genres)
-            genre_widgets_row.controls.append(ft.Container(content=ft.Text(f"+{len(parsed_genres) - 3}", size=TAG_SIZE - 1, color=ft.colors.PRIMARY, weight=ft.FontWeight.W_600), bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY), padding=ft.padding.symmetric(horizontal=8, vertical=4), border_radius=ft.border_radius.all(12), border=ft.border.all(1, ft.colors.with_opacity(0.3, ft.colors.PRIMARY)), tooltip=tooltip_text))
+            genre_widgets_row.controls.append(
+                ft.Container(
+                    content=ft.Text(
+                        f"+{len(parsed_genres) - 3}", 
+                        size=TAG_SIZE, 
+                        color=ft.colors.PRIMARY, 
+                        weight=ft.FontWeight.W_700
+                    ), 
+                    bgcolor=ft.colors.with_opacity(0.12, ft.colors.PRIMARY), 
+                    padding=ft.padding.symmetric(horizontal=10, vertical=5), 
+                    border_radius=ft.border_radius.all(14), 
+                    border=ft.border.all(1.5, ft.colors.with_opacity(0.35, ft.colors.PRIMARY)), 
+                    tooltip=tooltip_text
+                )
+            )
 
     def create_indicator(icon, tooltip, color):
-        return ft.Container(content=ft.Icon(icon, size=16, color=color), bgcolor=ft.colors.with_opacity(0.1, color), padding=ft.padding.all(6), border_radius=ft.border_radius.all(20), tooltip=tooltip, border=ft.border.all(1, ft.colors.with_opacity(0.3, color)))
+        return ft.Container(
+            content=ft.Icon(icon, size=17, color=color), 
+            bgcolor=ft.colors.with_opacity(0.12, color), 
+            padding=ft.padding.all(7), 
+            border_radius=ft.border_radius.all(22), 
+            tooltip=tooltip, 
+            border=ft.border.all(1.5, ft.colors.with_opacity(0.35, color)),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=4,
+                color=ft.colors.with_opacity(0.2, color),
+                offset=ft.Offset(0, 1)
+            )
+        )
     
     def create_trophy_indicator():
         return ft.Container(
-            content=ft.Icon(ft.icons.EMOJI_EVENTS, size=16, color=ft.colors.AMBER_100),
+            content=ft.Icon(ft.icons.EMOJI_EVENTS, size=17, color=ft.colors.AMBER_50),
             gradient=ft.LinearGradient(
                 colors=[ft.colors.AMBER_400, ft.colors.AMBER_600, ft.colors.AMBER_700],
                 begin=ft.alignment.top_left,
                 end=ft.alignment.bottom_right
             ),
-            padding=ft.padding.all(6),
-            border_radius=ft.border_radius.all(20),
+            padding=ft.padding.all(7),
+            border_radius=ft.border_radius.all(22),
             tooltip="Award Winner",
-            border=ft.border.all(1.5, ft.colors.with_opacity(0.4, ft.colors.AMBER_300)),
+            border=ft.border.all(1.5, ft.colors.with_opacity(0.5, ft.colors.AMBER_200)),
             shadow=ft.BoxShadow(
                 spread_radius=1,
-                blur_radius=6,
-                color=ft.colors.with_opacity(0.4, ft.colors.AMBER_600),
+                blur_radius=8,
+                color=ft.colors.with_opacity(0.45, ft.colors.AMBER_600),
                 offset=ft.Offset(0, 2)
             )
         )
@@ -201,7 +257,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         bottom_indicators_list.append(create_trophy_indicator())
     if is_rewatch: bottom_indicators_list.append(create_indicator(ft.icons.REPLAY_ROUNDED, "Rewatched", ft.colors.AMBER_600))
     if owns_local_copy: bottom_indicators_list.append(create_indicator(ft.icons.DOWNLOAD_DONE_ROUNDED, "Owns Local Copy", ft.colors.GREEN_600))
-    bottom_indicators_row = ft.Row(controls=bottom_indicators_list, spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+    bottom_indicators_row = ft.Row(controls=bottom_indicators_list, spacing=9, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
     has_image = bool(db_image_value and db_image_value.strip())
     
@@ -233,20 +289,70 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
 
     options_button = ft.Container(
         content=ft.PopupMenuButton(
-            content=ft.Icon(ft.icons.MORE_VERT_ROUNDED, color=ft.colors.WHITE, size=18), 
+            content=ft.Icon(ft.icons.MORE_VERT_ROUNDED, color=ft.colors.WHITE, size=19), 
             tooltip="Options", 
             items=popup_items
         ), 
-        bgcolor=ft.colors.with_opacity(0.4, ft.colors.BLACK87), 
-        padding=ft.padding.all(8), 
-        border_radius=ft.border_radius.all(20), 
-        shadow=ft.BoxShadow(spread_radius=0, blur_radius=8, color=ft.colors.with_opacity(0.3, ft.colors.BLACK), offset=ft.Offset(0, 2))
+        bgcolor=ft.colors.with_opacity(0.5, ft.colors.BLACK87), 
+        padding=ft.padding.all(9), 
+        border_radius=ft.border_radius.all(22), 
+        shadow=ft.BoxShadow(spread_radius=0, blur_radius=10, color=ft.colors.with_opacity(0.4, ft.colors.BLACK), offset=ft.Offset(0, 2)),
+        border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.WHITE))
     )
-    image_stack = ft.Stack([ft.Container(content=ft.Image(src=image_src_for_flet, height=IMAGE_HEIGHT, width=float('inf'), fit=ft.ImageFit.COVER, error_content=ft.Container(content=ft.Column([ft.Icon(ft.icons.BROKEN_IMAGE, size=40, color=ft.colors.ON_SURFACE_VARIANT), ft.Text("Image Error", size=12, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500)], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=8), height=IMAGE_HEIGHT, width=float('inf'), bgcolor=ft.colors.SURFACE_VARIANT, alignment=ft.alignment.center)), border_radius=ft.border_radius.only(top_left=CARD_RADIUS, top_right=CARD_RADIUS), clip_behavior=ft.ClipBehavior.HARD_EDGE), ft.Container(height=IMAGE_HEIGHT, width=float('inf'), gradient=ft.LinearGradient(colors=[ft.colors.with_opacity(0, ft.colors.BLACK), ft.colors.with_opacity(0.2, ft.colors.BLACK)], begin=ft.alignment.top_center, end=ft.alignment.bottom_center), border_radius=ft.border_radius.only(top_left=CARD_RADIUS, top_right=CARD_RADIUS)), ft.Container(content=options_button, top=12, right=12)])
+    image_stack = ft.Stack([
+        ft.Container(
+            content=ft.Image(
+                src=image_src_for_flet, 
+                height=IMAGE_HEIGHT, 
+                width=float('inf'), 
+                fit=ft.ImageFit.COVER, 
+                error_content=ft.Container(
+                    content=ft.Column([
+                        ft.Icon(ft.icons.BROKEN_IMAGE, size=44, color=ft.colors.ON_SURFACE_VARIANT), 
+                        ft.Text("Image Error", size=13, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_600)
+                    ], 
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER, 
+                    alignment=ft.MainAxisAlignment.CENTER, 
+                    spacing=10), 
+                    height=IMAGE_HEIGHT, 
+                    width=float('inf'), 
+                    bgcolor=ft.colors.SURFACE_VARIANT, 
+                    alignment=ft.alignment.center
+                )
+            ), 
+            border_radius=ft.border_radius.only(top_left=CARD_RADIUS, top_right=CARD_RADIUS), 
+            clip_behavior=ft.ClipBehavior.HARD_EDGE
+        ), 
+        ft.Container(
+            height=IMAGE_HEIGHT, 
+            width=float('inf'), 
+            gradient=ft.LinearGradient(
+                colors=[
+                    ft.colors.with_opacity(0, ft.colors.BLACK), 
+                    ft.colors.with_opacity(0.15, ft.colors.BLACK),
+                    ft.colors.with_opacity(0.35, ft.colors.BLACK)
+                ], 
+                begin=ft.alignment.top_center, 
+                end=ft.alignment.bottom_center
+            ), 
+            border_radius=ft.border_radius.only(top_left=CARD_RADIUS, top_right=CARD_RADIUS)
+        ), 
+        ft.Container(content=options_button, top=14, right=14)
+    ])
 
     def create_info_chip(icon, text, tooltip_prefix):
-        return ft.Container(content=ft.Row([ft.Icon(icon, size=12, color=ft.colors.ON_SURFACE_VARIANT), ft.Text(text, size=TAG_SIZE, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True), bgcolor=ft.colors.with_opacity(0.06, ft.colors.ON_SURFACE), padding=ft.padding.symmetric(horizontal=8, vertical=4), border_radius=ft.border_radius.all(12), tooltip=f"{tooltip_prefix}: {text}", border=ft.border.all(1, ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE)))
-    type_specific_info_container = ft.Row(wrap=True, spacing=6, run_spacing=6)
+        return ft.Container(
+            content=ft.Row([
+                ft.Icon(icon, size=13, color=ft.colors.ON_SURFACE_VARIANT), 
+                ft.Text(text, size=TAG_SIZE, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_600, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
+            ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True), 
+            bgcolor=ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE), 
+            padding=ft.padding.symmetric(horizontal=10, vertical=5), 
+            border_radius=ft.border_radius.all(14), 
+            tooltip=f"{tooltip_prefix}: {text}", 
+            border=ft.border.all(1, ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE))
+        )
+    type_specific_info_container = ft.Row(wrap=True, spacing=7, run_spacing=7)
     if jav_item.get('platform'): type_specific_info_container.controls.append(create_info_chip(ft.icons.VIDEOGAME_ASSET_OUTLINED, jav_item['platform'], "Platform"))
     if jav_item.get('author'): type_specific_info_container.controls.append(create_info_chip(ft.icons.PERSON_OUTLINE, jav_item['author'], "Author"))
     if jav_item.get('artist'):
@@ -256,54 +362,95 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         for actress_name in utils.parse_multi_value_field(jav_item['actress']): type_specific_info_container.controls.append(create_info_chip(ft.icons.WOMAN_2_OUTLINED, actress_name, f"Actress: {actress_name}"))
     if jav_item.get('update_version'): type_specific_info_container.controls.append(create_info_chip(ft.icons.INFO_OUTLINE, jav_item['update_version'], "Version"))
 
-    card_content_controls = [ft.Container(content=title_text, margin=ft.margin.only(bottom=4)), ft.Row(controls=[entry_type_badge, rating_badge] if rating_badge.content else [entry_type_badge], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)]
+    card_content_controls = [
+        ft.Container(content=title_text, margin=ft.margin.only(bottom=6)), 
+        ft.Row(
+            controls=[entry_type_badge, rating_badge] if rating_badge.content else [entry_type_badge], 
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN, 
+            vertical_alignment=ft.CrossAxisAlignment.CENTER
+        )
+    ]
     if type_specific_info_container.controls: card_content_controls.append(type_specific_info_container)
     if genre_widgets_row.controls: card_content_controls.append(genre_widgets_row)
-    card_content_controls.append(ft.Row(alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER, controls=[bottom_indicators_row, ft.Text(display_completion_date, size=DATE_SIZE, color=ft.colors.ON_SURFACE_VARIANT, opacity=0.8, weight=ft.FontWeight.W_500, style=ft.TextStyle(letter_spacing=0.2))]))
+    card_content_controls.append(
+        ft.Row(
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN, 
+            vertical_alignment=ft.CrossAxisAlignment.CENTER, 
+            controls=[
+                bottom_indicators_row, 
+                ft.Text(
+                    display_completion_date, 
+                    size=DATE_SIZE, 
+                    color=ft.colors.ON_SURFACE_VARIANT, 
+                    opacity=0.85, 
+                    weight=ft.FontWeight.W_600, 
+                    style=ft.TextStyle(letter_spacing=0.3)
+                )
+            ]
+        )
+    )
     card_content = ft.Column(controls=card_content_controls, spacing=MAIN_SPACING, tight=True)
 
-    # =========================================================================
-    # START: CORRECTED code for 10/10 glow effect
-    # =========================================================================
-    
     # Default styling for the card
-    card_elevation = 3
-    card_shadow_color = ft.colors.with_opacity(0.15, ft.colors.BLACK)
-    # The border is now a full ft.border object, not a BorderSide
-    card_border = None # Default: no border
+    card_elevation = 4
+    card_shadow_color = ft.colors.with_opacity(0.12, ft.colors.BLACK)
+    card_border = None
+    outer_container_shadow = None
 
     # Check for a perfect score to apply the glow
     if score is not None:
         try:
             if int(score) == 10:
-                card_elevation = 6
-                card_shadow_color = ft.colors.with_opacity(0.5, ft.colors.GREEN_300)
-                # Create a full ft.border object for the container
-                card_border = ft.border.all(1.5, ft.colors.with_opacity(0.65, ft.colors.LIGHT_GREEN_ACCENT_200))
+                card_elevation = 8
+                card_shadow_color = ft.colors.with_opacity(0.5, ft.colors.GREEN_400)
+                card_border = ft.border.all(2, ft.colors.with_opacity(0.7, ft.colors.LIGHT_GREEN_ACCENT_200))
+                outer_container_shadow = ft.BoxShadow(
+                    spread_radius=2,
+                    blur_radius=16,
+                    color=ft.colors.with_opacity(0.5, ft.colors.GREEN_400),
+                    offset=ft.Offset(0, 4)
+                )
         except (ValueError, TypeError):
             pass
 
-    # Create the inner card. It has no margin itself.
+    # Create the inner card with enhanced styling
     the_card = ft.Card(
         content=ft.Container(
             content=ft.Column([image_stack, ft.Container(content=card_content, padding=CONTENT_PADDING)], spacing=0, tight=True),
             clip_behavior=ft.ClipBehavior.HARD_EDGE
         ),
         elevation=card_elevation,
-        margin=0, # Margin is now on the outer container
-        shape=ft.RoundedRectangleBorder(radius=CARD_RADIUS), # No 'side' argument here
+        margin=0,
+        shape=ft.RoundedRectangleBorder(radius=CARD_RADIUS),
         shadow_color=card_shadow_color,
         surface_tint_color=ft.colors.SURFACE_TINT
     )
 
-    # Return the card wrapped in a container that has the border and margin
-    return ft.Container(
+    # Create outer container with hover animation
+    outer_container = ft.Container(
         content=the_card,
-        margin=ft.margin.all(8),
-        border=card_border, # Apply the conditional border here
-        border_radius=ft.border_radius.all(CARD_RADIUS), # Match the card's radius
-        clip_behavior=ft.ClipBehavior.ANTI_ALIAS # Helps with smooth rounded corners on the border
+        margin=ft.margin.all(10),
+        border=card_border,
+        border_radius=ft.border_radius.all(CARD_RADIUS),
+        clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+        shadow=outer_container_shadow,
+        animate=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT),
+        animate_scale=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
     )
+    
+    # Add hover effect
+    def on_hover(e):
+        if e.data == "true":
+            outer_container.scale = 1.03
+            the_card.elevation = card_elevation + 4
+        else:
+            outer_container.scale = 1.0
+            the_card.elevation = card_elevation
+        outer_container.update()
+    
+    outer_container.on_hover = on_hover
+    
+    return outer_container
 
 def update_conditional_fields(selected_type: str, container: ft.Column, initial_data: dict | None = None):
     container.controls.clear()
