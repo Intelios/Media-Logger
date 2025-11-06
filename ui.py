@@ -93,13 +93,13 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
 
     parsed_genres = utils.parse_genres(genres_str)
 
-    CARD_RADIUS = 18
-    IMAGE_HEIGHT = 180
-    CONTENT_PADDING = ft.padding.symmetric(horizontal=22, vertical=18)
-    MAIN_SPACING = 16
-    TITLE_SIZE = 18
-    TAG_SIZE = 11.5
-    DATE_SIZE = 12.5
+    CARD_RADIUS = 20
+    IMAGE_HEIGHT = 165
+    CONTENT_PADDING = ft.padding.symmetric(horizontal=20, vertical=14)
+    MAIN_SPACING = 12
+    TITLE_SIZE = 16.5
+    TAG_SIZE = 9.5
+    DATE_SIZE = 12
 
     # Removed local entry type styling in favor of centralized ColorThemeManager
 
@@ -370,14 +370,31 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
             vertical_alignment=ft.CrossAxisAlignment.CENTER
         )
     ]
-    if type_specific_info_container.controls: card_content_controls.append(type_specific_info_container)
-    if genre_widgets_row.controls: card_content_controls.append(genre_widgets_row)
+    if type_specific_info_container.controls: 
+        card_content_controls.append(type_specific_info_container)
+    if genre_widgets_row.controls: 
+        card_content_controls.append(genre_widgets_row)
+    
+    # Bottom row with date and indicators
+    bottom_row_items = []
+    if bottom_indicators_row.controls:
+        bottom_row_items.append(bottom_indicators_row)
+    
     card_content_controls.append(
         ft.Row(
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN, 
-            vertical_alignment=ft.CrossAxisAlignment.CENTER, 
+            controls=bottom_row_items,
+            alignment=ft.MainAxisAlignment.START,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            wrap=True,
+            spacing=9,
+            run_spacing=9
+        )
+    )
+    
+    # Date row - right aligned
+    card_content_controls.append(
+        ft.Row(
             controls=[
-                bottom_indicators_row, 
                 ft.Text(
                     display_completion_date, 
                     size=DATE_SIZE, 
@@ -386,10 +403,12 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
                     weight=ft.FontWeight.W_600, 
                     style=ft.TextStyle(letter_spacing=0.3)
                 )
-            ]
+            ],
+            alignment=ft.MainAxisAlignment.END
         )
     )
-    card_content = ft.Column(controls=card_content_controls, spacing=MAIN_SPACING, tight=True)
+    
+    card_content = ft.Column(controls=card_content_controls, spacing=MAIN_SPACING)
 
     # Default styling for the card
     card_elevation = 4
