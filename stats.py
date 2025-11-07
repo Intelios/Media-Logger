@@ -81,6 +81,13 @@ class StatsView:
         # UI control refs
         self.stats_loading_indicator = ft.Ref[ft.ProgressRing]()
         self.stats_refresh_button = ft.Ref[ft.IconButton]()
+        
+        # Rating Distribution refs
+        self.rating_chart_container = ft.Ref[ft.Container]()
+        self.rating_bars_column = ft.Ref[ft.Column]()
+        self.rating_most_common = ft.Ref[ft.Text]()
+        self.rating_total_count = ft.Ref[ft.Text]()
+        self.rating_empty_state = ft.Ref[ft.Container]()
     
     def calculate_and_update_stats_display(self, filter_year="All Time"):
         """
@@ -131,6 +138,76 @@ class StatsView:
         actress_pie_sections, actress_legend_items = utils._generate_pie_data_from_list(actresses, [ft.colors.DEEP_PURPLE_300, ft.colors.PINK_300])
         version_pie_sections, version_legend_items = utils._generate_pie_data_from_list(versions, [ft.colors.BROWN_400, ft.colors.BLUE_GREY_500])
 
+        # Calculate Rating Distribution
+        ratings = [jav['review_score'] for jav in jav_data if jav.get('review_score') is not None]
+        rating_counts = {i: ratings.count(i) for i in range(1, 11)}
+        total_rated = len(ratings)
+        
+        rating_bars = []
+        if total_rated > 0:
+            max_count = max(rating_counts.values()) if rating_counts.values() else 1
+            most_common_rating = max(rating_counts.items(), key=lambda x: x[1])[0] if rating_counts else None
+            
+            for rating in range(10, 0, -1):  # 10 to 1, descending
+                count = rating_counts[rating]
+                percentage = (count / total_rated * 100) if total_rated > 0 else 0
+                bar_ratio = (count / max_count) if max_count > 0 else 0
+                
+                is_most_common = (rating == most_common_rating and count > 0)
+                bar_color = ft.colors.AMBER_400 if is_most_common else ft.colors.TEAL_400
+                
+                # Create the bar with proper proportions
+                bar_content = ft.Row(
+                    controls=[
+                        ft.Container(
+                            bgcolor=bar_color,
+                            border_radius=4,
+                            height=24,
+                            expand=int(bar_ratio * 100) if count > 0 else 0,
+                            animate=ft.Animation(500, ft.AnimationCurve.EASE_OUT)
+                        ),
+                        ft.Container(
+                            expand=int((1 - bar_ratio) * 100) if count > 0 else 100
+                        )
+                    ],
+                    spacing=0
+                )
+                
+                rating_bars.append(
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Container(
+                                content=ft.Text(str(rating), weight=ft.FontWeight.BOLD, size=14),
+                                width=30,
+                                alignment=ft.alignment.center_right
+                            ),
+                            ft.Container(
+                                content=bar_content,
+                                bgcolor=ft.colors.with_opacity(0.1, ft.colors.SURFACE_VARIANT),
+                                border_radius=4,
+                                expand=True,
+                                height=24
+                            ),
+                            ft.Container(
+                                content=ft.Text(f"{count} ({percentage:.1f}%)", size=12, weight=ft.FontWeight.W_500),
+                                width=80,
+                                alignment=ft.alignment.center_left
+                            )
+                        ], spacing=10, alignment=ft.MainAxisAlignment.START),
+                        padding=ft.padding.symmetric(vertical=4),
+                        border=ft.border.all(2, ft.colors.AMBER_400) if is_most_common else None,
+                        border_radius=8 if is_most_common else 0,
+                        bgcolor=ft.colors.with_opacity(0.05, ft.colors.AMBER_400) if is_most_common else None
+                    )
+                )
+            
+            most_common_text = f"⭐ {most_common_rating}/10" if most_common_rating else "N/A"
+        else:
+            most_common_text = "N/A"
+        
+        rating_chart_visible = total_rated > 0
+        rating_empty_visible = total_rated == 0
+
         def safe_update(control_ref, attr, value):
             if control_ref.current and control_ref.current.page:
                 setattr(control_ref.current, attr, value)
@@ -145,6 +222,13 @@ class StatsView:
         safe_update(self.stats_unique_genres_text, "value", str(unique_genres_count))
         safe_update(self.genre_pie_chart, "sections", genre_pie_sections)
         safe_update(self.genre_legend, "controls", genre_legend_items)
+        
+        # Update Rating Distribution
+        safe_update(self.rating_bars_column, "controls", rating_bars)
+        safe_update(self.rating_most_common, "value", most_common_text)
+        safe_update(self.rating_total_count, "value", f"{total_rated} rated {'entry' if total_rated == 1 else 'entries'}")
+        safe_update(self.rating_chart_container, "visible", rating_chart_visible)
+        safe_update(self.rating_empty_state, "visible", rating_empty_visible)
         
         for container, sections, legend, data, pie_data, legend_data in [
             (self.platform_chart_container, self.platform_pie_chart, self.platform_legend, platforms, platform_pie_sections, platform_legend_items),
@@ -576,6 +660,74 @@ class StatsView:
 
                     # Main genre breakdown
                     genre_breakdown_card,
+
+                    # Rating Distribution
+                    ft.Container(
+                        content=ft.Card(
+                            elevation=2,
+                            content=ft.Container(
+                                padding=28,
+                                content=ft.Column([
+                                    ft.Row([
+                                        ft.Icon(ft.icons.BAR_CHART_ROUNDED, color=ft.colors.BLUE_400, size=24),
+                                        ft.Text("Rating Distribution", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600)
+                                    ], spacing=12),
+                                    ft.Divider(height=20),
+                                    
+                                    # Stats summary
+                                    ft.Row([
+                                        ft.Container(
+                                            content=ft.Column([
+                                                ft.Text("Most Common Rating", size=12, color=ft.colors.ON_SURFACE_VARIANT),
+                                                ft.Text(ref=self.rating_most_common, value="N/A", size=20, weight=ft.FontWeight.BOLD, color=ft.colors.AMBER_400)
+                                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
+                                            padding=16,
+                                            bgcolor=ft.colors.with_opacity(0.05, ft.colors.AMBER_400),
+                                            border_radius=12,
+                                            border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.AMBER_400)),
+                                            expand=True
+                                        ),
+                                        ft.Container(
+                                            content=ft.Column([
+                                                ft.Text("Total Rated", size=12, color=ft.colors.ON_SURFACE_VARIANT),
+                                                ft.Text(ref=self.rating_total_count, value="0 entries", size=20, weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_400)
+                                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
+                                            padding=16,
+                                            bgcolor=ft.colors.with_opacity(0.05, ft.colors.BLUE_400),
+                                            border_radius=12,
+                                            border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.BLUE_400)),
+                                            expand=True
+                                        )
+                                    ], spacing=16),
+                                    
+                                    ft.Divider(height=20),
+                                    
+                                    # Bar chart container
+                                    ft.Container(
+                                        ref=self.rating_chart_container,
+                                        content=ft.Column([
+                                            ft.Text("📊 Rating Breakdown", weight=ft.FontWeight.W_500, size=16),
+                                            ft.Column(ref=self.rating_bars_column, controls=[], spacing=4)
+                                        ], spacing=10),
+                                        visible=True
+                                    ),
+                                    
+                                    # Empty state
+                                    ft.Container(
+                                        ref=self.rating_empty_state,
+                                        content=ft.Column([
+                                            ft.Icon(ft.icons.STAR_BORDER_ROUNDED, size=64, color=ft.colors.ON_SURFACE_VARIANT),
+                                            ft.Text("No rated entries yet", size=16, weight=ft.FontWeight.W_500, color=ft.colors.ON_SURFACE_VARIANT),
+                                            ft.Text("Start rating your entries to see the distribution", size=12, color=ft.colors.ON_SURFACE_VARIANT, text_align=ft.TextAlign.CENTER)
+                                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=12),
+                                        padding=40,
+                                        visible=False
+                                    )
+                                ], spacing=16)
+                            )
+                        ),
+                        border_radius=20
+                    ),
 
                     # Expandable breakdown cards
                     ft.Column([
