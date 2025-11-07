@@ -293,44 +293,72 @@ class StatsView:
 
     def _create_enhanced_stat_card(self, icon: str, value_ref: ft.Ref[ft.Text], label: str, color: str, 
                                   subtitle: str = None, trend_icon: str = None, trend_color: str = None):
-        """Creates an enhanced stat card with optional subtitle and trend indicators."""
+        """Creates an enhanced stat card with modern gradient styling and animations."""
         
         # Build the content list dynamically
         content_items = []
         
-        # Icon row
+        # Icon row with gradient background
         content_items.append(
             ft.Row([
                 ft.Container(
-                    content=ft.Icon(icon, color=color, size=28),
-                    padding=14,
-                    bgcolor=ft.colors.with_opacity(0.12, color),
-                    border_radius=16,
-                    animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT)
+                    content=ft.Icon(icon, color=ft.colors.WHITE, size=32),
+                    padding=16,
+                    gradient=ft.LinearGradient(
+                        colors=[color, ft.colors.with_opacity(0.7, color)],
+                        begin=ft.alignment.top_left,
+                        end=ft.alignment.bottom_right
+                    ),
+                    border_radius=20,
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=12,
+                        color=ft.colors.with_opacity(0.3, color),
+                        offset=ft.Offset(0, 4)
+                    ),
+                    animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT)
                 ),
                 ft.Container(expand=True),  # Spacer
                 # Trend indicator (if provided)
                 ft.Container(
-                    content=ft.Icon(trend_icon, color=trend_color, size=18),
+                    content=ft.Icon(trend_icon, color=ft.colors.WHITE, size=18),
                     visible=bool(trend_icon),
-                    padding=6,
-                    bgcolor=ft.colors.with_opacity(0.1, trend_color or ft.colors.GREY),
-                    border_radius=8
+                    padding=8,
+                    gradient=ft.LinearGradient(
+                        colors=[trend_color or ft.colors.GREY, ft.colors.with_opacity(0.7, trend_color or ft.colors.GREY)],
+                        begin=ft.alignment.top_left,
+                        end=ft.alignment.bottom_right
+                    ),
+                    border_radius=12,
+                    shadow=ft.BoxShadow(
+                        spread_radius=0,
+                        blur_radius=8,
+                        color=ft.colors.with_opacity(0.2, trend_color or ft.colors.GREY),
+                        offset=ft.Offset(0, 2)
+                    )
                 ) if trend_icon else ft.Container()
             ])
         )
         
-        # Value with animation
+        # Value with animation and gradient text effect
         content_items.append(
             ft.AnimatedSwitcher(
                 ft.Text(
                     ref=value_ref, 
                     value="...", 
-                    size=32, 
+                    size=42, 
                     weight=ft.FontWeight.BOLD,
-                    color=color
+                    color=color,
+                    style=ft.TextStyle(
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=8,
+                            color=ft.colors.with_opacity(0.15, color),
+                            offset=ft.Offset(0, 2)
+                        )
+                    )
                 ),
-                duration=300,
+                duration=400,
                 transition=ft.AnimatedSwitcherTransition.SCALE
             )
         )
@@ -339,9 +367,10 @@ class StatsView:
         content_items.append(
             ft.Text(
                 label, 
-                size=14, 
-                color=ft.colors.ON_SURFACE_VARIANT, 
-                weight=ft.FontWeight.W_500
+                size=15, 
+                color=ft.colors.ON_SURFACE, 
+                weight=ft.FontWeight.W_600,
+                style=ft.TextStyle(letter_spacing=0.5)
             )
         )
         
@@ -352,148 +381,311 @@ class StatsView:
                     subtitle, 
                     size=12, 
                     color=ft.colors.ON_SURFACE_VARIANT,
-                    opacity=0.8
+                    opacity=0.7,
+                    italic=True
                 )
             )
         
         return ft.Container(
-            content=ft.Column(content_items, spacing=12),
-            padding=ft.padding.all(24),
-            border_radius=20,
-            border=ft.border.all(1, ft.colors.with_opacity(0.08, ft.colors.OUTLINE)),
-            bgcolor=ft.colors.SURFACE_VARIANT,
+            content=ft.Column(content_items, spacing=14),
+            padding=ft.padding.all(28),
+            border_radius=24,
+            gradient=ft.LinearGradient(
+                colors=[
+                    ft.colors.with_opacity(0.05, color),
+                    ft.colors.with_opacity(0.02, ft.colors.SURFACE_VARIANT)
+                ],
+                begin=ft.alignment.top_left,
+                end=ft.alignment.bottom_right
+            ),
+            border=ft.border.all(2, ft.colors.with_opacity(0.15, color)),
             expand=True,
-            animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+            animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT),
             on_hover=self._on_stat_card_hover,
-            ink=True
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=20,
+                color=ft.colors.with_opacity(0.08, color),
+                offset=ft.Offset(0, 6)
+            )
         )
 
     def _on_stat_card_hover(self, e):
-        """Add subtle hover effect to stat cards."""
+        """Add smooth hover effect to stat cards with elevation and scale."""
         if e.data == "true":  # Hover enter
-            e.control.elevation = 4
-            e.control.scale = 1.02
+            e.control.shadow = ft.BoxShadow(
+                spread_radius=2,
+                blur_radius=28,
+                color=ft.colors.with_opacity(0.15, ft.colors.PRIMARY),
+                offset=ft.Offset(0, 8)
+            )
+            e.control.scale = 1.03
         else:  # Hover exit
-            e.control.elevation = 0
+            # Get the original color from the card's border
+            original_color = ft.colors.PRIMARY  # Default fallback
+            if hasattr(e.control, 'border') and e.control.border:
+                original_color = e.control.border.top.color if hasattr(e.control.border, 'top') else ft.colors.PRIMARY
+            
+            e.control.shadow = ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=20,
+                color=ft.colors.with_opacity(0.08, original_color),
+                offset=ft.Offset(0, 6)
+            )
             e.control.scale = 1.0
         e.control.update()
 
     def _create_expandable_breakdown_card(self, container_ref, chart_ref, legend_ref, title, icon, color):
-        """Creates an expandable breakdown card with modern styling."""
-        return ft.ExpansionTile(
+        """Creates an expandable breakdown card with modern gradient styling."""
+        return ft.Container(
             ref=container_ref,
-            leading=ft.Icon(icon, color=color),
-            title=ft.Text(title, style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.W_500),
-            subtitle=ft.Text("Tap to view breakdown", size=12, color=ft.colors.ON_SURFACE_VARIANT),
-            controls=[
-                ft.Container(
-                    content=ft.Row([
-                        # Chart section
-                        ft.Container(
-                            content=ft.Column([
-                                ft.PieChart(
-                                    ref=chart_ref,
-                                    sections=[],
-                                    center_space_radius=50,
-                                    animate=ft.Animation(500, ft.AnimationCurve.EASE_OUT)
-                                )
-                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                            expand=3,
-                            padding=20
-                        ),
-                        # Legend section
-                        ft.Container(
-                            content=ft.Column([
-                                ft.Row([
-                                    ft.Icon(ft.icons.LIST_ROUNDED, size=16, color=color),
-                                    ft.Text("Top Entries", weight=ft.FontWeight.BOLD, size=14)
-                                ], spacing=8),
-                                ft.Divider(height=10),
-                                ft.Container(
-                                    content=ft.Column(
-                                        ref=legend_ref, 
-                                        controls=[], 
-                                        spacing=8, 
-                                        scroll=ft.ScrollMode.ADAPTIVE
+            content=ft.ExpansionTile(
+                leading=ft.Container(
+                    content=ft.Icon(icon, color=ft.colors.WHITE, size=24),
+                    gradient=ft.LinearGradient(
+                        colors=[color, ft.colors.with_opacity(0.7, color)],
+                        begin=ft.alignment.top_left,
+                        end=ft.alignment.bottom_right
+                    ),
+                    padding=12,
+                    border_radius=16,
+                    shadow=ft.BoxShadow(
+                        spread_radius=0,
+                        blur_radius=10,
+                        color=ft.colors.with_opacity(0.25, color),
+                        offset=ft.Offset(0, 3)
+                    )
+                ),
+                title=ft.Text(title, style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.W_600),
+                subtitle=ft.Text("Tap to expand and view detailed breakdown", size=12, color=ft.colors.ON_SURFACE_VARIANT, italic=True),
+                controls=[
+                    ft.Container(
+                        content=ft.Row([
+                            # Chart section with enhanced styling
+                            ft.Container(
+                                content=ft.Column([
+                                    ft.Container(
+                                        content=ft.PieChart(
+                                            ref=chart_ref,
+                                            sections=[],
+                                            center_space_radius=55,
+                                            animate=ft.Animation(600, ft.AnimationCurve.ELASTIC_OUT)
+                                        ),
+                                        padding=ft.padding.all(16),
+                                        border_radius=20,
+                                        gradient=ft.LinearGradient(
+                                            colors=[
+                                                ft.colors.with_opacity(0.03, color),
+                                                ft.colors.with_opacity(0.01, ft.colors.SURFACE_VARIANT)
+                                            ],
+                                            begin=ft.alignment.top_left,
+                                            end=ft.alignment.bottom_right
+                                        ),
+                                        border=ft.border.all(1, ft.colors.with_opacity(0.1, color))
+                                    )
+                                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                                expand=3,
+                                padding=20
+                            ),
+                            # Legend section with enhanced styling
+                            ft.Container(
+                                content=ft.Column([
+                                    ft.Container(
+                                        content=ft.Row([
+                                            ft.Icon(ft.icons.LIST_ROUNDED, size=18, color=color),
+                                            ft.Text("Top Entries", weight=ft.FontWeight.BOLD, size=15)
+                                        ], spacing=10),
+                                        padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                                        bgcolor=ft.colors.with_opacity(0.08, color),
+                                        border_radius=12
                                     ),
-                                    height=220
-                                )
-                            ]),
-                            expand=2,
-                            padding=20
+                                    ft.Container(height=12),
+                                    ft.Container(
+                                        content=ft.Column(
+                                            ref=legend_ref, 
+                                            controls=[], 
+                                            spacing=10, 
+                                            scroll=ft.ScrollMode.ADAPTIVE
+                                        ),
+                                        height=230,
+                                        padding=ft.padding.all(8)
+                                    )
+                                ]),
+                                expand=2,
+                                padding=20
+                            )
+                        ], vertical_alignment=ft.CrossAxisAlignment.START),
+                        gradient=ft.LinearGradient(
+                            colors=[
+                                ft.colors.with_opacity(0.04, color),
+                                ft.colors.with_opacity(0.01, ft.colors.SURFACE_VARIANT)
+                            ],
+                            begin=ft.alignment.top_left,
+                            end=ft.alignment.bottom_right
+                        ),
+                        border_radius=16,
+                        border=ft.border.all(1, ft.colors.with_opacity(0.12, color)),
+                        margin=ft.margin.symmetric(horizontal=12, vertical=8),
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=12,
+                            color=ft.colors.with_opacity(0.08, color),
+                            offset=ft.Offset(0, 4)
                         )
-                    ], vertical_alignment=ft.CrossAxisAlignment.START),
-                    bgcolor=ft.colors.with_opacity(0.03, ft.colors.SURFACE_VARIANT),
-                    border_radius=12,
-                    margin=ft.margin.symmetric(horizontal=8, vertical=4)
-                )
-            ],
-            bgcolor=ft.colors.SURFACE_VARIANT,
-            collapsed_bgcolor=ft.colors.SURFACE_VARIANT,
-            text_color=ft.colors.ON_SURFACE,
-            icon_color=color,
+                    )
+                ],
+                bgcolor=ft.colors.SURFACE_VARIANT,
+                collapsed_bgcolor=ft.colors.SURFACE_VARIANT,
+                text_color=ft.colors.ON_SURFACE,
+                icon_color=color
+            ),
+            border_radius=20,
+            border=ft.border.all(2, ft.colors.with_opacity(0.1, color)),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=16,
+                color=ft.colors.with_opacity(0.06, color),
+                offset=ft.Offset(0, 4)
+            ),
+            animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT),
             visible=False
         )
 
     def _create_settings_section(self):
-        """Creates a modern settings section with better organization."""
+        """Creates a modern settings section with enhanced visual styling."""
         theme_dropdown = ft.Dropdown(
             label="App Theme",
             options=[ft.dropdown.Option(name) for name in config.THEMES.keys()],
             value=database.get_setting_db("current_theme", config.DEFAULT_THEME_NAME),
             on_change=self.on_theme_change_callback,
             expand=True,
-            border_radius=12
+            border_radius=16,
+            border_color=ft.colors.PRIMARY
         )
         
         return ft.Container(
             content=ft.Column([
-                # Settings header
-                ft.Row([
-                    ft.Icon(ft.icons.SETTINGS_ROUNDED, color=ft.colors.PRIMARY, size=24),
-                    ft.Text("Application Settings", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_500)
-                ], spacing=12),
+                # Settings header with gradient
+                ft.Container(
+                    content=ft.Row([
+                        ft.Container(
+                            content=ft.Icon(ft.icons.SETTINGS_ROUNDED, color=ft.colors.WHITE, size=28),
+                            gradient=ft.LinearGradient(
+                                colors=[ft.colors.PRIMARY, ft.colors.with_opacity(0.7, ft.colors.PRIMARY)],
+                                begin=ft.alignment.top_left,
+                                end=ft.alignment.bottom_right
+                            ),
+                            padding=14,
+                            border_radius=18,
+                            shadow=ft.BoxShadow(
+                                spread_radius=0,
+                                blur_radius=12,
+                                color=ft.colors.with_opacity(0.3, ft.colors.PRIMARY),
+                                offset=ft.Offset(0, 4)
+                            )
+                        ),
+                        ft.Column([
+                            ft.Text("Application Settings", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_700),
+                            ft.Text("Customize your experience", size=13, color=ft.colors.ON_SURFACE_VARIANT, italic=True)
+                        ], spacing=4)
+                    ], spacing=16),
+                    padding=ft.padding.only(bottom=20)
+                ),
                 
-                ft.Divider(height=20, color=ft.colors.with_opacity(0.1, ft.colors.OUTLINE)),
+                ft.Divider(height=1, color=ft.colors.with_opacity(0.15, ft.colors.OUTLINE)),
+                
+                ft.Container(height=8),
                 
                 # Theme setting
-                ft.Row([
-                    ft.Icon(ft.icons.PALETTE_ROUNDED, color=ft.colors.SECONDARY, size=20),
-                    ft.Text("Theme", weight=ft.FontWeight.W_500, expand=True),
-                    ft.Container(content=theme_dropdown, expand=2)
-                ], spacing=12, alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Container(
+                    content=ft.Row([
+                        ft.Container(
+                            content=ft.Icon(ft.icons.PALETTE_ROUNDED, color=ft.colors.WHITE, size=20),
+                            gradient=ft.LinearGradient(
+                                colors=[ft.colors.SECONDARY, ft.colors.with_opacity(0.7, ft.colors.SECONDARY)],
+                                begin=ft.alignment.top_left,
+                                end=ft.alignment.bottom_right
+                            ),
+                            padding=10,
+                            border_radius=12
+                        ),
+                        ft.Text("Theme", weight=ft.FontWeight.W_600, size=15, expand=True),
+                        ft.Container(content=theme_dropdown, expand=2)
+                    ], spacing=14, alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    padding=ft.padding.all(16),
+                    border_radius=16,
+                    bgcolor=ft.colors.with_opacity(0.03, ft.colors.SURFACE_VARIANT),
+                    border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE))
+                ),
                 
-                ft.Divider(height=20, color=ft.colors.with_opacity(0.1, ft.colors.OUTLINE)),
+                ft.Container(height=8),
                 
                 # Data management
-                ft.Column([
-                    ft.Row([
-                        ft.Icon(ft.icons.STORAGE_ROUNDED, color=ft.colors.TERTIARY, size=20),
-                        ft.Text("Data Management", weight=ft.FontWeight.W_500)
+                ft.Container(
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Container(
+                                content=ft.Icon(ft.icons.STORAGE_ROUNDED, color=ft.colors.WHITE, size=20),
+                                gradient=ft.LinearGradient(
+                                    colors=[ft.colors.TERTIARY, ft.colors.with_opacity(0.7, ft.colors.TERTIARY)],
+                                    begin=ft.alignment.top_left,
+                                    end=ft.alignment.bottom_right
+                                ),
+                                padding=10,
+                                border_radius=12
+                            ),
+                            ft.Text("Data Management", weight=ft.FontWeight.W_600, size=15)
+                        ], spacing=14),
+                        ft.Container(height=8),
+                        ft.Row([
+                            ft.ElevatedButton(
+                                "Import CSV", 
+                                icon=ft.icons.UPLOAD_FILE_ROUNDED, 
+                                on_click=self.open_import_dialog_callback, 
+                                expand=True,
+                                style=ft.ButtonStyle(
+                                    shape=ft.RoundedRectangleBorder(radius=14),
+                                    padding=ft.padding.symmetric(horizontal=20, vertical=16)
+                                ),
+                                icon_color=ft.colors.GREEN_400
+                            ),
+                            ft.ElevatedButton(
+                                "Export CSV", 
+                                icon=ft.icons.DOWNLOAD_FOR_OFFLINE_ROUNDED, 
+                                on_click=self.open_export_dialog_callback, 
+                                expand=True,
+                                style=ft.ButtonStyle(
+                                    shape=ft.RoundedRectangleBorder(radius=14),
+                                    padding=ft.padding.symmetric(horizontal=20, vertical=16)
+                                ),
+                                icon_color=ft.colors.BLUE_400
+                            )
+                        ], spacing=14)
                     ], spacing=12),
-                    ft.Row([
-                        ft.ElevatedButton(
-                            "Import CSV", 
-                            icon=ft.icons.UPLOAD_FILE_ROUNDED, 
-                            on_click=self.open_import_dialog_callback, 
-                            expand=True,
-                            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=12))
-                        ),
-                        ft.ElevatedButton(
-                            "Export CSV", 
-                            icon=ft.icons.DOWNLOAD_FOR_OFFLINE_ROUNDED, 
-                            on_click=self.open_export_dialog_callback, 
-                            expand=True,
-                            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=12))
-                        )
-                    ], spacing=12)
-                ], spacing=12)
-            ], spacing=16),
-            padding=28,
-            border_radius=20,
-            border=ft.border.all(1, ft.colors.with_opacity(0.08, ft.colors.OUTLINE)),
-            bgcolor=ft.colors.SURFACE_VARIANT,
-            animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT)
+                    padding=ft.padding.all(16),
+                    border_radius=16,
+                    bgcolor=ft.colors.with_opacity(0.03, ft.colors.SURFACE_VARIANT),
+                    border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE))
+                )
+            ], spacing=12),
+            padding=32,
+            border_radius=24,
+            gradient=ft.LinearGradient(
+                colors=[
+                    ft.colors.with_opacity(0.05, ft.colors.PRIMARY),
+                    ft.colors.with_opacity(0.02, ft.colors.SURFACE_VARIANT)
+                ],
+                begin=ft.alignment.top_left,
+                end=ft.alignment.bottom_right
+            ),
+            border=ft.border.all(2, ft.colors.with_opacity(0.12, ft.colors.PRIMARY)),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=24,
+                color=ft.colors.with_opacity(0.08, ft.colors.PRIMARY),
+                offset=ft.Offset(0, 8)
+            ),
+            animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT)
         )
 
     def build_stats_view(self):
@@ -576,47 +768,114 @@ class StatsView:
             ]
         )
 
-        # Main Genre Breakdown Card (always visible)
+        # Main Genre Breakdown Card (always visible) with enhanced styling
         genre_breakdown_card = ft.Container(
-            content=ft.Card(
-                elevation=2,
-                content=ft.Container(
-                    padding=28,
-                    content=ft.Column([
-                        ft.Row([
-                            ft.Icon(ft.icons.PIE_CHART_ROUNDED, color=ft.colors.PRIMARY, size=24),
-                            ft.Text("Genre Distribution", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600)
-                        ], spacing=12),
-                        ft.Divider(height=20),
-                        ft.Row([
-                            ft.Column([
-                                ft.PieChart(
-                                    ref=self.genre_pie_chart, 
-                                    sections=[], 
-                                    center_space_radius=50,
-                                    animate=ft.Animation(500, ft.AnimationCurve.EASE_OUT)
+            content=ft.Container(
+                padding=32,
+                content=ft.Column([
+                    # Header with gradient icon
+                    ft.Row([
+                        ft.Container(
+                            content=ft.Icon(ft.icons.PIE_CHART_ROUNDED, color=ft.colors.WHITE, size=28),
+                            gradient=ft.LinearGradient(
+                                colors=[ft.colors.PURPLE_500, ft.colors.DEEP_PURPLE_600],
+                                begin=ft.alignment.top_left,
+                                end=ft.alignment.bottom_right
+                            ),
+                            padding=14,
+                            border_radius=18,
+                            shadow=ft.BoxShadow(
+                                spread_radius=0,
+                                blur_radius=12,
+                                color=ft.colors.with_opacity(0.3, ft.colors.PURPLE_500),
+                                offset=ft.Offset(0, 4)
+                            )
+                        ),
+                        ft.Column([
+                            ft.Text("Genre Distribution", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_700),
+                            ft.Text("Most popular genres in your collection", size=13, color=ft.colors.ON_SURFACE_VARIANT, italic=True)
+                        ], spacing=4)
+                    ], spacing=16),
+                    
+                    ft.Container(height=8),
+                    ft.Divider(height=1, color=ft.colors.with_opacity(0.15, ft.colors.OUTLINE)),
+                    ft.Container(height=16),
+                    
+                    # Chart and legend row
+                    ft.Row([
+                        # Chart section with decorative container
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Container(
+                                    content=ft.PieChart(
+                                        ref=self.genre_pie_chart, 
+                                        sections=[], 
+                                        center_space_radius=58,
+                                        animate=ft.Animation(600, ft.AnimationCurve.ELASTIC_OUT)
+                                    ),
+                                    padding=ft.padding.all(20),
+                                    border_radius=20,
+                                    gradient=ft.LinearGradient(
+                                        colors=[
+                                            ft.colors.with_opacity(0.03, ft.colors.PURPLE_500),
+                                            ft.colors.with_opacity(0.01, ft.colors.SURFACE_VARIANT)
+                                        ],
+                                        begin=ft.alignment.top_left,
+                                        end=ft.alignment.bottom_right
+                                    ),
+                                    border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.PURPLE_500))
                                 )
-                            ], expand=3, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                            ft.Column([
-                                ft.Row([
-                                    ft.Icon(ft.icons.LIST_ROUNDED, size=16, color=ft.colors.PRIMARY),
-                                    ft.Text("Top Genres", weight=ft.FontWeight.BOLD, size=14)
-                                ], spacing=8),
-                                ft.Divider(height=10),
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            expand=3,
+                            padding=ft.padding.all(12)
+                        ),
+                        
+                        # Legend section with enhanced styling
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Container(
+                                    content=ft.Row([
+                                        ft.Icon(ft.icons.LIST_ROUNDED, size=18, color=ft.colors.PURPLE_500),
+                                        ft.Text("Top Genres", weight=ft.FontWeight.BOLD, size=16)
+                                    ], spacing=10),
+                                    padding=ft.padding.symmetric(horizontal=14, vertical=10),
+                                    bgcolor=ft.colors.with_opacity(0.08, ft.colors.PURPLE_500),
+                                    border_radius=14
+                                ),
+                                ft.Container(height=12),
                                 ft.Container(
                                     content=ft.Column(
                                         ref=self.genre_legend, 
                                         controls=[], 
-                                        scroll=ft.ScrollMode.ADAPTIVE
+                                        scroll=ft.ScrollMode.ADAPTIVE,
+                                        spacing=10
                                     ),
-                                    height=250
+                                    height=260,
+                                    padding=ft.padding.all(8)
                                 )
-                            ], expand=2, scroll=ft.ScrollMode.ADAPTIVE)
-                        ], height=280)
-                    ])
-                )
+                            ]),
+                            expand=2
+                        )
+                    ], height=300, vertical_alignment=ft.CrossAxisAlignment.START)
+                ])
             ),
-            border_radius=20
+            border_radius=24,
+            gradient=ft.LinearGradient(
+                colors=[
+                    ft.colors.with_opacity(0.05, ft.colors.PURPLE_500),
+                    ft.colors.with_opacity(0.02, ft.colors.SURFACE_VARIANT)
+                ],
+                begin=ft.alignment.top_left,
+                end=ft.alignment.bottom_right
+            ),
+            border=ft.border.all(2, ft.colors.with_opacity(0.12, ft.colors.PURPLE_500)),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=24,
+                color=ft.colors.with_opacity(0.08, ft.colors.PURPLE_500),
+                offset=ft.Offset(0, 8)
+            ),
+            animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT)
         )
 
         return ft.Container(
@@ -624,35 +883,142 @@ class StatsView:
                 scroll=ft.ScrollMode.ADAPTIVE,
                 spacing=32,
                 controls=[
-                    # Enhanced header with loading indicator
-                    ft.Row([
-                        ft.Icon(ft.icons.ANALYTICS_ROUNDED, size=36, color=ft.colors.PRIMARY),
-                        ft.Column([
-                            ft.Text("Statistics & Analytics", style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.W_600),
-                            ft.Text("View your collection insights", size=14, color=ft.colors.ON_SURFACE_VARIANT)
-                        ], spacing=4, expand=True),
-                        ft.Row([
-                            self.stats_loading_indicator.current,
-                            self.stats_refresh_button.current
-                        ], spacing=8)
-                    ], spacing=16, alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-
-                    # Enhanced filters section
+                    # Modern header with gradient background
                     ft.Container(
                         content=ft.Row([
+                            ft.Container(
+                                content=ft.Icon(ft.icons.ANALYTICS_ROUNDED, size=38, color=ft.colors.WHITE),
+                                gradient=ft.LinearGradient(
+                                    colors=[ft.colors.PRIMARY, ft.colors.with_opacity(0.7, ft.colors.PRIMARY)],
+                                    begin=ft.alignment.top_left,
+                                    end=ft.alignment.bottom_right
+                                ),
+                                padding=18,
+                                border_radius=22,
+                                shadow=ft.BoxShadow(
+                                    spread_radius=1,
+                                    blur_radius=16,
+                                    color=ft.colors.with_opacity(0.35, ft.colors.PRIMARY),
+                                    offset=ft.Offset(0, 5)
+                                ),
+                                animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT)
+                            ),
                             ft.Column([
-                                ft.Text("Time Period", size=12, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500),
-                                self.stats_year_filter.current
-                            ], spacing=8),
-                            ft.Column([
-                                ft.Text("Content Filter", size=12, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500),
-                                stats_entry_type_filter_button
-                            ], spacing=8)
-                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        padding=20,
-                        border_radius=16,
-                        bgcolor=ft.colors.with_opacity(0.03, ft.colors.SURFACE_VARIANT),
-                        border=ft.border.all(1, ft.colors.with_opacity(0.08, ft.colors.OUTLINE))
+                                ft.Text("Statistics & Analytics", size=32, weight=ft.FontWeight.W_800,
+                                       style=ft.TextStyle(letter_spacing=0.5)),
+                                ft.Text("Deep insights into your collection", size=15, color=ft.colors.ON_SURFACE_VARIANT, 
+                                       italic=True, weight=ft.FontWeight.W_400)
+                            ], spacing=6, expand=True),
+                            ft.Container(
+                                content=ft.Row([
+                                    self.stats_loading_indicator.current,
+                                    ft.Container(
+                                        content=self.stats_refresh_button.current,
+                                        gradient=ft.LinearGradient(
+                                            colors=[
+                                                ft.colors.with_opacity(0.08, ft.colors.PRIMARY),
+                                                ft.colors.with_opacity(0.03, ft.colors.SURFACE_VARIANT)
+                                            ]
+                                        ),
+                                        border_radius=14,
+                                        padding=4
+                                    )
+                                ], spacing=8),
+                                padding=ft.padding.all(8)
+                            )
+                        ], spacing=20, alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                        padding=ft.padding.symmetric(horizontal=24, vertical=20),
+                        border_radius=24,
+                        gradient=ft.LinearGradient(
+                            colors=[
+                                ft.colors.with_opacity(0.06, ft.colors.PRIMARY),
+                                ft.colors.with_opacity(0.02, ft.colors.SURFACE_VARIANT)
+                            ],
+                            begin=ft.alignment.top_left,
+                            end=ft.alignment.bottom_right
+                        ),
+                        border=ft.border.all(2, ft.colors.with_opacity(0.15, ft.colors.PRIMARY)),
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=20,
+                            color=ft.colors.with_opacity(0.08, ft.colors.PRIMARY),
+                            offset=ft.Offset(0, 6)
+                        )
+                    ),
+
+                    # Modern filters section with enhanced styling
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Row([
+                                ft.Icon(ft.icons.FILTER_ALT_ROUNDED, color=ft.colors.SECONDARY, size=22),
+                                ft.Text("Filters & Options", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.W_700),
+                            ], spacing=12),
+                            ft.Container(height=8),
+                            ft.Divider(height=1, color=ft.colors.with_opacity(0.12, ft.colors.OUTLINE)),
+                            ft.Container(height=12),
+                            ft.Row([
+                                ft.Container(
+                                    content=ft.Column([
+                                        ft.Row([
+                                            ft.Icon(ft.icons.CALENDAR_TODAY_ROUNDED, size=16, color=ft.colors.BLUE_500),
+                                            ft.Text("Time Period", size=13, color=ft.colors.ON_SURFACE, weight=ft.FontWeight.W_600)
+                                        ], spacing=8),
+                                        ft.Container(height=6),
+                                        self.stats_year_filter.current
+                                    ], spacing=4),
+                                    padding=ft.padding.all(18),
+                                    border_radius=18,
+                                    bgcolor=ft.colors.with_opacity(0.04, ft.colors.SURFACE_VARIANT),
+                                    border=ft.border.all(1.5, ft.colors.with_opacity(0.12, ft.colors.BLUE_500)),
+                                    expand=True,
+                                    shadow=ft.BoxShadow(
+                                        spread_radius=0,
+                                        blur_radius=8,
+                                        color=ft.colors.with_opacity(0.04, ft.colors.BLUE_500),
+                                        offset=ft.Offset(0, 2)
+                                    )
+                                ),
+                                ft.Container(width=16),
+                                ft.Container(
+                                    content=ft.Column([
+                                        ft.Row([
+                                            ft.Icon(ft.icons.CATEGORY_ROUNDED, size=16, color=ft.colors.GREEN_500),
+                                            ft.Text("Content Type", size=13, color=ft.colors.ON_SURFACE, weight=ft.FontWeight.W_600)
+                                        ], spacing=8),
+                                        ft.Container(height=6),
+                                        stats_entry_type_filter_button
+                                    ], spacing=4),
+                                    padding=ft.padding.all(18),
+                                    border_radius=18,
+                                    bgcolor=ft.colors.with_opacity(0.04, ft.colors.SURFACE_VARIANT),
+                                    border=ft.border.all(1.5, ft.colors.with_opacity(0.12, ft.colors.GREEN_500)),
+                                    expand=True,
+                                    shadow=ft.BoxShadow(
+                                        spread_radius=0,
+                                        blur_radius=8,
+                                        color=ft.colors.with_opacity(0.04, ft.colors.GREEN_500),
+                                        offset=ft.Offset(0, 2)
+                                    )
+                                )
+                            ], vertical_alignment=ft.CrossAxisAlignment.START)
+                        ], spacing=8),
+                        padding=24,
+                        border_radius=22,
+                        gradient=ft.LinearGradient(
+                            colors=[
+                                ft.colors.with_opacity(0.04, ft.colors.SECONDARY),
+                                ft.colors.with_opacity(0.01, ft.colors.SURFACE_VARIANT)
+                            ],
+                            begin=ft.alignment.top_left,
+                            end=ft.alignment.bottom_right
+                        ),
+                        border=ft.border.all(2, ft.colors.with_opacity(0.12, ft.colors.SECONDARY)),
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=18,
+                            color=ft.colors.with_opacity(0.06, ft.colors.SECONDARY),
+                            offset=ft.Offset(0, 5)
+                        )
                     ),
 
                     # Overview statistics
@@ -661,77 +1027,169 @@ class StatsView:
                     # Main genre breakdown
                     genre_breakdown_card,
 
-                    # Rating Distribution
+                    # Rating Distribution with enhanced styling
                     ft.Container(
-                        content=ft.Card(
-                            elevation=2,
-                            content=ft.Container(
-                                padding=28,
-                                content=ft.Column([
-                                    ft.Row([
-                                        ft.Icon(ft.icons.BAR_CHART_ROUNDED, color=ft.colors.BLUE_400, size=24),
-                                        ft.Text("Rating Distribution", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600)
-                                    ], spacing=12),
-                                    ft.Divider(height=20),
-                                    
-                                    # Stats summary
-                                    ft.Row([
-                                        ft.Container(
-                                            content=ft.Column([
-                                                ft.Text("Most Common Rating", size=12, color=ft.colors.ON_SURFACE_VARIANT),
-                                                ft.Text(ref=self.rating_most_common, value="N/A", size=20, weight=ft.FontWeight.BOLD, color=ft.colors.AMBER_400)
-                                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
-                                            padding=16,
-                                            bgcolor=ft.colors.with_opacity(0.05, ft.colors.AMBER_400),
-                                            border_radius=12,
-                                            border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.AMBER_400)),
-                                            expand=True
+                        content=ft.Container(
+                            padding=32,
+                            content=ft.Column([
+                                # Header with gradient icon
+                                ft.Row([
+                                    ft.Container(
+                                        content=ft.Icon(ft.icons.BAR_CHART_ROUNDED, color=ft.colors.WHITE, size=28),
+                                        gradient=ft.LinearGradient(
+                                            colors=[ft.colors.BLUE_500, ft.colors.LIGHT_BLUE_700],
+                                            begin=ft.alignment.top_left,
+                                            end=ft.alignment.bottom_right
                                         ),
-                                        ft.Container(
-                                            content=ft.Column([
-                                                ft.Text("Total Rated", size=12, color=ft.colors.ON_SURFACE_VARIANT),
-                                                ft.Text(ref=self.rating_total_count, value="0 entries", size=20, weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_400)
-                                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4),
-                                            padding=16,
-                                            bgcolor=ft.colors.with_opacity(0.05, ft.colors.BLUE_400),
-                                            border_radius=12,
-                                            border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.BLUE_400)),
-                                            expand=True
+                                        padding=14,
+                                        border_radius=18,
+                                        shadow=ft.BoxShadow(
+                                            spread_radius=0,
+                                            blur_radius=12,
+                                            color=ft.colors.with_opacity(0.3, ft.colors.BLUE_500),
+                                            offset=ft.Offset(0, 4)
                                         )
-                                    ], spacing=16),
-                                    
-                                    ft.Divider(height=20),
-                                    
-                                    # Bar chart container
-                                    ft.Container(
-                                        ref=self.rating_chart_container,
-                                        content=ft.Column([
-                                            ft.Text("📊 Rating Breakdown", weight=ft.FontWeight.W_500, size=16),
-                                            ft.Column(ref=self.rating_bars_column, controls=[], spacing=4)
-                                        ], spacing=10),
-                                        visible=True
                                     ),
-                                    
-                                    # Empty state
+                                    ft.Column([
+                                        ft.Text("Rating Distribution", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_700),
+                                        ft.Text("How you rate your collection", size=13, color=ft.colors.ON_SURFACE_VARIANT, italic=True)
+                                    ], spacing=4)
+                                ], spacing=16),
+                                
+                                ft.Container(height=8),
+                                ft.Divider(height=1, color=ft.colors.with_opacity(0.15, ft.colors.OUTLINE)),
+                                ft.Container(height=16),
+                                
+                                # Stats summary with gradient backgrounds
+                                ft.Row([
                                     ft.Container(
-                                        ref=self.rating_empty_state,
                                         content=ft.Column([
-                                            ft.Icon(ft.icons.STAR_BORDER_ROUNDED, size=64, color=ft.colors.ON_SURFACE_VARIANT),
-                                            ft.Text("No rated entries yet", size=16, weight=ft.FontWeight.W_500, color=ft.colors.ON_SURFACE_VARIANT),
-                                            ft.Text("Start rating your entries to see the distribution", size=12, color=ft.colors.ON_SURFACE_VARIANT, text_align=ft.TextAlign.CENTER)
-                                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=12),
-                                        padding=40,
-                                        visible=False
+                                            ft.Row([
+                                                ft.Icon(ft.icons.STAR_ROUNDED, color=ft.colors.AMBER_300, size=20),
+                                                ft.Text("Most Common", size=13, color=ft.colors.WHITE70, weight=ft.FontWeight.W_500)
+                                            ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
+                                            ft.Text(ref=self.rating_most_common, value="N/A", size=24, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE)
+                                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                                        padding=20,
+                                        gradient=ft.LinearGradient(
+                                            colors=[ft.colors.AMBER_600, ft.colors.ORANGE_700],
+                                            begin=ft.alignment.top_left,
+                                            end=ft.alignment.bottom_right
+                                        ),
+                                        border_radius=18,
+                                        border=ft.border.all(2, ft.colors.with_opacity(0.3, ft.colors.AMBER_200)),
+                                        expand=True,
+                                        shadow=ft.BoxShadow(
+                                            spread_radius=0,
+                                            blur_radius=16,
+                                            color=ft.colors.with_opacity(0.25, ft.colors.AMBER_600),
+                                            offset=ft.Offset(0, 4)
+                                        )
+                                    ),
+                                    ft.Container(
+                                        content=ft.Column([
+                                            ft.Row([
+                                                ft.Icon(ft.icons.FORMAT_LIST_NUMBERED_ROUNDED, color=ft.colors.BLUE_300, size=20),
+                                                ft.Text("Total Rated", size=13, color=ft.colors.WHITE70, weight=ft.FontWeight.W_500)
+                                            ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
+                                            ft.Text(ref=self.rating_total_count, value="0 entries", size=24, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE)
+                                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                                        padding=20,
+                                        gradient=ft.LinearGradient(
+                                            colors=[ft.colors.BLUE_600, ft.colors.INDIGO_700],
+                                            begin=ft.alignment.top_left,
+                                            end=ft.alignment.bottom_right
+                                        ),
+                                        border_radius=18,
+                                        border=ft.border.all(2, ft.colors.with_opacity(0.3, ft.colors.BLUE_200)),
+                                        expand=True,
+                                        shadow=ft.BoxShadow(
+                                            spread_radius=0,
+                                            blur_radius=16,
+                                            color=ft.colors.with_opacity(0.25, ft.colors.BLUE_600),
+                                            offset=ft.Offset(0, 4)
+                                        )
                                     )
-                                ], spacing=16)
-                            )
+                                ], spacing=20),
+                                
+                                ft.Container(height=8),
+                                ft.Divider(height=1, color=ft.colors.with_opacity(0.15, ft.colors.OUTLINE)),
+                                ft.Container(height=16),
+                                
+                                # Bar chart container
+                                ft.Container(
+                                    ref=self.rating_chart_container,
+                                    content=ft.Column([
+                                        ft.Container(
+                                            content=ft.Row([
+                                                ft.Icon(ft.icons.INSIGHTS_ROUNDED, size=20, color=ft.colors.BLUE_500),
+                                                ft.Text("Rating Breakdown", weight=ft.FontWeight.W_600, size=17)
+                                            ], spacing=10),
+                                            padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                                            bgcolor=ft.colors.with_opacity(0.08, ft.colors.BLUE_500),
+                                            border_radius=12
+                                        ),
+                                        ft.Container(height=12),
+                                        ft.Container(
+                                            content=ft.Column(ref=self.rating_bars_column, controls=[], spacing=6),
+                                            padding=ft.padding.all(8)
+                                        )
+                                    ], spacing=4),
+                                    visible=True
+                                ),
+                                
+                                # Empty state
+                                ft.Container(
+                                    ref=self.rating_empty_state,
+                                    content=ft.Column([
+                                        ft.Container(
+                                            content=ft.Icon(ft.icons.STAR_BORDER_ROUNDED, size=72, color=ft.colors.BLUE_300),
+                                            gradient=ft.LinearGradient(
+                                                colors=[
+                                                    ft.colors.with_opacity(0.1, ft.colors.BLUE_500),
+                                                    ft.colors.with_opacity(0.05, ft.colors.SURFACE_VARIANT)
+                                                ]
+                                            ),
+                                            padding=28,
+                                            border_radius=100,
+                                            border=ft.border.all(2, ft.colors.with_opacity(0.2, ft.colors.BLUE_500))
+                                        ),
+                                        ft.Text("No rated entries yet", size=18, weight=ft.FontWeight.W_600, color=ft.colors.ON_SURFACE),
+                                        ft.Text("Start rating your entries to see the distribution", size=13, color=ft.colors.ON_SURFACE_VARIANT, text_align=ft.TextAlign.CENTER)
+                                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=16),
+                                    padding=50,
+                                    visible=False
+                                )
+                            ], spacing=12)
                         ),
-                        border_radius=20
+                        border_radius=24,
+                        gradient=ft.LinearGradient(
+                            colors=[
+                                ft.colors.with_opacity(0.05, ft.colors.BLUE_500),
+                                ft.colors.with_opacity(0.02, ft.colors.SURFACE_VARIANT)
+                            ],
+                            begin=ft.alignment.top_left,
+                            end=ft.alignment.bottom_right
+                        ),
+                        border=ft.border.all(2, ft.colors.with_opacity(0.12, ft.colors.BLUE_500)),
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=24,
+                            color=ft.colors.with_opacity(0.08, ft.colors.BLUE_500),
+                            offset=ft.Offset(0, 8)
+                        ),
+                        animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT)
                     ),
 
-                    # Expandable breakdown cards
+                    # Expandable breakdown cards with modern header
                     ft.Column([
-                        ft.Text("Detailed Breakdowns", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.W_500),
+                        ft.Container(
+                            content=ft.Row([
+                                ft.Icon(ft.icons.VIEW_MODULE_ROUNDED, color=ft.colors.TERTIARY, size=24),
+                                ft.Text("Detailed Breakdowns", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_700)
+                            ], spacing=12),
+                            padding=ft.padding.symmetric(horizontal=8, vertical=12)
+                        ),
                         self._create_expandable_breakdown_card(
                             self.platform_chart_container, self.platform_pie_chart, self.platform_legend,
                             "Platform Distribution", ft.icons.DEVICES_ROUNDED, ft.colors.BLUE_400
