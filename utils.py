@@ -44,14 +44,14 @@ def _generate_pie_data_from_list(items_list: list, fallback_colors: list, color_
     This function is specific to the Flet UI and would be rewritten for PySide6.
     """
     if not items_list:
-        pie_sections = [ft.PieChartSection(value=1, title="N/A", color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE))]
+        pie_sections = [ft.PieChartSection(value=1, title="N/A", color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))]
         legend_controls = [ft.Text("No data for this category.")]
         return pie_sections, legend_controls
 
     # Count occurrences of each item
     counts = Counter(item for item in items_list if item and str(item).strip())
     if not counts:
-        pie_sections = [ft.PieChartSection(value=1, title="N/A", color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE))]
+        pie_sections = [ft.PieChartSection(value=1, title="N/A", color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))]
         legend_controls = [ft.Text("No data for this category.")]
         return pie_sections, legend_controls
 
@@ -79,7 +79,7 @@ def _generate_pie_data_from_list(items_list: list, fallback_colors: list, color_
             ft.PieChartSection(
                 value=percentage,
                 title=f"{percentage:.0f}%" if percentage >= 5 else "",
-                title_style=ft.TextStyle(size=10, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD),
+                title_style=ft.TextStyle(size=10, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
                 color=color,
                 radius=60
             )

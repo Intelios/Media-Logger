@@ -53,7 +53,7 @@ class ProfilesView:
             ref=self.main_container,
             content=initial_content,
             expand=True,
-            animate=ft.animation.Animation(300, ft.AnimationCurve.EASE_OUT)
+            animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT)
         )
 
     def _update_view(self):
@@ -78,10 +78,10 @@ class ProfilesView:
         self.profiles_summary = database.get_all_profiles_summary_db()
 
         header = ft.Row([
-            ft.Icon(ft.icons.PEOPLE_OUTLINE_ROUNDED, size=36, color=ft.colors.PRIMARY),
+            ft.Icon(ft.Icons.PEOPLE_OUTLINE_ROUNDED, size=36, color=ft.Colors.PRIMARY),
             ft.Column([
                 ft.Text("Profiles", style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.W_600),
-                ft.Text("Discover your most frequent artists, studios, platforms, and more.", size=14, color=ft.colors.ON_SURFACE_VARIANT)
+                ft.Text("Discover your most frequent artists, studios, platforms, and more.", size=14, color=ft.Colors.ON_SURFACE_VARIANT)
             ], spacing=4, expand=True),
         ], spacing=16)
 
@@ -112,12 +112,12 @@ class ProfilesView:
         return ft.Column([
             ft.Container(
                 content=ft.Column([
-                    ft.Icon(ft.icons.GROUP_ADD_OUTLINED, size=80, color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Icon(ft.Icons.GROUP_ADD_OUTLINED, size=80, color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.Text("No Profiles Yet", style=ft.TextThemeStyle.HEADLINE_SMALL),
                     ft.Text(
                         "Profiles are automatically created for artists, studios, etc., that appear in 3 or more entries.",
                         text_align=ft.TextAlign.CENTER,
-                        color=ft.colors.ON_SURFACE_VARIANT
+                        color=ft.Colors.ON_SURFACE_VARIANT
                     ),
                     ft.Text(
                         "Keep logging your media to unlock this feature!",
@@ -148,21 +148,21 @@ class ProfilesView:
         
         # Default icon if no image
         default_icon = {
-            "actress": ft.icons.WOMAN_2_OUTLINED,
-            "director": ft.icons.BUSINESS_OUTLINED,
-            "artist": ft.icons.HEADSET_OUTLINED,
-            "author": ft.icons.PERSON_OUTLINE,
-            "platform": ft.icons.VIDEOGAME_ASSET_OUTLINED
-        }.get(profile_type, ft.icons.PERSON)
+            "actress": ft.Icons.WOMAN_2_OUTLINED,
+            "director": ft.Icons.BUSINESS_OUTLINED,
+            "artist": ft.Icons.HEADSET_OUTLINED,
+            "author": ft.Icons.PERSON_OUTLINE,
+            "platform": ft.Icons.VIDEOGAME_ASSET_OUTLINED
+        }.get(profile_type, ft.Icons.PERSON)
 
-        image_content = ft.Image(src=image_src, fit=ft.ImageFit.COVER, width=80, height=80) if image_src != config.DEFAULT_IMAGE_URL else ft.Icon(default_icon, size=40, color=ft.colors.PRIMARY)
+        image_content = ft.Image(src=image_src, fit=ft.ImageFit.COVER, width=80, height=80) if image_src != config.DEFAULT_IMAGE_URL else ft.Icon(default_icon, size=40, color=ft.Colors.PRIMARY)
 
         avg_score = profile['average_score']
         score_display = ft.Container()
         if avg_score is not None:
             color_scheme = ColorThemeManager.get_rating_color_scheme(avg_score)
             score_display = ft.Row([
-                ft.Icon(ft.icons.STAR_ROUNDED, size=16, color=color_scheme['primary']),
+                ft.Icon(ft.Icons.STAR_ROUNDED, size=16, color=color_scheme['primary']),
                 ft.Text(f"{avg_score:.1f}", weight=ft.FontWeight.BOLD, color=color_scheme['primary'])
             ], spacing=5)
 
@@ -171,20 +171,20 @@ class ProfilesView:
                 ft.Container(
                     content=image_content,
                     width=80, height=80,
-                    bgcolor=ft.colors.with_opacity(0.05, ft.colors.PRIMARY) if image_src == config.DEFAULT_IMAGE_URL else None,
+                    bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.PRIMARY) if image_src == config.DEFAULT_IMAGE_URL else None,
                     border_radius=ft.border_radius.all(40),
                     alignment=ft.alignment.center,
                     clip_behavior=ft.ClipBehavior.ANTI_ALIAS
                 ),
                 ft.Column([
                     ft.Text(profile_name, weight=ft.FontWeight.BOLD, size=18, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
-                    ft.Text(profile_type_label, color=ft.colors.ON_SURFACE_VARIANT, size=12),
+                    ft.Text(profile_type_label, color=ft.Colors.ON_SURFACE_VARIANT, size=12),
                 ], spacing=2, expand=True)
             ], spacing=15),
             ft.Divider(height=10),
             ft.Row([
                 ft.Row([
-                    ft.Icon(ft.icons.VIDEO_LIBRARY_OUTLINED, size=16, color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Icon(ft.Icons.VIDEO_LIBRARY_OUTLINED, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.Text(f"{profile['entry_count']} Entries", weight=ft.FontWeight.W_500),
                 ], spacing=5),
                 score_display
@@ -198,8 +198,8 @@ class ProfilesView:
             begin=ft.alignment.top_left,
             end=ft.alignment.bottom_right,
             colors=[
-                ft.colors.with_opacity(0.15, profile_color_light),
-                ft.colors.with_opacity(0.05, profile_color_dark)
+                ft.Colors.with_opacity(0.15, profile_color_light),
+                ft.Colors.with_opacity(0.05, profile_color_dark)
             ]
         )
 
@@ -248,12 +248,12 @@ class ProfilesView:
 
         # Header section
         image_container = ft.Container(
-            content=ft.Image(ref=self.profile_detail_image, src=image_src, fit=ft.ImageFit.COVER, width=150, height=150) if image_src != config.DEFAULT_IMAGE_URL else ft.Icon(ft.icons.PERSON, size=80),
+            content=ft.Image(ref=self.profile_detail_image, src=image_src, fit=ft.ImageFit.COVER, width=150, height=150) if image_src != config.DEFAULT_IMAGE_URL else ft.Icon(ft.Icons.PERSON, size=80),
             width=150, height=150,
             border_radius=ft.border_radius.all(75),
             alignment=ft.alignment.center,
             clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-            bgcolor=ft.colors.SURFACE_VARIANT,
+            bgcolor=ft.Colors.SURFACE,
             on_click=lambda e, src=image_src: self._show_enlarged_image(src),
             tooltip="View larger image" if image_src != config.DEFAULT_IMAGE_URL else ""
         )
@@ -264,27 +264,27 @@ class ProfilesView:
                     image_container,
                     ft.Container(
                         content=ft.IconButton(
-                            icon=ft.icons.EDIT, icon_size=18,
+                            icon=ft.Icons.EDIT, icon_size=18,
                             on_click=self._open_image_picker,
-                            bgcolor=ft.colors.with_opacity(0.7, ft.colors.BLACK),
-                            icon_color=ft.colors.WHITE
+                            bgcolor=ft.Colors.with_opacity(0.7, ft.Colors.BLACK),
+                            icon_color=ft.Colors.WHITE
                         ),
                         bottom=5, right=5
                     )
                 ]),
                 ft.Column([
                     ft.Text(self.current_profile['name'], style=ft.TextThemeStyle.HEADLINE_LARGE, weight=ft.FontWeight.BOLD),
-                    ft.Text(self.current_profile['type'].capitalize(), style=ft.TextThemeStyle.TITLE_MEDIUM, color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Text(self.current_profile['type'].capitalize(), style=ft.TextThemeStyle.TITLE_MEDIUM, color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.Divider(height=15),
                     ft.Row([
-                        self._create_detail_stat("Entries", self.current_profile['entry_count'], ft.icons.VIDEO_LIBRARY_OUTLINED),
-                        self._create_detail_stat("Avg. Score", f"{self.current_profile['average_score']:.1f}", ft.icons.STAR_ROUNDED),
+                        self._create_detail_stat("Entries", self.current_profile['entry_count'], ft.Icons.VIDEO_LIBRARY_OUTLINED),
+                        self._create_detail_stat("Avg. Score", f"{self.current_profile['average_score']:.1f}", ft.Icons.STAR_ROUNDED),
                     ], spacing=30)
                 ], spacing=5, expand=True)
             ], spacing=30, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             padding=ft.padding.all(30),
             border_radius=16,
-            bgcolor=ft.colors.SURFACE_VARIANT
+            bgcolor=ft.Colors.SURFACE
         )
 
         # Gallery of associated entries
@@ -320,7 +320,7 @@ class ProfilesView:
             content=ft.Column(
                 controls=[
                     ft.Row([
-                        ft.IconButton(icon=ft.icons.ARROW_BACK_ROUNDED, on_click=lambda e: self._handle_back_to_list(), tooltip="Back to Profiles"),
+                        ft.IconButton(icon=ft.Icons.ARROW_BACK_ROUNDED, on_click=lambda e: self._handle_back_to_list(), tooltip="Back to Profiles"),
                         ft.Container(expand=True)
                     ]),
                     header,
@@ -339,10 +339,10 @@ class ProfilesView:
     def _create_detail_stat(self, label, value, icon):
         """Helper to create a stat display for the profile detail header."""
         return ft.Row([
-            ft.Icon(icon, color=ft.colors.PRIMARY, size=24),
+            ft.Icon(icon, color=ft.Colors.PRIMARY, size=24),
             ft.Column([
                 ft.Text(str(value), style=ft.TextThemeStyle.HEADLINE_SMALL, weight=ft.FontWeight.BOLD),
-                ft.Text(label, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500, size=12, offset=ft.Offset(0, -0.2))
+                ft.Text(label, color=ft.Colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500, size=12, offset=ft.Offset(0, -0.2))
             ], spacing=0)
         ], spacing=12)
 
@@ -421,8 +421,8 @@ class ProfilesView:
                 self.profile_detail_image.current.src = db_path
                 self.profile_detail_image.current.update()
             
-            self.app_ui.show_snackbar("Profile image updated successfully.", color=ft.colors.GREEN_700)
+            self.app_ui.show_snackbar("Profile image updated successfully.", color=ft.Colors.GREEN_700)
 
         except Exception as ex:
             print(f"Error updating profile image: {ex}")
-            self.app_ui.show_snackbar(f"Error updating image: {ex}", color=ft.colors.ERROR_CONTAINER)
+            self.app_ui.show_snackbar(f"Error updating image: {ex}", color=ft.Colors.ERROR_CONTAINER)

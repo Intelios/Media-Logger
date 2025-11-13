@@ -29,11 +29,11 @@ class GlassmorphismStyles:
             
         return ft.Container(
             content=content,
-            bgcolor=ft.colors.with_opacity(opacity, ft.colors.WHITE) if gradient is None else None,
+            bgcolor=ft.Colors.with_opacity(opacity, ft.Colors.WHITE) if gradient is None else None,
             gradient=gradient,
             border=ft.border.all(
                 1, 
-                ft.colors.with_opacity(border_opacity, ft.colors.WHITE)
+                ft.Colors.with_opacity(border_opacity, ft.Colors.WHITE)
             ),
             border_radius=ft.border_radius.all(border_radius),
             padding=padding,
@@ -41,7 +41,7 @@ class GlassmorphismStyles:
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=shadow_blur,
-                color=ft.colors.with_opacity(shadow_opacity, ft.colors.BLACK),
+                color=ft.Colors.with_opacity(shadow_opacity, ft.Colors.BLACK),
                 offset=ft.Offset(0, 4)
             ),
             # Note: Flet doesn't support backdrop-filter blur directly,
@@ -76,7 +76,7 @@ class GlassmorphismStyles:
             content=glass_content,
             elevation=elevation,
             shape=ft.RoundedRectangleBorder(radius=border_radius),
-            surface_tint_color=ft.colors.SURFACE_TINT,
+            surface_tint_color=ft.Colors.SURFACE_TINT,
             margin=ft.margin.all(8)
         )
 
@@ -93,67 +93,67 @@ class ColorThemeManager:
     
     # Primary color palettes
     BRAND_COLORS = {
-        'primary': ft.colors.BLUE_600,
-        'primary_light': ft.colors.BLUE_400,
-        'primary_dark': ft.colors.BLUE_800,
-        'secondary': ft.colors.PURPLE_600,
-        'secondary_light': ft.colors.PURPLE_400,
-        'secondary_dark': ft.colors.PURPLE_800,
-        'accent': ft.colors.AMBER_600,
-        'accent_light': ft.colors.AMBER_400,
-        'accent_dark': ft.colors.AMBER_800
+        'primary': ft.Colors.BLUE_600,
+        'primary_light': ft.Colors.BLUE_400,
+        'primary_dark': ft.Colors.BLUE_800,
+        'secondary': ft.Colors.PURPLE_600,
+        'secondary_light': ft.Colors.PURPLE_400,
+        'secondary_dark': ft.Colors.PURPLE_800,
+        'accent': ft.Colors.AMBER_600,
+        'accent_light': ft.Colors.AMBER_400,
+        'accent_dark': ft.Colors.AMBER_800
     }
     
     # Semantic colors
     SEMANTIC_COLORS = {
-        'success': ft.colors.GREEN_600,
-        'success_light': ft.colors.GREEN_400,
-        'success_dark': ft.colors.GREEN_800,
-        'warning': ft.colors.ORANGE_600,
-        'warning_light': ft.colors.ORANGE_400,
-        'warning_dark': ft.colors.ORANGE_800,
-        'error': ft.colors.RED_600,
-        'error_light': ft.colors.RED_400,
-        'error_dark': ft.colors.RED_800,
-        'info': ft.colors.CYAN_600,
-        'info_light': ft.colors.CYAN_400,
-        'info_dark': ft.colors.CYAN_800
+        'success': ft.Colors.GREEN_600,
+        'success_light': ft.Colors.GREEN_400,
+        'success_dark': ft.Colors.GREEN_800,
+        'warning': ft.Colors.ORANGE_600,
+        'warning_light': ft.Colors.ORANGE_400,
+        'warning_dark': ft.Colors.ORANGE_800,
+        'error': ft.Colors.RED_600,
+        'error_light': ft.Colors.RED_400,
+        'error_dark': ft.Colors.RED_800,
+        'info': ft.Colors.CYAN_600,
+        'info_light': ft.Colors.CYAN_400,
+        'info_dark': ft.Colors.CYAN_800
     }
     
     # Profile type specific colors
     PROFILE_TYPE_COLORS = {
-        'actress': {'primary': ft.colors.PINK_500, 'light': ft.colors.PINK_300, 'dark': ft.colors.PINK_700},
-        'director': {'primary': ft.colors.CYAN_500, 'light': ft.colors.CYAN_300, 'dark': ft.colors.CYAN_700},
-        'artist': {'primary': ft.colors.PURPLE_500, 'light': ft.colors.PURPLE_300, 'dark': ft.colors.PURPLE_700},
-        'author': {'primary': ft.colors.BROWN_500, 'light': ft.colors.BROWN_300, 'dark': ft.colors.BROWN_700},
-        'platform': {'primary': ft.colors.BLUE_500, 'light': ft.colors.BLUE_300, 'dark': ft.colors.BLUE_700},
-        'default': {'primary': ft.colors.BLUE_GREY_500, 'light': ft.colors.BLUE_GREY_300, 'dark': ft.colors.BLUE_GREY_700}
+        'actress': {'primary': ft.Colors.PINK_500, 'light': ft.Colors.PINK_300, 'dark': ft.Colors.PINK_700},
+        'director': {'primary': ft.Colors.CYAN_500, 'light': ft.Colors.CYAN_300, 'dark': ft.Colors.CYAN_700},
+        'artist': {'primary': ft.Colors.PURPLE_500, 'light': ft.Colors.PURPLE_300, 'dark': ft.Colors.PURPLE_700},
+        'author': {'primary': ft.Colors.BROWN_500, 'light': ft.Colors.BROWN_300, 'dark': ft.Colors.BROWN_700},
+        'platform': {'primary': ft.Colors.BLUE_500, 'light': ft.Colors.BLUE_300, 'dark': ft.Colors.BLUE_700},
+        'default': {'primary': ft.Colors.BLUE_GREY_500, 'light': ft.Colors.BLUE_GREY_300, 'dark': ft.Colors.BLUE_GREY_700}
     }
     
     # Entry type specific colors
     ENTRY_TYPE_COLORS = {
-        'Game': {'primary': ft.colors.BLUE_600, 'light': ft.colors.BLUE_400, 'dark': ft.colors.BLUE_800},
-        'Movie': {'primary': ft.colors.RED_600, 'light': ft.colors.RED_400, 'dark': ft.colors.RED_800},
-        'Show': {'primary': ft.colors.PURPLE_600, 'light': ft.colors.PURPLE_400, 'dark': ft.colors.PURPLE_800},
-        'K-Drama': {'primary': ft.colors.GREEN_600, 'light': ft.colors.GREEN_400, 'dark': ft.colors.GREEN_800},
-        'Anime': {'primary': ft.colors.PINK_600, 'light': ft.colors.PINK_400, 'dark': ft.colors.PINK_800},
-        'Book': {'primary': ft.colors.BROWN_600, 'light': ft.colors.BROWN_400, 'dark': ft.colors.BROWN_800},
-        'Album': {'primary': ft.colors.CYAN_600, 'light': ft.colors.CYAN_400, 'dark': ft.colors.CYAN_800},
-        'Hentai': {'primary': ft.colors.DEEP_PURPLE_600, 'light': ft.colors.DEEP_PURPLE_400, 'dark': ft.colors.DEEP_PURPLE_800},
-        'JAV': {'primary': ft.colors.INDIGO_600, 'light': ft.colors.INDIGO_400, 'dark': ft.colors.INDIGO_800},
-        'Adult Visual Novel': {'primary': ft.colors.DEEP_ORANGE_600, 'light': ft.colors.DEEP_ORANGE_400, 'dark': ft.colors.DEEP_ORANGE_800},
-        'Other': {'primary': ft.colors.BLUE_GREY_600, 'light': ft.colors.BLUE_GREY_400, 'dark': ft.colors.BLUE_GREY_800}
+        'Game': {'primary': ft.Colors.BLUE_600, 'light': ft.Colors.BLUE_400, 'dark': ft.Colors.BLUE_800},
+        'Movie': {'primary': ft.Colors.RED_600, 'light': ft.Colors.RED_400, 'dark': ft.Colors.RED_800},
+        'Show': {'primary': ft.Colors.PURPLE_600, 'light': ft.Colors.PURPLE_400, 'dark': ft.Colors.PURPLE_800},
+        'K-Drama': {'primary': ft.Colors.GREEN_600, 'light': ft.Colors.GREEN_400, 'dark': ft.Colors.GREEN_800},
+        'Anime': {'primary': ft.Colors.PINK_600, 'light': ft.Colors.PINK_400, 'dark': ft.Colors.PINK_800},
+        'Book': {'primary': ft.Colors.BROWN_600, 'light': ft.Colors.BROWN_400, 'dark': ft.Colors.BROWN_800},
+        'Album': {'primary': ft.Colors.CYAN_600, 'light': ft.Colors.CYAN_400, 'dark': ft.Colors.CYAN_800},
+        'Hentai': {'primary': ft.Colors.DEEP_PURPLE_600, 'light': ft.Colors.DEEP_PURPLE_400, 'dark': ft.Colors.DEEP_PURPLE_800},
+        'JAV': {'primary': ft.Colors.INDIGO_600, 'light': ft.Colors.INDIGO_400, 'dark': ft.Colors.INDIGO_800},
+        'Adult Visual Novel': {'primary': ft.Colors.DEEP_ORANGE_600, 'light': ft.Colors.DEEP_ORANGE_400, 'dark': ft.Colors.DEEP_ORANGE_800},
+        'Other': {'primary': ft.Colors.BLUE_GREY_600, 'light': ft.Colors.BLUE_GREY_400, 'dark': ft.Colors.BLUE_GREY_800}
     }
     
     @classmethod
     def get_profile_type_color(cls, profile_type: str, variant: str = 'primary') -> str:
         """Get color for specific profile type"""
-        return cls.PROFILE_TYPE_COLORS.get(profile_type, cls.PROFILE_TYPE_COLORS['default']).get(variant, ft.colors.BLUE_GREY_500)
+        return cls.PROFILE_TYPE_COLORS.get(profile_type, cls.PROFILE_TYPE_COLORS['default']).get(variant, ft.Colors.BLUE_GREY_500)
     
     @classmethod
     def get_entry_type_color(cls, entry_type: str, variant: str = 'primary') -> str:
         """Get color for specific entry type"""
-        return cls.ENTRY_TYPE_COLORS.get(entry_type, cls.ENTRY_TYPE_COLORS['Other']).get(variant, ft.colors.BLUE_GREY_600)
+        return cls.ENTRY_TYPE_COLORS.get(entry_type, cls.ENTRY_TYPE_COLORS['Other']).get(variant, ft.Colors.BLUE_GREY_600)
     
     @classmethod
     def get_entry_type_gradient(cls, entry_type: str) -> ft.LinearGradient:
@@ -169,16 +169,16 @@ class ColorThemeManager:
     def get_rating_color_scheme(cls, score: Optional[float]) -> Dict[str, str]:
         """Get color scheme based on rating score"""
         if score is None:
-            return {'primary': ft.colors.GREY_600, 'light': ft.colors.GREY_400, 'bg': ft.colors.with_opacity(0.1, ft.colors.GREY_600)}
+            return {'primary': ft.Colors.GREY_600, 'light': ft.Colors.GREY_400, 'bg': ft.Colors.with_opacity(0.1, ft.Colors.GREY_600)}
         
         if score >= 9:
-            return {'primary': ft.colors.GREEN_600, 'light': ft.colors.GREEN_400, 'bg': ft.colors.with_opacity(0.1, ft.colors.GREEN_600)}
+            return {'primary': ft.Colors.GREEN_600, 'light': ft.Colors.GREEN_400, 'bg': ft.Colors.with_opacity(0.1, ft.Colors.GREEN_600)}
         elif score >= 7:
-            return {'primary': ft.colors.BLUE_600, 'light': ft.colors.BLUE_400, 'bg': ft.colors.with_opacity(0.1, ft.colors.BLUE_600)}
+            return {'primary': ft.Colors.BLUE_600, 'light': ft.Colors.BLUE_400, 'bg': ft.Colors.with_opacity(0.1, ft.Colors.BLUE_600)}
         elif score >= 5:
-            return {'primary': ft.colors.ORANGE_600, 'light': ft.colors.ORANGE_400, 'bg': ft.colors.with_opacity(0.1, ft.colors.ORANGE_600)}
+            return {'primary': ft.Colors.ORANGE_600, 'light': ft.Colors.ORANGE_400, 'bg': ft.Colors.with_opacity(0.1, ft.Colors.ORANGE_600)}
         else:
-            return {'primary': ft.colors.RED_600, 'light': ft.colors.RED_400, 'bg': ft.colors.with_opacity(0.1, ft.colors.RED_600)}
+            return {'primary': ft.Colors.RED_600, 'light': ft.Colors.RED_400, 'bg': ft.Colors.with_opacity(0.1, ft.Colors.RED_600)}
     
     @classmethod
     def create_themed_gradient(cls, color_key: str, opacity: float = 1.0) -> ft.LinearGradient:
@@ -196,11 +196,11 @@ class ColorThemeManager:
             light_color = cls.SEMANTIC_COLORS.get(light_key, base_color)
             dark_color = cls.SEMANTIC_COLORS.get(dark_key, base_color)
         else:
-            base_color = light_color = dark_color = ft.colors.BLUE_600
+            base_color = light_color = dark_color = ft.Colors.BLUE_600
         
         if opacity < 1.0:
-            light_color = ft.colors.with_opacity(opacity, light_color)
-            dark_color = ft.colors.with_opacity(opacity, dark_color)
+            light_color = ft.Colors.with_opacity(opacity, light_color)
+            dark_color = ft.Colors.with_opacity(opacity, dark_color)
         
         return ft.LinearGradient(
             colors=[light_color, dark_color],
@@ -246,18 +246,18 @@ class AnimationHelpers:
             content=content,
             padding=padding,
             border_radius=ft.border_radius.all(border_radius),
-            animate=ft.animation.Animation(
+            animate=ft.Animation(
                 duration=animation_duration,
                 curve=AnimationHelpers.EASE_OUT
             ),
-            animate_scale=ft.animation.Animation(
+            animate_scale=ft.Animation(
                 duration=animation_duration,
                 curve=AnimationHelpers.EASE_OUT
             ),
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=normal_elevation * 2,
-                color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
+                color=ft.Colors.with_opacity(0.15, ft.Colors.BLACK),
                 offset=ft.Offset(0, normal_elevation / 2)
             )
         )
@@ -267,7 +267,7 @@ class AnimationHelpers:
                 container.shadow = ft.BoxShadow(
                     spread_radius=0,
                     blur_radius=hover_elevation * 2,
-                    color=ft.colors.with_opacity(0.25, ft.colors.BLACK),
+                    color=ft.Colors.with_opacity(0.25, ft.Colors.BLACK),
                     offset=ft.Offset(0, hover_elevation / 2)
                 )
                 container.scale = hover_scale
@@ -275,7 +275,7 @@ class AnimationHelpers:
                 container.shadow = ft.BoxShadow(
                     spread_radius=0,
                     blur_radius=normal_elevation * 2,
-                    color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
+                    color=ft.Colors.with_opacity(0.15, ft.Colors.BLACK),
                     offset=ft.Offset(0, normal_elevation / 2)
                 )
                 container.scale = 1.0
@@ -348,8 +348,8 @@ class AnimationHelpers:
             width=width,
             height=height,
             border_radius=ft.border_radius.all(border_radius),
-            bgcolor=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE),
-            animate=ft.animation.Animation(
+            bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
+            animate=ft.Animation(
                 duration=1000,
                 curve=ft.AnimationCurve.EASE_IN_OUT
             )
@@ -358,7 +358,7 @@ class AnimationHelpers:
     @staticmethod
     def create_pulse_animation_container(
         content: ft.Control,
-        pulse_color: str = ft.colors.PRIMARY,
+        pulse_color: str = ft.Colors.PRIMARY,
         pulse_opacity: float = 0.3,
         duration: int = 1000
     ) -> ft.Container:
@@ -366,7 +366,7 @@ class AnimationHelpers:
         
         container = ft.Container(
             content=content,
-            animate=ft.animation.Animation(
+            animate=ft.Animation(
                 duration=duration,
                 curve=ft.AnimationCurve.EASE_IN_OUT
             )
@@ -444,7 +444,7 @@ class MicroInteractions:
         """Create an interactive icon button with hover effects"""
         
         if color is None:
-            color = ft.colors.ON_SURFACE_VARIANT
+            color = ft.Colors.ON_SURFACE_VARIANT
         if hover_color is None:
             hover_color = ColorThemeManager.BRAND_COLORS['primary']
         
@@ -474,7 +474,7 @@ class MicroInteractions:
         if color is None:
             color = ColorThemeManager.BRAND_COLORS['primary']
         if background_color is None:
-            background_color = ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE)
+            background_color = ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)
         
         return ft.ProgressBar(
             value=value,
@@ -511,10 +511,10 @@ class EnhancedComponentFactory:
         if icon:
             header = ft.Row([
                 ft.Icon(icon, size=24, color=ColorThemeManager.BRAND_COLORS[color_scheme]),
-                ft.Text(title, size=14, weight=ft.FontWeight.W_500, color=ft.colors.ON_SURFACE_VARIANT)
+                ft.Text(title, size=14, weight=ft.FontWeight.W_500, color=ft.Colors.ON_SURFACE_VARIANT)
             ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)
         else:
-            header = ft.Text(title, size=14, weight=ft.FontWeight.W_500, color=ft.colors.ON_SURFACE_VARIANT)
+            header = ft.Text(title, size=14, weight=ft.FontWeight.W_500, color=ft.Colors.ON_SURFACE_VARIANT)
         
         content_elements.append(header)
         
@@ -523,7 +523,7 @@ class EnhancedComponentFactory:
             value,
             size=32,
             weight=ft.FontWeight.BOLD,
-            color=ft.colors.ON_SURFACE
+            color=ft.Colors.ON_SURFACE
         )
         content_elements.append(value_text)
         
@@ -531,12 +531,12 @@ class EnhancedComponentFactory:
         bottom_row_elements = []
         if subtitle:
             bottom_row_elements.append(
-                ft.Text(subtitle, size=12, color=ft.colors.ON_SURFACE_VARIANT)
+                ft.Text(subtitle, size=12, color=ft.Colors.ON_SURFACE_VARIANT)
             )
         
         if show_trend and trend_value is not None:
             trend_color = ColorThemeManager.SEMANTIC_COLORS['success'] if trend_positive else ColorThemeManager.SEMANTIC_COLORS['error']
-            trend_icon = ft.icons.TRENDING_UP if trend_positive else ft.icons.TRENDING_DOWN
+            trend_icon = ft.Icons.TRENDING_UP if trend_positive else ft.Icons.TRENDING_DOWN
             trend_text = f"+{trend_value:.1f}%" if trend_positive else f"{trend_value:.1f}%"
             
             trend_chip = ft.Container(
@@ -544,7 +544,7 @@ class EnhancedComponentFactory:
                     ft.Icon(trend_icon, size=14, color=trend_color),
                     ft.Text(trend_text, size=12, color=trend_color, weight=ft.FontWeight.W_600)
                 ], spacing=4, tight=True),
-                bgcolor=ft.colors.with_opacity(0.1, trend_color),
+                bgcolor=ft.Colors.with_opacity(0.1, trend_color),
                 padding=ft.padding.symmetric(horizontal=8, vertical=4),
                 border_radius=ft.border_radius.all(12)
             )
@@ -605,7 +605,7 @@ class EnhancedComponentFactory:
                 full_greeting,
                 size=28,
                 weight=ft.FontWeight.BOLD,
-                color=ft.colors.WHITE
+                color=ft.Colors.WHITE
             )
         ]
         
@@ -614,7 +614,7 @@ class EnhancedComponentFactory:
                 ft.Text(
                     subtitle,
                     size=16,
-                    color=ft.colors.with_opacity(0.9, ft.colors.WHITE)
+                    color=ft.Colors.with_opacity(0.9, ft.Colors.WHITE)
                 )
             )
         
@@ -751,8 +751,8 @@ class ResponsiveLayoutManager:
         if icon:
             # Enhanced icon with themed background
             icon_container = ft.Container(
-                content=ft.Icon(icon, size=18, color=ft.colors.PRIMARY),
-                bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
+                content=ft.Icon(icon, size=18, color=ft.Colors.PRIMARY),
+                bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY),
                 padding=ft.padding.all(6),
                 border_radius=ft.border_radius.all(6)
             )
@@ -763,14 +763,14 @@ class ResponsiveLayoutManager:
             title,
             size=18,
             weight=ft.FontWeight.W_600,
-            color=ft.colors.ON_SURFACE
+            color=ft.Colors.ON_SURFACE
         )
         header_elements.append(title_text)
         
         # Add collapse/expand button if collapsible
         if collapsible:
             collapse_button = ft.IconButton(
-                icon=ft.icons.EXPAND_LESS,
+                icon=ft.Icons.EXPAND_LESS,
                 icon_size=18,
                 tooltip="Collapse section"
             )
@@ -817,25 +817,25 @@ class ResponsiveLayoutManager:
             },
             'highlighted': {
                 'margin': ft.margin.only(bottom=20),
-                'bgcolor': ft.colors.with_opacity(0.02, ft.colors.PRIMARY),
-                'border': ft.border.all(1, ft.colors.with_opacity(0.08, ft.colors.PRIMARY)),
+                'bgcolor': ft.Colors.with_opacity(0.02, ft.Colors.PRIMARY),
+                'border': ft.border.all(1, ft.Colors.with_opacity(0.08, ft.Colors.PRIMARY)),
                 'border_radius': ft.border_radius.all(8),
                 'shadow': ft.BoxShadow(
                     spread_radius=0,
                     blur_radius=6,
-                    color=ft.colors.with_opacity(0.03, ft.colors.BLACK),
+                    color=ft.Colors.with_opacity(0.03, ft.Colors.BLACK),
                     offset=ft.Offset(0, 1)
                 )
             },
             'card': {
                 'margin': ft.margin.only(bottom=20),
-                'bgcolor': ft.colors.with_opacity(0.02, ft.colors.SURFACE_VARIANT),
+                'bgcolor': ft.Colors.with_opacity(0.02, ft.Colors.SURFACE),
                 'border': None,
                 'border_radius': ft.border_radius.all(12),
                 'shadow': ft.BoxShadow(
                     spread_radius=0,
                     blur_radius=8,
-                    color=ft.colors.with_opacity(0.05, ft.colors.BLACK),
+                    color=ft.Colors.with_opacity(0.05, ft.Colors.BLACK),
                     offset=ft.Offset(0, 2)
                 )
             }
@@ -1048,7 +1048,7 @@ class DashboardEnhancedUtils:
         header_row = ft.Row([
             ft.Container(
                 content=ft.Icon(icon, size=20, color=primary_color),
-                bgcolor=ft.colors.with_opacity(0.1, primary_color),
+                bgcolor=ft.Colors.with_opacity(0.1, primary_color),
                 padding=ft.padding.all(8),
                 border_radius=ft.border_radius.all(8)
             ),
@@ -1056,7 +1056,7 @@ class DashboardEnhancedUtils:
                 title,
                 size=14,
                 weight=ft.FontWeight.W_500,
-                color=ft.colors.ON_SURFACE_VARIANT,
+                color=ft.Colors.ON_SURFACE_VARIANT,
                 expand=True
             )
         ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
@@ -1069,9 +1069,9 @@ class DashboardEnhancedUtils:
                 value,
                 size=28,
                 weight=ft.FontWeight.BOLD,
-                color=ft.colors.ON_SURFACE
+                color=ft.Colors.ON_SURFACE
             ),
-            animate=ft.animation.Animation(
+            animate=ft.Animation(
                 duration=500,
                 curve=ft.AnimationCurve.EASE_OUT
             ) if animate_value else None
@@ -1087,7 +1087,7 @@ class DashboardEnhancedUtils:
                     ft.Text(
                         subtitle,
                         size=12,
-                        color=ft.colors.ON_SURFACE_VARIANT
+                        color=ft.Colors.ON_SURFACE_VARIANT
                     )
                 )
             
@@ -1095,7 +1095,7 @@ class DashboardEnhancedUtils:
                 trend_value = trend_data.get('value', 0)
                 trend_positive = trend_data.get('positive', True)
                 trend_color = ColorThemeManager.SEMANTIC_COLORS['success'] if trend_positive else ColorThemeManager.SEMANTIC_COLORS['error']
-                trend_icon = ft.icons.TRENDING_UP if trend_positive else ft.icons.TRENDING_DOWN
+                trend_icon = ft.Icons.TRENDING_UP if trend_positive else ft.Icons.TRENDING_DOWN
                 
                 trend_chip = ft.Container(
                     content=ft.Row([
@@ -1107,10 +1107,10 @@ class DashboardEnhancedUtils:
                             weight=ft.FontWeight.W_600
                         )
                     ], spacing=4, tight=True),
-                    bgcolor=ft.colors.with_opacity(0.1, trend_color),
+                    bgcolor=ft.Colors.with_opacity(0.1, trend_color),
                     padding=ft.padding.symmetric(horizontal=8, vertical=4),
                     border_radius=ft.border_radius.all(10),
-                    border=ft.border.all(1, ft.colors.with_opacity(0.2, trend_color))
+                    border=ft.border.all(1, ft.Colors.with_opacity(0.2, trend_color))
                 )
                 bottom_elements.append(trend_chip)
             
@@ -1167,7 +1167,7 @@ class DashboardEnhancedUtils:
         if color is None:
             color = ColorThemeManager.BRAND_COLORS['primary']
         if background_color is None:
-            background_color = ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE)
+            background_color = ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)
         
         # Create progress ring
         progress_ring = ft.ProgressRing(
@@ -1185,7 +1185,7 @@ class DashboardEnhancedUtils:
                 f"{int(value)}%",
                 size=size * 0.2,
                 weight=ft.FontWeight.BOLD,
-                color=ft.colors.ON_SURFACE,
+                color=ft.Colors.ON_SURFACE,
                 text_align=ft.TextAlign.CENTER
             )
             
@@ -1252,7 +1252,7 @@ class DashboardEnhancedUtils:
         elif variant == "outlined":
             return ft.Container(
                 content=chip_content,
-                bgcolor=ft.colors.TRANSPARENT,
+                bgcolor=ft.Colors.TRANSPARENT,
                 padding=config["padding"],
                 border_radius=ft.border_radius.all(config["radius"]),
                 border=ft.border.all(1, primary_color)
@@ -1260,10 +1260,10 @@ class DashboardEnhancedUtils:
         else:  # soft
             return ft.Container(
                 content=chip_content,
-                bgcolor=ft.colors.with_opacity(0.1, primary_color),
+                bgcolor=ft.Colors.with_opacity(0.1, primary_color),
                 padding=config["padding"],
                 border_radius=ft.border_radius.all(config["radius"]),
-                border=ft.border.all(1, ft.colors.with_opacity(0.2, primary_color))
+                border=ft.border.all(1, ft.Colors.with_opacity(0.2, primary_color))
             )
     
     @staticmethod
@@ -1286,11 +1286,11 @@ class DashboardEnhancedUtils:
         
         return ft.Container(
             content=ft.Icon(icon, size=size, color=primary_color),
-            bgcolor=ft.colors.with_opacity(background_opacity, primary_color),
+            bgcolor=ft.Colors.with_opacity(background_opacity, primary_color),
             padding=ft.padding.all(8),
             border_radius=ft.border_radius.all(20),
             tooltip=tooltip,
-            border=ft.border.all(1, ft.colors.with_opacity(0.2, primary_color))
+            border=ft.border.all(1, ft.Colors.with_opacity(0.2, primary_color))
         )
 
 # ============================================================================

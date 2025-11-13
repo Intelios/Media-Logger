@@ -28,17 +28,17 @@ DEFAULT_IMAGE_URL = "https://via.placeholder.com/300x150.png?text=No+Image"
 
 # --- Theme Definitions ---
 THEMES = {
-    "Deep Purple (Dark)": {"seed": ft.colors.DEEP_PURPLE, "mode": ft.ThemeMode.DARK},
-    "Ocean Blue (Dark)": {"seed": ft.colors.BLUE, "mode": ft.ThemeMode.DARK},
-    "Forest Green (Dark)": {"seed": ft.colors.GREEN, "mode": ft.ThemeMode.DARK},
-    "Sunny Amber (Dark)": {"seed": ft.colors.AMBER, "mode": ft.ThemeMode.DARK},
-    "Crimson Red (Dark)": {"seed": ft.colors.RED, "mode": ft.ThemeMode.DARK},
-    "Indigo Night (Dark)": {"seed": ft.colors.INDIGO, "mode": ft.ThemeMode.DARK},
-    "Teal Waters (Dark)": {"seed": ft.colors.TEAL, "mode": ft.ThemeMode.DARK},
-    "Slate Grey (Dark)": {"seed": ft.colors.BLUE_GREY, "mode": ft.ThemeMode.DARK},
-    "Classic Light": {"seed": ft.colors.BLUE_GREY, "mode": ft.ThemeMode.LIGHT},
-    "Minty Light": {"seed": ft.colors.GREEN_ACCENT, "mode": ft.ThemeMode.LIGHT},
-    "Sky Blue Light": {"seed": ft.colors.LIGHT_BLUE, "mode": ft.ThemeMode.LIGHT},
+    "Deep Purple (Dark)": {"seed": ft.Colors.DEEP_PURPLE, "mode": ft.ThemeMode.DARK},
+    "Ocean Blue (Dark)": {"seed": ft.Colors.BLUE, "mode": ft.ThemeMode.DARK},
+    "Forest Green (Dark)": {"seed": ft.Colors.GREEN, "mode": ft.ThemeMode.DARK},
+    "Sunny Amber (Dark)": {"seed": ft.Colors.AMBER, "mode": ft.ThemeMode.DARK},
+    "Crimson Red (Dark)": {"seed": ft.Colors.RED, "mode": ft.ThemeMode.DARK},
+    "Indigo Night (Dark)": {"seed": ft.Colors.INDIGO, "mode": ft.ThemeMode.DARK},
+    "Teal Waters (Dark)": {"seed": ft.Colors.TEAL, "mode": ft.ThemeMode.DARK},
+    "Slate Grey (Dark)": {"seed": ft.Colors.BLUE_GREY, "mode": ft.ThemeMode.DARK},
+    "Classic Light": {"seed": ft.Colors.BLUE_GREY, "mode": ft.ThemeMode.LIGHT},
+    "Minty Light": {"seed": ft.Colors.GREEN_ACCENT, "mode": ft.ThemeMode.LIGHT},
+    "Sky Blue Light": {"seed": ft.Colors.LIGHT_BLUE, "mode": ft.ThemeMode.LIGHT},
 }
 DEFAULT_THEME_NAME = "Deep Purple (Dark)"
 
@@ -56,17 +56,17 @@ ALL_ENTRY_TYPES_STR = [opt.key for opt in ENTRY_TYPE_OPTIONS if opt.key]
 QUICK_FILTER_PRESETS = [
     {
         "label": "Gaming",
-        "icon": ft.icons.SPORTS_ESPORTS_OUTLINED,
+        "icon": ft.Icons.SPORTS_ESPORTS_OUTLINED,
         "types": {"Game"}
     },
     {
         "label": "Media",
-        "icon": ft.icons.TV_OUTLINED,
+        "icon": ft.Icons.TV_OUTLINED,
         "types": {"Movie", "Show", "Anime", "K-Drama", "Book"}
     },
     {
         "label": "Adult",
-        "icon": ft.icons.FILTER_FRAMES_OUTLINED,
+        "icon": ft.Icons.FILTER_FRAMES_OUTLINED,
         "types": {"JAV", "Hentai", "Adult Visual Novel"}
     }
 ]

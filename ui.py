@@ -31,17 +31,17 @@ from stats import StatsView
 
 def get_entry_type_icon_name(entry_type_str: str) -> str:
     entry_type_str_lower = (entry_type_str or "media").lower()
-    if "movie" in entry_type_str_lower: return ft.icons.MOVIE_OUTLINED
-    if "show" in entry_type_str_lower: return ft.icons.TV_OUTLINED
-    if "anime" in entry_type_str_lower: return ft.icons.ANIMATION_OUTLINED
-    if "book" in entry_type_str_lower: return ft.icons.BOOK_OUTLINED
-    if "album" in entry_type_str_lower: return ft.icons.ALBUM_OUTLINED
-    if "k-drama" in entry_type_str_lower: return ft.icons.LIVE_TV_OUTLINED
-    if "jav" in entry_type_str_lower: return ft.icons.VIDEO_CAMERA_BACK_OUTLINED
-    if "hentai" in entry_type_str_lower: return ft.icons.FILTER_FRAMES_OUTLINED
-    if "game" in entry_type_str_lower: return ft.icons.SPORTS_ESPORTS_OUTLINED
-    if "adult visual novel" in entry_type_str_lower: return ft.icons.MENU_BOOK_OUTLINED
-    return ft.icons.LABEL_OUTLINED
+    if "movie" in entry_type_str_lower: return ft.Icons.MOVIE_OUTLINED
+    if "show" in entry_type_str_lower: return ft.Icons.TV_OUTLINED
+    if "anime" in entry_type_str_lower: return ft.Icons.ANIMATION_OUTLINED
+    if "book" in entry_type_str_lower: return ft.Icons.BOOK_OUTLINED
+    if "album" in entry_type_str_lower: return ft.Icons.ALBUM_OUTLINED
+    if "k-drama" in entry_type_str_lower: return ft.Icons.LIVE_TV_OUTLINED
+    if "jav" in entry_type_str_lower: return ft.Icons.VIDEO_CAMERA_BACK_OUTLINED
+    if "hentai" in entry_type_str_lower: return ft.Icons.FILTER_FRAMES_OUTLINED
+    if "game" in entry_type_str_lower: return ft.Icons.SPORTS_ESPORTS_OUTLINED
+    if "adult visual novel" in entry_type_str_lower: return ft.Icons.MENU_BOOK_OUTLINED
+    return ft.Icons.LABEL_OUTLINED
 
 ## get_genre_icon_name removed (unused)
 
@@ -110,7 +110,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         size=TITLE_SIZE, 
         max_lines=2, 
         overflow=ft.TextOverflow.ELLIPSIS, 
-        color=ft.colors.ON_SURFACE, 
+        color=ft.Colors.ON_SURFACE, 
         style=ft.TextStyle(letter_spacing=0.15, height=1.3)
     )
     entry_type_icon_name = get_entry_type_icon_name(entry_type_str)
@@ -118,14 +118,14 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     entry_type_primary = ColorThemeManager.get_entry_type_color(entry_type_str)
     entry_type_badge = ft.Container(
         content=ft.Row([
-            ft.Icon(entry_type_icon_name, size=15, color=ft.colors.WHITE),
-            ft.Text(entry_type_str, size=TAG_SIZE, color=ft.colors.WHITE, weight=ft.FontWeight.W_700, style=ft.TextStyle(letter_spacing=0.4))
+            ft.Icon(entry_type_icon_name, size=15, color=ft.Colors.WHITE),
+            ft.Text(entry_type_str, size=TAG_SIZE, color=ft.Colors.WHITE, weight=ft.FontWeight.W_700, style=ft.TextStyle(letter_spacing=0.4))
         ], spacing=7, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
         gradient=entry_type_gradient,
         padding=ft.padding.symmetric(horizontal=14, vertical=7),
         border_radius=ft.border_radius.all(22),
-        shadow=ft.BoxShadow(spread_radius=0, blur_radius=8, color=ft.colors.with_opacity(0.35, entry_type_primary), offset=ft.Offset(0, 3)),
-        border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.WHITE))
+        shadow=ft.BoxShadow(spread_radius=0, blur_radius=8, color=ft.Colors.with_opacity(0.35, entry_type_primary), offset=ft.Offset(0, 3)),
+        border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.WHITE))
     )
 
     def create_enhanced_rating_badge(score):
@@ -135,11 +135,11 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         if score == 10.0:
             return ft.Container(
                 content=ft.Row([
-                    ft.Icon(ft.icons.STAR_ROUNDED, size=15, color=ft.colors.WHITE),
-                    ft.Text(f"{score:.1f}", size=TAG_SIZE + 1.5, color=ft.colors.WHITE, weight=ft.FontWeight.W_800)
+                    ft.Icon(ft.Icons.STAR_ROUNDED, size=15, color=ft.Colors.WHITE),
+                    ft.Text(f"{score:.1f}", size=TAG_SIZE + 1.5, color=ft.Colors.WHITE, weight=ft.FontWeight.W_800)
                 ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
                 gradient=ft.LinearGradient(
-                    colors=[ft.colors.GREEN_400, ft.colors.GREEN_600, ft.colors.GREEN_700],
+                    colors=[ft.Colors.GREEN_400, ft.Colors.GREEN_600, ft.Colors.GREEN_700],
                     begin=ft.alignment.top_left,
                     end=ft.alignment.bottom_right
                 ),
@@ -148,10 +148,10 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
                 shadow=ft.BoxShadow(
                     spread_radius=1,
                     blur_radius=10,
-                    color=ft.colors.with_opacity(0.45, ft.colors.GREEN_600),
+                    color=ft.Colors.with_opacity(0.45, ft.Colors.GREEN_600),
                     offset=ft.Offset(0, 3)
                 ),
-                border=ft.border.all(1.5, ft.colors.with_opacity(0.4, ft.colors.GREEN_200))
+                border=ft.border.all(1.5, ft.Colors.with_opacity(0.4, ft.Colors.GREEN_200))
             )
 
         color_scheme = ColorThemeManager.get_rating_color_scheme(score)
@@ -160,17 +160,17 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
 
         return ft.Container(
             content=ft.Row([
-                ft.Icon(ft.icons.STAR_ROUNDED, size=15, color=primary_color),
+                ft.Icon(ft.Icons.STAR_ROUNDED, size=15, color=primary_color),
                 ft.Text(f"{score:.1f}", size=TAG_SIZE + 1.5, color=primary_color, weight=ft.FontWeight.W_800)
             ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
             bgcolor=background_color,
             padding=ft.padding.symmetric(horizontal=12, vertical=7),
             border_radius=ft.border_radius.all(22),
-            border=ft.border.all(1.5, ft.colors.with_opacity(0.3, primary_color)),
+            border=ft.border.all(1.5, ft.Colors.with_opacity(0.3, primary_color)),
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=6,
-                color=ft.colors.with_opacity(0.2, primary_color),
+                color=ft.Colors.with_opacity(0.2, primary_color),
                 offset=ft.Offset(0, 2)
             )
         )
@@ -182,15 +182,15 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
             content=ft.Text(
                 genre_text, 
                 size=TAG_SIZE, 
-                color=ft.colors.ON_SURFACE_VARIANT, 
+                color=ft.Colors.ON_SURFACE_VARIANT, 
                 weight=ft.FontWeight.W_600, 
                 max_lines=1, 
                 overflow=ft.TextOverflow.ELLIPSIS
             ), 
-            bgcolor=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE), 
+            bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE), 
             padding=ft.padding.symmetric(horizontal=10, vertical=5), 
             border_radius=ft.border_radius.all(14), 
-            border=ft.border.all(1, ft.colors.with_opacity(0.15, ft.colors.ON_SURFACE))
+            border=ft.border.all(1, ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE))
         )
     genre_widgets_row = ft.Row(wrap=True, spacing=7, run_spacing=7, tight=True)
     if parsed_genres:
@@ -205,13 +205,13 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
                     content=ft.Text(
                         f"+{len(parsed_genres) - 3}", 
                         size=TAG_SIZE, 
-                        color=ft.colors.PRIMARY, 
+                        color=ft.Colors.PRIMARY, 
                         weight=ft.FontWeight.W_700
                     ), 
-                    bgcolor=ft.colors.with_opacity(0.12, ft.colors.PRIMARY), 
+                    bgcolor=ft.Colors.with_opacity(0.12, ft.Colors.PRIMARY), 
                     padding=ft.padding.symmetric(horizontal=10, vertical=5), 
                     border_radius=ft.border_radius.all(14), 
-                    border=ft.border.all(1.5, ft.colors.with_opacity(0.35, ft.colors.PRIMARY)), 
+                    border=ft.border.all(1.5, ft.Colors.with_opacity(0.35, ft.Colors.PRIMARY)), 
                     tooltip=tooltip_text
                 )
             )
@@ -219,35 +219,35 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     def create_indicator(icon, tooltip, color):
         return ft.Container(
             content=ft.Icon(icon, size=17, color=color), 
-            bgcolor=ft.colors.with_opacity(0.12, color), 
+            bgcolor=ft.Colors.with_opacity(0.12, color), 
             padding=ft.padding.all(7), 
             border_radius=ft.border_radius.all(22), 
             tooltip=tooltip, 
-            border=ft.border.all(1.5, ft.colors.with_opacity(0.35, color)),
+            border=ft.border.all(1.5, ft.Colors.with_opacity(0.35, color)),
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=4,
-                color=ft.colors.with_opacity(0.2, color),
+                color=ft.Colors.with_opacity(0.2, color),
                 offset=ft.Offset(0, 1)
             )
         )
     
     def create_trophy_indicator():
         return ft.Container(
-            content=ft.Icon(ft.icons.EMOJI_EVENTS, size=17, color=ft.colors.AMBER_50),
+            content=ft.Icon(ft.Icons.EMOJI_EVENTS, size=17, color=ft.Colors.AMBER_50),
             gradient=ft.LinearGradient(
-                colors=[ft.colors.AMBER_400, ft.colors.AMBER_600, ft.colors.AMBER_700],
+                colors=[ft.Colors.AMBER_400, ft.Colors.AMBER_600, ft.Colors.AMBER_700],
                 begin=ft.alignment.top_left,
                 end=ft.alignment.bottom_right
             ),
             padding=ft.padding.all(7),
             border_radius=ft.border_radius.all(22),
             tooltip="Award Winner",
-            border=ft.border.all(1.5, ft.colors.with_opacity(0.5, ft.colors.AMBER_200)),
+            border=ft.border.all(1.5, ft.Colors.with_opacity(0.5, ft.Colors.AMBER_200)),
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=8,
-                color=ft.colors.with_opacity(0.45, ft.colors.AMBER_600),
+                color=ft.Colors.with_opacity(0.45, ft.Colors.AMBER_600),
                 offset=ft.Offset(0, 2)
             )
         )
@@ -256,16 +256,16 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     # Check if media is an award winner and add trophy badge first
     if database.is_award_winner(jav_item.get('id')):
         bottom_indicators_list.append(create_trophy_indicator())
-    if is_rewatch: bottom_indicators_list.append(create_indicator(ft.icons.REPLAY_ROUNDED, "Rewatched", ft.colors.AMBER_600))
-    if owns_local_copy: bottom_indicators_list.append(create_indicator(ft.icons.DOWNLOAD_DONE_ROUNDED, "Owns Local Copy", ft.colors.GREEN_600))
+    if is_rewatch: bottom_indicators_list.append(create_indicator(ft.Icons.REPLAY_ROUNDED, "Rewatched", ft.Colors.AMBER_600))
+    if owns_local_copy: bottom_indicators_list.append(create_indicator(ft.Icons.DOWNLOAD_DONE_ROUNDED, "Owns Local Copy", ft.Colors.GREEN_600))
     bottom_indicators_row = ft.Row(controls=bottom_indicators_list, spacing=9, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
     has_image = bool(db_image_value and db_image_value.strip())
     
     popup_items = [
-        ft.PopupMenuItem(text="Edit", icon=ft.icons.EDIT_OUTLINED, on_click=lambda _, item=jav_item: edit_callback(item)),
-        ft.PopupMenuItem(text="View Description", icon=ft.icons.DESCRIPTION_OUTLINED, on_click=lambda _, item=jav_item: show_desc_callback(item), disabled=not has_description),
-        ft.PopupMenuItem(text="View Image", icon=ft.icons.IMAGE_OUTLINED, on_click=lambda _, item=jav_item: view_image_callback(item), disabled=not has_image),
+        ft.PopupMenuItem(text="Edit", icon=ft.Icons.EDIT_OUTLINED, on_click=lambda _, item=jav_item: edit_callback(item)),
+        ft.PopupMenuItem(text="View Description", icon=ft.Icons.DESCRIPTION_OUTLINED, on_click=lambda _, item=jav_item: show_desc_callback(item), disabled=not has_description),
+        ft.PopupMenuItem(text="View Image", icon=ft.Icons.IMAGE_OUTLINED, on_click=lambda _, item=jav_item: view_image_callback(item), disabled=not has_image),
     ]
 
     # Conditionally add "Remove from Collection" option
@@ -274,7 +274,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         popup_items.append(
             ft.PopupMenuItem(
                 text="Remove from Collection", 
-                icon=ft.icons.REMOVE_CIRCLE_OUTLINE, 
+                icon=ft.Icons.REMOVE_CIRCLE_OUTLINE, 
                 on_click=lambda _, item_id=jav_item['id'], item_name=jav_item['name']: remove_from_collection_callback(item_id, item_name)
             )
         )
@@ -283,22 +283,22 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         ft.PopupMenuItem(), 
         ft.PopupMenuItem(
             text="Delete Permanently", 
-            icon=ft.icons.DELETE_FOREVER, # <-- CORRECTED ICON NAME
+            icon=ft.Icons.DELETE_FOREVER, # <-- CORRECTED ICON NAME
             on_click=lambda _, item_id=jav_item['id'], item_name=jav_item['name']: delete_callback(item_id, item_name)
         )
     ])
 
     options_button = ft.Container(
         content=ft.PopupMenuButton(
-            content=ft.Icon(ft.icons.MORE_VERT_ROUNDED, color=ft.colors.WHITE, size=19), 
+            content=ft.Icon(ft.Icons.MORE_VERT_ROUNDED, color=ft.Colors.WHITE, size=19), 
             tooltip="Options", 
             items=popup_items
         ), 
-        bgcolor=ft.colors.with_opacity(0.5, ft.colors.BLACK87), 
+        bgcolor=ft.Colors.with_opacity(0.5, ft.Colors.BLACK87), 
         padding=ft.padding.all(9), 
         border_radius=ft.border_radius.all(22), 
-        shadow=ft.BoxShadow(spread_radius=0, blur_radius=10, color=ft.colors.with_opacity(0.4, ft.colors.BLACK), offset=ft.Offset(0, 2)),
-        border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.WHITE))
+        shadow=ft.BoxShadow(spread_radius=0, blur_radius=10, color=ft.Colors.with_opacity(0.4, ft.Colors.BLACK), offset=ft.Offset(0, 2)),
+        border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.WHITE))
     )
     image_stack = ft.Stack([
         ft.Container(
@@ -309,15 +309,15 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
                 fit=ft.ImageFit.COVER, 
                 error_content=ft.Container(
                     content=ft.Column([
-                        ft.Icon(ft.icons.BROKEN_IMAGE, size=44, color=ft.colors.ON_SURFACE_VARIANT), 
-                        ft.Text("Image Error", size=13, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_600)
+                        ft.Icon(ft.Icons.BROKEN_IMAGE, size=44, color=ft.Colors.ON_SURFACE_VARIANT), 
+                        ft.Text("Image Error", size=13, color=ft.Colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_600)
                     ], 
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER, 
                     alignment=ft.MainAxisAlignment.CENTER, 
                     spacing=10), 
                     height=IMAGE_HEIGHT, 
                     width=float('inf'), 
-                    bgcolor=ft.colors.SURFACE_VARIANT, 
+                    bgcolor=ft.Colors.SURFACE, 
                     alignment=ft.alignment.center
                 )
             ), 
@@ -329,9 +329,9 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
             width=float('inf'), 
             gradient=ft.LinearGradient(
                 colors=[
-                    ft.colors.with_opacity(0, ft.colors.BLACK), 
-                    ft.colors.with_opacity(0.15, ft.colors.BLACK),
-                    ft.colors.with_opacity(0.35, ft.colors.BLACK)
+                    ft.Colors.with_opacity(0, ft.Colors.BLACK), 
+                    ft.Colors.with_opacity(0.15, ft.Colors.BLACK),
+                    ft.Colors.with_opacity(0.35, ft.Colors.BLACK)
                 ], 
                 begin=ft.alignment.top_center, 
                 end=ft.alignment.bottom_center
@@ -344,24 +344,24 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     def create_info_chip(icon, text, tooltip_prefix):
         return ft.Container(
             content=ft.Row([
-                ft.Icon(icon, size=13, color=ft.colors.ON_SURFACE_VARIANT), 
-                ft.Text(text, size=TAG_SIZE, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_600, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
+                ft.Icon(icon, size=13, color=ft.Colors.ON_SURFACE_VARIANT), 
+                ft.Text(text, size=TAG_SIZE, color=ft.Colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_600, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
             ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER, tight=True), 
-            bgcolor=ft.colors.with_opacity(0.08, ft.colors.ON_SURFACE), 
+            bgcolor=ft.Colors.with_opacity(0.08, ft.Colors.ON_SURFACE), 
             padding=ft.padding.symmetric(horizontal=10, vertical=5), 
             border_radius=ft.border_radius.all(14), 
             tooltip=f"{tooltip_prefix}: {text}", 
-            border=ft.border.all(1, ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE))
+            border=ft.border.all(1, ft.Colors.with_opacity(0.12, ft.Colors.ON_SURFACE))
         )
     type_specific_info_container = ft.Row(wrap=True, spacing=7, run_spacing=7)
-    if jav_item.get('platform'): type_specific_info_container.controls.append(create_info_chip(ft.icons.VIDEOGAME_ASSET_OUTLINED, jav_item['platform'], "Platform"))
-    if jav_item.get('author'): type_specific_info_container.controls.append(create_info_chip(ft.icons.PERSON_OUTLINE, jav_item['author'], "Author"))
+    if jav_item.get('platform'): type_specific_info_container.controls.append(create_info_chip(ft.Icons.VIDEOGAME_ASSET_OUTLINED, jav_item['platform'], "Platform"))
+    if jav_item.get('author'): type_specific_info_container.controls.append(create_info_chip(ft.Icons.PERSON_OUTLINE, jav_item['author'], "Author"))
     if jav_item.get('artist'):
-        for artist_name in utils.parse_multi_value_field(jav_item['artist']): type_specific_info_container.controls.append(create_info_chip(ft.icons.HEADSET_OUTLINED, artist_name, f"Artist: {artist_name}"))
-    if jav_item.get('director'): type_specific_info_container.controls.append(create_info_chip(ft.icons.BUSINESS_OUTLINED, jav_item['director'], "Studio"))
+        for artist_name in utils.parse_multi_value_field(jav_item['artist']): type_specific_info_container.controls.append(create_info_chip(ft.Icons.HEADSET_OUTLINED, artist_name, f"Artist: {artist_name}"))
+    if jav_item.get('director'): type_specific_info_container.controls.append(create_info_chip(ft.Icons.BUSINESS_OUTLINED, jav_item['director'], "Studio"))
     if jav_item.get('actress'):
-        for actress_name in utils.parse_multi_value_field(jav_item['actress']): type_specific_info_container.controls.append(create_info_chip(ft.icons.WOMAN_2_OUTLINED, actress_name, f"Actress: {actress_name}"))
-    if jav_item.get('update_version'): type_specific_info_container.controls.append(create_info_chip(ft.icons.INFO_OUTLINE, jav_item['update_version'], "Version"))
+        for actress_name in utils.parse_multi_value_field(jav_item['actress']): type_specific_info_container.controls.append(create_info_chip(ft.Icons.WOMAN_2_OUTLINED, actress_name, f"Actress: {actress_name}"))
+    if jav_item.get('update_version'): type_specific_info_container.controls.append(create_info_chip(ft.Icons.INFO_OUTLINE, jav_item['update_version'], "Version"))
 
     card_content_controls = [
         ft.Container(content=title_text, margin=ft.margin.only(bottom=6)), 
@@ -399,7 +399,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
                 ft.Text(
                     display_completion_date, 
                     size=DATE_SIZE, 
-                    color=ft.colors.ON_SURFACE_VARIANT, 
+                    color=ft.Colors.ON_SURFACE_VARIANT, 
                     opacity=0.85, 
                     weight=ft.FontWeight.W_600, 
                     style=ft.TextStyle(letter_spacing=0.3)
@@ -413,7 +413,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
 
     # Default styling for the card
     card_elevation = 4
-    card_shadow_color = ft.colors.with_opacity(0.12, ft.colors.BLACK)
+    card_shadow_color = ft.Colors.with_opacity(0.12, ft.Colors.BLACK)
     card_border = None
     outer_container_shadow = None
 
@@ -422,12 +422,12 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         try:
             if int(score) == 10:
                 card_elevation = 8
-                card_shadow_color = ft.colors.with_opacity(0.5, ft.colors.GREEN_400)
-                card_border = ft.border.all(2, ft.colors.with_opacity(0.7, ft.colors.LIGHT_GREEN_ACCENT_200))
+                card_shadow_color = ft.Colors.with_opacity(0.5, ft.Colors.GREEN_400)
+                card_border = ft.border.all(2, ft.Colors.with_opacity(0.7, ft.Colors.LIGHT_GREEN_ACCENT_200))
                 outer_container_shadow = ft.BoxShadow(
                     spread_radius=2,
                     blur_radius=16,
-                    color=ft.colors.with_opacity(0.5, ft.colors.GREEN_400),
+                    color=ft.Colors.with_opacity(0.5, ft.Colors.GREEN_400),
                     offset=ft.Offset(0, 4)
                 )
         except (ValueError, TypeError):
@@ -443,7 +443,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         margin=0,
         shape=ft.RoundedRectangleBorder(radius=CARD_RADIUS),
         shadow_color=card_shadow_color,
-        surface_tint_color=ft.colors.SURFACE_TINT
+        surface_tint_color=ft.Colors.SURFACE_TINT
     )
 
     # Create outer container with hover animation
@@ -454,8 +454,8 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         border_radius=ft.border_radius.all(CARD_RADIUS),
         clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
         shadow=outer_container_shadow,
-        animate=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT),
-        animate_scale=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
+        animate=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT),
+        animate_scale=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
     )
     
     # Add hover effect
@@ -504,8 +504,8 @@ def create_markdown_editor(initial_value: str = ""):
             else: tf.value = syntax
             tf.focus()
             tf.update()
-    toolbar = ft.Container(content=ft.Row(controls=[ft.IconButton(icon=ft.icons.TITLE, on_click=lambda _: insert_markdown("# "), tooltip="Heading"), ft.IconButton(icon=ft.icons.FORMAT_BOLD, on_click=lambda _: insert_markdown("**text**"), tooltip="Bold"), ft.IconButton(icon=ft.icons.FORMAT_ITALIC, on_click=lambda _: insert_markdown("*text*"), tooltip="Italic"), ft.IconButton(icon=ft.icons.FORMAT_LIST_BULLETED, on_click=lambda _: insert_markdown("- "), tooltip="Bulleted List"), ft.IconButton(icon=ft.icons.FORMAT_LIST_NUMBERED, on_click=lambda _: insert_markdown("1. "), tooltip="Numbered List"), ft.IconButton(icon=ft.icons.LINK, on_click=lambda _: insert_markdown("[link text](url)"), tooltip="Link"), ft.IconButton(icon=ft.icons.CODE, on_click=lambda _: insert_markdown("```\ncode\n```"), tooltip="Code Block")], spacing=0, alignment=ft.MainAxisAlignment.START), border=ft.border.all(1, ft.colors.OUTLINE_VARIANT), border_radius=ft.border_radius.only(top_left=4, top_right=4), padding=ft.padding.symmetric(horizontal=4))
-    text_field = ft.TextField(ref=text_field_ref, label="Description / Notes (Markdown supported)", value=initial_value, multiline=True, min_lines=3, max_lines=5, capitalization=ft.TextCapitalization.SENTENCES, border_radius=ft.border_radius.only(bottom_left=4, bottom_right=4), border=ft.border.only(left=ft.border.BorderSide(1, ft.colors.OUTLINE_VARIANT), right=ft.border.BorderSide(1, ft.colors.OUTLINE_VARIANT), bottom=ft.border.BorderSide(1, ft.colors.OUTLINE_VARIANT)))
+    toolbar = ft.Container(content=ft.Row(controls=[ft.IconButton(icon=ft.Icons.TITLE, on_click=lambda _: insert_markdown("# "), tooltip="Heading"), ft.IconButton(icon=ft.Icons.FORMAT_BOLD, on_click=lambda _: insert_markdown("**text**"), tooltip="Bold"), ft.IconButton(icon=ft.Icons.FORMAT_ITALIC, on_click=lambda _: insert_markdown("*text*"), tooltip="Italic"), ft.IconButton(icon=ft.Icons.FORMAT_LIST_BULLETED, on_click=lambda _: insert_markdown("- "), tooltip="Bulleted List"), ft.IconButton(icon=ft.Icons.FORMAT_LIST_NUMBERED, on_click=lambda _: insert_markdown("1. "), tooltip="Numbered List"), ft.IconButton(icon=ft.Icons.LINK, on_click=lambda _: insert_markdown("[link text](url)"), tooltip="Link"), ft.IconButton(icon=ft.Icons.CODE, on_click=lambda _: insert_markdown("```\ncode\n```"), tooltip="Code Block")], spacing=0, alignment=ft.MainAxisAlignment.START), border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT), border_radius=ft.border_radius.only(top_left=4, top_right=4), padding=ft.padding.symmetric(horizontal=4))
+    text_field = ft.TextField(ref=text_field_ref, label="Description / Notes (Markdown supported)", value=initial_value, multiline=True, min_lines=3, max_lines=5, capitalization=ft.TextCapitalization.SENTENCES, border_radius=ft.border_radius.only(bottom_left=4, bottom_right=4), border=ft.border.only(left=ft.border.BorderSide(1, ft.Colors.OUTLINE_VARIANT), right=ft.border.BorderSide(1, ft.Colors.OUTLINE_VARIANT), bottom=ft.border.BorderSide(1, ft.Colors.OUTLINE_VARIANT)))
     return ft.Column(controls=[toolbar, text_field], spacing=0), text_field_ref
 
 def create_entry_type_filter_button_with_sheet(page_ref: ft.Page, available_types: list[str], selected_types_set: set[str], on_change_callback: callable, button_label_prefix: str = "Filter Types"):
@@ -570,7 +570,7 @@ def create_entry_type_filter_button_with_sheet(page_ref: ft.Page, available_type
         if filter_bottom_sheet_ref.current:
             filter_bottom_sheet_ref.current.open = True
             page_ref.update()
-    return ft.OutlinedButton(ref=filter_button_ref, text=get_button_text(), icon=ft.icons.FILTER_LIST_ROUNDED, on_click=open_filter_bottom_sheet, tooltip="Filter by entry type")
+    return ft.OutlinedButton(ref=filter_button_ref, text=get_button_text(), icon=ft.Icons.FILTER_LIST_ROUNDED, on_click=open_filter_bottom_sheet, tooltip="Filter by entry type")
 
 def create_search_fields_filter_button_with_sheet(page_ref: ft.Page, available_fields: list[dict], selected_fields_set: set[str], on_change_callback: callable, button_label_prefix: str = "Search In"):
     filter_button_ref = ft.Ref[ft.OutlinedButton]()
@@ -634,7 +634,7 @@ def create_search_fields_filter_button_with_sheet(page_ref: ft.Page, available_f
         if filter_bottom_sheet_ref.current:
             filter_bottom_sheet_ref.current.open = True
             page_ref.update()
-    return ft.OutlinedButton(ref=filter_button_ref, text=get_button_text(), icon=ft.icons.SEARCH_OUTLINED, on_click=open_filter_bottom_sheet, tooltip="Select which fields to search in")
+    return ft.OutlinedButton(ref=filter_button_ref, text=get_button_text(), icon=ft.Icons.SEARCH_OUTLINED, on_click=open_filter_bottom_sheet, tooltip="Select which fields to search in")
     
 def create_property_filter_button_with_sheet(page_ref: ft.Page, filter_state: dict, on_change_callback: callable):
     """Creates a filter button for properties like score, rewatch, and local copy."""
@@ -661,7 +661,7 @@ def create_property_filter_button_with_sheet(page_ref: ft.Page, filter_state: di
         count = get_active_filters_count()
         if count > 0:
             filter_button_ref.current.text = f"More Filters ({count})"
-            filter_button_ref.current.icon_color = ft.colors.PRIMARY # Highlight if active
+            filter_button_ref.current.icon_color = ft.Colors.PRIMARY # Highlight if active
         else:
             filter_button_ref.current.text = "More Filters"
             filter_button_ref.current.icon_color = None # Default color
@@ -740,7 +740,7 @@ def create_property_filter_button_with_sheet(page_ref: ft.Page, filter_state: di
                 start_value=filter_state.get('score_min', 0),
                 end_value=filter_state.get('score_max', 10),
                 label="{value}",
-                inactive_color=ft.colors.with_opacity(0.3, ft.colors.PRIMARY)
+                inactive_color=ft.Colors.with_opacity(0.3, ft.Colors.PRIMARY)
             ),
             
             ft.Divider(height=15),
@@ -772,9 +772,9 @@ def create_property_filter_button_with_sheet(page_ref: ft.Page, filter_state: di
             
             ft.Divider(height=20),
             ft.Row([
-                ft.TextButton("Reset Filters", icon=ft.icons.RESTART_ALT, on_click=reset_filters),
+                ft.TextButton("Reset Filters", icon=ft.Icons.RESTART_ALT, on_click=reset_filters),
                 ft.Container(expand=True),
-                ft.ElevatedButton("Apply Filters", on_click=close_bs_and_apply, icon=ft.icons.CHECK)
+                ft.ElevatedButton("Apply Filters", on_click=close_bs_and_apply, icon=ft.Icons.CHECK)
             ], alignment=ft.MainAxisAlignment.END)
         ], tight=True, spacing=10),
         padding=ft.padding.only(left=20, right=20, top=10, bottom=20)
@@ -801,7 +801,7 @@ def create_property_filter_button_with_sheet(page_ref: ft.Page, filter_state: di
     button = ft.OutlinedButton(
         ref=filter_button_ref,
         text="More Filters",
-        icon=ft.icons.TUNE_ROUNDED,
+        icon=ft.Icons.TUNE_ROUNDED,
         on_click=open_filter_bottom_sheet,
         tooltip="Filter by score, rewatch, etc."
     )
@@ -909,7 +909,7 @@ class AppUI:
 
     def handle_image_file_pick(self, e: ft.FilePickerResultEvent):
         if self._target_image_field_for_picker is None:
-            self.show_snackbar("Internal error: Target field for image not set.", color=ft.colors.ERROR_CONTAINER)
+            self.show_snackbar("Internal error: Target field for image not set.", color=ft.Colors.ERROR_CONTAINER)
             return
         if e.files and e.files[0].path:
             selected_file_path = e.files[0].path
@@ -944,7 +944,7 @@ class AppUI:
         except Exception as e:
             print(f"Error copying image from '{source_str}': {e}")
             traceback.print_exc()
-            self.show_snackbar(f"Error copying image: {os.path.basename(source_str)}", color=ft.colors.ERROR_CONTAINER)
+            self.show_snackbar(f"Error copying image: {os.path.basename(source_str)}", color=ft.Colors.ERROR_CONTAINER)
             return None
 
     def handle_import_result(self, e: ft.FilePickerResultEvent):
@@ -1013,9 +1013,9 @@ class AppUI:
             self.current_dialog = None
             self.page.update()
         if success:
-            self.show_snackbar(f"Successfully exported data to {os.path.basename(file_path)}", color=ft.colors.GREEN_700)
+            self.show_snackbar(f"Successfully exported data to {os.path.basename(file_path)}", color=ft.Colors.GREEN_700)
         else:
-            self.show_snackbar(f"Export failed: {error_message}", color=ft.colors.ERROR_CONTAINER, duration=6000)
+            self.show_snackbar(f"Export failed: {error_message}", color=ft.Colors.ERROR_CONTAINER, duration=6000)
 
     def import_csv_data(self, file_path):
         expected_headers_lower = ["name", "genre", "review_score", "completion_date", "description", "isrewatch", "ownlocalcopy", "entrytype", "imageurl", "platform", "author", "artist", "studio", "actress", "updateversion"]
@@ -1091,7 +1091,7 @@ class AppUI:
             self.page.overlay.remove(self.current_dialog)
             self.current_dialog = None
             self.page.update()
-        self.show_snackbar(message, color=ft.colors.ERROR_CONTAINER if had_errors else ft.colors.GREEN_700, duration=10000)
+        self.show_snackbar(message, color=ft.Colors.ERROR_CONTAINER if had_errors else ft.Colors.GREEN_700, duration=10000)
         self.refresh_current_view()
         # Refresh stats if stats view is initialized
         if self.stats_view_instance and self.stats_view_instance.stats_year_filter.current:
@@ -1149,19 +1149,19 @@ class AppUI:
             if form_controls.get(ctrl_name): form_controls[ctrl_name].on_change = handler
 
         def create_stat_display(icon, text_ref, label):
-            return ft.Container(content=ft.Row([ft.Container(content=ft.Icon(icon, size=20, color=ft.colors.PRIMARY), padding=ft.padding.all(8), bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY), border_radius=8), ft.Column([ft.Text(ref=text_ref, value="...", weight=ft.FontWeight.W_600, size=16), ft.Text(label, size=12, opacity=0.7, weight=ft.FontWeight.W_500)], spacing=2)], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=ft.padding.all(12), bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE), border_radius=8, border=ft.border.all(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE)))
+            return ft.Container(content=ft.Row([ft.Container(content=ft.Icon(icon, size=20, color=ft.Colors.PRIMARY), padding=ft.padding.all(8), bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY), border_radius=8), ft.Column([ft.Text(ref=text_ref, value="...", weight=ft.FontWeight.W_600, size=16), ft.Text(label, size=12, opacity=0.7, weight=ft.FontWeight.W_500)], spacing=2)], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=ft.padding.all(12), bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE), border_radius=8, border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.OUTLINE)))
         
-        left_panel = ft.Container(content=ft.Column([ft.Container(content=ft.Stack([ft.Container(content=ft.Image(ref=preview_image, src=config.DEFAULT_IMAGE_URL, fit=ft.ImageFit.COVER, width=float("inf"), height=280), clip_behavior=ft.ClipBehavior.ANTI_ALIAS, border_radius=12), ft.Container(gradient=ft.LinearGradient(begin=ft.alignment.top_center, end=ft.alignment.bottom_center, colors=[ft.colors.TRANSPARENT, ft.colors.with_opacity(0.8, ft.colors.BLACK)])), ft.Container(padding=ft.padding.all(24), alignment=ft.alignment.bottom_left, content=ft.Column([ft.Text(ref=preview_title, value="New Entry", size=24, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS), ft.Container(content=ft.Text(ref=preview_type, value="Not Selected", size=14, weight=ft.FontWeight.W_500, color=ft.colors.WHITE70), padding=ft.padding.symmetric(horizontal=8, vertical=4), bgcolor=ft.colors.with_opacity(0.3, ft.colors.WHITE), border_radius=12)], spacing=8))]), shadow=ft.BoxShadow(blur_radius=10, color=ft.colors.with_opacity(0.2, ft.colors.BLACK), offset=ft.Offset(0, 4))), ft.Container(content=ft.Column([ft.Text("PREVIEW", size=12, weight=ft.FontWeight.BOLD, opacity=0.6), ft.Divider(height=1, opacity=0.3), create_stat_display(ft.icons.CALENDAR_TODAY_ROUNDED, preview_date, "Completion Date"), create_stat_display(ft.icons.STAR_ROUNDED, preview_score, "Rating"), create_stat_display(ft.icons.CATEGORY_ROUNDED, preview_genre, "Genre")], spacing=12), padding=ft.padding.all(20), expand=True)], spacing=20), width=400, bgcolor=ft.colors.SURFACE_VARIANT, border_radius=16, padding=ft.padding.all(20))
+        left_panel = ft.Container(content=ft.Column([ft.Container(content=ft.Stack([ft.Container(content=ft.Image(ref=preview_image, src=config.DEFAULT_IMAGE_URL, fit=ft.ImageFit.COVER, width=float("inf"), height=280), clip_behavior=ft.ClipBehavior.ANTI_ALIAS, border_radius=12), ft.Container(gradient=ft.LinearGradient(begin=ft.alignment.top_center, end=ft.alignment.bottom_center, colors=[ft.Colors.TRANSPARENT, ft.Colors.with_opacity(0.8, ft.Colors.BLACK)])), ft.Container(padding=ft.padding.all(24), alignment=ft.alignment.bottom_left, content=ft.Column([ft.Text(ref=preview_title, value="New Entry", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS), ft.Container(content=ft.Text(ref=preview_type, value="Not Selected", size=14, weight=ft.FontWeight.W_500, color=ft.Colors.WHITE70), padding=ft.padding.symmetric(horizontal=8, vertical=4), bgcolor=ft.Colors.with_opacity(0.3, ft.Colors.WHITE), border_radius=12)], spacing=8))]), shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.with_opacity(0.2, ft.Colors.BLACK), offset=ft.Offset(0, 4))), ft.Container(content=ft.Column([ft.Text("PREVIEW", size=12, weight=ft.FontWeight.BOLD, opacity=0.6), ft.Divider(height=1, opacity=0.3), create_stat_display(ft.Icons.CALENDAR_TODAY_ROUNDED, preview_date, "Completion Date"), create_stat_display(ft.Icons.STAR_ROUNDED, preview_score, "Rating"), create_stat_display(ft.Icons.CATEGORY_ROUNDED, preview_genre, "Genre")], spacing=12), padding=ft.padding.all(20), expand=True)], spacing=20), width=400, bgcolor=ft.Colors.SURFACE, border_radius=16, padding=ft.padding.all(20))
         
         def create_form_section(title, controls, icon=None):
             header = ft.Row([ft.Icon(icon, size=16, opacity=0.7), ft.Text(title, style=ft.TextThemeStyle.LABEL_LARGE, weight=ft.FontWeight.BOLD, opacity=0.8)], spacing=8) if icon else ft.Text(title, style=ft.TextThemeStyle.LABEL_LARGE, weight=ft.FontWeight.BOLD, opacity=0.8)
             return ft.Container(content=ft.Column([header, ft.Divider(height=1, opacity=0.2), *controls], spacing=8), margin=ft.margin.only(bottom=24))
 
-        right_panel = ft.Container(content=ft.Column([ft.Container(content=ft.Row([ft.Icon(ft.icons.ADD_CIRCLE_OUTLINE, size=28, color=ft.colors.PRIMARY), ft.Column([ft.Text(title_text, style=ft.TextThemeStyle.HEADLINE_SMALL, weight=ft.FontWeight.BOLD), ft.Text("Fill in the details for your new entry", opacity=0.7, size=14)], spacing=2, expand=True)], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=ft.padding.only(bottom=20), border=ft.border.only(bottom=ft.BorderSide(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE)))), create_form_section("BASIC INFORMATION", [form_controls.get("name", ft.Container()), form_controls.get("entry_type", ft.Container()), form_controls.get("conditional_fields", ft.Container())], ft.icons.INFO_OUTLINE), create_form_section("MEDIA DETAILS", [form_controls.get("genre", ft.Container()), form_controls.get("image_source_row", ft.Container()), ft.Row([ft.Container(content=form_controls.get("date_display", ft.Container()), expand=True), form_controls.get("date_picker_button", ft.Container())], vertical_alignment=ft.CrossAxisAlignment.END), form_controls.get("score", ft.Container())], ft.icons.MOVIE_OUTLINED), create_form_section("NOTES & PREFERENCES", [form_controls.get("description_editor", ft.Container()), ft.Row([form_controls.get("rewatch", ft.Container()), form_controls.get("own_local_copy", ft.Container())], spacing=20)], ft.icons.EDIT_NOTE), ft.Container(content=ft.Row([ft.TextButton("Cancel", icon=ft.icons.CLOSE, on_click=close_callback), ft.ElevatedButton("Save Entry", icon=ft.icons.SAVE_OUTLINED, on_click=save_callback, style=ft.ButtonStyle(bgcolor=ft.colors.PRIMARY, color=ft.colors.ON_PRIMARY, padding=ft.padding.symmetric(horizontal=32, vertical=12)))], alignment=ft.MainAxisAlignment.END, spacing=12), padding=ft.padding.only(top=20), border=ft.border.only(top=ft.BorderSide(1, ft.colors.with_opacity(0.1, ft.colors.OUTLINE))))], scroll=ft.ScrollMode.ADAPTIVE, spacing=0), padding=ft.padding.all(32), expand=True)
+        right_panel = ft.Container(content=ft.Column([ft.Container(content=ft.Row([ft.Icon(ft.Icons.ADD_CIRCLE_OUTLINE, size=28, color=ft.Colors.PRIMARY), ft.Column([ft.Text(title_text, style=ft.TextThemeStyle.HEADLINE_SMALL, weight=ft.FontWeight.BOLD), ft.Text("Fill in the details for your new entry", opacity=0.7, size=14)], spacing=2, expand=True)], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=ft.padding.only(bottom=20), border=ft.border.only(bottom=ft.BorderSide(1, ft.Colors.with_opacity(0.1, ft.Colors.OUTLINE)))), create_form_section("BASIC INFORMATION", [form_controls.get("name", ft.Container()), form_controls.get("entry_type", ft.Container()), form_controls.get("conditional_fields", ft.Container())], ft.Icons.INFO_OUTLINE), create_form_section("MEDIA DETAILS", [form_controls.get("genre", ft.Container()), form_controls.get("image_source_row", ft.Container()), ft.Row([ft.Container(content=form_controls.get("date_display", ft.Container()), expand=True), form_controls.get("date_picker_button", ft.Container())], vertical_alignment=ft.CrossAxisAlignment.END), form_controls.get("score", ft.Container())], ft.Icons.MOVIE_OUTLINED), create_form_section("NOTES & PREFERENCES", [form_controls.get("description_editor", ft.Container()), ft.Row([form_controls.get("rewatch", ft.Container()), form_controls.get("own_local_copy", ft.Container())], spacing=20)], ft.Icons.EDIT_NOTE), ft.Container(content=ft.Row([ft.TextButton("Cancel", icon=ft.Icons.CLOSE, on_click=close_callback), ft.ElevatedButton("Save Entry", icon=ft.Icons.SAVE_OUTLINED, on_click=save_callback, style=ft.ButtonStyle(bgcolor=ft.Colors.PRIMARY, color=ft.Colors.ON_PRIMARY, padding=ft.padding.symmetric(horizontal=32, vertical=12)))], alignment=ft.MainAxisAlignment.END, spacing=12), padding=ft.padding.only(top=20), border=ft.border.only(top=ft.BorderSide(1, ft.Colors.with_opacity(0.1, ft.Colors.OUTLINE))))], scroll=ft.ScrollMode.ADAPTIVE, spacing=0), padding=ft.padding.all(32), expand=True)
         
-        main_form_content = ft.Container(content=ft.Row(controls=[left_panel, right_panel], vertical_alignment=ft.CrossAxisAlignment.STRETCH, spacing=24), width=1200, height=min(850, self.page.window_height * 0.9 if self.page.window_height else 850), bgcolor=ft.colors.SURFACE, border_radius=20, shadow=ft.BoxShadow(blur_radius=30, color=ft.colors.with_opacity(0.15, ft.colors.BLACK), offset=ft.Offset(0, 10)), clip_behavior=ft.ClipBehavior.ANTI_ALIAS)
+        main_form_content = ft.Container(content=ft.Row(controls=[left_panel, right_panel], vertical_alignment=ft.CrossAxisAlignment.STRETCH, spacing=24), width=1200, height=min(850, self.page.window_height * 0.9 if self.page.window_height else 850), bgcolor=ft.Colors.SURFACE, border_radius=20, shadow=ft.BoxShadow(blur_radius=30, color=ft.Colors.with_opacity(0.15, ft.Colors.BLACK), offset=ft.Offset(0, 10)), clip_behavior=ft.ClipBehavior.ANTI_ALIAS)
         
-        overlay = ft.Stack(ref=self.form_overlay_container, controls=[ft.Container(bgcolor=ft.colors.with_opacity(0.7, ft.colors.BLACK), expand=True, on_click=close_callback), ft.Container(content=main_form_content, alignment=ft.alignment.center, expand=True), ft.Container(content=ft.IconButton(icon=ft.icons.CLOSE_ROUNDED, icon_color=ft.colors.WHITE, bgcolor=ft.colors.with_opacity(0.3, ft.colors.BLACK), tooltip="Close (Esc)", on_click=close_callback, icon_size=20), top=24, right=24)])
+        overlay = ft.Stack(ref=self.form_overlay_container, controls=[ft.Container(bgcolor=ft.Colors.with_opacity(0.7, ft.Colors.BLACK), expand=True, on_click=close_callback), ft.Container(content=main_form_content, alignment=ft.alignment.center, expand=True), ft.Container(content=ft.IconButton(icon=ft.Icons.CLOSE_ROUNDED, icon_color=ft.Colors.WHITE, bgcolor=ft.Colors.with_opacity(0.3, ft.Colors.BLACK), tooltip="Close (Esc)", on_click=close_callback, icon_size=20), top=24, right=24)])
         
         if associated_picker: overlay._associated_date_picker = associated_picker
         update_previews()
@@ -1177,12 +1177,12 @@ class AppUI:
                 if dialog_overlay_ref.current and dialog_overlay_ref.current in self.main_stack.current.controls:
                     self.main_stack.current.controls.remove(dialog_overlay_ref.current)
                     self.main_stack.current.update()
-            header = ft.Container(content=ft.Column([ft.Row([ft.Container(content=ft.Icon(get_entry_type_icon_name(entry_type), size=28, color=ft.colors.PRIMARY), bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY), padding=12, border_radius=12), ft.Column([ft.Text(entry_name, style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600, max_lines=2), ft.Container(content=ft.Text(entry_type, size=14, color=ft.colors.PRIMARY, weight=ft.FontWeight.W_500), bgcolor=ft.colors.with_opacity(0.08, ft.colors.PRIMARY), padding=ft.padding.symmetric(horizontal=12, vertical=6), border_radius=16, margin=ft.margin.only(top=4))], spacing=8, tight=True, expand=True)], spacing=16, vertical_alignment=ft.CrossAxisAlignment.START), ft.Container(height=1, bgcolor=ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE), margin=ft.margin.symmetric(vertical=20))]), padding=24, bgcolor=ft.colors.with_opacity(0.02, ft.colors.PRIMARY))
+            header = ft.Container(content=ft.Column([ft.Row([ft.Container(content=ft.Icon(get_entry_type_icon_name(entry_type), size=28, color=ft.Colors.PRIMARY), bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY), padding=12, border_radius=12), ft.Column([ft.Text(entry_name, style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600, max_lines=2), ft.Container(content=ft.Text(entry_type, size=14, color=ft.Colors.PRIMARY, weight=ft.FontWeight.W_500), bgcolor=ft.Colors.with_opacity(0.08, ft.Colors.PRIMARY), padding=ft.padding.symmetric(horizontal=12, vertical=6), border_radius=16, margin=ft.margin.only(top=4))], spacing=8, tight=True, expand=True)], spacing=16, vertical_alignment=ft.CrossAxisAlignment.START), ft.Container(height=1, bgcolor=ft.Colors.with_opacity(0.12, ft.Colors.ON_SURFACE), margin=ft.margin.symmetric(vertical=20))]), padding=24, bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.PRIMARY))
             description_content = ft.Container(content=ft.Markdown(value=description_text, selectable=True, extension_set=ft.MarkdownExtensionSet.GITHUB_WEB, code_theme="atom-one-dark", on_tap_link=lambda e: self.page.launch_url(e.data)), padding=ft.padding.symmetric(horizontal=24, vertical=16), margin=ft.margin.only(bottom=8))
             scrollable_content = ft.Container(content=ft.Column(controls=[description_content], scroll=ft.ScrollMode.ADAPTIVE, tight=True), height=min(400, self.page.window_height * 0.5 if self.page.window_height else 400))
-            close_button = ft.Container(content=ft.ElevatedButton(text="Close", icon=ft.icons.CLOSE_ROUNDED, on_click=close_dialog), alignment=ft.alignment.center_right, padding=ft.padding.only(right=24, bottom=20, top=16))
-            dialog_content = ft.Container(content=ft.Column([header, scrollable_content, close_button], spacing=0, tight=True), width=min(600, self.page.window_width * 0.8 if self.page.window_width else 600), bgcolor=ft.colors.SURFACE, border_radius=20, shadow=ft.BoxShadow(blur_radius=24, color=ft.colors.with_opacity(0.15, ft.colors.BLACK), offset=ft.Offset(0, 8)), on_click=lambda e: None)
-            dialog_overlay = ft.Container(ref=dialog_overlay_ref, content=dialog_content, alignment=ft.alignment.center, bgcolor=ft.colors.with_opacity(0.5, ft.colors.BLACK), expand=True, on_click=close_dialog)
+            close_button = ft.Container(content=ft.ElevatedButton(text="Close", icon=ft.Icons.CLOSE_ROUNDED, on_click=close_dialog), alignment=ft.alignment.center_right, padding=ft.padding.only(right=24, bottom=20, top=16))
+            dialog_content = ft.Container(content=ft.Column([header, scrollable_content, close_button], spacing=0, tight=True), width=min(600, self.page.window_width * 0.8 if self.page.window_width else 600), bgcolor=ft.Colors.SURFACE, border_radius=20, shadow=ft.BoxShadow(blur_radius=24, color=ft.Colors.with_opacity(0.15, ft.Colors.BLACK), offset=ft.Offset(0, 8)), on_click=lambda e: None)
+            dialog_overlay = ft.Container(ref=dialog_overlay_ref, content=dialog_content, alignment=ft.alignment.center, bgcolor=ft.Colors.with_opacity(0.5, ft.Colors.BLACK), expand=True, on_click=close_dialog)
             self.main_stack.current.controls.append(dialog_overlay)
             self.main_stack.current.update()
         finally:
@@ -1216,26 +1216,26 @@ class AppUI:
                 content=ft.Column([
                     ft.Row([
                         ft.Container(
-                            content=ft.Icon(get_entry_type_icon_name(entry_type), size=28, color=ft.colors.PRIMARY),
-                            bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
+                            content=ft.Icon(get_entry_type_icon_name(entry_type), size=28, color=ft.Colors.PRIMARY),
+                            bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY),
                             padding=12,
                             border_radius=12
                         ),
                         ft.Column([
                             ft.Text(entry_name, style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600, max_lines=2),
                             ft.Container(
-                                content=ft.Text(entry_type, size=14, color=ft.colors.PRIMARY, weight=ft.FontWeight.W_500),
-                                bgcolor=ft.colors.with_opacity(0.08, ft.colors.PRIMARY),
+                                content=ft.Text(entry_type, size=14, color=ft.Colors.PRIMARY, weight=ft.FontWeight.W_500),
+                                bgcolor=ft.Colors.with_opacity(0.08, ft.Colors.PRIMARY),
                                 padding=ft.padding.symmetric(horizontal=12, vertical=6),
                                 border_radius=16,
                                 margin=ft.margin.only(top=4)
                             )
                         ], spacing=8, tight=True, expand=True)
                     ], spacing=16, vertical_alignment=ft.CrossAxisAlignment.START),
-                    ft.Container(height=1, bgcolor=ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE), margin=ft.margin.symmetric(vertical=20))
+                    ft.Container(height=1, bgcolor=ft.Colors.with_opacity(0.12, ft.Colors.ON_SURFACE), margin=ft.margin.symmetric(vertical=20))
                 ]),
                 padding=24,
-                bgcolor=ft.colors.with_opacity(0.02, ft.colors.PRIMARY)
+                bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.PRIMARY)
             )
             
             image_content = ft.Container(
@@ -1244,10 +1244,10 @@ class AppUI:
                     fit=ft.ImageFit.CONTAIN,
                     error_content=ft.Container(
                         content=ft.Column([
-                            ft.Icon(ft.icons.BROKEN_IMAGE, size=64, color=ft.colors.ON_SURFACE_VARIANT),
-                            ft.Text("Failed to load image", size=16, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500)
+                            ft.Icon(ft.Icons.BROKEN_IMAGE, size=64, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text("Failed to load image", size=16, color=ft.Colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500)
                         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=12),
-                        bgcolor=ft.colors.SURFACE_VARIANT,
+                        bgcolor=ft.Colors.SURFACE,
                         alignment=ft.alignment.center
                     )
                 ),
@@ -1257,7 +1257,7 @@ class AppUI:
             )
             
             close_button = ft.Container(
-                content=ft.ElevatedButton(text="Close", icon=ft.icons.CLOSE_ROUNDED, on_click=close_dialog),
+                content=ft.ElevatedButton(text="Close", icon=ft.Icons.CLOSE_ROUNDED, on_click=close_dialog),
                 alignment=ft.alignment.center_right,
                 padding=ft.padding.only(right=24, bottom=20, top=16)
             )
@@ -1265,9 +1265,9 @@ class AppUI:
             dialog_content = ft.Container(
                 content=ft.Column([header, image_content, close_button], spacing=0, tight=True),
                 width=min(800, self.page.window_width * 0.9 if self.page.window_width else 800),
-                bgcolor=ft.colors.SURFACE,
+                bgcolor=ft.Colors.SURFACE,
                 border_radius=20,
-                shadow=ft.BoxShadow(blur_radius=24, color=ft.colors.with_opacity(0.15, ft.colors.BLACK), offset=ft.Offset(0, 8)),
+                shadow=ft.BoxShadow(blur_radius=24, color=ft.Colors.with_opacity(0.15, ft.Colors.BLACK), offset=ft.Offset(0, 8)),
                 on_click=lambda e: None  # Prevent clicks from closing the dialog
             )
             
@@ -1275,7 +1275,7 @@ class AppUI:
                 ref=dialog_overlay_ref,
                 content=dialog_content,
                 alignment=ft.alignment.center,
-                bgcolor=ft.colors.with_opacity(0.5, ft.colors.BLACK),
+                bgcolor=ft.Colors.with_opacity(0.5, ft.Colors.BLACK),
                 expand=True,
                 on_click=close_dialog
             )
@@ -1305,7 +1305,7 @@ class AppUI:
             self._target_image_field_for_picker = image_source_field
             self.image_file_picker.pick_files(dialog_title="Select Image", allow_multiple=False, allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"])
         
-        image_source_row = ft.Row([image_source_field, ft.IconButton(icon=ft.icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_add)], vertical_alignment=ft.CrossAxisAlignment.END)
+        image_source_row = ft.Row([image_source_field, ft.IconButton(icon=ft.Icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_add)], vertical_alignment=ft.CrossAxisAlignment.END)
         genre_field = ft.TextField(label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS)
         date_display_field = ft.TextField(label="Completion Date", read_only=True, hint_text="Click calendar to select...")
         add_date_picker = ft.DatePicker(on_change=lambda e: handle_date_change(e, date_display_field), help_text="Select Completion Date")
@@ -1317,7 +1317,7 @@ class AppUI:
                 if hasattr(target_field, 'on_change') and callable(target_field.on_change): target_field.on_change(e)
                 if target_field.page: target_field.update()
         
-        date_picker_button = ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=lambda e: (setattr(add_date_picker, 'open', True), self.page.update()))
+        date_picker_button = ft.IconButton(icon=ft.Icons.CALENDAR_MONTH, tooltip="Select Date", on_click=lambda e: (setattr(add_date_picker, 'open', True), self.page.update()))
         
         description_editor, description_field_ref = create_markdown_editor(initial_value=initial_data.get('notes', ''))
         
@@ -1339,7 +1339,7 @@ class AppUI:
             if errors:
                 for field in [name_field, entry_type_dropdown, image_source_field, date_display_field, score_dropdown]:
                     if field.page: field.update()
-                self.show_snackbar("Please fix errors: " + " ".join(errors), color=ft.colors.ERROR_CONTAINER)
+                self.show_snackbar("Please fix errors: " + " ".join(errors), color=ft.Colors.ERROR_CONTAINER)
                 return
 
             final_image_ref_for_db = self.process_and_copy_image(image_source_input)
@@ -1372,7 +1372,7 @@ class AppUI:
         def browse_for_image_edit(e):
             self._target_image_field_for_picker = image_source_field
             self.image_file_picker.pick_files(dialog_title="Select Image", allow_multiple=False, allowed_extensions=["jpg", "jpeg", "png", "gif", "bmp", "webp"])
-        image_source_row = ft.Row([image_source_field, ft.IconButton(icon=ft.icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_edit)], vertical_alignment=ft.CrossAxisAlignment.END)
+        image_source_row = ft.Row([image_source_field, ft.IconButton(icon=ft.Icons.FOLDER_OPEN_OUTLINED, tooltip="Browse for local image", on_click=browse_for_image_edit)], vertical_alignment=ft.CrossAxisAlignment.END)
         genre_field = ft.TextField(label="Genres (comma-separated)", hint_text="e.g., Action, Drama", capitalization=ft.TextCapitalization.WORDS, value=jav_data_to_edit.get('genre', '') or '')
         initial_date_str = jav_data_to_edit.get('completion_date', '')
         date_display_field = ft.TextField(label="Completion Date", read_only=True, hint_text="Click calendar to select...", value=initial_date_str)
@@ -1384,7 +1384,7 @@ class AppUI:
                 target_field.value = e.control.value.strftime('%Y-%m-%d')
                 if hasattr(target_field, 'on_change') and callable(target_field.on_change): target_field.on_change(e)
                 if target_field.page: target_field.update()
-        date_picker_button = ft.IconButton(icon=ft.icons.CALENDAR_MONTH, tooltip="Select Date", on_click=lambda e: (setattr(edit_date_picker, 'open', True), self.page.update()))
+        date_picker_button = ft.IconButton(icon=ft.Icons.CALENDAR_MONTH, tooltip="Select Date", on_click=lambda e: (setattr(edit_date_picker, 'open', True), self.page.update()))
         score_dropdown = ft.Dropdown(label="Score", width=110, options=[ft.dropdown.Option("N/A")] + [ft.dropdown.Option(str(i)) for i in range(10, -1, -1)], value=str(jav_data_to_edit.get('review_score')) if jav_data_to_edit.get('review_score') is not None else "N/A")
         description_editor, description_field_ref = create_markdown_editor(initial_value=jav_data_to_edit.get('description', '') or '')
         rewatch_check = ft.Checkbox(label="This was a Rewatch", value=jav_data_to_edit.get('is_rewatch') == 1)
@@ -1393,12 +1393,12 @@ class AppUI:
         def save_edited_jav(e):
             name, entry_type_val, image_source_input, genre_input_str, date_str, score_str, description, is_rewatch, own_local_copy = name_field.value.strip(), entry_type_dropdown.value, image_source_field.value.strip(), genre_field.value.strip(), date_display_field.value.strip(), score_dropdown.value, description_field_ref.current.value.strip(), rewatch_check.value, own_local_copy_check.value
             if not name or not entry_type_val or not date_str:
-                self.show_snackbar("Title, Entry Type, and Completion Date are required.", color=ft.colors.ERROR_CONTAINER)
+                self.show_snackbar("Title, Entry Type, and Completion Date are required.", color=ft.Colors.ERROR_CONTAINER)
                 return
             score_int = None
             if score_str and score_str != "N/A":
                 try: score_int = int(score_str)
-                except ValueError: self.show_snackbar("Invalid score.", color=ft.colors.ERROR_CONTAINER); return
+                except ValueError: self.show_snackbar("Invalid score.", color=ft.Colors.ERROR_CONTAINER); return
             
             final_image_ref_for_db = jav_data_to_edit.get('image_url')
             if image_source_input != jav_data_to_edit.get('image_url'):
@@ -1435,7 +1435,7 @@ class AppUI:
                     os.remove(full_image_path)
                     self.show_snackbar(f"Deleted '{jav_name}' and its local image.")
                 except OSError as e: 
-                    self.show_snackbar(f"Deleted '{jav_name}', but failed to delete image: {e}", color=ft.colors.WARNING_CONTAINER)
+                    self.show_snackbar(f"Deleted '{jav_name}', but failed to delete image: {e}", color=ft.Colors.WARNING_CONTAINER)
             else: 
                 self.show_snackbar(f"Deleted '{jav_name}'.")
         else: 
@@ -1671,7 +1671,7 @@ class AppUI:
             content=ft.Row(
                 controls=[
                     ft.ProgressRing(width=24, height=24, stroke_width=3),
-                    ft.Text("Loading entries...", size=14, color=ft.colors.ON_SURFACE_VARIANT)
+                    ft.Text("Loading entries...", size=14, color=ft.Colors.ON_SURFACE_VARIANT)
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -1762,9 +1762,9 @@ class AppUI:
                 count_text.value = f"Found {len(results)} result{'s' if len(results) != 1 else ''} for '{search_term}'" if search_term else "Enter a search term to find entries"
                 if count_text.page: count_text.update()
             if not search_term:
-                grid_view.controls.append(ft.Container(content=ft.Column([ft.Icon(ft.icons.SEARCH_OUTLINED, size=64), ft.Text("Enter a search term to find entries", size=16)], horizontal_alignment=ft.CrossAxisAlignment.CENTER), alignment=ft.alignment.center, expand=True))
+                grid_view.controls.append(ft.Container(content=ft.Column([ft.Icon(ft.Icons.SEARCH_OUTLINED, size=64), ft.Text("Enter a search term to find entries", size=16)], horizontal_alignment=ft.CrossAxisAlignment.CENTER), alignment=ft.alignment.center, expand=True))
             elif not results:
-                grid_view.controls.append(ft.Container(content=ft.Column([ft.Icon(ft.icons.SEARCH_OFF_OUTLINED, size=64), ft.Text(f"No results found for '{search_term}'", size=16)], horizontal_alignment=ft.CrossAxisAlignment.CENTER), alignment=ft.alignment.center, expand=True))
+                grid_view.controls.append(ft.Container(content=ft.Column([ft.Icon(ft.Icons.SEARCH_OFF_OUTLINED, size=64), ft.Text(f"No results found for '{search_term}'", size=16)], horizontal_alignment=ft.CrossAxisAlignment.CENTER), alignment=ft.alignment.center, expand=True))
             else:
                 for jav_item in results:
                     grid_view.controls.append(create_gallery_card(self.page, jav_item, delete_jav_action_search, open_edit_jav_dialog_wrapper_search, self.show_description_dialog, self.show_image_dialog))
@@ -1845,7 +1845,7 @@ class AppUI:
         return ft.Column(
             expand=True, 
             controls=[
-                ft.Container(content=ft.Row([ft.TextField(ref=self.search_text_field, label="Search entries...", prefix_icon=ft.icons.SEARCH_ROUNDED, on_change=on_search_text_change, expand=True, autofocus=True), ft.IconButton(icon=ft.icons.CLEAR_ROUNDED, on_click=lambda e: (setattr(self.search_text_field.current, 'value', ''), self.search_text_field.current.update(), perform_search()))]), padding=10), 
+                ft.Container(content=ft.Row([ft.TextField(ref=self.search_text_field, label="Search entries...", prefix_icon=ft.Icons.SEARCH_ROUNDED, on_change=on_search_text_change, expand=True, autofocus=True), ft.IconButton(icon=ft.Icons.CLEAR_ROUNDED, on_click=lambda e: (setattr(self.search_text_field.current, 'value', ''), self.search_text_field.current.update(), perform_search()))]), padding=10), 
                 # --- MODIFIED: Add the new button to the filter row ---
                 ft.Container(
                     content=ft.Row(
@@ -1937,35 +1937,35 @@ class AppUI:
         # Create enhanced statistics cards with responsive grid layout
         stat_cards_list = [
             self._create_dashboard_stat_card(
-                ft.icons.LIBRARY_BOOKS_ROUNDED,
+                ft.Icons.LIBRARY_BOOKS_ROUNDED,
                 str(collection_stats["total_entries"]),
                 "Total Entries",
                 "Your complete collection",
-                ft.colors.BLUE_400,
+                ft.Colors.BLUE_400,
                 trend_data=total_entries_trend
             ),
             self._create_dashboard_stat_card(
-                ft.icons.STAR_RATE_ROUNDED,
+                ft.Icons.STAR_RATE_ROUNDED,
                 collection_stats["average_rating_display"],
                 "Average Rating",
                 "Quality of your collection",
-                ft.colors.AMBER_400,
+                ft.Colors.AMBER_400,
                 progress_value=collection_stats.get("average_rating", 0) * 10 if collection_stats.get("average_rating", 0) > 0 else None
             ),
             self._create_dashboard_stat_card(
-                ft.icons.CATEGORY_ROUNDED,
+                ft.Icons.CATEGORY_ROUNDED,
                 collection_stats["most_common_type"] or "No entries",
                 "Most Common Type",
                 "Your preferred content",
-                ft.colors.GREEN_400,
+                ft.Colors.GREEN_400,
                 progress_value=diversity_info.get("score", 0)
             ),
             self._create_dashboard_stat_card(
-                ft.icons.CALENDAR_TODAY_ROUNDED,
+                ft.Icons.CALENDAR_TODAY_ROUNDED,
                 collection_stats["most_productive_year_display"],
                 "Most Productive Year",
                 "Your peak activity",
-                ft.colors.PURPLE_400,
+                ft.Colors.PURPLE_400,
                 progress_value=completion_rate
             )
         ]
@@ -1988,7 +1988,7 @@ class AppUI:
                         padding=24,
                         content=ft.Column([
                             ft.Row([
-                                ft.Icon(ft.icons.STAR_ROUNDED, color=ft.colors.AMBER_400, size=24),
+                                ft.Icon(ft.Icons.STAR_ROUNDED, color=ft.Colors.AMBER_400, size=24),
                                 ft.Text("Featured Entry", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.W_600)
                             ], spacing=12),
                             ft.Divider(height=16),
@@ -2011,21 +2011,21 @@ class AppUI:
                                            max_lines=2,
                                            overflow=ft.TextOverflow.ELLIPSIS),
                                     ft.Text(f"{featured_entry.get('entry_type', 'Media')} • {featured_entry.get('completion_date', 'N/A')}", 
-                                           color=ft.colors.ON_SURFACE_VARIANT),
+                                           color=ft.Colors.ON_SURFACE_VARIANT),
                                     (lambda genres: ft.Container(
                                         content=ft.Row([
                                             ft.Container(
                                                 content=ft.Text(genre, size=12, weight=ft.FontWeight.W_500),
                                                 padding=ft.padding.symmetric(horizontal=10, vertical=4),
-                                                bgcolor=ft.colors.with_opacity(0.1, ft.colors.PRIMARY),
+                                                bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY),
                                                 border_radius=12,
-                                                border=ft.border.all(1, ft.colors.with_opacity(0.2, ft.colors.PRIMARY))
+                                                border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.PRIMARY))
                                             ) for genre in genres[:3]  # Show max 3 genres
                                         ], spacing=6, wrap=True),
                                         margin=ft.margin.only(top=4, bottom=4)
                                     ) if genres else ft.Container())(utils.parse_genres(featured_entry.get('genre'))),
                                     ft.Row([
-                                        ft.Icon(ft.icons.STAR_ROUNDED, size=16, color=ft.colors.AMBER_400),
+                                        ft.Icon(ft.Icons.STAR_ROUNDED, size=16, color=ft.Colors.AMBER_400),
                                         ft.Text(f"{featured_entry.get('review_score', 'N/A')}/10", 
                                                weight=ft.FontWeight.W_500)
                                     ], spacing=4) if featured_entry.get('review_score') else ft.Container()
@@ -2073,9 +2073,9 @@ class AppUI:
         # Create enhanced recent entries section content
         recent_entries_content = recent_entries_grid if recent_entries_grid else ft.Container(
             content=ft.Column([
-                ft.Icon(ft.icons.INBOX_ROUNDED, size=48, color=ft.colors.ON_SURFACE_VARIANT),
-                ft.Text("No recent entries", style=ft.TextThemeStyle.BODY_LARGE, color=ft.colors.ON_SURFACE_VARIANT),
-                ft.Text("Start adding entries to see them here", color=ft.colors.ON_SURFACE_VARIANT)
+                ft.Icon(ft.Icons.INBOX_ROUNDED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                ft.Text("No recent entries", style=ft.TextThemeStyle.BODY_LARGE, color=ft.Colors.ON_SURFACE_VARIANT),
+                ft.Text("Start adding entries to see them here", color=ft.Colors.ON_SURFACE_VARIANT)
             ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
             padding=ft.padding.all(40),
             alignment=ft.alignment.center
@@ -2085,7 +2085,7 @@ class AppUI:
         nav_buttons = [
             ft.ElevatedButton(
                 content=ft.Row([
-                    ft.Icon(ft.icons.CALENDAR_MONTH_ROUNDED, size=20),
+                    ft.Icon(ft.Icons.CALENDAR_MONTH_ROUNDED, size=20),
                     ft.Text("Browse Years", weight=ft.FontWeight.W_500)
                 ], spacing=8, tight=True),
                 on_click=lambda _: self.update_main_content(config.YEARS[0]),
@@ -2096,7 +2096,7 @@ class AppUI:
             ),
             ft.ElevatedButton(
                 content=ft.Row([
-                    ft.Icon(ft.icons.SEARCH_ROUNDED, size=20),
+                    ft.Icon(ft.Icons.SEARCH_ROUNDED, size=20),
                     ft.Text("Search Collection", weight=ft.FontWeight.W_500)
                 ], spacing=8, tight=True),
                 on_click=lambda _: self.update_main_content("Search"),
@@ -2107,7 +2107,7 @@ class AppUI:
             ),
             ft.ElevatedButton(
                 content=ft.Row([
-                    ft.Icon(ft.icons.ANALYTICS_ROUNDED, size=20),
+                    ft.Icon(ft.Icons.ANALYTICS_ROUNDED, size=20),
                     ft.Text("View Statistics", weight=ft.FontWeight.W_500)
                 ], spacing=8, tight=True),
                 on_click=lambda _: self.update_main_content("Stats"),
@@ -2139,7 +2139,7 @@ class AppUI:
             {
                 'title': 'Collection Overview',
                 'content': stats_cards,
-                'icon': ft.icons.ANALYTICS_OUTLINED,
+                'icon': ft.Icons.ANALYTICS_OUTLINED,
                 'type': 'highlighted',
                 'priority': 'high'
             }
@@ -2150,7 +2150,7 @@ class AppUI:
             dashboard_sections.append({
                 'title': 'Featured Entry',
                 'content': featured_section,
-                'icon': ft.icons.STAR_OUTLINED,
+                'icon': ft.Icons.STAR_OUTLINED,
                 'type': 'card',
                 'priority': 'normal'
             })
@@ -2159,7 +2159,7 @@ class AppUI:
         dashboard_sections.append({
             'title': 'Recent Completions',
             'content': recent_entries_content,
-            'icon': ft.icons.HISTORY_OUTLINED,
+            'icon': ft.Icons.HISTORY_OUTLINED,
             'type': 'default',
             'priority': 'normal'
         })
@@ -2168,7 +2168,7 @@ class AppUI:
         dashboard_sections.append({
             'title': 'Quick Actions',
             'content': quick_nav_content,
-            'icon': ft.icons.DASHBOARD_OUTLINED,
+            'icon': ft.Icons.DASHBOARD_OUTLINED,
             'type': 'highlighted',
             'priority': 'normal'
         })
@@ -2193,30 +2193,30 @@ class AppUI:
     def _create_dashboard_stat_card(self, icon, value, title, subtitle, color, trend_data=None, progress_value=None):
         """Create a modern statistics card with glassmorphism effects, animated counters, and trend indicators."""
         # Create glassmorphism background with subtle transparency
-        glass_bg = ft.colors.with_opacity(0.08, ft.colors.WHITE)
-        glass_border = ft.colors.with_opacity(0.15, ft.colors.WHITE)
+        glass_bg = ft.Colors.with_opacity(0.08, ft.Colors.WHITE)
+        glass_border = ft.Colors.with_opacity(0.15, ft.Colors.WHITE)
         
         # Enhanced shadow for depth
         enhanced_shadow = ft.BoxShadow(
             spread_radius=0,
             blur_radius=20,
-            color=ft.colors.with_opacity(0.12, ft.colors.BLACK),
+            color=ft.Colors.with_opacity(0.12, ft.Colors.BLACK),
             offset=ft.Offset(0, 8)
         )
         
         # Create icon container with themed background and hover animation
         icon_container = ft.Container(
             content=ft.Icon(icon, size=24, color=color),
-            bgcolor=ft.colors.with_opacity(0.12, color),
+            bgcolor=ft.Colors.with_opacity(0.12, color),
             padding=ft.padding.all(10),
             border_radius=ft.border_radius.all(12),
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=8,
-                color=ft.colors.with_opacity(0.2, color),
+                color=ft.Colors.with_opacity(0.2, color),
                 offset=ft.Offset(0, 2)
             ),
-            animate=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
+            animate=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
         )
         
         # Enhanced typography with better hierarchy and animation
@@ -2224,24 +2224,24 @@ class AppUI:
             value,
             size=32,
             weight=ft.FontWeight.BOLD,
-            color=ft.colors.ON_SURFACE,
+            color=ft.Colors.ON_SURFACE,
             style=ft.TextStyle(letter_spacing=0.5),
-            animate_opacity=ft.animation.Animation(duration=600, curve=ft.AnimationCurve.EASE_OUT),
-            animate_scale=ft.animation.Animation(duration=400, curve=ft.AnimationCurve.BOUNCE_OUT)
+            animate_opacity=ft.Animation(duration=600, curve=ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(duration=400, curve=ft.AnimationCurve.BOUNCE_OUT)
         )
         
         title_text = ft.Text(
             title,
             size=16,
             weight=ft.FontWeight.W_600,
-            color=ft.colors.ON_SURFACE,
+            color=ft.Colors.ON_SURFACE,
             style=ft.TextStyle(letter_spacing=0.2)
         )
         
         subtitle_text = ft.Text(
             subtitle,
             size=13,
-            color=ft.colors.ON_SURFACE_VARIANT,
+            color=ft.Colors.ON_SURFACE_VARIANT,
             weight=ft.FontWeight.W_500,
             style=ft.TextStyle(letter_spacing=0.1)
         )
@@ -2251,9 +2251,9 @@ class AppUI:
         if trend_data:
             trend_value = trend_data.get('value', 0)
             trend_positive = trend_data.get('positive', True)
-            trend_color = ft.colors.GREEN_600 if trend_positive else ft.colors.RED_600
-            trend_bg_color = ft.colors.with_opacity(0.1, trend_color)
-            trend_icon = ft.icons.TRENDING_UP if trend_positive else ft.icons.TRENDING_DOWN
+            trend_color = ft.Colors.GREEN_600 if trend_positive else ft.Colors.RED_600
+            trend_bg_color = ft.Colors.with_opacity(0.1, trend_color)
+            trend_icon = ft.Icons.TRENDING_UP if trend_positive else ft.Icons.TRENDING_DOWN
             
             trend_indicator = ft.Container(
                 content=ft.Row([
@@ -2268,9 +2268,9 @@ class AppUI:
                 bgcolor=trend_bg_color,
                 padding=ft.padding.symmetric(horizontal=10, vertical=6),
                 border_radius=ft.border_radius.all(12),
-                border=ft.border.all(1, ft.colors.with_opacity(0.2, trend_color)),
-                animate_opacity=ft.animation.Animation(duration=800, curve=ft.AnimationCurve.EASE_OUT),
-                animate_scale=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
+                border=ft.border.all(1, ft.Colors.with_opacity(0.2, trend_color)),
+                animate_opacity=ft.Animation(duration=800, curve=ft.AnimationCurve.EASE_OUT),
+                animate_scale=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
             )
         
         # Create progress bar if progress value is provided
@@ -2280,19 +2280,19 @@ class AppUI:
                 content=ft.ProgressBar(
                     value=progress_value / 100.0,
                     color=color,
-                    bgcolor=ft.colors.with_opacity(0.1, color),
+                    bgcolor=ft.Colors.with_opacity(0.1, color),
                     height=6,
                     border_radius=ft.border_radius.all(3)
                 ),
                 margin=ft.margin.only(top=8),
-                animate_opacity=ft.animation.Animation(duration=1000, curve=ft.AnimationCurve.EASE_OUT)
+                animate_opacity=ft.Animation(duration=1000, curve=ft.AnimationCurve.EASE_OUT)
             )
         
         # Create gradient overlay for modern look
         gradient_overlay = ft.LinearGradient(
             colors=[
-                ft.colors.with_opacity(0.05, color),
-                ft.colors.with_opacity(0.02, color)
+                ft.Colors.with_opacity(0.05, color),
+                ft.Colors.with_opacity(0.02, color)
             ],
             begin=ft.alignment.top_left,
             end=ft.alignment.bottom_right
@@ -2336,13 +2336,13 @@ class AppUI:
                 padding=ft.padding.all(24),
                 gradient=gradient_overlay,
                 border_radius=ft.border_radius.all(18),
-                animate=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT),
-                animate_scale=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
+                animate=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT),
+                animate_scale=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
             ),
             elevation=6,
             shape=ft.RoundedRectangleBorder(radius=18),
-            shadow_color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
-            surface_tint_color=ft.colors.SURFACE_TINT,
+            shadow_color=ft.Colors.with_opacity(0.15, ft.Colors.BLACK),
+            surface_tint_color=ft.Colors.SURFACE_TINT,
             margin=ft.margin.all(0)
         )
         
@@ -2356,8 +2356,8 @@ class AppUI:
             shadow=enhanced_shadow,
             margin=ft.margin.all(8),
             padding=ft.padding.all(2),  # Small padding for glass border effect
-            animate=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT),
-            animate_scale=ft.animation.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
+            animate=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
         )
         
         # Add smooth hover effects
@@ -2367,19 +2367,19 @@ class AppUI:
                 card_container.shadow = ft.BoxShadow(
                     spread_radius=0,
                     blur_radius=25,
-                    color=ft.colors.with_opacity(0.18, ft.colors.BLACK),
+                    color=ft.Colors.with_opacity(0.18, ft.Colors.BLACK),
                     offset=ft.Offset(0, 10)
                 )
                 # Animate icon on hover
                 if icon_container:
-                    icon_container.bgcolor = ft.colors.with_opacity(0.18, color)
+                    icon_container.bgcolor = ft.Colors.with_opacity(0.18, color)
                     icon_container.update()
             else:  # Mouse leave
                 card_container.scale = 1.0
                 card_container.shadow = enhanced_shadow
                 # Reset icon background
                 if icon_container:
-                    icon_container.bgcolor = ft.colors.with_opacity(0.12, color)
+                    icon_container.bgcolor = ft.Colors.with_opacity(0.12, color)
                     icon_container.update()
             card_container.update()
         
@@ -2408,12 +2408,12 @@ class AppUI:
                 "Awards",
                 size=32,
                 weight=ft.FontWeight.BOLD,
-                color=ft.colors.ON_SURFACE
+                color=ft.Colors.ON_SURFACE
             ),
             ft.Text(
                 "Create and manage yearly awards for your media collection",
                 size=16,
-                color=ft.colors.ON_SURFACE_VARIANT
+                color=ft.Colors.ON_SURFACE_VARIANT
             ),
             ft.Container(height=20)
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
@@ -2423,27 +2423,27 @@ class AppUI:
             # Empty state - no award years exist yet
             empty_state_content = ft.Column([
                 ft.Icon(
-                    ft.icons.EMOJI_EVENTS_OUTLINED,
+                    ft.Icons.EMOJI_EVENTS_OUTLINED,
                     size=80,
-                    color=ft.colors.ON_SURFACE_VARIANT
+                    color=ft.Colors.ON_SURFACE_VARIANT
                 ),
                 ft.Container(height=20),
                 ft.Text(
                     "No Award Years Yet",
                     size=24,
                     weight=ft.FontWeight.BOLD,
-                    color=ft.colors.ON_SURFACE
+                    color=ft.Colors.ON_SURFACE
                 ),
                 ft.Text(
                     "Start creating awards for your media collection",
                     size=16,
-                    color=ft.colors.ON_SURFACE_VARIANT,
+                    color=ft.Colors.ON_SURFACE_VARIANT,
                     text_align=ft.TextAlign.CENTER
                 ),
                 ft.Container(height=30),
                 ft.ElevatedButton(
                     text="Create Awards for 2025",
-                    icon=ft.icons.ADD,
+                    icon=ft.Icons.ADD,
                     on_click=lambda _: self.select_awards_year(2025),
                     style=ft.ButtonStyle(
                         padding=ft.padding.symmetric(horizontal=24, vertical=12),
@@ -2486,7 +2486,7 @@ class AppUI:
                     "Select Award Year",
                     size=20,
                     weight=ft.FontWeight.W_600,
-                    color=ft.colors.ON_SURFACE
+                    color=ft.Colors.ON_SURFACE
                 ),
                 ft.Container(height=20),
                 ft.Container(
@@ -2533,13 +2533,13 @@ class AppUI:
         # Create enhanced progress indicator with modern styling
         progress_indicator = ft.Container()
         if not is_new and category_count > 0:
-            progress_color = ColorThemeManager.SEMANTIC_COLORS['success'] if completion_percentage == 100 else ColorThemeManager.SEMANTIC_COLORS['warning'] if completion_percentage > 0 else ft.colors.BLUE_GREY_400
+            progress_color = ColorThemeManager.SEMANTIC_COLORS['success'] if completion_percentage == 100 else ColorThemeManager.SEMANTIC_COLORS['warning'] if completion_percentage > 0 else ft.Colors.BLUE_GREY_400
             
             # Enhanced progress bar with glassmorphism styling
             progress_bar = MicroInteractions.create_smooth_progress_bar(
                 value=completion_percentage / 100,
                 color=progress_color,
-                background_color=ft.colors.with_opacity(0.1, progress_color),
+                background_color=ft.Colors.with_opacity(0.1, progress_color),
                 height=6,
                 border_radius=3
             )
@@ -2553,10 +2553,10 @@ class AppUI:
                             color=progress_color, 
                             weight=ft.FontWeight.W_700
                         ),
-                        bgcolor=ft.colors.with_opacity(0.1, progress_color),
+                        bgcolor=ft.Colors.with_opacity(0.1, progress_color),
                         padding=ft.padding.symmetric(horizontal=8, vertical=4),
                         border_radius=ft.border_radius.all(12),
-                        border=ft.border.all(1, ft.colors.with_opacity(0.2, progress_color))
+                        border=ft.border.all(1, ft.Colors.with_opacity(0.2, progress_color))
                     ),
                     ft.Container(
                         content=progress_bar,
@@ -2570,18 +2570,18 @@ class AppUI:
         # Create enhanced icon with glassmorphism background
         icon_container = ft.Container(
             content=ft.Icon(
-                ft.icons.EMOJI_EVENTS if not is_new else ft.icons.ADD_CIRCLE_OUTLINE,
+                ft.Icons.EMOJI_EVENTS if not is_new else ft.Icons.ADD_CIRCLE_OUTLINE,
                 size=28,
                 color=ColorThemeManager.BRAND_COLORS['primary']
             ),
-            bgcolor=ft.colors.with_opacity(0.1, ColorThemeManager.BRAND_COLORS['primary']),
+            bgcolor=ft.Colors.with_opacity(0.1, ColorThemeManager.BRAND_COLORS['primary']),
             padding=ft.padding.all(12),
             border_radius=ft.border_radius.all(16),
-            border=ft.border.all(1, ft.colors.with_opacity(0.2, ColorThemeManager.BRAND_COLORS['primary'])),
+            border=ft.border.all(1, ft.Colors.with_opacity(0.2, ColorThemeManager.BRAND_COLORS['primary'])),
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=8,
-                color=ft.colors.with_opacity(0.1, ColorThemeManager.BRAND_COLORS['primary']),
+                color=ft.Colors.with_opacity(0.1, ColorThemeManager.BRAND_COLORS['primary']),
                 offset=ft.Offset(0, 2)
             )
         )
@@ -2593,17 +2593,17 @@ class AppUI:
         if not is_new and category_count > 0:
             summary_button = MicroInteractions.create_ripple_button(
                 text="Summary",
-                icon=ft.icons.VISIBILITY_OUTLINED,
+                icon=ft.Icons.VISIBILITY_OUTLINED,
                 on_click=lambda _, y=year: self.navigate_to_awards_summary(y),
                 style="outlined",
-                color=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE_VARIANT)
+                color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE_VARIANT)
             )
             action_buttons.append(summary_button)
         
         # Main action button
         main_button = MicroInteractions.create_ripple_button(
             text="Manage" if not is_new else "Create",
-            icon=ft.icons.EDIT_OUTLINED if not is_new else ft.icons.ADD,
+            icon=ft.Icons.EDIT_OUTLINED if not is_new else ft.Icons.ADD,
             on_click=lambda _, y=year: self.select_awards_year(y),
             style="filled",
             color=ColorThemeManager.BRAND_COLORS['primary']
@@ -2620,13 +2620,13 @@ class AppUI:
                         str(year),
                         size=26,
                         weight=ft.FontWeight.BOLD,
-                        color=ft.colors.ON_SURFACE,
+                        color=ft.Colors.ON_SURFACE,
                         style=ft.TextStyle(letter_spacing=0.5)
                     ),
                     ft.Text(
                         subtitle,
                         size=14,
-                        color=ft.colors.ON_SURFACE_VARIANT,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         weight=ft.FontWeight.W_500
                     ),
                     progress_indicator
@@ -2682,7 +2682,7 @@ class AppUI:
         # Create header with back button and summary title
         header = ft.Row([
             ft.IconButton(
-                icon=ft.icons.ARROW_BACK,
+                icon=ft.Icons.ARROW_BACK,
                 on_click=lambda _: self.back_to_year_selection(),
                 tooltip="Back to awards"
             ),
@@ -2690,16 +2690,16 @@ class AppUI:
                 f"{year} Awards Summary",
                 size=28,
                 weight=ft.FontWeight.BOLD,
-                color=ft.colors.ON_SURFACE
+                color=ft.Colors.ON_SURFACE
             ),
             ft.Container(expand=True),  # Spacer
             ft.ElevatedButton(
                 text="Edit Awards",
-                icon=ft.icons.EDIT,
+                icon=ft.Icons.EDIT,
                 on_click=lambda _: self.show_awards_for_year(year),
                 style=ft.ButtonStyle(
-                    bgcolor=ft.colors.PRIMARY,
-                    color=ft.colors.ON_PRIMARY,
+                    bgcolor=ft.Colors.PRIMARY,
+                    color=ft.Colors.ON_PRIMARY,
                     padding=ft.padding.symmetric(horizontal=20, vertical=12)
                 )
             )
@@ -2710,22 +2710,22 @@ class AppUI:
             empty_state = ft.Container(
                 content=ft.Column([
                     ft.Icon(
-                        ft.icons.EMOJI_EVENTS_OUTLINED,
+                        ft.Icons.EMOJI_EVENTS_OUTLINED,
                         size=80,
-                        color=ft.colors.ON_SURFACE_VARIANT
+                        color=ft.Colors.ON_SURFACE_VARIANT
                     ),
                     ft.Container(height=20),
                     ft.Text(
                         f"No awards for {year}",
                         size=24,
                         weight=ft.FontWeight.W_500,
-                        color=ft.colors.ON_SURFACE
+                        color=ft.Colors.ON_SURFACE
                     ),
                     ft.Container(height=10),
                     ft.Text(
                         f"Create award categories for {year} to see them here",
                         size=16,
-                        color=ft.colors.ON_SURFACE_VARIANT,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         text_align=ft.TextAlign.CENTER
                     )
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
@@ -2759,12 +2759,12 @@ class AppUI:
                             str(len(categories)),
                             size=32,
                             weight=ft.FontWeight.BOLD,
-                            color=ft.colors.PRIMARY
+                            color=ft.Colors.PRIMARY
                         ),
                         ft.Text(
                             "Categories",
                             size=14,
-                            color=ft.colors.ON_SURFACE_VARIANT
+                            color=ft.Colors.ON_SURFACE_VARIANT
                         )
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                     
@@ -2775,12 +2775,12 @@ class AppUI:
                             str(categories_with_winners),
                             size=32,
                             weight=ft.FontWeight.BOLD,
-                            color=ft.colors.AMBER_600
+                            color=ft.Colors.AMBER_600
                         ),
                         ft.Text(
                             "Winners",
                             size=14,
-                            color=ft.colors.ON_SURFACE_VARIANT
+                            color=ft.Colors.ON_SURFACE_VARIANT
                         )
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                     
@@ -2791,16 +2791,16 @@ class AppUI:
                             f"{(categories_with_winners/len(categories)*100):.0f}%" if categories else "0%",
                             size=32,
                             weight=ft.FontWeight.BOLD,
-                            color=ft.colors.GREEN_600
+                            color=ft.Colors.GREEN_600
                         ),
                         ft.Text(
                             "Complete",
                             size=14,
-                            color=ft.colors.ON_SURFACE_VARIANT
+                            color=ft.Colors.ON_SURFACE_VARIANT
                         )
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
                 ], alignment=ft.MainAxisAlignment.CENTER),
-                bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
                 padding=ft.padding.all(24),
                 border_radius=ft.border_radius.all(16),
                 margin=ft.margin.only(bottom=24)
@@ -2869,11 +2869,11 @@ class AppUI:
                     if score_val == 10.0:
                         rating_display = ft.Container(
                             content=ft.Row([
-                                ft.Icon(ft.icons.STAR_ROUNDED, size=18, color=ft.colors.WHITE),
-                                ft.Text(f"{score_val:.1f}", size=16, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD)
+                                ft.Icon(ft.Icons.STAR_ROUNDED, size=18, color=ft.Colors.WHITE),
+                                ft.Text(f"{score_val:.1f}", size=16, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD)
                             ], spacing=6, tight=True),
                             gradient=ft.LinearGradient(
-                                colors=[ft.colors.GREEN_400, ft.colors.GREEN_600, ft.colors.GREEN_700],
+                                colors=[ft.Colors.GREEN_400, ft.Colors.GREEN_600, ft.Colors.GREEN_700],
                                 begin=ft.alignment.top_left,
                                 end=ft.alignment.bottom_right
                             ),
@@ -2882,21 +2882,21 @@ class AppUI:
                             shadow=ft.BoxShadow(
                                 spread_radius=1,
                                 blur_radius=8,
-                                color=ft.colors.with_opacity(0.4, ft.colors.GREEN_600),
+                                color=ft.Colors.with_opacity(0.4, ft.Colors.GREEN_600),
                                 offset=ft.Offset(0, 2)
                             ),
-                            border=ft.border.all(1, ft.colors.with_opacity(0.3, ft.colors.GREEN_300))
+                            border=ft.border.all(1, ft.Colors.with_opacity(0.3, ft.Colors.GREEN_300))
                         )
                     else:
                         rating_display = ft.Container(
                             content=ft.Row([
-                                ft.Icon(ft.icons.STAR_ROUNDED, size=18, color=color_scheme['primary']),
+                                ft.Icon(ft.Icons.STAR_ROUNDED, size=18, color=color_scheme['primary']),
                                 ft.Text(f"{score_val:.1f}", size=16, color=color_scheme['primary'], weight=ft.FontWeight.BOLD)
                             ], spacing=6, tight=True),
                             bgcolor=color_scheme['bg'],
                             padding=ft.padding.symmetric(horizontal=12, vertical=8),
                             border_radius=ft.border_radius.all(20),
-                            border=ft.border.all(1, ft.colors.with_opacity(0.2, color_scheme['primary']))
+                            border=ft.border.all(1, ft.Colors.with_opacity(0.2, color_scheme['primary']))
                         )
                 except (ValueError, TypeError):
                     pass
@@ -2907,11 +2907,11 @@ class AppUI:
             
             entry_type_badge = ft.Container(
                 content=ft.Row([
-                    ft.Icon(entry_type_icon, size=16, color=ft.colors.WHITE),
+                    ft.Icon(entry_type_icon, size=16, color=ft.Colors.WHITE),
                     ft.Text(
                         entry_type,
                         size=14,
-                        color=ft.colors.WHITE,
+                        color=ft.Colors.WHITE,
                         weight=ft.FontWeight.W_600
                     )
                 ], spacing=8, tight=True),
@@ -2921,7 +2921,7 @@ class AppUI:
                 shadow=ft.BoxShadow(
                     spread_radius=0,
                     blur_radius=6,
-                    color=ft.colors.with_opacity(0.3, ColorThemeManager.get_entry_type_color(entry_type)),
+                    color=ft.Colors.with_opacity(0.3, ColorThemeManager.get_entry_type_color(entry_type)),
                     offset=ft.Offset(0, 2)
                 )
             )
@@ -2937,12 +2937,12 @@ class AppUI:
                         fit=ft.ImageFit.COVER,
                         error_content=ft.Container(
                             content=ft.Column([
-                                ft.Icon(ft.icons.BROKEN_IMAGE, size=40, color=ft.colors.ON_SURFACE_VARIANT),
-                                ft.Text("Image Error", size=12, color=ft.colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500)
+                                ft.Icon(ft.Icons.BROKEN_IMAGE, size=40, color=ft.Colors.ON_SURFACE_VARIANT),
+                                ft.Text("Image Error", size=12, color=ft.Colors.ON_SURFACE_VARIANT, weight=ft.FontWeight.W_500)
                             ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=8),
                             width=140,
                             height=200,
-                            bgcolor=ft.colors.SURFACE_VARIANT,
+                            bgcolor=ft.Colors.SURFACE,
                             alignment=ft.alignment.center
                         )
                     ),
@@ -2951,7 +2951,7 @@ class AppUI:
                     shadow=ft.BoxShadow(
                         spread_radius=0,
                         blur_radius=8,
-                        color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
+                        color=ft.Colors.with_opacity(0.15, ft.Colors.BLACK),
                         offset=ft.Offset(0, 4)
                     )
                 ),
@@ -2964,7 +2964,7 @@ class AppUI:
                         media_name,
                         size=24,
                         weight=ft.FontWeight.BOLD,
-                        color=ft.colors.ON_SURFACE,
+                        color=ft.Colors.ON_SURFACE,
                         max_lines=2,
                         overflow=ft.TextOverflow.ELLIPSIS,
                         style=ft.TextStyle(letter_spacing=0.5)
@@ -2983,7 +2983,7 @@ class AppUI:
                     ft.Text(
                         f"Completed: {display_date}",
                         size=16,
-                        color=ft.colors.ON_SURFACE_VARIANT,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         weight=ft.FontWeight.W_500,
                         style=ft.TextStyle(letter_spacing=0.3)
                     )
@@ -2996,23 +2996,23 @@ class AppUI:
                 ft.Container(
                     content=ft.Column([
                         ft.Icon(
-                            ft.icons.EMOJI_EVENTS_OUTLINED,
+                            ft.Icons.EMOJI_EVENTS_OUTLINED,
                             size=50,
-                            color=ft.colors.ON_SURFACE_VARIANT
+                            color=ft.Colors.ON_SURFACE_VARIANT
                         ),
                         ft.Text(
                             "Awaiting Winner",
                             size=14,
-                            color=ft.colors.ON_SURFACE_VARIANT,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
                             weight=ft.FontWeight.W_500,
                             text_align=ft.TextAlign.CENTER
                         )
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=12),
                     width=140,
                     height=200,
-                    bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                    bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
                     border_radius=ft.border_radius.all(16),
-                    border=ft.border.all(2, ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE), ft.BorderStyle.DASHED),
+                    border=ft.border.all(2, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE), ft.BorderStyle.DASHED),
                     alignment=ft.alignment.center
                 ),
                 
@@ -3023,14 +3023,14 @@ class AppUI:
                         "No winner selected",
                         size=22,
                         weight=ft.FontWeight.W_600,
-                        color=ft.colors.ON_SURFACE_VARIANT,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         italic=True
                     ),
                     ft.Container(height=12),
                     ft.Text(
                         "This category is waiting for a winner to be selected",
                         size=16,
-                        color=ft.colors.ON_SURFACE_VARIANT,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         style=ft.TextStyle(letter_spacing=0.2)
                     )
                 ], spacing=0, tight=True, expand=True)
@@ -3041,16 +3041,16 @@ class AppUI:
             # Enhanced category header with trophy icon
             ft.Row([
                 ft.Icon(
-                    ft.icons.EMOJI_EVENTS if has_winner else ft.icons.EMOJI_EVENTS_OUTLINED,
+                    ft.Icons.EMOJI_EVENTS if has_winner else ft.Icons.EMOJI_EVENTS_OUTLINED,
                     size=28,
-                    color=ft.colors.AMBER_600 if has_winner else ft.colors.ON_SURFACE_VARIANT
+                    color=ft.Colors.AMBER_600 if has_winner else ft.Colors.ON_SURFACE_VARIANT
                 ),
                 ft.Container(width=16),
                 ft.Text(
                     category_name,
                     size=26,
                     weight=ft.FontWeight.BOLD,
-                    color=ft.colors.ON_SURFACE,
+                    color=ft.Colors.ON_SURFACE,
                     expand=True,
                     style=ft.TextStyle(letter_spacing=0.5)
                 )
@@ -3111,40 +3111,40 @@ class AppUI:
                 try:
                     score_val = float(score)
                     if score_val >= 9:
-                        color = ft.colors.GREEN_600
+                        color = ft.Colors.GREEN_600
                     elif score_val >= 7:
-                        color = ft.colors.BLUE_600
+                        color = ft.Colors.BLUE_600
                     elif score_val >= 5:
-                        color = ft.colors.ORANGE_600
+                        color = ft.Colors.ORANGE_600
                     else:
-                        color = ft.colors.RED_600
+                        color = ft.Colors.RED_600
                     
                     rating_display = ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.icons.STAR, size=16, color=color),
+                            ft.Icon(ft.Icons.STAR, size=16, color=color),
                             ft.Text(f"{score_val:.1f}", size=14, color=color, weight=ft.FontWeight.W_600)
                         ], spacing=4, tight=True),
-                        bgcolor=ft.colors.with_opacity(0.1, color),
+                        bgcolor=ft.Colors.with_opacity(0.1, color),
                         padding=ft.padding.symmetric(horizontal=8, vertical=4),
                         border_radius=ft.border_radius.all(12),
-                        border=ft.border.all(1, ft.colors.with_opacity(0.3, color))
+                        border=ft.border.all(1, ft.Colors.with_opacity(0.3, color))
                     )
                 except (ValueError, TypeError):
                     pass
             
             # Entry type styling
             entry_type_colors = {
-                'Game': ft.colors.BLUE_600,
-                'Movie': ft.colors.RED_600,
-                'Show': ft.colors.PURPLE_600,
-                'K-Drama': ft.colors.GREEN_600,
-                'Anime': ft.colors.PINK_600,
-                'Book': ft.colors.BROWN_600,
-                'Album': ft.colors.CYAN_600,
-                'Hentai': ft.colors.DEEP_PURPLE_600,
-                'JAV': ft.colors.INDIGO_600,
-                'Adult Visual Novel': ft.colors.DEEP_ORANGE_600,
-                'Other': ft.colors.BLUE_GREY_600
+                'Game': ft.Colors.BLUE_600,
+                'Movie': ft.Colors.RED_600,
+                'Show': ft.Colors.PURPLE_600,
+                'K-Drama': ft.Colors.GREEN_600,
+                'Anime': ft.Colors.PINK_600,
+                'Book': ft.Colors.BROWN_600,
+                'Album': ft.Colors.CYAN_600,
+                'Hentai': ft.Colors.DEEP_PURPLE_600,
+                'JAV': ft.Colors.INDIGO_600,
+                'Adult Visual Novel': ft.Colors.DEEP_ORANGE_600,
+                'Other': ft.Colors.BLUE_GREY_600
             }
             
             type_color = entry_type_colors.get(entry_type, entry_type_colors['Other'])
@@ -3159,10 +3159,10 @@ class AppUI:
                         height=120,
                         fit=ft.ImageFit.COVER,
                         error_content=ft.Container(
-                            content=ft.Icon(ft.icons.BROKEN_IMAGE, size=30, color=ft.colors.ON_SURFACE_VARIANT),
+                            content=ft.Icon(ft.Icons.BROKEN_IMAGE, size=30, color=ft.Colors.ON_SURFACE_VARIANT),
                             width=80,
                             height=120,
-                            bgcolor=ft.colors.SURFACE_VARIANT,
+                            bgcolor=ft.Colors.SURFACE,
                             alignment=ft.alignment.center
                         )
                     ),
@@ -3178,7 +3178,7 @@ class AppUI:
                         media_name,
                         size=20,
                         weight=ft.FontWeight.W_600,
-                        color=ft.colors.ON_SURFACE,
+                        color=ft.Colors.ON_SURFACE,
                         max_lines=2,
                         overflow=ft.TextOverflow.ELLIPSIS
                     ),
@@ -3191,7 +3191,7 @@ class AppUI:
                             content=ft.Text(
                                 entry_type,
                                 size=12,
-                                color=ft.colors.WHITE,
+                                color=ft.Colors.WHITE,
                                 weight=ft.FontWeight.W_500
                             ),
                             bgcolor=type_color,
@@ -3206,26 +3206,26 @@ class AppUI:
                     ft.Text(
                         f"Completed: {display_date}",
                         size=14,
-                        color=ft.colors.ON_SURFACE_VARIANT
+                        color=ft.Colors.ON_SURFACE_VARIANT
                     )
                 ], spacing=0, tight=True, expand=True)
             ], vertical_alignment=ft.CrossAxisAlignment.START)
             
-            status_color = ft.colors.AMBER_600
-            status_bg = ft.colors.with_opacity(0.05, ft.colors.AMBER_600)
-            border_color = ft.colors.with_opacity(0.3, ft.colors.AMBER_600)
+            status_color = ft.Colors.AMBER_600
+            status_bg = ft.Colors.with_opacity(0.05, ft.Colors.AMBER_600)
+            border_color = ft.Colors.with_opacity(0.3, ft.Colors.AMBER_600)
         else:
             # No winner content
             winner_content = ft.Row([
                 ft.Container(
                     content=ft.Icon(
-                        ft.icons.EMOJI_EVENTS_OUTLINED,
+                        ft.Icons.EMOJI_EVENTS_OUTLINED,
                         size=40,
-                        color=ft.colors.ON_SURFACE_VARIANT
+                        color=ft.Colors.ON_SURFACE_VARIANT
                     ),
                     width=80,
                     height=120,
-                    bgcolor=ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE),
+                    bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
                     border_radius=ft.border_radius.all(12),
                     alignment=ft.alignment.center
                 ),
@@ -3237,21 +3237,21 @@ class AppUI:
                         "No winner selected",
                         size=18,
                         weight=ft.FontWeight.W_500,
-                        color=ft.colors.ON_SURFACE_VARIANT,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         italic=True
                     ),
                     ft.Container(height=8),
                     ft.Text(
                         "This category is waiting for a winner",
                         size=14,
-                        color=ft.colors.ON_SURFACE_VARIANT
+                        color=ft.Colors.ON_SURFACE_VARIANT
                     )
                 ], spacing=0, tight=True, expand=True)
             ], vertical_alignment=ft.CrossAxisAlignment.CENTER)
             
-            status_color = ft.colors.ON_SURFACE_VARIANT
-            status_bg = ft.colors.with_opacity(0.02, ft.colors.ON_SURFACE)
-            border_color = ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE)
+            status_color = ft.Colors.ON_SURFACE_VARIANT
+            status_bg = ft.Colors.with_opacity(0.02, ft.Colors.ON_SURFACE)
+            border_color = ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)
         
         # Create card content
         card_content = ft.Container(
@@ -3259,7 +3259,7 @@ class AppUI:
                 # Category header with trophy icon
                 ft.Row([
                     ft.Icon(
-                        ft.icons.EMOJI_EVENTS if has_winner else ft.icons.EMOJI_EVENTS_OUTLINED,
+                        ft.Icons.EMOJI_EVENTS if has_winner else ft.Icons.EMOJI_EVENTS_OUTLINED,
                         size=24,
                         color=status_color
                     ),
@@ -3268,7 +3268,7 @@ class AppUI:
                         category_name,
                         size=22,
                         weight=ft.FontWeight.BOLD,
-                        color=ft.colors.ON_SURFACE,
+                        color=ft.Colors.ON_SURFACE,
                         expand=True
                     )
                 ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
@@ -3289,7 +3289,7 @@ class AppUI:
             elevation=2,
             margin=ft.margin.all(4),
             shape=ft.RoundedRectangleBorder(radius=16),
-            surface_tint_color=ft.colors.SURFACE_TINT
+            surface_tint_color=ft.Colors.SURFACE_TINT
         )
     
     def show_awards_for_year(self, year):
@@ -3316,7 +3316,7 @@ class AppUI:
         # Create header with back button, summary button, and add category button
         header = ft.Row([
             ft.IconButton(
-                icon=ft.icons.ARROW_BACK,
+                icon=ft.Icons.ARROW_BACK,
                 on_click=lambda _: self.back_to_year_selection(),
                 tooltip="Back to year selection"
             ),
@@ -3324,12 +3324,12 @@ class AppUI:
                 f"Awards {current_year}",
                 size=28,
                 weight=ft.FontWeight.BOLD,
-                color=ft.colors.ON_SURFACE
+                color=ft.Colors.ON_SURFACE
             ),
             ft.Container(expand=True),  # Spacer
             ft.OutlinedButton(
                 text="View Summary",
-                icon=ft.icons.VISIBILITY,
+                icon=ft.Icons.VISIBILITY,
                 on_click=lambda _: self.navigate_to_awards_summary(current_year),
                 style=ft.ButtonStyle(
                     padding=ft.padding.symmetric(horizontal=16, vertical=12)
@@ -3338,11 +3338,11 @@ class AppUI:
             ft.Container(width=12) if categories else ft.Container(),
             ft.ElevatedButton(
                 text="Add Category",
-                icon=ft.icons.ADD,
+                icon=ft.Icons.ADD,
                 on_click=lambda _: self.open_add_category_dialog(),
                 style=ft.ButtonStyle(
-                    bgcolor=ft.colors.PRIMARY,
-                    color=ft.colors.ON_PRIMARY,
+                    bgcolor=ft.Colors.PRIMARY,
+                    color=ft.Colors.ON_PRIMARY,
                     padding=ft.padding.symmetric(horizontal=20, vertical=12)
                 )
             )
@@ -3379,32 +3379,32 @@ class AppUI:
             empty_state = ft.Container(
                 content=ft.Column([
                     ft.Icon(
-                        ft.icons.EMOJI_EVENTS_OUTLINED,
+                        ft.Icons.EMOJI_EVENTS_OUTLINED,
                         size=80,
-                        color=ft.colors.ON_SURFACE_VARIANT
+                        color=ft.Colors.ON_SURFACE_VARIANT
                     ),
                     ft.Container(height=20),
                     ft.Text(
                         "No award categories yet",
                         size=24,
                         weight=ft.FontWeight.W_500,
-                        color=ft.colors.ON_SURFACE
+                        color=ft.Colors.ON_SURFACE
                     ),
                     ft.Container(height=10),
                     ft.Text(
                         f"Create your first award category for {current_year}",
                         size=16,
-                        color=ft.colors.ON_SURFACE_VARIANT,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         text_align=ft.TextAlign.CENTER
                     ),
                     ft.Container(height=30),
                     ft.ElevatedButton(
                         text="Add First Category",
-                        icon=ft.icons.ADD,
+                        icon=ft.Icons.ADD,
                         on_click=lambda _: self.open_add_category_dialog(),
                         style=ft.ButtonStyle(
-                            bgcolor=ft.colors.PRIMARY,
-                            color=ft.colors.ON_PRIMARY,
+                            bgcolor=ft.Colors.PRIMARY,
+                            color=ft.Colors.ON_PRIMARY,
                             padding=ft.padding.symmetric(horizontal=24, vertical=16)
                         )
                     )
@@ -3456,40 +3456,40 @@ class AppUI:
                 try:
                     score_val = float(score)
                     if score_val >= 9:
-                        color = ft.colors.GREEN_600
+                        color = ft.Colors.GREEN_600
                     elif score_val >= 7:
-                        color = ft.colors.BLUE_600
+                        color = ft.Colors.BLUE_600
                     elif score_val >= 5:
-                        color = ft.colors.ORANGE_600
+                        color = ft.Colors.ORANGE_600
                     else:
-                        color = ft.colors.RED_600
+                        color = ft.Colors.RED_600
                     
                     rating_display = ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.icons.STAR, size=12, color=color),
+                            ft.Icon(ft.Icons.STAR, size=12, color=color),
                             ft.Text(f"{score_val:.1f}", size=11, color=color, weight=ft.FontWeight.W_600)
                         ], spacing=2, tight=True),
-                        bgcolor=ft.colors.with_opacity(0.1, color),
+                        bgcolor=ft.Colors.with_opacity(0.1, color),
                         padding=ft.padding.symmetric(horizontal=6, vertical=2),
                         border_radius=ft.border_radius.all(8),
-                        border=ft.border.all(1, ft.colors.with_opacity(0.3, color))
+                        border=ft.border.all(1, ft.Colors.with_opacity(0.3, color))
                     )
                 except (ValueError, TypeError):
                     pass
             
             # Entry type styling
             entry_type_colors = {
-                'Game': ft.colors.BLUE_600,
-                'Movie': ft.colors.RED_600,
-                'Show': ft.colors.PURPLE_600,
-                'K-Drama': ft.colors.GREEN_600,
-                'Anime': ft.colors.PINK_600,
-                'Book': ft.colors.BROWN_600,
-                'Album': ft.colors.CYAN_600,
-                'Hentai': ft.colors.DEEP_PURPLE_600,
-                'JAV': ft.colors.INDIGO_600,
-                'Adult Visual Novel': ft.colors.DEEP_ORANGE_600,
-                'Other': ft.colors.BLUE_GREY_600
+                'Game': ft.Colors.BLUE_600,
+                'Movie': ft.Colors.RED_600,
+                'Show': ft.Colors.PURPLE_600,
+                'K-Drama': ft.Colors.GREEN_600,
+                'Anime': ft.Colors.PINK_600,
+                'Book': ft.Colors.BROWN_600,
+                'Album': ft.Colors.CYAN_600,
+                'Hentai': ft.Colors.DEEP_PURPLE_600,
+                'JAV': ft.Colors.INDIGO_600,
+                'Adult Visual Novel': ft.Colors.DEEP_ORANGE_600,
+                'Other': ft.Colors.BLUE_GREY_600
             }
             
             type_color = entry_type_colors.get(entry_type, entry_type_colors['Other'])
@@ -3507,8 +3507,8 @@ class AppUI:
             winner_info = ft.Column([
                 # Winner status header
                 ft.Row([
-                    ft.Icon(ft.icons.EMOJI_EVENTS, size=20, color=ft.colors.AMBER_600),
-                    ft.Text("Winner Selected", size=14, weight=ft.FontWeight.W_500, color=ft.colors.AMBER_600)
+                    ft.Icon(ft.Icons.EMOJI_EVENTS, size=20, color=ft.Colors.AMBER_600),
+                    ft.Text("Winner Selected", size=14, weight=ft.FontWeight.W_500, color=ft.Colors.AMBER_600)
                 ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                 
                 ft.Container(height=12),
@@ -3523,10 +3523,10 @@ class AppUI:
                             height=70,
                             fit=ft.ImageFit.COVER,
                             error_content=ft.Container(
-                                content=ft.Icon(ft.icons.BROKEN_IMAGE, size=20, color=ft.colors.ON_SURFACE_VARIANT),
+                                content=ft.Icon(ft.Icons.BROKEN_IMAGE, size=20, color=ft.Colors.ON_SURFACE_VARIANT),
                                 width=50,
                                 height=70,
-                                bgcolor=ft.colors.SURFACE_VARIANT,
+                                bgcolor=ft.Colors.SURFACE,
                                 alignment=ft.alignment.center
                             )
                         ),
@@ -3542,7 +3542,7 @@ class AppUI:
                             media_name,
                             size=16,
                             weight=ft.FontWeight.W_600,
-                            color=ft.colors.ON_SURFACE,
+                            color=ft.Colors.ON_SURFACE,
                             max_lines=2,
                             overflow=ft.TextOverflow.ELLIPSIS
                         ),
@@ -3555,7 +3555,7 @@ class AppUI:
                                 content=ft.Text(
                                     entry_type,
                                     size=10,
-                                    color=ft.colors.WHITE,
+                                    color=ft.Colors.WHITE,
                                     weight=ft.FontWeight.W_500
                                 ),
                                 bgcolor=type_color,
@@ -3570,45 +3570,45 @@ class AppUI:
                         ft.Text(
                             display_date,
                             size=11,
-                            color=ft.colors.ON_SURFACE_VARIANT
+                            color=ft.Colors.ON_SURFACE_VARIANT
                         )
                     ], spacing=0, tight=True, expand=True)
                 ], vertical_alignment=ft.CrossAxisAlignment.START)
             ], spacing=0)
             
-            status_color = ft.colors.AMBER_600
-            status_bg = ft.colors.with_opacity(0.1, ft.colors.AMBER_600)
+            status_color = ft.Colors.AMBER_600
+            status_bg = ft.Colors.with_opacity(0.1, ft.Colors.AMBER_600)
         else:
             winner_info = ft.Column([
                 ft.Row([
-                    ft.Icon(ft.icons.EMOJI_EVENTS_OUTLINED, size=20, color=ft.colors.ON_SURFACE_VARIANT),
-                    ft.Text("No Winner Yet", size=14, weight=ft.FontWeight.W_500, color=ft.colors.ON_SURFACE_VARIANT)
+                    ft.Icon(ft.Icons.EMOJI_EVENTS_OUTLINED, size=20, color=ft.Colors.ON_SURFACE_VARIANT),
+                    ft.Text("No Winner Yet", size=14, weight=ft.FontWeight.W_500, color=ft.Colors.ON_SURFACE_VARIANT)
                 ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                 ft.Container(height=8),
                 ft.Text(
                     "Click to select winner",
                     size=14,
-                    color=ft.colors.ON_SURFACE_VARIANT,
+                    color=ft.Colors.ON_SURFACE_VARIANT,
                     italic=True
                 )
             ], spacing=4)
             
-            status_color = ft.colors.ON_SURFACE_VARIANT
-            status_bg = ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE)
+            status_color = ft.Colors.ON_SURFACE_VARIANT
+            status_bg = ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE)
         
         # Create action buttons
         action_buttons = ft.Row([
             ft.IconButton(
-                icon=ft.icons.EDIT_OUTLINED,
+                icon=ft.Icons.EDIT_OUTLINED,
                 tooltip="Select/Change Winner",
                 on_click=lambda _: self.open_winner_selection_dialog(category_id, category_name),
-                icon_color=ft.colors.PRIMARY
+                icon_color=ft.Colors.PRIMARY
             ),
             ft.IconButton(
-                icon=ft.icons.DELETE_OUTLINE,
+                icon=ft.Icons.DELETE_OUTLINE,
                 tooltip="Delete Category",
                 on_click=lambda _: self.confirm_delete_category(category_id, category_name),
-                icon_color=ft.colors.ERROR
+                icon_color=ft.Colors.ERROR
             )
         ], spacing=4, alignment=ft.MainAxisAlignment.END)
         
@@ -3621,7 +3621,7 @@ class AppUI:
                         category_name,
                         size=18,
                         weight=ft.FontWeight.BOLD,
-                        color=ft.colors.ON_SURFACE,
+                        color=ft.Colors.ON_SURFACE,
                         expand=True,
                         max_lines=1,
                         overflow=ft.TextOverflow.ELLIPSIS
@@ -3637,7 +3637,7 @@ class AppUI:
             padding=ft.padding.all(20),
             bgcolor=status_bg,
             border_radius=ft.border_radius.all(12),
-            border=ft.border.all(1, ft.colors.with_opacity(0.2, status_color))
+            border=ft.border.all(1, ft.Colors.with_opacity(0.2, status_color))
         )
         
         # Wrap in card with hover effect
@@ -3646,7 +3646,7 @@ class AppUI:
             elevation=2,
             margin=ft.margin.all(4),
             shape=ft.RoundedRectangleBorder(radius=12),
-            surface_tint_color=ft.colors.SURFACE_TINT
+            surface_tint_color=ft.Colors.SURFACE_TINT
         )
 
     def build_enhanced_category_card(self, category, winner):
@@ -3698,8 +3698,8 @@ class AppUI:
                     
                     rating_badge = ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.icons.STAR_ROUNDED, size=16, color=ft.colors.WHITE),
-                            ft.Text(f"{score_val:.1f}", size=14, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD)
+                            ft.Icon(ft.Icons.STAR_ROUNDED, size=16, color=ft.Colors.WHITE),
+                            ft.Text(f"{score_val:.1f}", size=14, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD)
                         ], spacing=4, tight=True),
                         bgcolor=color_scheme['primary'],
                         padding=ft.padding.symmetric(horizontal=12, vertical=6),
@@ -3707,7 +3707,7 @@ class AppUI:
                         shadow=ft.BoxShadow(
                             spread_radius=0,
                             blur_radius=8,
-                            color=ft.colors.with_opacity(0.4, color_scheme['primary']),
+                            color=ft.Colors.with_opacity(0.4, color_scheme['primary']),
                             offset=ft.Offset(0, 2)
                         )
                     )
@@ -3720,7 +3720,7 @@ class AppUI:
                 content=ft.Text(
                     entry_type,
                     size=12,
-                    color=ft.colors.WHITE,
+                    color=ft.Colors.WHITE,
                     weight=ft.FontWeight.W_600
                 ),
                 gradient=entry_type_gradient,
@@ -3729,7 +3729,7 @@ class AppUI:
                 shadow=ft.BoxShadow(
                     spread_radius=0,
                     blur_radius=6,
-                    color=ft.colors.with_opacity(0.3, ColorThemeManager.get_entry_type_color(entry_type)),
+                    color=ft.Colors.with_opacity(0.3, ColorThemeManager.get_entry_type_color(entry_type)),
                     offset=ft.Offset(0, 2)
                 )
             )
@@ -3737,11 +3737,11 @@ class AppUI:
             # Winner status overlay for image
             winner_status_overlay = ft.Container(
                 content=ft.Row([
-                    ft.Icon(ft.icons.EMOJI_EVENTS, size=16, color=ft.colors.WHITE),
-                    ft.Text("Winner", size=12, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE)
+                    ft.Icon(ft.Icons.EMOJI_EVENTS, size=16, color=ft.Colors.WHITE),
+                    ft.Text("Winner", size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)
                 ], spacing=4, tight=True),
                 gradient=ft.LinearGradient(
-                    colors=[ft.colors.AMBER_500, ft.colors.AMBER_700],
+                    colors=[ft.Colors.AMBER_500, ft.Colors.AMBER_700],
                     begin=ft.alignment.top_left,
                     end=ft.alignment.bottom_right
                 ),
@@ -3750,7 +3750,7 @@ class AppUI:
                 shadow=ft.BoxShadow(
                     spread_radius=0,
                     blur_radius=8,
-                    color=ft.colors.with_opacity(0.4, ft.colors.AMBER_600),
+                    color=ft.Colors.with_opacity(0.4, ft.Colors.AMBER_600),
                     offset=ft.Offset(0, 2)
                 )
             )
@@ -3766,12 +3766,12 @@ class AppUI:
                         fit=ft.ImageFit.COVER,
                         error_content=ft.Container(
                             content=ft.Column([
-                                ft.Icon(ft.icons.BROKEN_IMAGE_OUTLINED, size=48, color=ft.colors.ON_SURFACE_VARIANT),
-                                ft.Text("No Image Available", size=14, color=ft.colors.ON_SURFACE_VARIANT, text_align=ft.TextAlign.CENTER)
+                                ft.Icon(ft.Icons.BROKEN_IMAGE_OUTLINED, size=48, color=ft.Colors.ON_SURFACE_VARIANT),
+                                ft.Text("No Image Available", size=14, color=ft.Colors.ON_SURFACE_VARIANT, text_align=ft.TextAlign.CENTER)
                             ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=8),
                             width=CARD_WIDTH,
                             height=IMAGE_HEIGHT,
-                            bgcolor=ft.colors.SURFACE_VARIANT,
+                            bgcolor=ft.Colors.SURFACE,
                             alignment=ft.alignment.center
                         )
                     ),
@@ -3785,9 +3785,9 @@ class AppUI:
                     height=IMAGE_HEIGHT,
                     gradient=ft.LinearGradient(
                         colors=[
-                            ft.colors.with_opacity(0, ft.colors.BLACK),
-                            ft.colors.with_opacity(0.3, ft.colors.BLACK),
-                            ft.colors.with_opacity(0.7, ft.colors.BLACK)
+                            ft.Colors.with_opacity(0, ft.Colors.BLACK),
+                            ft.Colors.with_opacity(0.3, ft.Colors.BLACK),
+                            ft.Colors.with_opacity(0.7, ft.Colors.BLACK)
                         ],
                         begin=ft.alignment.top_center,
                         end=ft.alignment.bottom_center
@@ -3825,7 +3825,7 @@ class AppUI:
                         media_name,
                         size=18,
                         weight=ft.FontWeight.BOLD,
-                        color=ft.colors.ON_SURFACE,
+                        color=ft.Colors.ON_SURFACE,
                         max_lines=2,
                         overflow=ft.TextOverflow.ELLIPSIS
                     ),
@@ -3836,7 +3836,7 @@ class AppUI:
                     ft.Text(
                         f"Completed: {display_date}",
                         size=13,
-                        color=ft.colors.ON_SURFACE_VARIANT,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         weight=ft.FontWeight.W_500
                     ),
                     
@@ -3846,7 +3846,7 @@ class AppUI:
                     ft.Row([
                         ft.ElevatedButton(
                             text="Change Winner",
-                            icon=ft.icons.EDIT_OUTLINED,
+                            icon=ft.Icons.EDIT_OUTLINED,
                             on_click=lambda _: self.open_winner_selection_dialog(category_id, category_name),
                             style=ft.ButtonStyle(
                                 padding=ft.padding.symmetric(horizontal=16, vertical=8),
@@ -3854,10 +3854,10 @@ class AppUI:
                             )
                         ),
                         ft.IconButton(
-                            icon=ft.icons.DELETE_OUTLINE,
+                            icon=ft.Icons.DELETE_OUTLINE,
                             tooltip="Delete Category",
                             on_click=lambda _: self.confirm_delete_category(category_id, category_name),
-                            icon_color=ft.colors.ERROR,
+                            icon_color=ft.Colors.ERROR,
                             style=ft.ButtonStyle(
                                 shape=ft.CircleBorder(),
                                 padding=ft.padding.all(8)
@@ -3873,22 +3873,22 @@ class AppUI:
             # Enhanced empty state with prominent placeholder
             image_section = ft.Container(
                 content=ft.Column([
-                    ft.Icon(ft.icons.EMOJI_EVENTS_OUTLINED, size=64, color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Icon(ft.Icons.EMOJI_EVENTS_OUTLINED, size=64, color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.Container(height=12),
-                    ft.Text("No Winner Selected", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Text("No Winner Selected", size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.Container(height=8),
                     ft.Text(
                         "Select a winner to showcase here",
                         size=14,
-                        color=ft.colors.ON_SURFACE_VARIANT,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         text_align=ft.TextAlign.CENTER
                     )
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
                 width=CARD_WIDTH,
                 height=IMAGE_HEIGHT,
-                bgcolor=ft.colors.with_opacity(0.05, ft.colors.ON_SURFACE),
+                bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
                 border_radius=ft.border_radius.only(top_left=CARD_RADIUS, top_right=CARD_RADIUS),
-                border=ft.border.all(2, ft.colors.with_opacity(0.1, ft.colors.ON_SURFACE), style=ft.BorderStyle.DASHED)
+                border=ft.border.all(2, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE), style=ft.BorderStyle.DASHED)
             )
             
             # Content section for empty state
@@ -3898,7 +3898,7 @@ class AppUI:
                         "Ready to select a winner",
                         size=16,
                         weight=ft.FontWeight.W_600,
-                        color=ft.colors.ON_SURFACE_VARIANT
+                        color=ft.Colors.ON_SURFACE_VARIANT
                     ),
                     
                     ft.Container(height=12),
@@ -3907,19 +3907,19 @@ class AppUI:
                     ft.Row([
                         ft.ElevatedButton(
                             text="Select Winner",
-                            icon=ft.icons.ADD_OUTLINED,
+                            icon=ft.Icons.ADD_OUTLINED,
                             on_click=lambda _: self.open_winner_selection_dialog(category_id, category_name),
                             style=ft.ButtonStyle(
                                 padding=ft.padding.symmetric(horizontal=20, vertical=12),
                                 shape=ft.RoundedRectangleBorder(radius=12),
-                                bgcolor=ft.colors.PRIMARY
+                                bgcolor=ft.Colors.PRIMARY
                             )
                         ),
                         ft.IconButton(
-                            icon=ft.icons.DELETE_OUTLINE,
+                            icon=ft.Icons.DELETE_OUTLINE,
                             tooltip="Delete Category",
                             on_click=lambda _: self.confirm_delete_category(category_id, category_name),
-                            icon_color=ft.colors.ERROR,
+                            icon_color=ft.Colors.ERROR,
                             style=ft.ButtonStyle(
                                 shape=ft.CircleBorder(),
                                 padding=ft.padding.all(8)
@@ -3937,12 +3937,12 @@ class AppUI:
                 category_name,
                 size=16,
                 weight=ft.FontWeight.BOLD,
-                color=ft.colors.WHITE,
+                color=ft.Colors.WHITE,
                 max_lines=1,
                 overflow=ft.TextOverflow.ELLIPSIS,
                 text_align=ft.TextAlign.CENTER
             ),
-            bgcolor=ft.colors.with_opacity(0.9, ft.colors.BLACK),
+            bgcolor=ft.Colors.with_opacity(0.9, ft.Colors.BLACK),
             padding=ft.padding.symmetric(horizontal=16, vertical=8),
             border_radius=ft.border_radius.all(12),
             margin=ft.margin.only(bottom=8)
@@ -3960,11 +3960,11 @@ class AppUI:
             content=card_content,
             width=CARD_WIDTH,
             border_radius=ft.border_radius.all(CARD_RADIUS),
-            bgcolor=ft.colors.SURFACE,
+            bgcolor=ft.Colors.SURFACE,
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=12,
-                color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
+                color=ft.Colors.with_opacity(0.15, ft.Colors.BLACK),
                 offset=ft.Offset(0, 4)
             ),
             clip_behavior=ft.ClipBehavior.HARD_EDGE
@@ -4015,7 +4015,7 @@ class AppUI:
                     self.handle_category_creation(category_name.strip())
                     close_dialog()
                 else:
-                    self.show_snackbar("Please enter a category name", ft.colors.ERROR)
+                    self.show_snackbar("Please enter a category name", ft.Colors.ERROR)
             
             # Handle Enter key submission
             category_name_field.on_submit = lambda _: create_category()
@@ -4024,17 +4024,17 @@ class AppUI:
             header = ft.Container(
                 content=ft.Column([
                     ft.Row([
-                        ft.Icon(ft.icons.EMOJI_EVENTS, size=28, color=ft.colors.PRIMARY),
+                        ft.Icon(ft.Icons.EMOJI_EVENTS, size=28, color=ft.Colors.PRIMARY),
                         ft.Text(
                             f"Add Award Category - {current_year}",
                             style=ft.TextThemeStyle.TITLE_LARGE,
                             weight=ft.FontWeight.W_600
                         )
                     ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                    ft.Container(height=1, bgcolor=ft.colors.with_opacity(0.12, ft.colors.ON_SURFACE), margin=ft.margin.symmetric(vertical=16))
+                    ft.Container(height=1, bgcolor=ft.Colors.with_opacity(0.12, ft.Colors.ON_SURFACE), margin=ft.margin.symmetric(vertical=16))
                 ]),
                 padding=24,
-                bgcolor=ft.colors.with_opacity(0.02, ft.colors.PRIMARY)
+                bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.PRIMARY)
             )
             
             # Dialog content
@@ -4043,7 +4043,7 @@ class AppUI:
                     ft.Text(
                         "Create a new award category for this year. You can select a winner for this category after creating it.",
                         size=14,
-                        color=ft.colors.ON_SURFACE_VARIANT
+                        color=ft.Colors.ON_SURFACE_VARIANT
                     ),
                     ft.Container(height=20),
                     category_name_field
@@ -4063,11 +4063,11 @@ class AppUI:
                     ),
                     ft.ElevatedButton(
                         "Create Category",
-                        icon=ft.icons.ADD,
+                        icon=ft.Icons.ADD,
                         on_click=lambda _: create_category(),
                         style=ft.ButtonStyle(
-                            bgcolor=ft.colors.PRIMARY,
-                            color=ft.colors.ON_PRIMARY,
+                            bgcolor=ft.Colors.PRIMARY,
+                            color=ft.Colors.ON_PRIMARY,
                             padding=ft.padding.symmetric(horizontal=20, vertical=12)
                         )
                     )
@@ -4079,11 +4079,11 @@ class AppUI:
             dialog_content = ft.Container(
                 content=ft.Column([header, content, buttons], spacing=0, tight=True),
                 width=min(500, self.page.window_width * 0.8 if self.page.window_width else 500),
-                bgcolor=ft.colors.SURFACE,
+                bgcolor=ft.Colors.SURFACE,
                 border_radius=20,
                 shadow=ft.BoxShadow(
                     blur_radius=24,
-                    color=ft.colors.with_opacity(0.15, ft.colors.BLACK),
+                    color=ft.Colors.with_opacity(0.15, ft.Colors.BLACK),
                     offset=ft.Offset(0, 8)
                 ),
                 on_click=lambda e: None  # Prevent click-through
@@ -4093,7 +4093,7 @@ class AppUI:
                 ref=dialog_overlay_ref,
                 content=dialog_content,
                 alignment=ft.alignment.center,
-                bgcolor=ft.colors.with_opacity(0.5, ft.colors.BLACK),
+                bgcolor=ft.Colors.with_opacity(0.5, ft.Colors.BLACK),
                 expand=True,
                 on_click=close_dialog
             )
@@ -4107,12 +4107,12 @@ class AppUI:
     def handle_category_creation(self, category_name):
         """Handle the creation of a new award category."""
         if not category_name or not category_name.strip():
-            self.show_snackbar("Please enter a category name", ft.colors.ERROR)
+            self.show_snackbar("Please enter a category name", ft.Colors.ERROR)
             return
         
         current_year = self.app_state.get("awards_current_year")
         if not current_year:
-            self.show_snackbar("No year selected", ft.colors.ERROR)
+            self.show_snackbar("No year selected", ft.Colors.ERROR)
             return
         
         try:
@@ -4120,14 +4120,14 @@ class AppUI:
             database.create_award_category_db(category_name.strip(), current_year)
             
             # Show success message
-            self.show_snackbar(f"Category '{category_name}' created successfully!", ft.colors.GREEN)
+            self.show_snackbar(f"Category '{category_name}' created successfully!", ft.Colors.GREEN)
             
             # Refresh the categories view
             self.update_main_content("Awards")
             
         except Exception as e:
             print(f"Error creating award category: {e}")
-            self.show_snackbar("Failed to create category. Please try again.", ft.colors.ERROR)
+            self.show_snackbar("Failed to create category. Please try again.", ft.Colors.ERROR)
 
     def confirm_delete_category(self, category_id, category_name):
         """Show confirmation dialog before deleting a category."""
@@ -4163,7 +4163,7 @@ class AppUI:
                 await asyncio.sleep(0.05)
 
                 # Now, with the dialog gone, provide feedback and refresh the view
-                self.show_snackbar(f"Deleted category '{category_name}'", color=ft.colors.GREEN_700)
+                self.show_snackbar(f"Deleted category '{category_name}'", color=ft.Colors.GREEN_700)
                 self.refresh_current_view()
 
             except Exception as ex:
@@ -4171,13 +4171,13 @@ class AppUI:
                 close_dialog()
                 await asyncio.sleep(0.05)
                 print(f"Error deleting award category '{category_name}': {ex}")
-                self.show_snackbar(f"Failed to delete category: {ex}", color=ft.colors.ERROR_CONTAINER)
+                self.show_snackbar(f"Failed to delete category: {ex}", color=ft.Colors.ERROR_CONTAINER)
 
         dialog = ft.AlertDialog(
             modal=True,
             shape=ft.RoundedRectangleBorder(radius=16),
             title=ft.Row([
-                ft.Icon(ft.icons.WARNING_AMBER_ROUNDED, color=ft.colors.AMBER_600),
+                ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.AMBER_600),
                 ft.Text("Delete Category")
             ], spacing=10),
             content=ft.Container(
@@ -4185,7 +4185,7 @@ class AppUI:
                     ft.Text(
                         f"Are you sure you want to delete the category '{category_name}'?",
                         size=16,
-                        color=ft.colors.ON_SURFACE,
+                        color=ft.Colors.ON_SURFACE,
                         text_align=ft.TextAlign.CENTER,
                         weight=ft.FontWeight.W_500
                     ),
@@ -4193,7 +4193,7 @@ class AppUI:
                     ft.Text(
                         "This will also remove any selected winner. This action cannot be undone.",
                         size=14,
-                        color=ft.colors.ON_SURFACE_VARIANT,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
                         text_align=ft.TextAlign.CENTER
                     )
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, tight=True),
@@ -4205,11 +4205,11 @@ class AppUI:
                 ft.ElevatedButton(
                     ref=delete_button_ref,
                     text="Delete",
-                    icon=ft.icons.DELETE_FOREVER_ROUNDED,
+                    icon=ft.Icons.DELETE_FOREVER_ROUNDED,
                     on_click=delete_category_action, # This is now an async handler
                     style=ft.ButtonStyle(
-                        bgcolor=ft.colors.ERROR,
-                        color=ft.colors.ON_ERROR
+                        bgcolor=ft.Colors.ERROR,
+                        color=ft.Colors.ON_ERROR
                     )
                 )
             ],
@@ -4259,7 +4259,7 @@ class AppUI:
                     database.set_award_winner_db(category_id, media_id)
                     
                     # Show success message
-                    self.show_snackbar(f"'{media_name}' selected as winner for '{category_name}'", ft.colors.GREEN)
+                    self.show_snackbar(f"'{media_name}' selected as winner for '{category_name}'", ft.Colors.GREEN)
                     
                     # Close dialog and refresh the view
                     close_dialog()
@@ -4267,18 +4267,18 @@ class AppUI:
                     
                 except Exception as e:
                     print(f"Error setting award winner: {e}")
-                    self.show_snackbar("Error selecting winner. Please try again.", ft.colors.ERROR)
+                    self.show_snackbar("Error selecting winner. Please try again.", ft.Colors.ERROR)
             
             def remove_current_winner():
                 """Remove the current winner from the category."""
                 try:
                     database.remove_award_winner_db(category_id)
-                    self.show_snackbar(f"Winner removed from '{category_name}'", ft.colors.ORANGE)
+                    self.show_snackbar(f"Winner removed from '{category_name}'", ft.Colors.ORANGE)
                     close_dialog()
                     self.update_main_content("Awards")
                 except Exception as e:
                     print(f"Error removing award winner: {e}")
-                    self.show_snackbar("Error removing winner. Please try again.", ft.colors.ERROR)
+                    self.show_snackbar("Error removing winner. Please try again.", ft.Colors.ERROR)
             
             # Build media selection UI
             media_cards = []
@@ -4288,21 +4288,21 @@ class AppUI:
                 no_media_content = ft.Container(
                     content=ft.Column([
                         ft.Icon(
-                            ft.icons.MOVIE_OUTLINED,
+                            ft.Icons.MOVIE_OUTLINED,
                             size=60,
-                            color=ft.colors.ON_SURFACE_VARIANT
+                            color=ft.Colors.ON_SURFACE_VARIANT
                         ),
                         ft.Container(height=16),
                         ft.Text(
                             f"No media entries found for {current_year}",
                             size=18,
                             weight=ft.FontWeight.W_500,
-                            color=ft.colors.ON_SURFACE
+                            color=ft.Colors.ON_SURFACE
                         ),
                         ft.Text(
                             "Add some media entries for this year first",
                             size=14,
-                            color=ft.colors.ON_SURFACE_VARIANT
+                            color=ft.Colors.ON_SURFACE_VARIANT
                         )
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                     alignment=ft.alignment.center,
@@ -4356,12 +4356,12 @@ class AppUI:
                     f"Select Winner for '{category_name}'",
                     size=20,
                     weight=ft.FontWeight.BOLD,
-                    color=ft.colors.ON_SURFACE
+                    color=ft.Colors.ON_SURFACE
                 ),
                 ft.Text(
                     f"Choose from {current_year} media entries",
                     size=14,
-                    color=ft.colors.ON_SURFACE_VARIANT
+                    color=ft.Colors.ON_SURFACE_VARIANT
                 )
             ]
             
@@ -4369,22 +4369,22 @@ class AppUI:
             if current_winner:
                 current_winner_info = ft.Container(
                     content=ft.Row([
-                        ft.Icon(ft.icons.EMOJI_EVENTS, size=20, color=ft.colors.AMBER_600),
+                        ft.Icon(ft.Icons.EMOJI_EVENTS, size=20, color=ft.Colors.AMBER_600),
                         ft.Text(
                             f"Current winner: {current_winner.get('media_name', 'Unknown')}",
                             size=14,
                             weight=ft.FontWeight.W_500,
-                            color=ft.colors.AMBER_600
+                            color=ft.Colors.AMBER_600
                         ),
                         ft.Container(expand=True),
                         ft.TextButton(
                             text="Remove Winner",
-                            icon=ft.icons.CLEAR,
+                            icon=ft.Icons.CLEAR,
                             on_click=lambda _: remove_current_winner(),
-                            style=ft.ButtonStyle(color=ft.colors.ERROR)
+                            style=ft.ButtonStyle(color=ft.Colors.ERROR)
                         )
                     ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                    bgcolor=ft.colors.with_opacity(0.1, ft.colors.AMBER_600),
+                    bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.AMBER_600),
                     padding=ft.padding.all(12),
                     border_radius=ft.border_radius.all(8),
                     margin=ft.margin.only(top=16)
@@ -4401,7 +4401,7 @@ class AppUI:
                     ),
                     
                     # Divider
-                    ft.Divider(height=1, color=ft.colors.OUTLINE_VARIANT),
+                    ft.Divider(height=1, color=ft.Colors.OUTLINE_VARIANT),
                     
                     # Media selection area
                     scrollable_content,
@@ -4414,7 +4414,7 @@ class AppUI:
                                 text="Cancel",
                                 on_click=close_dialog,
                                 style=ft.ButtonStyle(
-                                    color=ft.colors.ON_SURFACE_VARIANT
+                                    color=ft.Colors.ON_SURFACE_VARIANT
                                 )
                             )
                         ], alignment=ft.MainAxisAlignment.END),
@@ -4422,12 +4422,12 @@ class AppUI:
                     )
                 ], spacing=0),
                 width=min(1200, self.page.window_width * 0.9) if self.page.window_width else 800,
-                bgcolor=ft.colors.SURFACE,
+                bgcolor=ft.Colors.SURFACE,
                 border_radius=ft.border_radius.all(16),
                 shadow=ft.BoxShadow(
                     spread_radius=0,
                     blur_radius=20,
-                    color=ft.colors.with_opacity(0.3, ft.colors.BLACK),
+                    color=ft.Colors.with_opacity(0.3, ft.Colors.BLACK),
                     offset=ft.Offset(0, 10)
                 )
             )
@@ -4438,7 +4438,7 @@ class AppUI:
                 content=ft.Stack([
                     # Background overlay
                     ft.Container(
-                        bgcolor=ft.colors.with_opacity(0.5, ft.colors.BLACK),
+                        bgcolor=ft.Colors.with_opacity(0.5, ft.Colors.BLACK),
                         expand=True,
                         on_click=close_dialog
                     ),
@@ -4459,7 +4459,7 @@ class AppUI:
             print(f"Error opening winner selection dialog: {e}")
             if hasattr(self.page, '_dialog_is_opening'):
                 self.page._dialog_is_opening = False
-            self.show_snackbar("Error opening winner selection. Please try again.", ft.colors.ERROR)
+            self.show_snackbar("Error opening winner selection. Please try again.", ft.Colors.ERROR)
 
     def show_confirmation_dialog(self, title, content, on_confirm):
         """A generic confirmation dialog."""
@@ -4477,7 +4477,7 @@ class AppUI:
             content=ft.Text(content),
             actions=[
                 ft.TextButton("Cancel", on_click=close_dialog),
-                ft.ElevatedButton("Confirm", on_click=confirm_action, bgcolor=ft.colors.ERROR, color=ft.colors.WHITE),
+                ft.ElevatedButton("Confirm", on_click=confirm_action, bgcolor=ft.Colors.ERROR, color=ft.Colors.WHITE),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
@@ -4558,40 +4558,40 @@ class AppUI:
             try:
                 score_val = float(score)
                 if score_val >= 9:
-                    color = ft.colors.GREEN_600
+                    color = ft.Colors.GREEN_600
                 elif score_val >= 7:
-                    color = ft.colors.BLUE_600
+                    color = ft.Colors.BLUE_600
                 elif score_val >= 5:
-                    color = ft.colors.ORANGE_600
+                    color = ft.Colors.ORANGE_600
                 else:
-                    color = ft.colors.RED_600
+                    color = ft.Colors.RED_600
                 
                 rating_display = ft.Container(
                     content=ft.Row([
-                        ft.Icon(ft.icons.STAR, size=14, color=color),
+                        ft.Icon(ft.Icons.STAR, size=14, color=color),
                         ft.Text(f"{score_val:.1f}", size=12, color=color, weight=ft.FontWeight.W_600)
                     ], spacing=4, tight=True),
-                    bgcolor=ft.colors.with_opacity(0.1, color),
+                    bgcolor=ft.Colors.with_opacity(0.1, color),
                     padding=ft.padding.symmetric(horizontal=8, vertical=4),
                     border_radius=ft.border_radius.all(12),
-                    border=ft.border.all(1, ft.colors.with_opacity(0.3, color))
+                    border=ft.border.all(1, ft.Colors.with_opacity(0.3, color))
                 )
             except (ValueError, TypeError):
                 pass
         
         # Entry type styling
         entry_type_colors = {
-            'Game': ft.colors.BLUE_600,
-            'Movie': ft.colors.RED_600,
-            'Show': ft.colors.PURPLE_600,
-            'K-Drama': ft.colors.GREEN_600,
-            'Anime': ft.colors.PINK_600,
-            'Book': ft.colors.BROWN_600,
-            'Album': ft.colors.CYAN_600,
-            'Hentai': ft.colors.DEEP_PURPLE_600,
-            'JAV': ft.colors.INDIGO_600,
-            'Adult Visual Novel': ft.colors.DEEP_ORANGE_600,
-            'Other': ft.colors.BLUE_GREY_600
+            'Game': ft.Colors.BLUE_600,
+            'Movie': ft.Colors.RED_600,
+            'Show': ft.Colors.PURPLE_600,
+            'K-Drama': ft.Colors.GREEN_600,
+            'Anime': ft.Colors.PINK_600,
+            'Book': ft.Colors.BROWN_600,
+            'Album': ft.Colors.CYAN_600,
+            'Hentai': ft.Colors.DEEP_PURPLE_600,
+            'JAV': ft.Colors.INDIGO_600,
+            'Adult Visual Novel': ft.Colors.DEEP_ORANGE_600,
+            'Other': ft.Colors.BLUE_GREY_600
         }
         
         type_color = entry_type_colors.get(entry_type, entry_type_colors['Other'])
@@ -4608,12 +4608,12 @@ class AppUI:
                         fit=ft.ImageFit.COVER,
                         error_content=ft.Container(
                             content=ft.Column([
-                                ft.Icon(ft.icons.BROKEN_IMAGE, size=30, color=ft.colors.ON_SURFACE_VARIANT),
-                                ft.Text("No Image", size=10, color=ft.colors.ON_SURFACE_VARIANT)
+                                ft.Icon(ft.Icons.BROKEN_IMAGE, size=30, color=ft.Colors.ON_SURFACE_VARIANT),
+                                ft.Text("No Image", size=10, color=ft.Colors.ON_SURFACE_VARIANT)
                             ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, 
                                alignment=ft.MainAxisAlignment.CENTER, spacing=4),
                             height=120,
-                            bgcolor=ft.colors.SURFACE_VARIANT,
+                            bgcolor=ft.Colors.SURFACE,
                             alignment=ft.alignment.center
                         )
                     ),
@@ -4629,7 +4629,7 @@ class AppUI:
                             name,
                             size=14,
                             weight=ft.FontWeight.W_600,
-                            color=ft.colors.ON_SURFACE,
+                            color=ft.Colors.ON_SURFACE,
                             max_lines=2,
                             overflow=ft.TextOverflow.ELLIPSIS
                         ),
@@ -4640,7 +4640,7 @@ class AppUI:
                                 content=ft.Text(
                                     entry_type,
                                     size=11,
-                                    color=ft.colors.WHITE,
+                                    color=ft.Colors.WHITE,
                                     weight=ft.FontWeight.W_500
                                 ),
                                 bgcolor=type_color,
@@ -4655,19 +4655,19 @@ class AppUI:
                         ft.Text(
                             display_date,
                             size=11,
-                            color=ft.colors.ON_SURFACE_VARIANT
+                            color=ft.Colors.ON_SURFACE_VARIANT
                         ),
                         
                         # Select button with proper click handling
                         ft.Container(height=8),
                         ft.ElevatedButton(
                             text="Select as Winner" if not is_current_winner else "Current Winner",
-                            icon=ft.icons.EMOJI_EVENTS,
+                            icon=ft.Icons.EMOJI_EVENTS,
                             on_click=lambda _: on_select_callback() if not is_current_winner else None,
                             disabled=is_current_winner,
                             style=ft.ButtonStyle(
-                                bgcolor=ft.colors.AMBER_600 if is_current_winner else ft.colors.PRIMARY,
-                                color=ft.colors.WHITE,
+                                bgcolor=ft.Colors.AMBER_600 if is_current_winner else ft.Colors.PRIMARY,
+                                color=ft.Colors.WHITE,
                                 padding=ft.padding.symmetric(horizontal=16, vertical=8)
                             )
                         )
@@ -4675,13 +4675,13 @@ class AppUI:
                     padding=ft.padding.all(12)
                 )
             ], spacing=0),
-            bgcolor=ft.colors.SURFACE,
+            bgcolor=ft.Colors.SURFACE,
             border_radius=ft.border_radius.all(12),
-            border=ft.border.all(2, ft.colors.AMBER_600) if is_current_winner else ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+            border=ft.border.all(2, ft.Colors.AMBER_600) if is_current_winner else ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             shadow=ft.BoxShadow(
                 spread_radius=0,
                 blur_radius=8 if is_current_winner else 4,
-                color=ft.colors.with_opacity(0.3 if is_current_winner else 0.1, ft.colors.AMBER_600 if is_current_winner else ft.colors.BLACK),
+                color=ft.Colors.with_opacity(0.3 if is_current_winner else 0.1, ft.Colors.AMBER_600 if is_current_winner else ft.Colors.BLACK),
                 offset=ft.Offset(0, 2)
             )
         )
@@ -4815,18 +4815,18 @@ class AppUI:
         rail = ft.NavigationRail(
             selected_index=initial_index, label_type=ft.NavigationRailLabelType.ALL, min_width=100,
             destinations=(
-                [ft.NavigationRailDestination(icon=ft.icons.HOME_OUTLINED, selected_icon=ft.icons.HOME, label="Home")] +
-                [ft.NavigationRailDestination(icon=ft.icons.CALENDAR_MONTH_OUTLINED, selected_icon=ft.icons.CALENDAR_MONTH, label=y) for y in config.YEARS] +
-                [ft.NavigationRailDestination(icon=ft.icons.QUERY_STATS_OUTLINED, selected_icon=ft.icons.QUERY_STATS, label="Stats")] +
-                [ft.NavigationRailDestination(icon=ft.icons.SEARCH_OUTLINED, selected_icon=ft.icons.SEARCH, label="Search")] +
-                [ft.NavigationRailDestination(icon=ft.icons.EMOJI_EVENTS_OUTLINED, selected_icon=ft.icons.EMOJI_EVENTS, label="Awards")] +
-                [ft.NavigationRailDestination(icon=ft.icons.PEOPLE_OUTLINE_ROUNDED, selected_icon=ft.icons.PEOPLE_ROUNDED, label="Profiles")] +
-                [ft.NavigationRailDestination(icon=ft.icons.COLLECTIONS_BOOKMARK_OUTLINED, selected_icon=ft.icons.COLLECTIONS_BOOKMARK, label="Collections")] # <-- NEW
+                [ft.NavigationRailDestination(icon=ft.Icons.HOME_OUTLINED, selected_icon=ft.Icons.HOME, label="Home")] +
+                [ft.NavigationRailDestination(icon=ft.Icons.CALENDAR_MONTH_OUTLINED, selected_icon=ft.Icons.CALENDAR_MONTH, label=y) for y in config.YEARS] +
+                [ft.NavigationRailDestination(icon=ft.Icons.QUERY_STATS_OUTLINED, selected_icon=ft.Icons.QUERY_STATS, label="Stats")] +
+                [ft.NavigationRailDestination(icon=ft.Icons.SEARCH_OUTLINED, selected_icon=ft.Icons.SEARCH, label="Search")] +
+                [ft.NavigationRailDestination(icon=ft.Icons.EMOJI_EVENTS_OUTLINED, selected_icon=ft.Icons.EMOJI_EVENTS, label="Awards")] +
+                [ft.NavigationRailDestination(icon=ft.Icons.PEOPLE_OUTLINE_ROUNDED, selected_icon=ft.Icons.PEOPLE_ROUNDED, label="Profiles")] +
+                [ft.NavigationRailDestination(icon=ft.Icons.COLLECTIONS_BOOKMARK_OUTLINED, selected_icon=ft.Icons.COLLECTIONS_BOOKMARK, label="Collections")] # <-- NEW
             ),
             on_change=self.navigation_change
         )
         
-        self.fab.current = ft.FloatingActionButton(ref=self.fab, icon=ft.icons.ADD, on_click=self.handle_fab_click, visible=False)
+        self.fab.current = ft.FloatingActionButton(ref=self.fab, icon=ft.Icons.ADD, on_click=self.handle_fab_click, visible=False)
         self.page.floating_action_button = self.fab.current
         self.page.floating_action_button_location = ft.FloatingActionButtonLocation.END_CONTAINED
 

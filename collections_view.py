@@ -47,11 +47,11 @@ class CollectionsView:
         if not collections:
             return ft.Container(
                 content=ft.Column([
-                    ft.Icon(ft.icons.COLLECTIONS_BOOKMARK_OUTLINED, size=64, color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Icon(ft.Icons.COLLECTIONS_BOOKMARK_OUTLINED, size=64, color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.Text("No Collections Yet", style=ft.TextThemeStyle.HEADLINE_SMALL),
-                    ft.Text("Create your first collection to group your favorite media.", color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Text("Create your first collection to group your favorite media.", color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.Container(height=20),
-                    ft.ElevatedButton("Create First Collection", icon=ft.icons.ADD, on_click=lambda _: self._open_create_edit_collection_dialog())
+                    ft.ElevatedButton("Create First Collection", icon=ft.Icons.ADD, on_click=lambda _: self._open_create_edit_collection_dialog())
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
                 alignment=ft.alignment.center,
                 expand=True
@@ -68,7 +68,7 @@ class CollectionsView:
                     ft.Row([
                         ft.Text("Your Collections", style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.BOLD),
                         ft.Container(expand=True),
-                        ft.ElevatedButton("New Collection", icon=ft.icons.ADD, on_click=lambda _: self._open_create_edit_collection_dialog())
+                        ft.ElevatedButton("New Collection", icon=ft.Icons.ADD, on_click=lambda _: self._open_create_edit_collection_dialog())
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     ft.Divider(height=20),
                     ft.Column(controls=collection_cards, spacing=15)
@@ -83,7 +83,7 @@ class CollectionsView:
         """Creates a UI card for a single collection."""
         def on_delete_confirm(e):
             database.delete_collection_db(collection['id'])
-            self.app_ui.show_snackbar(f"Collection '{collection['name']}' deleted.", color=ft.colors.GREEN_700)
+            self.app_ui.show_snackbar(f"Collection '{collection['name']}' deleted.", color=ft.Colors.GREEN_700)
             self.app_ui.refresh_current_view()
         
         def confirm_delete(e):
@@ -96,14 +96,14 @@ class CollectionsView:
         return ft.Card(
             content=ft.Container(
                 content=ft.ListTile(
-                    leading=ft.Icon(ft.icons.COLLECTIONS_BOOKMARK, color=ft.colors.PRIMARY),
+                    leading=ft.Icon(ft.Icons.COLLECTIONS_BOOKMARK, color=ft.Colors.PRIMARY),
                     title=ft.Text(collection['name'], weight=ft.FontWeight.BOLD),
                     subtitle=ft.Text(f"{collection['item_count']} items | {collection.get('description') or 'No description'}"),
                     on_click=lambda _: self._switch_to_detail_view(collection['id'], collection['name']),
                     trailing=ft.PopupMenuButton(items=[
-                        ft.PopupMenuItem(text="Edit", icon=ft.icons.EDIT, on_click=lambda _, c=collection: self._open_create_edit_collection_dialog(c)),
+                        ft.PopupMenuItem(text="Edit", icon=ft.Icons.EDIT, on_click=lambda _, c=collection: self._open_create_edit_collection_dialog(c)),
                         ft.PopupMenuItem(),
-                        ft.PopupMenuItem(text="Delete", icon=ft.icons.DELETE_FOREVER, on_click=confirm_delete)
+                        ft.PopupMenuItem(text="Delete", icon=ft.Icons.DELETE_FOREVER, on_click=confirm_delete)
                     ])
                 ),
                 padding=ft.padding.symmetric(vertical=8)
@@ -119,7 +119,7 @@ class CollectionsView:
 
         def remove_item_from_this_collection(media_id, media_name):
             database.remove_item_from_collection_by_media_id_db(collection_id, media_id)
-            self.app_ui.show_snackbar(f"Removed '{media_name}' from collection.", color=ft.colors.GREEN_700)
+            self.app_ui.show_snackbar(f"Removed '{media_name}' from collection.", color=ft.Colors.GREEN_700)
             self.app_ui.refresh_current_view()
 
         def open_edit_dialog_wrapper(item_data):
@@ -151,9 +151,9 @@ class CollectionsView:
         if not items:
             grid_view = ft.Container(
                 content=ft.Column([
-                    ft.Icon(ft.icons.LIBRARY_ADD_CHECK_OUTLINED, size=64, color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Icon(ft.Icons.LIBRARY_ADD_CHECK_OUTLINED, size=64, color=ft.Colors.ON_SURFACE_VARIANT),
                     ft.Text("This Collection is Empty", style=ft.TextThemeStyle.HEADLINE_SMALL),
-                    ft.Text("Click 'Add Items' to build your collection.", color=ft.colors.ON_SURFACE_VARIANT),
+                    ft.Text("Click 'Add Items' to build your collection.", color=ft.Colors.ON_SURFACE_VARIANT),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
                 alignment=ft.alignment.center,
                 expand=True
@@ -163,11 +163,11 @@ class CollectionsView:
             content=ft.Column(
                 controls=[
                     ft.Row([
-                        ft.IconButton(icon=ft.icons.ARROW_BACK, on_click=lambda _: self._switch_to_list_view(), tooltip="Back to Collections"),
+                        ft.IconButton(icon=ft.Icons.ARROW_BACK, on_click=lambda _: self._switch_to_list_view(), tooltip="Back to Collections"),
                         ft.Text(collection_name, style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.BOLD),
                         ft.Container(expand=True),
-                        ft.OutlinedButton("Reorder Items", icon=ft.icons.SWAP_VERT, on_click=lambda _: self._open_reorder_dialog(), disabled=len(items) < 2),
-                        ft.ElevatedButton("Add Items", icon=ft.icons.ADD, on_click=lambda _: self._open_add_items_dialog())
+                        ft.OutlinedButton("Reorder Items", icon=ft.Icons.SWAP_VERT, on_click=lambda _: self._open_reorder_dialog(), disabled=len(items) < 2),
+                        ft.ElevatedButton("Add Items", icon=ft.Icons.ADD, on_click=lambda _: self._open_add_items_dialog())
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     ft.Divider(height=20),
                     grid_view
@@ -191,7 +191,7 @@ class CollectionsView:
         def save_logic() -> bool:
             name = name_field.value.strip()
             if not name:
-                self.app_ui.show_snackbar("Collection name cannot be empty.", color=ft.colors.ERROR)
+                self.app_ui.show_snackbar("Collection name cannot be empty.", color=ft.Colors.ERROR)
                 return False
 
             description = desc_field.value.strip()
@@ -199,15 +199,15 @@ class CollectionsView:
             try:
                 if is_edit:
                     database.update_collection_db(collection['id'], name, description)
-                    self.app_ui.show_snackbar(f"Collection '{name}' updated.", color=ft.colors.GREEN_700)
+                    self.app_ui.show_snackbar(f"Collection '{name}' updated.", color=ft.Colors.GREEN_700)
                 else:
                     database.create_collection_db(name, description)
-                    self.app_ui.show_snackbar(f"Collection '{name}' created.", color=ft.colors.GREEN_700)
+                    self.app_ui.show_snackbar(f"Collection '{name}' created.", color=ft.Colors.GREEN_700)
                 
                 self.app_ui.refresh_current_view()
                 return True
             except Exception as e:
-                self.app_ui.show_snackbar(f"Error: {e}", color=ft.colors.ERROR)
+                self.app_ui.show_snackbar(f"Error: {e}", color=ft.Colors.ERROR)
                 return False
 
         self.app_ui.show_form_dialog(
@@ -225,20 +225,20 @@ class CollectionsView:
 
         # Visuals for selected state
         selected_overlay = ft.Container(
-            bgcolor=ft.colors.with_opacity(0.6, ft.colors.PRIMARY),
+            bgcolor=ft.Colors.with_opacity(0.6, ft.Colors.PRIMARY),
             border_radius=12,
-            content=ft.Icon(ft.icons.CHECK_CIRCLE, color=ft.colors.WHITE, size=32),
+            content=ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.WHITE, size=32),
             alignment=ft.alignment.center,
             visible=checkbox.value # Bind visibility to checkbox state
         )
 
         # Visuals for disabled state (already in collection)
         disabled_overlay = ft.Container(
-            bgcolor=ft.colors.with_opacity(0.7, ft.colors.BLACK),
+            bgcolor=ft.Colors.with_opacity(0.7, ft.Colors.BLACK),
             border_radius=12,
             content=ft.Column([
-                ft.Icon(ft.icons.LIBRARY_ADD_CHECK, color=ft.colors.WHITE70, size=24),
-                ft.Text("Already in Collection", color=ft.colors.WHITE70, size=10, text_align=ft.TextAlign.CENTER)
+                ft.Icon(ft.Icons.LIBRARY_ADD_CHECK, color=ft.Colors.WHITE70, size=24),
+                ft.Text("Already in Collection", color=ft.Colors.WHITE70, size=10, text_align=ft.TextAlign.CENTER)
             ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
             alignment=ft.alignment.center,
             visible=is_disabled
@@ -248,7 +248,7 @@ class CollectionsView:
             if not is_disabled:
                 checkbox.value = not checkbox.value
                 selected_overlay.visible = checkbox.value
-                e.control.border = ft.border.all(3, ft.colors.PRIMARY) if checkbox.value else ft.border.all(1, ft.colors.OUTLINE_VARIANT)
+                e.control.border = ft.border.all(3, ft.Colors.PRIMARY) if checkbox.value else ft.border.all(1, ft.Colors.OUTLINE_VARIANT)
                 e.control.update()
                 selected_overlay.update()
 
@@ -256,7 +256,7 @@ class CollectionsView:
             ft.Column([
                 ft.Image(
                     src=media_item.get('image_url', ''),
-                    error_content=ft.Container(content=ft.Icon(ft.icons.BROKEN_IMAGE), alignment=ft.alignment.center),
+                    error_content=ft.Container(content=ft.Icon(ft.Icons.BROKEN_IMAGE), alignment=ft.alignment.center),
                     height=100,
                     fit=ft.ImageFit.COVER
                 ),
@@ -274,7 +274,7 @@ class CollectionsView:
             width=180,
             height=160,
             border_radius=12,
-            border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
             on_click=toggle_selection,
             data=media_item['name'].lower() # For searching
@@ -324,7 +324,7 @@ class CollectionsView:
             ]
             if selected_ids:
                 database.add_items_to_collection_db(collection_id, selected_ids)
-                self.app_ui.show_snackbar(f"Added {len(selected_ids)} items.", color=ft.colors.GREEN_700)
+                self.app_ui.show_snackbar(f"Added {len(selected_ids)} items.", color=ft.Colors.GREEN_700)
                 self.app_ui.refresh_current_view()
             
             close_dialog()
@@ -334,7 +334,7 @@ class CollectionsView:
             modal=True,
             title=ft.Text(f"Add Items to '{self.state['selected_collection_name']}'"),
             content=ft.Column([
-                ft.TextField(ref=search_field, label="Search...", on_change=filter_items, prefix_icon=ft.icons.SEARCH),
+                ft.TextField(ref=search_field, label="Search...", on_change=filter_items, prefix_icon=ft.Icons.SEARCH),
                 ft.Container(
                     content=ft.Row(ref=items_grid, controls=card_containers, wrap=True, scroll=ft.ScrollMode.ADAPTIVE),
                     height=400,
@@ -371,7 +371,7 @@ class CollectionsView:
         def save_new_order(e):
             ordered_media_ids = [item['id'] for item in items]
             database.update_collection_item_order_db(collection_id, ordered_media_ids)
-            self.app_ui.show_snackbar("Item order saved.", color=ft.colors.GREEN_700)
+            self.app_ui.show_snackbar("Item order saved.", color=ft.Colors.GREEN_700)
             close_dialog()
             self.app_ui.refresh_current_view()
         
@@ -381,7 +381,7 @@ class CollectionsView:
                 ft.ListTile(
                     key=str(item['id']),
                     title=ft.Text(item['name']),
-                    leading=ft.Icon(ft.icons.DRAG_HANDLE)
+                    leading=ft.Icon(ft.Icons.DRAG_HANDLE)
                 ) for item in items
             ]
         )
