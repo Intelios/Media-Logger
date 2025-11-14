@@ -392,7 +392,10 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         )
     )
     
-    # Date row - right aligned
+    # Add flexible spacer to push date to bottom
+    card_content_controls.append(ft.Container(expand=True))
+    
+    # Date row - right aligned and anchored to bottom
     card_content_controls.append(
         ft.Row(
             controls=[
@@ -409,7 +412,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         )
     )
     
-    card_content = ft.Column(controls=card_content_controls, spacing=MAIN_SPACING)
+    card_content = ft.Column(controls=card_content_controls, spacing=MAIN_SPACING, expand=True)
 
     # Default styling for the card
     card_elevation = 4
@@ -1659,7 +1662,7 @@ class AppUI:
             expand=True, 
             runs_count=5, 
             max_extent=270, 
-            child_aspect_ratio=0.55, 
+            child_aspect_ratio=0.50, 
             spacing=10, 
             run_spacing=10, 
             padding=10
@@ -1861,7 +1864,7 @@ class AppUI:
                     padding=ft.padding.only(left=10, right=10, bottom=5)
                 ), 
                 ft.Container(content=ft.Text(ref=self.search_results_count_text, value=""), padding=ft.padding.symmetric(horizontal=10)), 
-                ft.GridView(ref=self.search_results_grid, expand=True, runs_count=5, max_extent=270, child_aspect_ratio=0.55, spacing=10, run_spacing=10, padding=10)
+                ft.GridView(ref=self.search_results_grid, expand=True, runs_count=5, max_extent=270, child_aspect_ratio=0.50, spacing=10, run_spacing=10, padding=10)
             ]
         )
 
