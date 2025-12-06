@@ -363,6 +363,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         for actress_name in utils.parse_multi_value_field(jav_item['actress']): type_specific_info_container.controls.append(create_info_chip(ft.Icons.WOMAN_2_OUTLINED, actress_name, f"Actress: {actress_name}"))
     if jav_item.get('update_version'): type_specific_info_container.controls.append(create_info_chip(ft.Icons.INFO_OUTLINE, jav_item['update_version'], "Version"))
 
+    # Build the main content column (everything except date)
     card_content_controls = [
         ft.Container(content=title_text, margin=ft.margin.only(bottom=6)), 
         ft.Row(
@@ -376,43 +377,101 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     if genre_widgets_row.controls: 
         card_content_controls.append(genre_widgets_row)
     
-    # Bottom row with date and indicators
-    bottom_row_items = []
+    # Bottom row with indicators
     if bottom_indicators_row.controls:
-        bottom_row_items.append(bottom_indicators_row)
-    
-    card_content_controls.append(
-        ft.Row(
-            controls=bottom_row_items,
-            alignment=ft.MainAxisAlignment.START,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            wrap=True,
-            spacing=9,
-            run_spacing=9
+        card_content_controls.append(
+            ft.Row(
+                controls=[bottom_indicators_row],
+                alignment=ft.MainAxisAlignment.START,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                wrap=True,
+                spacing=9,
+                run_spacing=9
+            )
         )
+    
+    # Add bottom padding to prevent content from being hidden behind the date overlay
+    card_content_controls.append(ft.Container(height=28))
+    
+    main_content_column = ft.Column(controls=card_content_controls, spacing=MAIN_SPACING, tight=True)
+    
+    # Toggleable date badge - shows full date by default, collapses to icon on click
+    date_text = ft.Text(
+        display_completion_date, 
+        size=DATE_SIZE, 
+        color=ft.Colors.ON_SURFACE, 
+        weight=ft.FontWeight.W_600, 
+        style=ft.TextStyle(letter_spacing=0.2)
     )
     
-    # Add flexible spacer to push date to bottom
-    card_content_controls.append(ft.Container(expand=True))
-    
-    # Date row - right aligned and anchored to bottom
-    card_content_controls.append(
-        ft.Row(
-            controls=[
-                ft.Text(
-                    display_completion_date, 
-                    size=DATE_SIZE, 
-                    color=ft.Colors.ON_SURFACE_VARIANT, 
-                    opacity=0.85, 
-                    weight=ft.FontWeight.W_600, 
-                    style=ft.TextStyle(letter_spacing=0.3)
-                )
-            ],
-            alignment=ft.MainAxisAlignment.END
-        )
+    collapsed_icon = ft.Icon(
+        ft.Icons.CALENDAR_TODAY_ROUNDED, 
+        size=14, 
+        color=ft.Colors.ON_SURFACE_VARIANT
     )
     
-    card_content = ft.Column(controls=card_content_controls, spacing=MAIN_SPACING, expand=True)
+    # Container that holds either full date or collapsed icon
+    date_content_container = ft.Container(
+        content=ft.Row(
+            controls=[collapsed_icon, date_text],
+            spacing=6,
+            tight=True,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER
+        ),
+        animate=ft.Animation(duration=150, curve=ft.AnimationCurve.EASE_OUT),
+        animate_opacity=ft.Animation(duration=150, curve=ft.AnimationCurve.EASE_OUT)
+    )
+    
+    date_badge = ft.Container(
+        content=date_content_container,
+        bgcolor=ft.Colors.with_opacity(0.9, ft.Colors.SURFACE_CONTAINER_HIGHEST),
+        padding=ft.padding.symmetric(horizontal=10, vertical=6),
+        border_radius=ft.border_radius.all(12),
+        border=ft.border.all(1, ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE)),
+        shadow=ft.BoxShadow(
+            spread_radius=0,
+            blur_radius=8,
+            color=ft.Colors.with_opacity(0.2, ft.Colors.BLACK),
+            offset=ft.Offset(0, 2)
+        ),
+        animate=ft.Animation(duration=150, curve=ft.AnimationCurve.EASE_OUT),
+        tooltip="Click to toggle date visibility"
+    )
+    
+    # State tracker for toggle (using mutable container to track state)
+    toggle_state = {"expanded": True}
+    
+    def toggle_date_visibility(e):
+        toggle_state["expanded"] = not toggle_state["expanded"]
+        if toggle_state["expanded"]:
+            # Show full date with icon
+            date_text.visible = True
+            collapsed_icon.color = ft.Colors.ON_SURFACE_VARIANT
+            date_badge.tooltip = "Click to hide date"
+        else:
+            # Show only icon
+            date_text.visible = False
+            collapsed_icon.color = ft.Colors.ON_SURFACE
+            date_badge.tooltip = "Click to show date"
+        date_badge.update()
+    
+    date_badge.on_click = toggle_date_visibility
+    
+    date_overlay = ft.Container(
+        content=date_badge,
+        bottom=0,
+        right=0,
+        padding=ft.padding.only(bottom=10, right=6)
+    )
+    
+    # Use Stack to layer content with date overlay on top
+    card_content = ft.Stack(
+        controls=[
+            ft.Container(content=main_content_column, expand=True),
+            date_overlay
+        ],
+        expand=True
+    )
 
     # Default styling for the card
     card_elevation = 4
@@ -439,7 +498,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
     # Create the inner card with enhanced styling
     the_card = ft.Card(
         content=ft.Container(
-            content=ft.Column([image_stack, ft.Container(content=card_content, padding=CONTENT_PADDING)], spacing=0, tight=True),
+            content=ft.Column([image_stack, ft.Container(content=card_content, padding=CONTENT_PADDING, expand=True)], spacing=0, expand=True),
             clip_behavior=ft.ClipBehavior.HARD_EDGE
         ),
         elevation=card_elevation,
