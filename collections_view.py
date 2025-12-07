@@ -4,7 +4,7 @@ import flet as ft
 from datetime import datetime
 
 import database
-from ui_enhanced import EnhancedComponentFactory, AnimationHelpers
+from ui_enhanced import EnhancedComponentFactory, AnimationHelpers, ColorThemeManager, GlassmorphismStyles
 
 class CollectionsView:
     """Manages the UI and state for the Collections feature."""
@@ -44,15 +44,58 @@ class CollectionsView:
         """Builds the UI that shows all created collections."""
         collections = database.get_all_collections_with_stats_db()
 
+        # Enhanced empty state
         if not collections:
             return ft.Container(
                 content=ft.Column([
-                    ft.Icon(ft.Icons.COLLECTIONS_BOOKMARK_OUTLINED, size=64, color=ft.Colors.ON_SURFACE_VARIANT),
-                    ft.Text("No Collections Yet", style=ft.TextThemeStyle.HEADLINE_SMALL),
-                    ft.Text("Create your first collection to group your favorite media.", color=ft.Colors.ON_SURFACE_VARIANT),
-                    ft.Container(height=20),
-                    ft.ElevatedButton("Create First Collection", icon=ft.Icons.ADD, on_click=lambda _: self._open_create_edit_collection_dialog())
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
+                    # Gradient icon container
+                    ft.Container(
+                        content=ft.Icon(ft.Icons.COLLECTIONS_BOOKMARK_OUTLINED, size=56, color=ft.Colors.WHITE),
+                        gradient=ft.LinearGradient(
+                            colors=[ColorThemeManager.BRAND_COLORS['primary'], ColorThemeManager.BRAND_COLORS['secondary']],
+                            begin=ft.alignment.top_left,
+                            end=ft.alignment.bottom_right
+                        ),
+                        width=100,
+                        height=100,
+                        border_radius=50,
+                        alignment=ft.alignment.center,
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=20,
+                            color=ft.Colors.with_opacity(0.3, ColorThemeManager.BRAND_COLORS['primary']),
+                            offset=ft.Offset(0, 8)
+                        )
+                    ),
+                    ft.Container(height=16),
+                    ft.Text("No Collections Yet", size=24, weight=ft.FontWeight.BOLD),
+                    ft.Text(
+                        "Create your first collection to group your favorite media.", 
+                        color=ft.Colors.ON_SURFACE_VARIANT,
+                        text_align=ft.TextAlign.CENTER
+                    ),
+                    ft.Container(height=24),
+                    ft.Container(
+                        content=ft.ElevatedButton(
+                            "Create First Collection", 
+                            icon=ft.Icons.ADD_ROUNDED,
+                            on_click=lambda _: self._open_create_edit_collection_dialog(),
+                            style=ft.ButtonStyle(
+                                bgcolor=ColorThemeManager.BRAND_COLORS['primary'],
+                                color=ft.Colors.WHITE,
+                                padding=ft.padding.symmetric(horizontal=28, vertical=16),
+                                shape=ft.RoundedRectangleBorder(radius=12)
+                            )
+                        ),
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=12,
+                            color=ft.Colors.with_opacity(0.25, ColorThemeManager.BRAND_COLORS['primary']),
+                            offset=ft.Offset(0, 4)
+                        ),
+                        border_radius=12
+                    )
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
                 alignment=ft.alignment.center,
                 expand=True
             )
@@ -61,26 +104,85 @@ class CollectionsView:
         for collection in collections:
             collection_cards.append(self._create_collection_card(collection))
 
+        # Enhanced header with gradient icon background
+        header_icon = ft.Container(
+            content=ft.Icon(ft.Icons.COLLECTIONS_BOOKMARK, size=22, color=ft.Colors.WHITE),
+            gradient=ft.LinearGradient(
+                colors=[ColorThemeManager.BRAND_COLORS['primary'], ColorThemeManager.BRAND_COLORS['primary_dark']],
+                begin=ft.alignment.top_left,
+                end=ft.alignment.bottom_right
+            ),
+            width=40,
+            height=40,
+            border_radius=10,
+            alignment=ft.alignment.center
+        )
+        
+        header_row = ft.Row([
+            header_icon,
+            ft.Text("Your Collections", size=26, weight=ft.FontWeight.BOLD),
+            ft.Container(expand=True),
+            ft.Container(
+                content=ft.ElevatedButton(
+                    "New Collection", 
+                    icon=ft.Icons.ADD_ROUNDED,
+                    on_click=lambda _: self._open_create_edit_collection_dialog(),
+                    style=ft.ButtonStyle(
+                        bgcolor=ColorThemeManager.BRAND_COLORS['primary'],
+                        color=ft.Colors.WHITE,
+                        padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                        shape=ft.RoundedRectangleBorder(radius=10)
+                    )
+                ),
+                shadow=ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=8,
+                    color=ft.Colors.with_opacity(0.2, ColorThemeManager.BRAND_COLORS['primary']),
+                    offset=ft.Offset(0, 3)
+                ),
+                border_radius=10
+            )
+        ], alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=16)
+
+        # Gradient divider
+        divider = ft.Container(
+            height=2,
+            gradient=ft.LinearGradient(
+                colors=[
+                    ft.Colors.with_opacity(0, ft.Colors.PRIMARY),
+                    ft.Colors.with_opacity(0.3, ft.Colors.PRIMARY),
+                    ft.Colors.with_opacity(0, ft.Colors.PRIMARY)
+                ],
+                begin=ft.alignment.center_left,
+                end=ft.alignment.center_right
+            ),
+            margin=ft.margin.symmetric(vertical=16)
+        )
+
+        # Grid layout for collection cards
+        cards_grid = ft.ResponsiveRow(
+            controls=[
+                ft.Container(
+                    content=card,
+                    col={"sm": 12, "md": 6, "lg": 4, "xl": 4}
+                ) for card in collection_cards
+            ],
+            spacing=20,
+            run_spacing=20
+        )
+
         return ft.Container(
             content=ft.Column(
                 scroll=ft.ScrollMode.ADAPTIVE,
-                controls=[
-                    ft.Row([
-                        ft.Text("Your Collections", style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.BOLD),
-                        ft.Container(expand=True),
-                        ft.ElevatedButton("New Collection", icon=ft.Icons.ADD, on_click=lambda _: self._open_create_edit_collection_dialog())
-                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    ft.Divider(height=20),
-                    ft.Column(controls=collection_cards, spacing=15)
-                ],
-                spacing=10
+                controls=[header_row, divider, cards_grid],
+                spacing=0
             ),
             padding=ft.padding.all(24),
             expand=True
         )
 
     def _create_collection_card(self, collection):
-        """Creates a UI card for a single collection."""
+        """Creates an enhanced UI card for a single collection."""
         def on_delete_confirm(e):
             database.delete_collection_db(collection['id'])
             self.app_ui.show_snackbar(f"Collection '{collection['name']}' deleted.", color=ft.Colors.GREEN_700)
@@ -92,23 +194,148 @@ class CollectionsView:
                 content=f"Are you sure you want to permanently delete the collection '{collection['name']}'? This cannot be undone.",
                 on_confirm=on_delete_confirm
             )
-            
-        return ft.Card(
-            content=ft.Container(
-                content=ft.ListTile(
-                    leading=ft.Icon(ft.Icons.COLLECTIONS_BOOKMARK, color=ft.Colors.PRIMARY),
-                    title=ft.Text(collection['name'], weight=ft.FontWeight.BOLD),
-                    subtitle=ft.Text(f"{collection['item_count']} items | {collection.get('description') or 'No description'}"),
-                    on_click=lambda _: self._switch_to_detail_view(collection['id'], collection['name']),
-                    trailing=ft.PopupMenuButton(items=[
-                        ft.PopupMenuItem(text="Edit", icon=ft.Icons.EDIT, on_click=lambda _, c=collection: self._open_create_edit_collection_dialog(c)),
-                        ft.PopupMenuItem(),
-                        ft.PopupMenuItem(text="Delete", icon=ft.Icons.DELETE_FOREVER, on_click=confirm_delete)
-                    ])
-                ),
-                padding=ft.padding.symmetric(vertical=8)
+        
+        # Get items for thumbnail preview
+        items = database.get_collection_items_db(collection['id'])
+        item_count = collection['item_count']
+        description = collection.get('description') or ''
+        
+        # Create thumbnail mosaic from first 4 items
+        thumbnail_images = []
+        for i, item in enumerate(items[:4]):
+            img_url = item.get('image_url', '')
+            thumbnail_images.append(
+                ft.Container(
+                    content=ft.Image(
+                        src=img_url,
+                        fit=ft.ImageFit.COVER,
+                        error_content=ft.Container(
+                            bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
+                            content=ft.Icon(ft.Icons.IMAGE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
+                            alignment=ft.alignment.center
+                        )
+                    ) if img_url else ft.Container(
+                        bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
+                        content=ft.Icon(ft.Icons.IMAGE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
+                        alignment=ft.alignment.center
+                    ),
+                    width=50,
+                    height=50,
+                    border_radius=8,
+                    clip_behavior=ft.ClipBehavior.ANTI_ALIAS
+                )
             )
+        
+        # Fill remaining slots with placeholder if less than 4 items
+        while len(thumbnail_images) < 4:
+            thumbnail_images.append(
+                ft.Container(
+                    bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
+                    width=50,
+                    height=50,
+                    border_radius=8,
+                    border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))
+                )
+            )
+        
+        # Thumbnail grid
+        thumbnail_grid = ft.Column([
+            ft.Row([thumbnail_images[0], thumbnail_images[1]], spacing=6),
+            ft.Row([thumbnail_images[2], thumbnail_images[3]], spacing=6)
+        ], spacing=6)
+        
+        # Item count badge
+        item_count_badge = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.PHOTO_LIBRARY_OUTLINED, size=14, color=ft.Colors.PRIMARY),
+                ft.Text(f"{item_count}", size=13, weight=ft.FontWeight.W_600, color=ft.Colors.PRIMARY)
+            ], spacing=4, tight=True),
+            bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY),
+            padding=ft.padding.symmetric(horizontal=10, vertical=5),
+            border_radius=12,
+            border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.PRIMARY))
         )
+        
+        # Options menu
+        options_button = ft.PopupMenuButton(
+            icon=ft.Icons.MORE_VERT,
+            icon_color=ft.Colors.ON_SURFACE_VARIANT,
+            items=[
+                ft.PopupMenuItem(text="Edit", icon=ft.Icons.EDIT_OUTLINED, on_click=lambda _, c=collection: self._open_create_edit_collection_dialog(c)),
+                ft.PopupMenuItem(),
+                ft.PopupMenuItem(text="Delete", icon=ft.Icons.DELETE_OUTLINE, on_click=confirm_delete)
+            ],
+            tooltip="Collection options"
+        )
+        
+        # Card content
+        card_content = ft.Container(
+            content=ft.Column([
+                # Header row with options
+                ft.Row([
+                    ft.Container(expand=True),
+                    options_button
+                ]),
+                # Main content row
+                ft.Row([
+                    thumbnail_grid,
+                    ft.Container(width=16),
+                    ft.Column([
+                        ft.Text(collection['name'], size=18, weight=ft.FontWeight.BOLD, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                        ft.Container(height=4),
+                        ft.Text(
+                            description if description else "No description",
+                            size=13,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
+                            max_lines=2,
+                            overflow=ft.TextOverflow.ELLIPSIS
+                        ),
+                        ft.Container(height=8),
+                        item_count_badge
+                    ], spacing=0, expand=True, alignment=ft.MainAxisAlignment.START)
+                ], vertical_alignment=ft.CrossAxisAlignment.START, expand=True),
+            ], spacing=0),
+            padding=ft.padding.all(16),
+            border_radius=16,
+            bgcolor=ft.Colors.SURFACE,
+            border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+            ink=True,
+            on_click=lambda _: self._switch_to_detail_view(collection['id'], collection['name']),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2)
+            ),
+            animate=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
+        )
+        
+        # Hover animation
+        def on_hover(e):
+            if e.data == "true":
+                card_content.shadow = ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=16,
+                    color=ft.Colors.with_opacity(0.15, ft.Colors.PRIMARY),
+                    offset=ft.Offset(0, 6)
+                )
+                card_content.scale = 1.02
+                card_content.border = ft.border.all(1, ft.Colors.with_opacity(0.3, ft.Colors.PRIMARY))
+            else:
+                card_content.shadow = ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=8,
+                    color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                    offset=ft.Offset(0, 2)
+                )
+                card_content.scale = 1.0
+                card_content.border = ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))
+            card_content.update()
+        
+        card_content.on_hover = on_hover
+        
+        return card_content
 
     def _build_collection_detail_view(self):
         """Builds the UI that shows the items within a single collection."""
@@ -148,30 +375,148 @@ class CollectionsView:
             padding=10
         )
 
+        # Enhanced empty state for detail view
         if not items:
             grid_view = ft.Container(
                 content=ft.Column([
-                    ft.Icon(ft.Icons.LIBRARY_ADD_CHECK_OUTLINED, size=64, color=ft.Colors.ON_SURFACE_VARIANT),
-                    ft.Text("This Collection is Empty", style=ft.TextThemeStyle.HEADLINE_SMALL),
-                    ft.Text("Click 'Add Items' to build your collection.", color=ft.Colors.ON_SURFACE_VARIANT),
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
+                    # Gradient icon container
+                    ft.Container(
+                        content=ft.Icon(ft.Icons.LIBRARY_ADD_OUTLINED, size=48, color=ft.Colors.WHITE),
+                        gradient=ft.LinearGradient(
+                            colors=[ColorThemeManager.BRAND_COLORS['primary'], ColorThemeManager.BRAND_COLORS['secondary']],
+                            begin=ft.alignment.top_left,
+                            end=ft.alignment.bottom_right
+                        ),
+                        width=88,
+                        height=88,
+                        border_radius=44,
+                        alignment=ft.alignment.center,
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=16,
+                            color=ft.Colors.with_opacity(0.25, ColorThemeManager.BRAND_COLORS['primary']),
+                            offset=ft.Offset(0, 6)
+                        )
+                    ),
+                    ft.Container(height=16),
+                    ft.Text("This Collection is Empty", size=22, weight=ft.FontWeight.BOLD),
+                    ft.Text("Add items to build your collection.", color=ft.Colors.ON_SURFACE_VARIANT),
+                    ft.Container(height=20),
+                    ft.Container(
+                        content=ft.ElevatedButton(
+                            "Add Items",
+                            icon=ft.Icons.ADD_ROUNDED,
+                            on_click=lambda _: self._open_add_items_dialog(),
+                            style=ft.ButtonStyle(
+                                bgcolor=ColorThemeManager.BRAND_COLORS['primary'],
+                                color=ft.Colors.WHITE,
+                                padding=ft.padding.symmetric(horizontal=24, vertical=14),
+                                shape=ft.RoundedRectangleBorder(radius=10)
+                            )
+                        ),
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=10,
+                            color=ft.Colors.with_opacity(0.2, ColorThemeManager.BRAND_COLORS['primary']),
+                            offset=ft.Offset(0, 4)
+                        ),
+                        border_radius=10
+                    )
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=6),
                 alignment=ft.alignment.center,
                 expand=True
             )
 
+        # Enhanced back button
+        back_button = ft.Container(
+            content=ft.IconButton(
+                icon=ft.Icons.ARROW_BACK_ROUNDED, 
+                on_click=lambda _: self._switch_to_list_view(), 
+                tooltip="Back to Collections",
+                icon_color=ft.Colors.ON_SURFACE
+            ),
+            bgcolor=ft.Colors.with_opacity(0.08, ft.Colors.ON_SURFACE),
+            border_radius=12,
+            width=44,
+            height=44,
+            alignment=ft.alignment.center
+        )
+        
+        # Item count badge
+        item_count_badge = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.PHOTO_LIBRARY_OUTLINED, size=14, color=ft.Colors.PRIMARY),
+                ft.Text(f"{len(items)} items", size=13, weight=ft.FontWeight.W_600, color=ft.Colors.PRIMARY)
+            ], spacing=6, tight=True),
+            bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY),
+            padding=ft.padding.symmetric(horizontal=12, vertical=6),
+            border_radius=14,
+            border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.PRIMARY))
+        )
+        
+        # Styled action buttons
+        reorder_button = ft.OutlinedButton(
+            "Reorder", 
+            icon=ft.Icons.SWAP_VERT_ROUNDED, 
+            on_click=lambda _: self._open_reorder_dialog(), 
+            disabled=len(items) < 2,
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(horizontal=16, vertical=10),
+                shape=ft.RoundedRectangleBorder(radius=10)
+            )
+        )
+        
+        add_items_button = ft.Container(
+            content=ft.ElevatedButton(
+                "Add Items", 
+                icon=ft.Icons.ADD_ROUNDED, 
+                on_click=lambda _: self._open_add_items_dialog(),
+                style=ft.ButtonStyle(
+                    bgcolor=ColorThemeManager.BRAND_COLORS['primary'],
+                    color=ft.Colors.WHITE,
+                    padding=ft.padding.symmetric(horizontal=16, vertical=10),
+                    shape=ft.RoundedRectangleBorder(radius=10)
+                )
+            ),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=6,
+                color=ft.Colors.with_opacity(0.15, ColorThemeManager.BRAND_COLORS['primary']),
+                offset=ft.Offset(0, 2)
+            ),
+            border_radius=10
+        )
+        
+        header_row = ft.Row([
+            back_button,
+            ft.Container(width=12),
+            ft.Text(collection_name, size=24, weight=ft.FontWeight.BOLD),
+            ft.Container(width=12),
+            item_count_badge,
+            ft.Container(expand=True),
+            reorder_button,
+            ft.Container(width=8),
+            add_items_button
+        ], alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
+        # Gradient divider
+        divider = ft.Container(
+            height=2,
+            gradient=ft.LinearGradient(
+                colors=[
+                    ft.Colors.with_opacity(0, ft.Colors.PRIMARY),
+                    ft.Colors.with_opacity(0.3, ft.Colors.PRIMARY),
+                    ft.Colors.with_opacity(0, ft.Colors.PRIMARY)
+                ],
+                begin=ft.alignment.center_left,
+                end=ft.alignment.center_right
+            ),
+            margin=ft.margin.symmetric(vertical=16)
+        )
+
         return ft.Container(
             content=ft.Column(
-                controls=[
-                    ft.Row([
-                        ft.IconButton(icon=ft.Icons.ARROW_BACK, on_click=lambda _: self._switch_to_list_view(), tooltip="Back to Collections"),
-                        ft.Text(collection_name, style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.BOLD),
-                        ft.Container(expand=True),
-                        ft.OutlinedButton("Reorder Items", icon=ft.Icons.SWAP_VERT, on_click=lambda _: self._open_reorder_dialog(), disabled=len(items) < 2),
-                        ft.ElevatedButton("Add Items", icon=ft.Icons.ADD, on_click=lambda _: self._open_add_items_dialog())
-                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    ft.Divider(height=20),
-                    grid_view
-                ],
+                controls=[header_row, divider, grid_view],
             ),
             padding=ft.padding.all(24),
             expand=True
@@ -216,30 +561,50 @@ class CollectionsView:
             on_save_callback=save_logic
         )
 
-    # --- NEW HELPER METHOD FOR THE SELECTION CARD ---
+    # --- ENHANCED SELECTION CARD ---
     def _build_media_selection_card(self, media_item, checkbox_ref, is_disabled=False):
-        """Creates a visual card for selecting media, similar to the awards picker."""
+        """Creates an enhanced visual card for selecting media."""
         
         # This checkbox is invisible but holds the selection state
         checkbox = ft.Checkbox(ref=checkbox_ref, visible=False, value=False, data=media_item['id'])
 
-        # Visuals for selected state
+        # Enhanced selected state with gradient overlay
         selected_overlay = ft.Container(
-            bgcolor=ft.Colors.with_opacity(0.6, ft.Colors.PRIMARY),
-            border_radius=12,
-            content=ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.WHITE, size=32),
+            gradient=ft.LinearGradient(
+                colors=[
+                    ft.Colors.with_opacity(0.7, ColorThemeManager.BRAND_COLORS['primary']),
+                    ft.Colors.with_opacity(0.5, ColorThemeManager.BRAND_COLORS['secondary'])
+                ],
+                begin=ft.alignment.top_left,
+                end=ft.alignment.bottom_right
+            ),
+            border_radius=14,
+            content=ft.Column([
+                ft.Container(
+                    content=ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED, color=ft.Colors.WHITE, size=36),
+                    bgcolor=ft.Colors.with_opacity(0.3, ft.Colors.WHITE),
+                    border_radius=30,
+                    padding=8
+                ),
+                ft.Text("Selected", color=ft.Colors.WHITE, size=11, weight=ft.FontWeight.W_600)
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=6),
             alignment=ft.alignment.center,
-            visible=checkbox.value # Bind visibility to checkbox state
+            visible=checkbox.value
         )
 
-        # Visuals for disabled state (already in collection)
+        # Enhanced disabled state (already in collection)
         disabled_overlay = ft.Container(
-            bgcolor=ft.Colors.with_opacity(0.7, ft.Colors.BLACK),
-            border_radius=12,
+            bgcolor=ft.Colors.with_opacity(0.8, ft.Colors.BLACK),
+            border_radius=14,
             content=ft.Column([
-                ft.Icon(ft.Icons.LIBRARY_ADD_CHECK, color=ft.Colors.WHITE70, size=24),
-                ft.Text("Already in Collection", color=ft.Colors.WHITE70, size=10, text_align=ft.TextAlign.CENTER)
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                ft.Container(
+                    content=ft.Icon(ft.Icons.CHECK_ROUNDED, color=ft.Colors.GREEN_400, size=20),
+                    bgcolor=ft.Colors.with_opacity(0.2, ft.Colors.GREEN_400),
+                    border_radius=20,
+                    padding=8
+                ),
+                ft.Text("In Collection", color=ft.Colors.WHITE70, size=10, weight=ft.FontWeight.W_500)
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=4),
             alignment=ft.alignment.center,
             visible=is_disabled
         )
@@ -248,36 +613,72 @@ class CollectionsView:
             if not is_disabled:
                 checkbox.value = not checkbox.value
                 selected_overlay.visible = checkbox.value
-                e.control.border = ft.border.all(3, ft.Colors.PRIMARY) if checkbox.value else ft.border.all(1, ft.Colors.OUTLINE_VARIANT)
+                if checkbox.value:
+                    e.control.border = ft.border.all(3, ColorThemeManager.BRAND_COLORS['primary'])
+                    e.control.shadow = ft.BoxShadow(
+                        spread_radius=0,
+                        blur_radius=12,
+                        color=ft.Colors.with_opacity(0.3, ColorThemeManager.BRAND_COLORS['primary']),
+                        offset=ft.Offset(0, 4)
+                    )
+                else:
+                    e.control.border = ft.border.all(1, ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE))
+                    e.control.shadow = ft.BoxShadow(
+                        spread_radius=0,
+                        blur_radius=4,
+                        color=ft.Colors.with_opacity(0.05, ft.Colors.BLACK),
+                        offset=ft.Offset(0, 2)
+                    )
                 e.control.update()
                 selected_overlay.update()
 
         card_content = ft.Stack([
             ft.Column([
-                ft.Image(
-                    src=media_item.get('image_url', ''),
-                    error_content=ft.Container(content=ft.Icon(ft.Icons.BROKEN_IMAGE), alignment=ft.alignment.center),
-                    height=100,
-                    fit=ft.ImageFit.COVER
+                ft.Container(
+                    content=ft.Image(
+                        src=media_item.get('image_url', ''),
+                        error_content=ft.Container(
+                            content=ft.Icon(ft.Icons.IMAGE_OUTLINED, color=ft.Colors.ON_SURFACE_VARIANT, size=28),
+                            alignment=ft.alignment.center,
+                            bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE)
+                        ),
+                        height=100,
+                        fit=ft.ImageFit.COVER
+                    ),
+                    clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                    border_radius=ft.border_radius.only(top_left=14, top_right=14)
                 ),
                 ft.Container(
-                    ft.Text(media_item['name'], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS, size=12),
-                    padding=8
+                    content=ft.Text(
+                        media_item['name'], 
+                        max_lines=2, 
+                        overflow=ft.TextOverflow.ELLIPSIS, 
+                        size=12,
+                        weight=ft.FontWeight.W_500
+                    ),
+                    padding=ft.padding.symmetric(horizontal=10, vertical=8)
                 )
-            ]),
+            ], spacing=0),
             selected_overlay,
             disabled_overlay
         ])
 
         return ft.Container(
             content=card_content,
-            width=180,
-            height=160,
-            border_radius=12,
-            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
-            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            width=160,
+            height=150,
+            border_radius=14,
+            border=ft.border.all(1, ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE)),
+            bgcolor=ft.Colors.SURFACE,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
             on_click=toggle_selection,
-            data=media_item['name'].lower() # For searching
+            data=media_item['name'].lower(),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=4,
+                color=ft.Colors.with_opacity(0.05, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2)
+            )
         )
 
     # --- REBUILT DIALOG USING THE NEW CARD ---
@@ -342,18 +743,65 @@ class CollectionsView:
         dialog = ft.AlertDialog(
             ref=dialog_ref,
             modal=True,
-            title=ft.Text(f"Add Items to '{self.state['selected_collection_name']}'"),
-            content=ft.Column([
-                ft.TextField(ref=search_field, label="Search...", on_change=filter_items, prefix_icon=ft.Icons.SEARCH),
+            title=ft.Row([
                 ft.Container(
-                    content=ft.Row(ref=items_grid, controls=card_containers, wrap=True, scroll=ft.ScrollMode.ADAPTIVE),
+                    content=ft.Icon(ft.Icons.ADD_CIRCLE_OUTLINE_ROUNDED, size=18, color=ft.Colors.WHITE),
+                    gradient=ft.LinearGradient(
+                        colors=[ColorThemeManager.BRAND_COLORS['primary'], ColorThemeManager.BRAND_COLORS['primary_dark']],
+                        begin=ft.alignment.top_left,
+                        end=ft.alignment.bottom_right
+                    ),
+                    width=32,
+                    height=32,
+                    border_radius=8,
+                    alignment=ft.alignment.center
+                ),
+                ft.Container(width=12),
+                ft.Column([
+                    ft.Text("Add Items", size=18, weight=ft.FontWeight.BOLD),
+                    ft.Text(f"to {self.state['selected_collection_name']}", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
+                ], spacing=0)
+            ], spacing=0),
+            content=ft.Column([
+                ft.TextField(
+                    ref=search_field, 
+                    label="Search media...", 
+                    on_change=filter_items, 
+                    prefix_icon=ft.Icons.SEARCH_ROUNDED,
+                    border_radius=10,
+                    content_padding=ft.padding.symmetric(horizontal=16, vertical=12)
+                ),
+                ft.Container(height=8),
+                ft.Container(
+                    content=ft.Row(ref=items_grid, controls=card_containers, wrap=True, scroll=ft.ScrollMode.ADAPTIVE, spacing=12, run_spacing=12),
                     height=400,
-                    width=800,
+                    width=820,
+                    border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+                    border_radius=12,
+                    padding=12
                 )
-            ], tight=True),
+            ], tight=True, spacing=8),
             actions=[
                 ft.TextButton("Cancel", on_click=close_dialog),
-                ft.ElevatedButton("Add Selected", on_click=save_selection)
+                ft.Container(
+                    content=ft.ElevatedButton(
+                        "Add Selected", 
+                        on_click=save_selection,
+                        style=ft.ButtonStyle(
+                            bgcolor=ColorThemeManager.BRAND_COLORS['primary'],
+                            color=ft.Colors.WHITE,
+                            padding=ft.padding.symmetric(horizontal=20, vertical=10),
+                            shape=ft.RoundedRectangleBorder(radius=8)
+                        )
+                    ),
+                    shadow=ft.BoxShadow(
+                        spread_radius=0,
+                        blur_radius=6,
+                        color=ft.Colors.with_opacity(0.15, ColorThemeManager.BRAND_COLORS['primary']),
+                        offset=ft.Offset(0, 2)
+                    ),
+                    border_radius=8
+                )
             ]
         )
         self.page.overlay.append(dialog)
@@ -394,25 +842,96 @@ class CollectionsView:
             self.app_ui.refresh_current_view()
             self.app_ui.show_snackbar("Item order saved.", color=ft.Colors.GREEN_700)
         
+        # Enhanced reorder list with thumbnails
+        def create_reorder_item(item):
+            img_url = item.get('image_url', '')
+            return ft.Container(
+                key=str(item['id']),
+                content=ft.Row([
+                    ft.Container(
+                        content=ft.Icon(ft.Icons.DRAG_HANDLE_ROUNDED, color=ft.Colors.ON_SURFACE_VARIANT, size=20),
+                        padding=ft.padding.only(right=12)
+                    ),
+                    ft.Container(
+                        content=ft.Image(
+                            src=img_url,
+                            fit=ft.ImageFit.COVER,
+                            error_content=ft.Container(
+                                content=ft.Icon(ft.Icons.IMAGE_OUTLINED, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
+                                alignment=ft.alignment.center,
+                                bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE)
+                            )
+                        ) if img_url else ft.Container(
+                            content=ft.Icon(ft.Icons.IMAGE_OUTLINED, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
+                            alignment=ft.alignment.center,
+                            bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE)
+                        ),
+                        width=40,
+                        height=40,
+                        border_radius=8,
+                        clip_behavior=ft.ClipBehavior.ANTI_ALIAS
+                    ),
+                    ft.Container(width=12),
+                    ft.Text(item['name'], size=14, weight=ft.FontWeight.W_500, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, expand=True)
+                ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=ft.padding.symmetric(horizontal=12, vertical=10),
+                border_radius=10,
+                bgcolor=ft.Colors.SURFACE,
+                border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+                margin=ft.margin.only(bottom=8)
+            )
+        
         reorder_list = ft.ReorderableListView(
             on_reorder=handle_reorder,
-            controls=[
-                ft.ListTile(
-                    key=str(item['id']),
-                    title=ft.Text(item['name']),
-                    leading=ft.Icon(ft.Icons.DRAG_HANDLE)
-                ) for item in items
-            ]
+            controls=[create_reorder_item(item) for item in items]
         )
 
         dialog = ft.AlertDialog(
             ref=dialog_ref,
             modal=True,
-            title=ft.Text("Reorder Items"),
-            content=ft.Container(content=reorder_list, height=400, width=400),
+            title=ft.Row([
+                ft.Container(
+                    content=ft.Icon(ft.Icons.SWAP_VERT_ROUNDED, size=18, color=ft.Colors.WHITE),
+                    gradient=ft.LinearGradient(
+                        colors=[ColorThemeManager.BRAND_COLORS['primary'], ColorThemeManager.BRAND_COLORS['primary_dark']],
+                        begin=ft.alignment.top_left,
+                        end=ft.alignment.bottom_right
+                    ),
+                    width=32,
+                    height=32,
+                    border_radius=8,
+                    alignment=ft.alignment.center
+                ),
+                ft.Container(width=12),
+                ft.Text("Reorder Items", size=18, weight=ft.FontWeight.BOLD)
+            ], spacing=0),
+            content=ft.Container(
+                content=reorder_list, 
+                height=400, 
+                width=450,
+                padding=ft.padding.only(top=8)
+            ),
             actions=[
                 ft.TextButton("Cancel", on_click=close_dialog),
-                ft.ElevatedButton("Save Order", on_click=save_new_order)
+                ft.Container(
+                    content=ft.ElevatedButton(
+                        "Save Order", 
+                        on_click=save_new_order,
+                        style=ft.ButtonStyle(
+                            bgcolor=ColorThemeManager.BRAND_COLORS['primary'],
+                            color=ft.Colors.WHITE,
+                            padding=ft.padding.symmetric(horizontal=20, vertical=10),
+                            shape=ft.RoundedRectangleBorder(radius=8)
+                        )
+                    ),
+                    shadow=ft.BoxShadow(
+                        spread_radius=0,
+                        blur_radius=6,
+                        color=ft.Colors.with_opacity(0.15, ColorThemeManager.BRAND_COLORS['primary']),
+                        offset=ft.Offset(0, 2)
+                    ),
+                    border_radius=8
+                )
             ]
         )
         self.page.overlay.append(dialog)
