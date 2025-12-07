@@ -97,6 +97,7 @@ def init_db():
                 name TEXT NOT NULL,
                 year INTEGER NOT NULL,
                 created_date TEXT NOT NULL,
+                sort_order INTEGER DEFAULT 0,
                 UNIQUE(name, year)
             )
         """)
@@ -135,7 +136,24 @@ def init_db():
                 print(f"Applying migration: Adding column '{col}' to 'javs' table.")
                 cursor.execute(statement)
 
-
+        # Migration for award_categories table - add sort_order column
+        award_cat_info = cursor.execute("PRAGMA table_info(award_categories)").fetchall()
+        award_cat_columns = [info[1] for info in award_cat_info]
+        
+        if 'sort_order' not in award_cat_columns:
+            print("Applying migration: Adding column 'sort_order' to 'award_categories' table.")
+            cursor.execute("ALTER TABLE award_categories ADD COLUMN sort_order INTEGER DEFAULT 0")
+            # Initialize sort_order based on created_date for existing records
+            cursor.execute("""
+                UPDATE award_categories 
+                SET sort_order = (
+                    SELECT COUNT(*) 
+                    FROM award_categories ac2 
+                    WHERE ac2.year = award_categories.year 
+                    AND (ac2.created_date < award_categories.created_date 
+                         OR (ac2.created_date = award_categories.created_date AND ac2.id < award_categories.id))
+                )
+            """)
 
         conn.commit()
         print("Database initialized and migrations checked successfully.")
@@ -700,7 +718,7 @@ def set_profile_image_db(profile_type, profile_name, image_url):
 # --- Awards Database Functions ---
 
 def create_award_category_db(name, year):
-    """Creates a new award category for a specific year."""
+    """Creates a new award category for a specific year with auto-assigned sort_order."""
     conn = None
     try:
         conn = sqlite3.connect(config.DB_FILE)
@@ -709,13 +727,21 @@ def create_award_category_db(name, year):
         
         name_to_db = name.strip()
         
+        # Get the next sort_order for this year
         cursor.execute(
-            "INSERT INTO award_categories (name, year, created_date) VALUES (?, ?, ?)",
-            (name_to_db, year, created_date_str)
+            "SELECT MAX(sort_order) FROM award_categories WHERE year = ?",
+            (year,)
+        )
+        max_order = cursor.fetchone()[0]
+        next_order = (max_order or 0) + 1
+        
+        cursor.execute(
+            "INSERT INTO award_categories (name, year, created_date, sort_order) VALUES (?, ?, ?, ?)",
+            (name_to_db, year, created_date_str, next_order)
         )
         conn.commit()
         category_id = cursor.lastrowid
-        print(f"Award category created: {name} for year {year}")
+        print(f"Award category created: {name} for year {year} (sort_order: {next_order})")
         return category_id
     except sqlite3.IntegrityError as e:
         print(f"Award category '{name}' already exists for year {year}")
@@ -728,7 +754,7 @@ def create_award_category_db(name, year):
             conn.close()
 
 def get_award_categories_by_year_db(year):
-    """Retrieves all award categories for a specific year."""
+    """Retrieves all award categories for a specific year, ordered by sort_order."""
     conn = None
     categories = []
     try:
@@ -736,7 +762,7 @@ def get_award_categories_by_year_db(year):
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT * FROM award_categories WHERE year = ? ORDER BY created_date ASC, id ASC", 
+            "SELECT * FROM award_categories WHERE year = ? ORDER BY sort_order ASC, created_date ASC, id ASC", 
             (year,)
         )
         categories = [dict(row) for row in cursor.fetchall()]
@@ -764,6 +790,30 @@ def get_all_award_years_db():
         if conn:
             conn.close()
     return years
+
+def update_award_category_order_db(year, ordered_category_ids):
+    """Updates the sort_order for all award categories in a year based on the given order."""
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        cursor = conn.cursor()
+        
+        update_data = [
+            (i, category_id)
+            for i, category_id in enumerate(ordered_category_ids)
+        ]
+        
+        cursor.executemany(
+            "UPDATE award_categories SET sort_order = ? WHERE id = ?",
+            update_data
+        )
+        conn.commit()
+        print(f"Award category order updated for year {year}")
+    except sqlite3.Error as e:
+        print(f"Database error updating award category order for year {year}: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 def delete_award_category_db(category_id):
     """Deletes an award category and its associated winner."""

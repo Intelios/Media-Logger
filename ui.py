@@ -2737,11 +2737,14 @@ class AppUI:
         self.update_main_content("Awards")
     
     def show_awards_summary(self, year):
-        """Display a comprehensive awards summary view for a specific year."""
+        """Display a comprehensive awards summary view for a specific year with accordion cards."""
         # Get categories and their winners for the year
         categories = database.get_award_categories_by_year_db(year)
         
-        # Create header with back button and summary title
+        # Track expansion state for all panels
+        expansion_refs = []
+        
+        # Create header with back button, title, and action buttons
         header = ft.Row([
             ft.IconButton(
                 icon=ft.Icons.ARROW_BACK,
@@ -2749,12 +2752,22 @@ class AppUI:
                 tooltip="Back to awards"
             ),
             ft.Text(
-                f"{year} Awards Summary",
+                f"{year} Awards",
                 size=28,
                 weight=ft.FontWeight.BOLD,
                 color=ft.Colors.ON_SURFACE
             ),
             ft.Container(expand=True),  # Spacer
+            ft.OutlinedButton(
+                text="Reorder",
+                icon=ft.Icons.SWAP_VERT,
+                on_click=lambda _: self.open_awards_reorder_dialog(year, categories),
+                style=ft.ButtonStyle(
+                    padding=ft.padding.symmetric(horizontal=16, vertical=12)
+                ),
+                disabled=len(categories) < 2
+            ) if categories else ft.Container(),
+            ft.Container(width=8) if categories else ft.Container(),
             ft.ElevatedButton(
                 text="Edit Awards",
                 icon=ft.Icons.EDIT,
@@ -2801,8 +2814,8 @@ class AppUI:
                 empty_state
             ])
         else:
-            # Create summary cards
-            summary_cards = []
+            # Build accordion panels
+            accordion_panels = []
             categories_with_winners = 0
             
             for category in categories:
@@ -2810,75 +2823,119 @@ class AppUI:
                 if winner:
                     categories_with_winners += 1
                 
-                summary_card = self.build_awards_summary_card(category, winner)
-                summary_cards.append(summary_card)
+                panel = self.build_accordion_award_card(category, winner)
+                accordion_panels.append(panel)
             
-            # Create stats header
+            # Create stats header with glassmorphism styling
+            completion_pct = (categories_with_winners / len(categories) * 100) if categories else 0
             stats_header = ft.Container(
                 content=ft.Row([
-                    ft.Column([
-                        ft.Text(
-                            str(len(categories)),
-                            size=32,
-                            weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.PRIMARY
-                        ),
-                        ft.Text(
-                            "Categories",
-                            size=14,
-                            color=ft.Colors.ON_SURFACE_VARIANT
-                        )
-                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    # Categories stat
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Text(
+                                str(len(categories)),
+                                size=36,
+                                weight=ft.FontWeight.BOLD,
+                                color=ColorThemeManager.BRAND_COLORS['primary']
+                            ),
+                            ft.Text(
+                                "Categories",
+                                size=13,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                                weight=ft.FontWeight.W_500
+                            )
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+                        padding=ft.padding.symmetric(horizontal=24, vertical=12)
+                    ),
                     
-                    ft.Container(width=40),
+                    # Vertical divider
+                    ft.Container(
+                        width=1,
+                        height=50,
+                        bgcolor=ft.Colors.with_opacity(0.2, ft.Colors.ON_SURFACE)
+                    ),
                     
-                    ft.Column([
-                        ft.Text(
-                            str(categories_with_winners),
-                            size=32,
-                            weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.AMBER_600
-                        ),
-                        ft.Text(
-                            "Winners",
-                            size=14,
-                            color=ft.Colors.ON_SURFACE_VARIANT
-                        )
-                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    # Winners stat
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Row([
+                                ft.Icon(ft.Icons.EMOJI_EVENTS, size=20, color=ft.Colors.AMBER_600),
+                                ft.Text(
+                                    str(categories_with_winners),
+                                    size=36,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=ft.Colors.AMBER_600
+                                )
+                            ], spacing=6, alignment=ft.MainAxisAlignment.CENTER),
+                            ft.Text(
+                                "Winners",
+                                size=13,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                                weight=ft.FontWeight.W_500
+                            )
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+                        padding=ft.padding.symmetric(horizontal=24, vertical=12)
+                    ),
                     
-                    ft.Container(width=40),
+                    # Vertical divider
+                    ft.Container(
+                        width=1,
+                        height=50,
+                        bgcolor=ft.Colors.with_opacity(0.2, ft.Colors.ON_SURFACE)
+                    ),
                     
-                    ft.Column([
-                        ft.Text(
-                            f"{(categories_with_winners/len(categories)*100):.0f}%" if categories else "0%",
-                            size=32,
-                            weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.GREEN_600
-                        ),
-                        ft.Text(
-                            "Complete",
-                            size=14,
-                            color=ft.Colors.ON_SURFACE_VARIANT
-                        )
-                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+                    # Completion stat with progress ring
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Stack([
+                                ft.ProgressRing(
+                                    value=completion_pct / 100,
+                                    stroke_width=4,
+                                    width=44,
+                                    height=44,
+                                    color=ColorThemeManager.SEMANTIC_COLORS['success'] if completion_pct == 100 else ft.Colors.AMBER_600
+                                ),
+                                ft.Container(
+                                    content=ft.Text(
+                                        f"{completion_pct:.0f}%",
+                                        size=11,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=ColorThemeManager.SEMANTIC_COLORS['success'] if completion_pct == 100 else ft.Colors.AMBER_600
+                                    ),
+                                    width=44,
+                                    height=44,
+                                    alignment=ft.alignment.center
+                                )
+                            ]),
+                            ft.Text(
+                                "Complete",
+                                size=13,
+                                color=ft.Colors.ON_SURFACE_VARIANT,
+                                weight=ft.FontWeight.W_500
+                            )
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=6),
+                        padding=ft.padding.symmetric(horizontal=24, vertical=12)
+                    )
                 ], alignment=ft.MainAxisAlignment.CENTER),
-                bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
-                padding=ft.padding.all(24),
+                bgcolor=ft.Colors.with_opacity(0.04, ft.Colors.ON_SURFACE),
+                padding=ft.padding.symmetric(vertical=16, horizontal=20),
                 border_radius=ft.border_radius.all(16),
-                margin=ft.margin.only(bottom=24)
+                border=ft.border.all(1, ft.Colors.with_opacity(0.08, ft.Colors.ON_SURFACE)),
+                margin=ft.margin.only(bottom=20)
             )
             
-            # Create awards grid
-            awards_grid = ft.Column(
-                controls=summary_cards,
-                spacing=16
+            # Awards accordion list
+            awards_list = ft.Column(
+                controls=accordion_panels,
+                spacing=8
             )
             
             content = ft.Column([
                 header,
-                ft.Container(height=30),
+                ft.Container(height=24),
                 stats_header,
-                awards_grid
+                awards_list
             ], scroll=ft.ScrollMode.AUTO)
         
         return ft.Container(
@@ -2886,6 +2943,337 @@ class AppUI:
             padding=ft.padding.all(40),
             expand=True
         )
+    
+    def build_accordion_award_card(self, category, winner):
+        """Build a collapsible accordion card for an award category."""
+        category_name = category['name']
+        category_id = category['id']
+        has_winner = winner is not None
+        
+        # Determine colors based on winner status
+        if has_winner:
+            header_icon = ft.Icons.EMOJI_EVENTS
+            header_icon_color = ft.Colors.AMBER_600
+            border_color = ft.Colors.with_opacity(0.3, ft.Colors.AMBER_600)
+            bg_color = ft.Colors.with_opacity(0.03, ft.Colors.AMBER_600)
+        else:
+            header_icon = ft.Icons.EMOJI_EVENTS_OUTLINED
+            header_icon_color = ft.Colors.ON_SURFACE_VARIANT
+            border_color = ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE)
+            bg_color = ft.Colors.with_opacity(0.02, ft.Colors.ON_SURFACE)
+        
+        # Build header content (always visible)
+        if has_winner:
+            media_name = winner.get('media_name', 'Unknown')
+            entry_type = winner.get('entry_type', 'Media')
+            score = winner.get('review_score')
+            
+            # Create compact rating badge
+            rating_badge = ft.Container()
+            if score is not None:
+                try:
+                    score_val = float(score)
+                    color_scheme = ColorThemeManager.get_rating_color_scheme(score_val)
+                    rating_badge = ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.STAR_ROUNDED, size=12, color=color_scheme['primary']),
+                            ft.Text(f"{score_val:.1f}", size=12, color=color_scheme['primary'], weight=ft.FontWeight.W_600)
+                        ], spacing=2, tight=True),
+                        bgcolor=color_scheme['bg'],
+                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                        border_radius=ft.border_radius.all(12)
+                    )
+                except (ValueError, TypeError):
+                    pass
+            
+            # Header shows category name and winner preview
+            header_content = ft.Row([
+                ft.Icon(header_icon, size=22, color=header_icon_color),
+                ft.Container(width=12),
+                ft.Column([
+                    ft.Text(
+                        category_name,
+                        size=16,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.Colors.ON_SURFACE
+                    ),
+                    ft.Row([
+                        ft.Text(
+                            media_name,
+                            size=13,
+                            color=ft.Colors.ON_SURFACE_VARIANT,
+                            max_lines=1,
+                            overflow=ft.TextOverflow.ELLIPSIS,
+                            width=250
+                        ),
+                        ft.Container(
+                            content=ft.Text(
+                                entry_type,
+                                size=10,
+                                color=ft.Colors.WHITE,
+                                weight=ft.FontWeight.W_500
+                            ),
+                            bgcolor=ColorThemeManager.get_entry_type_color(entry_type),
+                            padding=ft.padding.symmetric(horizontal=8, vertical=2),
+                            border_radius=ft.border_radius.all(10)
+                        ),
+                        rating_badge
+                    ], spacing=8)
+                ], spacing=2, expand=True),
+            ], vertical_alignment=ft.CrossAxisAlignment.CENTER, expand=True)
+        else:
+            # No winner header
+            header_content = ft.Row([
+                ft.Icon(header_icon, size=22, color=header_icon_color),
+                ft.Container(width=12),
+                ft.Column([
+                    ft.Text(
+                        category_name,
+                        size=16,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.Colors.ON_SURFACE
+                    ),
+                    ft.Text(
+                        "No winner selected",
+                        size=13,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
+                        italic=True
+                    )
+                ], spacing=2, expand=True),
+                ft.TextButton(
+                    text="Select Winner",
+                    icon=ft.Icons.ADD,
+                    on_click=lambda _, cid=category_id, cname=category_name: self.open_winner_selection_dialog(cid, cname),
+                    style=ft.ButtonStyle(
+                        color=ColorThemeManager.BRAND_COLORS['primary']
+                    )
+                )
+            ], vertical_alignment=ft.CrossAxisAlignment.CENTER, expand=True)
+        
+        # Build expanded content (winner details)
+        if has_winner:
+            media_name = winner.get('media_name', 'Unknown')
+            entry_type = winner.get('entry_type', 'Media')
+            score = winner.get('review_score')
+            completion_date = winner.get('completion_date')
+            image_url = winner.get('image_url')
+            
+            # Format completion date
+            display_date = 'N/A'
+            if completion_date:
+                try:
+                    from datetime import datetime
+                    date_obj = datetime.strptime(completion_date, '%Y-%m-%d')
+                    display_date = date_obj.strftime('%B %d, %Y')
+                except ValueError:
+                    display_date = completion_date
+            
+            # Get image source
+            image_src = config.DEFAULT_IMAGE_URL
+            if image_url:
+                if image_url.lower().startswith(("http://", "https://")):
+                    image_src = image_url
+                else:
+                    full_local_path = os.path.join(config.ASSETS_DIR, image_url)
+                    if os.path.exists(full_local_path):
+                        image_src = image_url
+            
+            # Create detailed rating display
+            rating_display = ft.Container()
+            if score is not None:
+                try:
+                    score_val = float(score)
+                    color_scheme = ColorThemeManager.get_rating_color_scheme(score_val)
+                    rating_display = ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.STAR_ROUNDED, size=18, color=color_scheme['primary']),
+                            ft.Text(f"{score_val:.1f}", size=18, color=color_scheme['primary'], weight=ft.FontWeight.BOLD)
+                        ], spacing=4, tight=True),
+                        bgcolor=color_scheme['bg'],
+                        padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                        border_radius=ft.border_radius.all(16)
+                    )
+                except (ValueError, TypeError):
+                    pass
+            
+            expanded_content = ft.Container(
+                content=ft.Row([
+                    # Winner image
+                    ft.Container(
+                        content=ft.Image(
+                            src=image_src,
+                            width=100,
+                            height=140,
+                            fit=ft.ImageFit.COVER,
+                            error_content=ft.Container(
+                                content=ft.Icon(ft.Icons.BROKEN_IMAGE, size=30, color=ft.Colors.ON_SURFACE_VARIANT),
+                                width=100,
+                                height=140,
+                                bgcolor=ft.Colors.SURFACE,
+                                alignment=ft.alignment.center
+                            )
+                        ),
+                        border_radius=ft.border_radius.all(12),
+                        clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=8,
+                            color=ft.Colors.with_opacity(0.12, ft.Colors.BLACK),
+                            offset=ft.Offset(0, 3)
+                        )
+                    ),
+                    
+                    ft.Container(width=20),
+                    
+                    # Winner details
+                    ft.Column([
+                        ft.Text(
+                            media_name,
+                            size=20,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.ON_SURFACE
+                        ),
+                        ft.Container(height=8),
+                        ft.Row([
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Icon(get_entry_type_icon_name(entry_type), size=14, color=ft.Colors.WHITE),
+                                    ft.Text(entry_type, size=12, color=ft.Colors.WHITE, weight=ft.FontWeight.W_600)
+                                ], spacing=6, tight=True),
+                                bgcolor=ColorThemeManager.get_entry_type_color(entry_type),
+                                padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                border_radius=ft.border_radius.all(12)
+                            ),
+                            rating_display
+                        ], spacing=10),
+                        ft.Container(height=12),
+                        ft.Row([
+                            ft.Icon(ft.Icons.CALENDAR_TODAY_OUTLINED, size=14, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text(
+                                f"Completed: {display_date}",
+                                size=13,
+                                color=ft.Colors.ON_SURFACE_VARIANT
+                            )
+                        ], spacing=6)
+                    ], spacing=0, expand=True)
+                ], vertical_alignment=ft.CrossAxisAlignment.START),
+                padding=ft.padding.only(left=34, top=0, bottom=8, right=8)
+            )
+        else:
+            # No winner expanded content
+            expanded_content = ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.INFO_OUTLINED, size=18, color=ft.Colors.ON_SURFACE_VARIANT),
+                    ft.Text(
+                        "Click 'Select Winner' to choose a winner for this category.",
+                        size=13,
+                        color=ft.Colors.ON_SURFACE_VARIANT
+                    )
+                ], spacing=10),
+                padding=ft.padding.only(left=34, top=0, bottom=8)
+            )
+        
+        # Create expansion panel
+        panel = ft.ExpansionTile(
+            title=header_content,
+            controls=[expanded_content],
+            initially_expanded=False,
+            tile_padding=ft.padding.symmetric(horizontal=16, vertical=12),
+            bgcolor=bg_color,
+            collapsed_bgcolor=bg_color,
+            shape=ft.RoundedRectangleBorder(radius=12),
+            collapsed_shape=ft.RoundedRectangleBorder(radius=12),
+            controls_padding=ft.padding.only(bottom=12)
+        )
+        
+        return ft.Container(
+            content=panel,
+            border=ft.border.all(1, border_color),
+            border_radius=ft.border_radius.all(12),
+            animate=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
+        )
+    
+    def open_awards_reorder_dialog(self, year, categories):
+        """Opens a dialog to reorder award categories using drag and drop."""
+        dialog_ref = ft.Ref[ft.AlertDialog]()
+        
+        # Create a mutable copy of categories for reordering
+        items = list(categories)
+        
+        def close_dialog(e=None):
+            dialog = dialog_ref.current
+            if dialog:
+                dialog.open = False
+                if dialog in self.page.overlay:
+                    self.page.overlay.remove(dialog)
+                self.page.update()
+        
+        def handle_reorder(e):
+            item_to_move = items.pop(e.old_index)
+            items.insert(e.new_index, item_to_move)
+        
+        def save_new_order(e):
+            ordered_category_ids = [item['id'] for item in items]
+            database.update_award_category_order_db(year, ordered_category_ids)
+            self.show_snackbar("Award category order saved.", color=ft.Colors.GREEN_700)
+            close_dialog()
+            self.app_state["awards_summary_mode"] = True
+            self.update_main_content("Awards")
+        
+        reorder_list = ft.ReorderableListView(
+            on_reorder=handle_reorder,
+            controls=[
+                ft.ListTile(
+                    key=str(item['id']),
+                    title=ft.Text(item['name'], weight=ft.FontWeight.W_500),
+                    leading=ft.Icon(ft.Icons.DRAG_HANDLE, color=ft.Colors.ON_SURFACE_VARIANT),
+                    trailing=ft.Icon(
+                        ft.Icons.EMOJI_EVENTS if database.get_award_winner_db(item['id']) else ft.Icons.EMOJI_EVENTS_OUTLINED,
+                        color=ft.Colors.AMBER_600 if database.get_award_winner_db(item['id']) else ft.Colors.ON_SURFACE_VARIANT,
+                        size=20
+                    )
+                ) for item in items
+            ]
+        )
+        
+        dialog = ft.AlertDialog(
+            ref=dialog_ref,
+            modal=True,
+            title=ft.Row([
+                ft.Icon(ft.Icons.SWAP_VERT, color=ColorThemeManager.BRAND_COLORS['primary']),
+                ft.Container(width=10),
+                ft.Text("Reorder Award Categories", weight=ft.FontWeight.BOLD)
+            ]),
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Text(
+                        "Drag and drop to reorder categories",
+                        size=13,
+                        color=ft.Colors.ON_SURFACE_VARIANT
+                    ),
+                    ft.Container(height=10),
+                    reorder_list
+                ]),
+                height=400,
+                width=400
+            ),
+            actions=[
+                ft.TextButton("Cancel", on_click=close_dialog),
+                ft.ElevatedButton(
+                    "Save Order",
+                    on_click=save_new_order,
+                    style=ft.ButtonStyle(
+                        bgcolor=ColorThemeManager.BRAND_COLORS['primary'],
+                        color=ft.Colors.WHITE
+                    )
+                )
+            ],
+            actions_alignment=ft.MainAxisAlignment.END
+        )
+        
+        self.page.overlay.append(dialog)
+        dialog.open = True
+        self.page.update()
     
     def build_enhanced_awards_summary_card(self, category, winner):
         """Build an enhanced summary card for displaying award category and winner with prominent image display."""
