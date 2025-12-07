@@ -307,8 +307,10 @@ class CollectionsView:
             dialog = dialog_ref.current
             if dialog:
                 dialog.open = False
-                if dialog in self.page.overlay: self.page.overlay.remove(dialog)
-                self.page.update()
+                self.page.update()  # Update first to hide dialog
+                if dialog in self.page.overlay:
+                    self.page.overlay.remove(dialog)
+                    self.page.update()  # Update again after removal
 
         def filter_items(e):
             search_term = e.control.value.lower()
@@ -324,10 +326,18 @@ class CollectionsView:
             ]
             if selected_ids:
                 database.add_items_to_collection_db(collection_id, selected_ids)
-                self.app_ui.show_snackbar(f"Added {len(selected_ids)} items.", color=ft.Colors.GREEN_700)
+                # Close dialog first completely
+                dialog = dialog_ref.current
+                if dialog:
+                    dialog.open = False
+                    self.page.update()
+                    if dialog in self.page.overlay:
+                        self.page.overlay.remove(dialog)
+                # Then refresh the view
                 self.app_ui.refresh_current_view()
-            
-            close_dialog()
+                self.app_ui.show_snackbar(f"Added {len(selected_ids)} items.", color=ft.Colors.GREEN_700)
+            else:
+                close_dialog()
 
         dialog = ft.AlertDialog(
             ref=dialog_ref,
@@ -361,8 +371,10 @@ class CollectionsView:
             dialog = dialog_ref.current
             if dialog:
                 dialog.open = False
-                if dialog in self.page.overlay: self.page.overlay.remove(dialog)
-                self.page.update()
+                self.page.update()  # Update first to hide dialog
+                if dialog in self.page.overlay:
+                    self.page.overlay.remove(dialog)
+                    self.page.update()  # Update again after removal
 
         def handle_reorder(e):
             item_to_move = items.pop(e.old_index)
@@ -371,9 +383,16 @@ class CollectionsView:
         def save_new_order(e):
             ordered_media_ids = [item['id'] for item in items]
             database.update_collection_item_order_db(collection_id, ordered_media_ids)
-            self.app_ui.show_snackbar("Item order saved.", color=ft.Colors.GREEN_700)
-            close_dialog()
+            # Close dialog first completely
+            dialog = dialog_ref.current
+            if dialog:
+                dialog.open = False
+                self.page.update()
+                if dialog in self.page.overlay:
+                    self.page.overlay.remove(dialog)
+            # Then refresh the view
             self.app_ui.refresh_current_view()
+            self.app_ui.show_snackbar("Item order saved.", color=ft.Colors.GREEN_700)
         
         reorder_list = ft.ReorderableListView(
             on_reorder=handle_reorder,

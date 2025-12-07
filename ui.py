@@ -3204,9 +3204,10 @@ class AppUI:
             dialog = dialog_ref.current
             if dialog:
                 dialog.open = False
+                self.page.update()  # Update first to hide dialog
                 if dialog in self.page.overlay:
                     self.page.overlay.remove(dialog)
-                self.page.update()
+                    self.page.update()  # Update again after removal
         
         def handle_reorder(e):
             item_to_move = items.pop(e.old_index)
@@ -3215,10 +3216,17 @@ class AppUI:
         def save_new_order(e):
             ordered_category_ids = [item['id'] for item in items]
             database.update_award_category_order_db(year, ordered_category_ids)
-            self.show_snackbar("Award category order saved.", color=ft.Colors.GREEN_700)
-            close_dialog()
+            # Close dialog first completely
+            dialog = dialog_ref.current
+            if dialog:
+                dialog.open = False
+                self.page.update()
+                if dialog in self.page.overlay:
+                    self.page.overlay.remove(dialog)
+            # Then refresh the awards view
             self.app_state["awards_summary_mode"] = True
             self.update_main_content("Awards")
+            self.show_snackbar("Award category order saved.", color=ft.Colors.GREEN_700)
         
         reorder_list = ft.ReorderableListView(
             on_reorder=handle_reorder,
