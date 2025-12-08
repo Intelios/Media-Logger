@@ -76,8 +76,10 @@ QUICK_FILTER_PRESETS = [
 SAVED_YEAR_VIEW_FILTER_KEY = "year_view_last_filter_v2"
 SAVED_STATS_VIEW_FILTER_KEY = "stats_view_last_filter_v2"
 SAVED_SEARCH_VIEW_FILTER_KEY = "search_view_last_filter_v2"
-SAVED_YEAR_VIEW_PROPS_FILTER_KEY = "year_view_props_filter_v1" # <-- NEW
-SAVED_SEARCH_VIEW_PROPS_FILTER_KEY = "search_view_props_filter_v1" # <-- NEW
+SAVED_YEAR_VIEW_PROPS_FILTER_KEY = "year_view_props_filter_v1"
+SAVED_SEARCH_VIEW_PROPS_FILTER_KEY = "search_view_props_filter_v1"
+SAVED_PROFILES_VIEW_FILTER_KEY = "profiles_view_type_filter_v1"
+SAVED_PROFILES_VIEW_SORT_KEY = "profiles_view_sort_v1"
 
 # --- Search Field Options ---
 SEARCH_FIELD_OPTIONS = [

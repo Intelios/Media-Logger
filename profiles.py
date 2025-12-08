@@ -34,11 +34,23 @@ class ProfilesView:
         self.profiles_summary = []
         self.profile_entries = []
         
-        # Search/Filter/Sort state
+        # Load saved filter/sort state from database
+        saved_type_filters = database.get_setting_db(config.SAVED_PROFILES_VIEW_FILTER_KEY)
+        if saved_type_filters:
+            self.type_filters = set(t for t in saved_type_filters.split(',') if t)
+        else:
+            self.type_filters = set()  # Empty means all types
+        
+        saved_sort = database.get_setting_db(config.SAVED_PROFILES_VIEW_SORT_KEY)
+        if saved_sort:
+            parts = saved_sort.split(',')
+            self.sort_by = parts[0] if parts[0] in ["entry_count", "average_score", "name"] else "entry_count"
+            self.sort_ascending = parts[1] == "asc" if len(parts) > 1 else False
+        else:
+            self.sort_by = "entry_count"
+            self.sort_ascending = False
+        
         self.search_term = ""
-        self.type_filters = set()  # Empty means all types, or contains specific types like {"actress", "artist"}
-        self.sort_by = "entry_count"  # "entry_count", "average_score", "name"
-        self.sort_ascending = False
         
         # UI references for dynamic updates
         self.profiles_grid_ref = ft.Ref[ft.ResponsiveRow]()
@@ -325,17 +337,21 @@ class ProfilesView:
             self.type_filters.remove(profile_type)
         else:
             self.type_filters.add(profile_type)
+        # Save to database
+        database.set_setting_db(config.SAVED_PROFILES_VIEW_FILTER_KEY, ','.join(sorted(self.type_filters)))
         # Rebuild the entire view to update chip states
         self._update_view()
     
     def _clear_type_filters(self, e=None):
         """Clears all type filters."""
         self.type_filters.clear()
+        database.set_setting_db(config.SAVED_PROFILES_VIEW_FILTER_KEY, '')
         self._update_view()
     
     def _on_sort_change(self, e):
         """Handles sort dropdown changes."""
         self.sort_by = e.control.value
+        self._save_sort_settings()
         self._refresh_list_view()
     
     def _toggle_sort_direction(self, e):
@@ -344,7 +360,13 @@ class ProfilesView:
         e.control.icon = ft.Icons.ARROW_UPWARD_ROUNDED if self.sort_ascending else ft.Icons.ARROW_DOWNWARD_ROUNDED
         e.control.tooltip = "Ascending" if self.sort_ascending else "Descending"
         e.control.update()
+        self._save_sort_settings()
         self._refresh_list_view()
+    
+    def _save_sort_settings(self):
+        """Saves current sort settings to database."""
+        direction = "asc" if self.sort_ascending else "desc"
+        database.set_setting_db(config.SAVED_PROFILES_VIEW_SORT_KEY, f"{self.sort_by},{direction}")
     
     def _refresh_list_view(self):
         """Refreshes the profiles grid with current filter/sort settings."""
