@@ -4680,7 +4680,7 @@ class AppUI:
         self.page.update()
 
     def open_winner_selection_dialog(self, category_id, category_name):
-        """Open dialog to select winner for a category."""
+        """Opens a dialog with a visual grid to select a winner for an award category."""
         current_year = self.app_state.get("awards_current_year")
         if not current_year:
             return
@@ -4690,234 +4690,217 @@ class AppUI:
             return
         self.page._dialog_is_opening = True
         
-        dialog_overlay_ref = ft.Ref[ft.Container]()
-        
         try:
             # Get media entries for the current year
             media_entries = database.get_javs_by_year_db(current_year)
             
             # Get current winner if exists
             current_winner = database.get_award_winner_with_media_db(category_id)
+            current_winner_id = current_winner.get('media_id') if current_winner else None
+            
+            dialog_ref = ft.Ref[ft.AlertDialog]()
+            search_field = ft.Ref[ft.TextField]()
+            items_grid = ft.Ref[ft.Row]()
+            
+            # Store references to selection state and card containers
+            selection_refs = []  # Each ref holds {media_id, selected, overlay_ref, container_ref}
+            card_containers = []
             
             def close_dialog(e=None):
-                try:
-                    if dialog_overlay_ref.current:
-                        self.page.overlay.remove(dialog_overlay_ref.current)
-                        self.page.update()
-                except Exception as ex:
-                    print(f"Error closing winner selection dialog: {ex}")
-                finally:
-                    if hasattr(self.page, '_dialog_is_opening'):
-                        self.page._dialog_is_opening = False
+                dialog = dialog_ref.current
+                if dialog:
+                    dialog.open = False
+                    self.page.update()  # Update first to hide dialog
+                    if dialog in self.page.overlay:
+                        self.page.overlay.remove(dialog)
+                        self.page.update()  # Update again after removal
+                if hasattr(self.page, '_dialog_is_opening'):
+                    self.page._dialog_is_opening = False
             
-            def handle_winner_selection(media_id, media_name):
-                """Handle the selection of a winner for the category."""
-                try:
-                    # Set the winner in the database
-                    database.set_award_winner_db(category_id, media_id)
-                    
-                    # Show success message
-                    self.show_snackbar(f"'{media_name}' selected as winner for '{category_name}'", ft.Colors.GREEN)
-                    
-                    # Close dialog and refresh the view
+            def filter_items(e):
+                search_term = e.control.value.lower()
+                if items_grid.current:
+                    for card in items_grid.current.controls:
+                        card.visible = search_term in card.data
+                    items_grid.current.update()
+            
+            def save_selection(e):
+                # Find the selected media
+                selected_ref = next((ref for ref in selection_refs if ref['selected']), None)
+                if selected_ref:
+                    media_id = selected_ref['media_id']
+                    media = next((m for m in media_entries if m['id'] == media_id), None)
+                    if media:
+                        try:
+                            database.set_award_winner_db(category_id, media_id)
+                            # Close dialog using exact collections pattern
+                            dialog = dialog_ref.current
+                            if dialog:
+                                dialog.open = False
+                                self.page.update()
+                                if dialog in self.page.overlay:
+                                    self.page.overlay.remove(dialog)
+                            if hasattr(self.page, '_dialog_is_opening'):
+                                self.page._dialog_is_opening = False
+                            # Then refresh the view
+                            self.refresh_current_view()
+                            self.show_snackbar(f"'{media['name']}' selected as winner for '{category_name}'", ft.Colors.GREEN_700)
+                        except Exception as ex:
+                            print(f"Error setting award winner: {ex}")
+                            self.show_snackbar("Error selecting winner. Please try again.", ft.Colors.ERROR)
+                else:
                     close_dialog()
-                    self.update_main_content("Awards")
-                    
-                except Exception as e:
-                    print(f"Error setting award winner: {e}")
-                    self.show_snackbar("Error selecting winner. Please try again.", ft.Colors.ERROR)
             
-            def remove_current_winner():
-                """Remove the current winner from the category."""
+            def remove_current_winner_action(e):
                 try:
                     database.remove_award_winner_db(category_id)
+                    # Close dialog using exact collections pattern
+                    dialog = dialog_ref.current
+                    if dialog:
+                        dialog.open = False
+                        self.page.update()
+                        if dialog in self.page.overlay:
+                            self.page.overlay.remove(dialog)
+                    if hasattr(self.page, '_dialog_is_opening'):
+                        self.page._dialog_is_opening = False
+                    # Then refresh the view
+                    self.refresh_current_view()
                     self.show_snackbar(f"Winner removed from '{category_name}'", ft.Colors.ORANGE)
-                    close_dialog()
-                    self.update_main_content("Awards")
-                except Exception as e:
-                    print(f"Error removing award winner: {e}")
+                except Exception as ex:
+                    print(f"Error removing award winner: {ex}")
                     self.show_snackbar("Error removing winner. Please try again.", ft.Colors.ERROR)
             
-            # Build media selection UI
-            media_cards = []
-            
+            # Build media cards
             if not media_entries:
-                # No media for this year
                 no_media_content = ft.Container(
                     content=ft.Column([
-                        ft.Icon(
-                            ft.Icons.MOVIE_OUTLINED,
-                            size=60,
-                            color=ft.Colors.ON_SURFACE_VARIANT
-                        ),
+                        ft.Icon(ft.Icons.MOVIE_OUTLINED, size=60, color=ft.Colors.ON_SURFACE_VARIANT),
                         ft.Container(height=16),
-                        ft.Text(
-                            f"No media entries found for {current_year}",
-                            size=18,
-                            weight=ft.FontWeight.W_500,
-                            color=ft.Colors.ON_SURFACE
-                        ),
-                        ft.Text(
-                            "Add some media entries for this year first",
-                            size=14,
-                            color=ft.Colors.ON_SURFACE_VARIANT
-                        )
+                        ft.Text(f"No media entries found for {current_year}", size=18, weight=ft.FontWeight.W_500, color=ft.Colors.ON_SURFACE),
+                        ft.Text("Add some media entries for this year first", size=14, color=ft.Colors.ON_SURFACE_VARIANT)
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                     alignment=ft.alignment.center,
-                    height=200
+                    height=200,
+                    data=""
                 )
-                media_cards.append(no_media_content)
+                card_containers.append(no_media_content)
             else:
-                # Create cards for each media entry
                 for media in media_entries:
-                    is_current_winner = current_winner and current_winner.get('media_id') == media['id']
-                    
-                    # Create media card
-                    media_card = self.build_winner_selection_card(
-                        media, 
-                        is_current_winner, 
-                        lambda m=media: handle_winner_selection(m['id'], m['name'])
-                    )
-                    media_cards.append(media_card)
+                    is_current_winner = media['id'] == current_winner_id
+                    card = self._build_award_selection_card(media, is_current_winner, selection_refs)
+                    card_containers.append(card)
             
-            # Create responsive grid layout with proper spacing and alignment
-            media_grid = ft.ResponsiveRow(
-                controls=[
-                    ft.Container(
-                        col={"sm": 12, "md": 6, "lg": 4, "xl": 3},
-                        content=card,
-                        padding=ft.padding.all(8)  # Consistent padding around each card
-                    ) for card in media_cards
-                ],
-                spacing=0,  # Use container padding instead for better control
-                run_spacing=0,
-                vertical_alignment=ft.CrossAxisAlignment.START,
-                alignment=ft.MainAxisAlignment.START
-            )
-            
-            # Implement proper scrollable container with explicit height constraints
-            scrollable_content = ft.Container(
-                content=ft.Column(
-                    controls=[media_grid],
-                    scroll=ft.ScrollMode.AUTO,
-                    spacing=0,
-                    expand=True
+            # Build header content
+            header_row = ft.Row([
+                ft.Container(
+                    content=ft.Icon(ft.Icons.EMOJI_EVENTS_ROUNDED, size=18, color=ft.Colors.WHITE),
+                    gradient=ft.LinearGradient(
+                        colors=[ColorThemeManager.BRAND_COLORS['primary'], ColorThemeManager.BRAND_COLORS['primary_dark']],
+                        begin=ft.alignment.top_left,
+                        end=ft.alignment.bottom_right
+                    ),
+                    width=32,
+                    height=32,
+                    border_radius=8,
+                    alignment=ft.alignment.center
                 ),
-                height=500,  # Increased height for better viewing
-                padding=ft.padding.all(16),
-                clip_behavior=ft.ClipBehavior.HARD_EDGE
-            )
+                ft.Container(width=12),
+                ft.Column([
+                    ft.Text(f"Select Winner", size=18, weight=ft.FontWeight.BOLD),
+                    ft.Text(f"for {category_name} ({current_year})", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
+                ], spacing=0)
+            ], spacing=0)
             
-            # Create dialog header with current winner info
-            header_content = [
-                ft.Text(
-                    f"Select Winner for '{category_name}'",
-                    size=20,
-                    weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.ON_SURFACE
-                ),
-                ft.Text(
-                    f"Choose from {current_year} media entries",
-                    size=14,
-                    color=ft.Colors.ON_SURFACE_VARIANT
-                )
-            ]
-            
-            # Add current winner info if exists
+            # Current winner banner (if exists)
+            current_winner_banner = None
             if current_winner:
-                current_winner_info = ft.Container(
+                current_winner_banner = ft.Container(
                     content=ft.Row([
-                        ft.Icon(ft.Icons.EMOJI_EVENTS, size=20, color=ft.Colors.AMBER_600),
+                        ft.Icon(ft.Icons.EMOJI_EVENTS, size=18, color=ft.Colors.AMBER_600),
                         ft.Text(
-                            f"Current winner: {current_winner.get('media_name', 'Unknown')}",
-                            size=14,
+                            f"Current: {current_winner.get('media_name', 'Unknown')}",
+                            size=13,
                             weight=ft.FontWeight.W_500,
-                            color=ft.Colors.AMBER_600
+                            color=ft.Colors.AMBER_700
                         ),
                         ft.Container(expand=True),
                         ft.TextButton(
-                            text="Remove Winner",
+                            text="Remove",
                             icon=ft.Icons.CLEAR,
-                            on_click=lambda _: remove_current_winner(),
+                            on_click=remove_current_winner_action,
                             style=ft.ButtonStyle(color=ft.Colors.ERROR)
                         )
                     ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                    bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.AMBER_600),
-                    padding=ft.padding.all(12),
-                    border_radius=ft.border_radius.all(8),
-                    margin=ft.margin.only(top=16)
+                    bgcolor=ft.Colors.with_opacity(0.12, ft.Colors.AMBER_600),
+                    padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                    border_radius=8,
+                    border=ft.border.all(1, ft.Colors.with_opacity(0.3, ft.Colors.AMBER_600))
                 )
-                header_content.append(current_winner_info)
             
-            # Create dialog content
-            dialog_content = ft.Container(
-                content=ft.Column([
-                    # Header
+            # Build dialog content
+            content_controls = [
+                ft.TextField(
+                    ref=search_field,
+                    label="Search media...",
+                    on_change=filter_items,
+                    prefix_icon=ft.Icons.SEARCH_ROUNDED,
+                    border_radius=10,
+                    content_padding=ft.padding.symmetric(horizontal=16, vertical=12)
+                ),
+            ]
+            if current_winner_banner:
+                content_controls.append(current_winner_banner)
+            content_controls.append(ft.Container(height=8))
+            content_controls.append(
+                ft.Container(
+                    content=ft.Row(ref=items_grid, controls=card_containers, wrap=True, scroll=ft.ScrollMode.ADAPTIVE, spacing=12, run_spacing=12),
+                    height=400,
+                    width=820,
+                    border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+                    border_radius=12,
+                    padding=12
+                )
+            )
+            
+            dialog = ft.AlertDialog(
+                ref=dialog_ref,
+                modal=True,
+                title=header_row,
+                content=ft.Column(content_controls, tight=True, spacing=8),
+                actions=[
+                    ft.TextButton("Cancel", on_click=close_dialog),
                     ft.Container(
-                        content=ft.Column(header_content, spacing=8),
-                        padding=ft.padding.all(24)
-                    ),
-                    
-                    # Divider
-                    ft.Divider(height=1, color=ft.Colors.OUTLINE_VARIANT),
-                    
-                    # Media selection area
-                    scrollable_content,
-                    
-                    # Footer with close button
-                    ft.Container(
-                        content=ft.Row([
-                            ft.Container(expand=True),
-                            ft.TextButton(
-                                text="Cancel",
-                                on_click=close_dialog,
-                                style=ft.ButtonStyle(
-                                    color=ft.Colors.ON_SURFACE_VARIANT
-                                )
+                        content=ft.ElevatedButton(
+                            "Select Winner",
+                            icon=ft.Icons.EMOJI_EVENTS,
+                            on_click=save_selection,
+                            style=ft.ButtonStyle(
+                                bgcolor=ColorThemeManager.BRAND_COLORS['primary'],
+                                color=ft.Colors.WHITE,
+                                padding=ft.padding.symmetric(horizontal=20, vertical=10),
+                                shape=ft.RoundedRectangleBorder(radius=8)
                             )
-                        ], alignment=ft.MainAxisAlignment.END),
-                        padding=ft.padding.all(24)
+                        ),
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=6,
+                            color=ft.Colors.with_opacity(0.15, ColorThemeManager.BRAND_COLORS['primary']),
+                            offset=ft.Offset(0, 2)
+                        ),
+                        border_radius=8
                     )
-                ], spacing=0),
-                width=min(1200, self.page.window_width * 0.9) if self.page.window_width else 800,
-                bgcolor=ft.Colors.SURFACE,
-                border_radius=ft.border_radius.all(16),
-                shadow=ft.BoxShadow(
-                    spread_radius=0,
-                    blur_radius=20,
-                    color=ft.Colors.with_opacity(0.3, ft.Colors.BLACK),
-                    offset=ft.Offset(0, 10)
-                )
+                ]
             )
-            
-            # Create overlay
-            dialog_overlay = ft.Container(
-                ref=dialog_overlay_ref,
-                content=ft.Stack([
-                    # Background overlay
-                    ft.Container(
-                        bgcolor=ft.Colors.with_opacity(0.5, ft.Colors.BLACK),
-                        expand=True,
-                        on_click=close_dialog
-                    ),
-                    # Dialog
-                    ft.Container(
-                        content=dialog_content,
-                        alignment=ft.alignment.center,
-                        expand=True
-                    )
-                ]),
-                expand=True
-            )
-            
-            self.page.overlay.append(dialog_overlay)
+            self.page.overlay.append(dialog)
+            dialog.open = True
             self.page.update()
             
         except Exception as e:
             print(f"Error opening winner selection dialog: {e}")
+            self.show_snackbar("Error opening winner selection. Please try again.", ft.Colors.ERROR)
+        finally:
             if hasattr(self.page, '_dialog_is_opening'):
                 self.page._dialog_is_opening = False
-            self.show_snackbar("Error opening winner selection. Please try again.", ft.Colors.ERROR)
 
     def show_confirmation_dialog(self, title, content, on_confirm):
         """A generic confirmation dialog."""
@@ -4982,174 +4965,151 @@ class AppUI:
         dialog.open = True
         self.page.update()
 
-    def build_winner_selection_card(self, media, is_current_winner, on_select_callback):
-        """Build a card for media selection in winner dialog."""
-        name = media.get('name', 'Unknown Title')
-        entry_type = media.get('entry_type', 'Media')
-        score = media.get('review_score')
-        completion_date = media.get('completion_date', 'N/A')
+    def _build_award_selection_card(self, media_item, is_current_winner, selection_refs):
+        """Creates an enhanced visual card for selecting a winner, similar to collections style."""
         
-        # Get image
-        db_image_value = media.get('image_url')
-        image_src = config.DEFAULT_IMAGE_URL
+        # Create a selection state dict for this card
+        selection_state = {'media_id': media_item['id'], 'selected': False, 'overlay_ref': None, 'container_ref': None}
+        selection_refs.append(selection_state)
         
-        if db_image_value:
-            if db_image_value.lower().startswith(("http://", "https://")):
-                image_src = db_image_value
-            else:
-                full_local_path = os.path.join(config.ASSETS_DIR, db_image_value)
-                if os.path.exists(full_local_path):
-                    image_src = db_image_value
-        
-        # Format completion date
-        display_date = 'N/A'
-        if completion_date and completion_date != 'N/A':
-            try:
-                date_obj = datetime.strptime(completion_date, '%Y-%m-%d')
-                display_date = date_obj.strftime('%b %Y')
-            except ValueError:
-                display_date = completion_date
-        
-        # Create rating display
-        rating_display = ft.Container()
-        if score is not None:
-            try:
-                score_val = float(score)
-                if score_val >= 9:
-                    color = ft.Colors.GREEN_600
-                elif score_val >= 7:
-                    color = ft.Colors.BLUE_600
-                elif score_val >= 5:
-                    color = ft.Colors.ORANGE_600
-                else:
-                    color = ft.Colors.RED_600
-                
-                rating_display = ft.Container(
-                    content=ft.Row([
-                        ft.Icon(ft.Icons.STAR, size=14, color=color),
-                        ft.Text(f"{score_val:.1f}", size=12, color=color, weight=ft.FontWeight.W_600)
-                    ], spacing=4, tight=True),
-                    bgcolor=ft.Colors.with_opacity(0.1, color),
-                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
-                    border_radius=ft.border_radius.all(12),
-                    border=ft.border.all(1, ft.Colors.with_opacity(0.3, color))
-                )
-            except (ValueError, TypeError):
-                pass
-        
-        # Entry type styling
-        entry_type_colors = {
-            'Game': ft.Colors.BLUE_600,
-            'Movie': ft.Colors.RED_600,
-            'Show': ft.Colors.PURPLE_600,
-            'K-Drama': ft.Colors.GREEN_600,
-            'Anime': ft.Colors.PINK_600,
-            'Book': ft.Colors.BROWN_600,
-            'Album': ft.Colors.CYAN_600,
-            'Hentai': ft.Colors.DEEP_PURPLE_600,
-            'JAV': ft.Colors.INDIGO_600,
-            'Adult Visual Novel': ft.Colors.DEEP_ORANGE_600,
-            'Other': ft.Colors.BLUE_GREY_600
-        }
-        
-        type_color = entry_type_colors.get(entry_type, entry_type_colors['Other'])
-        
-        # Create card content
-        card_content = ft.Container(
+        # Enhanced selected state with gradient overlay
+        selected_overlay = ft.Container(
+            gradient=ft.LinearGradient(
+                colors=[
+                    ft.Colors.with_opacity(0.7, ColorThemeManager.BRAND_COLORS['primary']),
+                    ft.Colors.with_opacity(0.5, ColorThemeManager.BRAND_COLORS['secondary'])
+                ],
+                begin=ft.alignment.top_left,
+                end=ft.alignment.bottom_right
+            ),
+            border_radius=14,
             content=ft.Column([
-                # Image
+                ft.Container(
+                    content=ft.Icon(ft.Icons.EMOJI_EVENTS_ROUNDED, color=ft.Colors.WHITE, size=36),
+                    bgcolor=ft.Colors.with_opacity(0.3, ft.Colors.WHITE),
+                    border_radius=30,
+                    padding=8
+                ),
+                ft.Text("Selected", color=ft.Colors.WHITE, size=11, weight=ft.FontWeight.W_600)
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=6),
+            alignment=ft.alignment.center,
+            visible=False
+        )
+        selection_state['overlay_ref'] = selected_overlay
+        
+        # Enhanced disabled state (current winner)
+        disabled_overlay = ft.Container(
+            bgcolor=ft.Colors.with_opacity(0.8, ft.Colors.AMBER_900),
+            border_radius=14,
+            content=ft.Column([
+                ft.Container(
+                    content=ft.Icon(ft.Icons.EMOJI_EVENTS, color=ft.Colors.AMBER_400, size=24),
+                    bgcolor=ft.Colors.with_opacity(0.2, ft.Colors.AMBER_400),
+                    border_radius=20,
+                    padding=8
+                ),
+                ft.Text("Current Winner", color=ft.Colors.WHITE, size=10, weight=ft.FontWeight.W_500)
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=4),
+            alignment=ft.alignment.center,
+            visible=is_current_winner
+        )
+        
+        container_ref = ft.Ref[ft.Container]()
+
+        def toggle_selection(e):
+            if not is_current_winner:
+                # Deselect all other cards first (single selection)
+                for ref in selection_refs:
+                    if ref['media_id'] != media_item['id'] and ref['selected']:
+                        ref['selected'] = False
+                        if ref['overlay_ref']:
+                            ref['overlay_ref'].visible = False
+                            ref['overlay_ref'].update()
+                        if ref['container_ref']:
+                            ref['container_ref'].border = ft.border.all(1, ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE))
+                            ref['container_ref'].shadow = ft.BoxShadow(
+                                spread_radius=0,
+                                blur_radius=4,
+                                color=ft.Colors.with_opacity(0.05, ft.Colors.BLACK),
+                                offset=ft.Offset(0, 2)
+                            )
+                            ref['container_ref'].update()
+                
+                # Toggle this card
+                selection_state['selected'] = not selection_state['selected']
+                selected_overlay.visible = selection_state['selected']
+                
+                if selection_state['selected']:
+                    e.control.border = ft.border.all(3, ColorThemeManager.BRAND_COLORS['primary'])
+                    e.control.shadow = ft.BoxShadow(
+                        spread_radius=0,
+                        blur_radius=12,
+                        color=ft.Colors.with_opacity(0.3, ColorThemeManager.BRAND_COLORS['primary']),
+                        offset=ft.Offset(0, 4)
+                    )
+                else:
+                    e.control.border = ft.border.all(1, ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE))
+                    e.control.shadow = ft.BoxShadow(
+                        spread_radius=0,
+                        blur_radius=4,
+                        color=ft.Colors.with_opacity(0.05, ft.Colors.BLACK),
+                        offset=ft.Offset(0, 2)
+                    )
+                e.control.update()
+                selected_overlay.update()
+
+        card_content = ft.Stack([
+            ft.Column([
                 ft.Container(
                     content=ft.Image(
-                        src=image_src,
-                        height=120,
-                        width=float('inf'),
-                        fit=ft.ImageFit.COVER,
+                        src=media_item.get('image_url', ''),
                         error_content=ft.Container(
-                            content=ft.Column([
-                                ft.Icon(ft.Icons.BROKEN_IMAGE, size=30, color=ft.Colors.ON_SURFACE_VARIANT),
-                                ft.Text("No Image", size=10, color=ft.Colors.ON_SURFACE_VARIANT)
-                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, 
-                               alignment=ft.MainAxisAlignment.CENTER, spacing=4),
-                            height=120,
-                            bgcolor=ft.Colors.SURFACE,
-                            alignment=ft.alignment.center
-                        )
+                            content=ft.Icon(ft.Icons.IMAGE_OUTLINED, color=ft.Colors.ON_SURFACE_VARIANT, size=28),
+                            alignment=ft.alignment.center,
+                            bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE)
+                        ),
+                        height=100,
+                        fit=ft.ImageFit.COVER
                     ),
-                    border_radius=ft.border_radius.only(top_left=12, top_right=12),
-                    clip_behavior=ft.ClipBehavior.HARD_EDGE
+                    clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                    border_radius=ft.border_radius.only(top_left=14, top_right=14)
                 ),
-                
-                # Content
                 ft.Container(
-                    content=ft.Column([
-                        # Title
-                        ft.Text(
-                            name,
-                            size=14,
-                            weight=ft.FontWeight.W_600,
-                            color=ft.Colors.ON_SURFACE,
-                            max_lines=2,
-                            overflow=ft.TextOverflow.ELLIPSIS
-                        ),
-                        
-                        # Entry type and rating
-                        ft.Row([
-                            ft.Container(
-                                content=ft.Text(
-                                    entry_type,
-                                    size=11,
-                                    color=ft.Colors.WHITE,
-                                    weight=ft.FontWeight.W_500
-                                ),
-                                bgcolor=type_color,
-                                padding=ft.padding.symmetric(horizontal=8, vertical=4),
-                                border_radius=ft.border_radius.all(12)
-                            ),
-                            rating_display
-                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, 
-                           vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                        
-                        # Date
-                        ft.Text(
-                            display_date,
-                            size=11,
-                            color=ft.Colors.ON_SURFACE_VARIANT
-                        ),
-                        
-                        # Select button with proper click handling
-                        ft.Container(height=8),
-                        ft.ElevatedButton(
-                            text="Select as Winner" if not is_current_winner else "Current Winner",
-                            icon=ft.Icons.EMOJI_EVENTS,
-                            on_click=lambda _: on_select_callback() if not is_current_winner else None,
-                            disabled=is_current_winner,
-                            style=ft.ButtonStyle(
-                                bgcolor=ft.Colors.AMBER_600 if is_current_winner else ft.Colors.PRIMARY,
-                                color=ft.Colors.WHITE,
-                                padding=ft.padding.symmetric(horizontal=16, vertical=8)
-                            )
-                        )
-                    ], spacing=8),
-                    padding=ft.padding.all(12)
+                    content=ft.Text(
+                        media_item['name'], 
+                        max_lines=2, 
+                        overflow=ft.TextOverflow.ELLIPSIS, 
+                        size=12,
+                        weight=ft.FontWeight.W_500
+                    ),
+                    padding=ft.padding.symmetric(horizontal=10, vertical=8)
                 )
             ], spacing=0),
+            selected_overlay,
+            disabled_overlay
+        ])
+
+        card_container = ft.Container(
+            ref=container_ref,
+            content=card_content,
+            width=160,
+            height=150,
+            border_radius=14,
+            border=ft.border.all(2, ft.Colors.AMBER_600) if is_current_winner else ft.border.all(1, ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE)),
             bgcolor=ft.Colors.SURFACE,
-            border_radius=ft.border_radius.all(12),
-            border=ft.border.all(2, ft.Colors.AMBER_600) if is_current_winner else ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            on_click=toggle_selection,
+            data=media_item['name'].lower(),
             shadow=ft.BoxShadow(
                 spread_radius=0,
-                blur_radius=8 if is_current_winner else 4,
-                color=ft.Colors.with_opacity(0.3 if is_current_winner else 0.1, ft.Colors.AMBER_600 if is_current_winner else ft.Colors.BLACK),
+                blur_radius=6 if is_current_winner else 4,
+                color=ft.Colors.with_opacity(0.2 if is_current_winner else 0.05, ft.Colors.AMBER_600 if is_current_winner else ft.Colors.BLACK),
                 offset=ft.Offset(0, 2)
             )
         )
+        selection_state['container_ref'] = card_container
         
-# Create the card with proper click handling for scrollable content
-        return ft.Card(
-            content=card_content,
-            elevation=0,
-            margin=ft.margin.all(4)
-        )
+        return card_container
 
     def back_to_year_selection(self):
         """Navigate back to year selection from categories view."""
