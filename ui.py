@@ -3241,52 +3241,102 @@ class AppUI:
             self.update_main_content("Awards")
             self.show_snackbar("Award category order saved.", color=ft.Colors.GREEN_700)
         
+        # Enhanced reorder list with styled items (matching collections style)
+        def create_reorder_item(item):
+            has_winner = database.get_award_winner_db(item['id']) is not None
+            return ft.Container(
+                key=str(item['id']),
+                content=ft.Row([
+                    ft.Container(
+                        content=ft.Icon(ft.Icons.DRAG_HANDLE_ROUNDED, color=ft.Colors.ON_SURFACE_VARIANT, size=20),
+                        padding=ft.padding.only(right=12)
+                    ),
+                    ft.Container(
+                        content=ft.Icon(
+                            ft.Icons.EMOJI_EVENTS if has_winner else ft.Icons.EMOJI_EVENTS_OUTLINED,
+                            size=18,
+                            color=ft.Colors.AMBER_600 if has_winner else ft.Colors.ON_SURFACE_VARIANT
+                        ),
+                        width=36,
+                        height=36,
+                        border_radius=8,
+                        bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.AMBER_600) if has_winner else ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
+                        alignment=ft.alignment.center
+                    ),
+                    ft.Container(width=12),
+                    ft.Text(item['name'], size=14, weight=ft.FontWeight.W_500, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, expand=True),
+                    ft.Container(
+                        content=ft.Text(
+                            "Winner" if has_winner else "Empty",
+                            size=11,
+                            color=ft.Colors.AMBER_700 if has_winner else ft.Colors.ON_SURFACE_VARIANT,
+                            weight=ft.FontWeight.W_500
+                        ),
+                        bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.AMBER_600) if has_winner else ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
+                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                        border_radius=10
+                    )
+                ], vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=ft.padding.symmetric(horizontal=12, vertical=10),
+                border_radius=10,
+                bgcolor=ft.Colors.SURFACE,
+                border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+                margin=ft.margin.only(bottom=8)
+            )
+        
         reorder_list = ft.ReorderableListView(
             on_reorder=handle_reorder,
-            controls=[
-                ft.ListTile(
-                    key=str(item['id']),
-                    title=ft.Text(item['name'], weight=ft.FontWeight.W_500),
-                    leading=ft.Icon(ft.Icons.DRAG_HANDLE, color=ft.Colors.ON_SURFACE_VARIANT),
-                    trailing=ft.Icon(
-                        ft.Icons.EMOJI_EVENTS if database.get_award_winner_db(item['id']) else ft.Icons.EMOJI_EVENTS_OUTLINED,
-                        color=ft.Colors.AMBER_600 if database.get_award_winner_db(item['id']) else ft.Colors.ON_SURFACE_VARIANT,
-                        size=20
-                    )
-                ) for item in items
-            ]
+            controls=[create_reorder_item(item) for item in items]
         )
-        
+
         dialog = ft.AlertDialog(
             ref=dialog_ref,
             modal=True,
             title=ft.Row([
-                ft.Icon(ft.Icons.SWAP_VERT, color=ColorThemeManager.BRAND_COLORS['primary']),
-                ft.Container(width=10),
-                ft.Text("Reorder Award Categories", weight=ft.FontWeight.BOLD)
-            ]),
-            content=ft.Container(
-                content=ft.Column([
-                    ft.Text(
-                        "Drag and drop to reorder categories",
-                        size=13,
-                        color=ft.Colors.ON_SURFACE_VARIANT
+                ft.Container(
+                    content=ft.Icon(ft.Icons.SWAP_VERT_ROUNDED, size=18, color=ft.Colors.WHITE),
+                    gradient=ft.LinearGradient(
+                        colors=[ColorThemeManager.BRAND_COLORS['primary'], ColorThemeManager.BRAND_COLORS['primary_dark']],
+                        begin=ft.alignment.top_left,
+                        end=ft.alignment.bottom_right
                     ),
-                    ft.Container(height=10),
-                    reorder_list
-                ]),
-                height=400,
-                width=400
+                    width=32,
+                    height=32,
+                    border_radius=8,
+                    alignment=ft.alignment.center
+                ),
+                ft.Container(width=12),
+                ft.Column([
+                    ft.Text("Reorder Award Categories", size=18, weight=ft.FontWeight.BOLD),
+                    ft.Text(f"Year {year}", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
+                ], spacing=0)
+            ], spacing=0),
+            content=ft.Container(
+                content=reorder_list, 
+                height=400, 
+                width=450,
+                padding=ft.padding.only(top=8)
             ),
             actions=[
                 ft.TextButton("Cancel", on_click=close_dialog),
-                ft.ElevatedButton(
-                    "Save Order",
-                    on_click=save_new_order,
-                    style=ft.ButtonStyle(
-                        bgcolor=ColorThemeManager.BRAND_COLORS['primary'],
-                        color=ft.Colors.WHITE
-                    )
+                ft.Container(
+                    content=ft.ElevatedButton(
+                        "Save Order", 
+                        on_click=save_new_order,
+                        style=ft.ButtonStyle(
+                            bgcolor=ColorThemeManager.BRAND_COLORS['primary'],
+                            color=ft.Colors.WHITE,
+                            padding=ft.padding.symmetric(horizontal=20, vertical=10),
+                            shape=ft.RoundedRectangleBorder(radius=8)
+                        )
+                    ),
+                    shadow=ft.BoxShadow(
+                        spread_radius=0,
+                        blur_radius=6,
+                        color=ft.Colors.with_opacity(0.15, ColorThemeManager.BRAND_COLORS['primary']),
+                        offset=ft.Offset(0, 2)
+                    ),
+                    border_radius=8
                 )
             ],
             actions_alignment=ft.MainAxisAlignment.END
