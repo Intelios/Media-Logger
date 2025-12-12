@@ -1030,6 +1030,37 @@ def is_award_winner(media_id):
         if conn:
             conn.close()
 
+def get_awards_for_media_db(media_id):
+    """
+    Retrieves all awards won by a specific media entry.
+    
+    Args:
+        media_id: The ID of the media entry to check
+        
+    Returns:
+        list: List of dictionaries containing award info (category_name, year)
+    """
+    conn = None
+    awards = []
+    try:
+        conn = sqlite3.connect(config.DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT ac.name as category_name, ac.year
+            FROM award_winners aw
+            JOIN award_categories ac ON aw.category_id = ac.id
+            WHERE aw.media_id = ?
+            ORDER BY ac.year DESC, ac.name ASC
+        """, (media_id,))
+        awards = [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        print(f"Database error getting awards for media ID {media_id}: {e}")
+    finally:
+        if conn:
+            conn.close()
+    return awards
+
 def create_collection_db(name: str, description: str | None):
     """Creates a new collection."""
     conn = None

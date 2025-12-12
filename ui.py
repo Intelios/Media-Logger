@@ -232,7 +232,19 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
             )
         )
     
-    def create_trophy_indicator():
+    def create_trophy_indicator(awards_list=None):
+        # Build a descriptive tooltip showing all awards won
+        if awards_list and len(awards_list) > 0:
+            if len(awards_list) == 1:
+                award = awards_list[0]
+                tooltip_text = f"🏆 {award['category_name']} ({award['year']})"
+            else:
+                # Multiple awards - list them all
+                award_lines = [f"• {a['category_name']} ({a['year']})" for a in awards_list]
+                tooltip_text = f"🏆 {len(awards_list)} Awards Won:\n" + "\n".join(award_lines)
+        else:
+            tooltip_text = "Award Winner"
+        
         return ft.Container(
             content=ft.Icon(ft.Icons.EMOJI_EVENTS, size=17, color=ft.Colors.AMBER_50),
             gradient=ft.LinearGradient(
@@ -242,7 +254,7 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
             ),
             padding=ft.padding.all(7),
             border_radius=ft.border_radius.all(22),
-            tooltip="Award Winner",
+            tooltip=tooltip_text,
             border=ft.border.all(1.5, ft.Colors.with_opacity(0.5, ft.Colors.AMBER_200)),
             shadow=ft.BoxShadow(
                 spread_radius=1,
@@ -253,9 +265,10 @@ def create_gallery_card(page, jav_item, delete_callback, edit_callback, show_des
         )
     
     bottom_indicators_list = []
-    # Check if media is an award winner and add trophy badge first
-    if database.is_award_winner(jav_item.get('id')):
-        bottom_indicators_list.append(create_trophy_indicator())
+    # Check if media is an award winner and add trophy badge with specific award names
+    media_awards = database.get_awards_for_media_db(jav_item.get('id'))
+    if media_awards:
+        bottom_indicators_list.append(create_trophy_indicator(media_awards))
     if is_rewatch: bottom_indicators_list.append(create_indicator(ft.Icons.REPLAY_ROUNDED, "Rewatched", ft.Colors.AMBER_600))
     if owns_local_copy: bottom_indicators_list.append(create_indicator(ft.Icons.DOWNLOAD_DONE_ROUNDED, "Owns Local Copy", ft.Colors.GREEN_600))
     bottom_indicators_row = ft.Row(controls=bottom_indicators_list, spacing=9, vertical_alignment=ft.CrossAxisAlignment.CENTER)
