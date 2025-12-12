@@ -4967,15 +4967,23 @@ class AppUI:
 
     def show_confirmation_dialog(self, title, content, on_confirm):
         """A generic confirmation dialog."""
-        def close_dialog(e):
-            dialog.open = False
-            self.page.update()
+        dialog_ref = ft.Ref[ft.AlertDialog]()
+        
+        def close_dialog(e=None):
+            dlg = dialog_ref.current
+            if dlg:
+                dlg.open = False
+                self.page.update()
+                if dlg in self.page.overlay:
+                    self.page.overlay.remove(dlg)
+                    self.page.update()
 
         def confirm_action(e):
             on_confirm(e)
             close_dialog(e)
 
         dialog = ft.AlertDialog(
+            ref=dialog_ref,
             modal=True,
             title=ft.Text(title),
             content=ft.Text(content),
@@ -4985,7 +4993,7 @@ class AppUI:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.dialog = dialog
+        self.page.overlay.append(dialog)
         dialog.open = True
         self.page.update()
 
