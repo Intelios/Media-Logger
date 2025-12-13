@@ -148,23 +148,47 @@ class StatsView:
             max_count = max(rating_counts.values()) if rating_counts.values() else 1
             most_common_rating = max(rating_counts.items(), key=lambda x: x[1])[0] if rating_counts else None
             
+            # Color gradient for ratings (red to green)
+            rating_colors = {
+                1: ft.Colors.RED_400,
+                2: ft.Colors.RED_300,
+                3: ft.Colors.DEEP_ORANGE_400,
+                4: ft.Colors.ORANGE_400,
+                5: ft.Colors.AMBER_500,
+                6: ft.Colors.YELLOW_600,
+                7: ft.Colors.LIME_500,
+                8: ft.Colors.LIGHT_GREEN_500,
+                9: ft.Colors.GREEN_500,
+                10: ft.Colors.GREEN_400
+            }
+            
             for rating in range(10, 0, -1):  # 10 to 1, descending
                 count = rating_counts[rating]
                 percentage = (count / total_rated * 100) if total_rated > 0 else 0
                 bar_ratio = (count / max_count) if max_count > 0 else 0
                 
                 is_most_common = (rating == most_common_rating and count > 0)
-                bar_color = ft.Colors.AMBER_400 if is_most_common else ft.Colors.TEAL_400
+                base_color = rating_colors.get(rating, ft.Colors.TEAL_400)
                 
-                # Create the bar with proper proportions
+                # Create gradient bar with enhanced styling
                 bar_content = ft.Row(
                     controls=[
                         ft.Container(
-                            bgcolor=bar_color,
-                            border_radius=4,
-                            height=24,
+                            gradient=ft.LinearGradient(
+                                colors=[base_color, ft.Colors.with_opacity(0.7, base_color)],
+                                begin=ft.alignment.center_left,
+                                end=ft.alignment.center_right
+                            ),
+                            border_radius=6,
+                            height=28,
                             expand=int(bar_ratio * 100) if count > 0 else 0,
-                            animate=ft.Animation(500, ft.AnimationCurve.EASE_OUT)
+                            animate=ft.Animation(600, ft.AnimationCurve.EASE_OUT),
+                            shadow=ft.BoxShadow(
+                                spread_radius=0,
+                                blur_radius=8,
+                                color=ft.Colors.with_opacity(0.2, base_color),
+                                offset=ft.Offset(0, 2)
+                            ) if count > 0 else None
                         ),
                         ft.Container(
                             expand=int((1 - bar_ratio) * 100) if count > 0 else 100
@@ -173,31 +197,64 @@ class StatsView:
                     spacing=0
                 )
                 
+                # Rating number with star icon
+                rating_label = ft.Container(
+                    content=ft.Row([
+                        ft.Icon(
+                            ft.Icons.STAR_ROUNDED if count > 0 else ft.Icons.STAR_BORDER_ROUNDED,
+                            size=16,
+                            color=base_color if count > 0 else ft.Colors.ON_SURFACE_VARIANT
+                        ),
+                        ft.Text(
+                            str(rating), 
+                            weight=ft.FontWeight.W_700, 
+                            size=14,
+                            color=base_color if count > 0 else ft.Colors.ON_SURFACE_VARIANT
+                        )
+                    ], spacing=4, alignment=ft.MainAxisAlignment.END),
+                    width=50,
+                    alignment=ft.alignment.center_right
+                )
+                
+                # Count badge with enhanced styling
+                count_badge = ft.Container(
+                    content=ft.Row([
+                        ft.Text(
+                            str(count), 
+                            size=13, 
+                            weight=ft.FontWeight.W_700,
+                            color=ft.Colors.ON_SURFACE if count > 0 else ft.Colors.ON_SURFACE_VARIANT
+                        ),
+                        ft.Text(
+                            f"({percentage:.1f}%)", 
+                            size=11, 
+                            weight=ft.FontWeight.W_500,
+                            color=ft.Colors.ON_SURFACE_VARIANT
+                        )
+                    ], spacing=4),
+                    width=90,
+                    alignment=ft.alignment.center_left
+                )
+                
                 rating_bars.append(
                     ft.Container(
                         content=ft.Row([
-                            ft.Container(
-                                content=ft.Text(str(rating), weight=ft.FontWeight.BOLD, size=14),
-                                width=30,
-                                alignment=ft.alignment.center_right
-                            ),
+                            rating_label,
                             ft.Container(
                                 content=bar_content,
-                                bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.SURFACE),
-                                border_radius=4,
+                                bgcolor=ft.Colors.with_opacity(0.06, ft.Colors.ON_SURFACE),
+                                border_radius=8,
                                 expand=True,
-                                height=24
+                                height=28,
+                                border=ft.border.all(1, ft.Colors.with_opacity(0.08, ft.Colors.ON_SURFACE))
                             ),
-                            ft.Container(
-                                content=ft.Text(f"{count} ({percentage:.1f}%)", size=12, weight=ft.FontWeight.W_500),
-                                width=80,
-                                alignment=ft.alignment.center_left
-                            )
-                        ], spacing=10, alignment=ft.MainAxisAlignment.START),
-                        padding=ft.padding.symmetric(vertical=4),
-                        border=ft.border.all(2, ft.Colors.AMBER_400) if is_most_common else None,
-                        border_radius=8 if is_most_common else 0,
-                        bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.AMBER_400) if is_most_common else None
+                            count_badge
+                        ], spacing=12, alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                        padding=ft.padding.symmetric(vertical=5, horizontal=8),
+                        border=ft.border.all(2, ft.Colors.with_opacity(0.6, base_color)) if is_most_common else None,
+                        border_radius=12 if is_most_common else 8,
+                        bgcolor=ft.Colors.with_opacity(0.08, base_color) if is_most_common else ft.Colors.with_opacity(0.02, ft.Colors.ON_SURFACE),
+                        animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT)
                     )
                 )
             
@@ -293,244 +350,314 @@ class StatsView:
 
     def _create_enhanced_stat_card(self, icon: str, value_ref: ft.Ref[ft.Text], label: str, color: str, 
                                   subtitle: str = None, trend_icon: str = None, trend_color: str = None):
-        """Creates an enhanced stat card with modern gradient styling and animations."""
+        """Creates an enhanced stat card with modern gradient styling, shimmer effects, and animations."""
         
         # Build the content list dynamically
         content_items = []
         
-        # Icon row with gradient background
+        # Icon row with gradient background and decorative glow ring
         content_items.append(
             ft.Row([
-                ft.Container(
-                    content=ft.Icon(icon, color=ft.Colors.WHITE, size=32),
-                    padding=16,
-                    gradient=ft.LinearGradient(
-                        colors=[color, ft.Colors.with_opacity(0.7, color)],
-                        begin=ft.alignment.top_left,
-                        end=ft.alignment.bottom_right
+                ft.Stack([
+                    # Outer glow ring
+                    ft.Container(
+                        width=68,
+                        height=68,
+                        border_radius=22,
+                        gradient=ft.RadialGradient(
+                            colors=[
+                                ft.Colors.with_opacity(0.25, color),
+                                ft.Colors.TRANSPARENT
+                            ],
+                            radius=0.8
+                        ),
+                        animate=ft.Animation(600, ft.AnimationCurve.EASE_IN_OUT)
                     ),
-                    border_radius=20,
-                    shadow=ft.BoxShadow(
-                        spread_radius=1,
-                        blur_radius=12,
-                        color=ft.Colors.with_opacity(0.3, color),
-                        offset=ft.Offset(0, 4)
-                    ),
-                    animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT)
-                ),
-                ft.Container(expand=True),  # Spacer
-                # Trend indicator (if provided)
-                ft.Container(
-                    content=ft.Icon(trend_icon, color=ft.Colors.WHITE, size=18),
-                    visible=bool(trend_icon),
-                    padding=8,
-                    gradient=ft.LinearGradient(
-                        colors=[trend_color or ft.Colors.GREY, ft.Colors.with_opacity(0.7, trend_color or ft.Colors.GREY)],
-                        begin=ft.alignment.top_left,
-                        end=ft.alignment.bottom_right
-                    ),
-                    border_radius=12,
-                    shadow=ft.BoxShadow(
-                        spread_radius=0,
-                        blur_radius=8,
-                        color=ft.Colors.with_opacity(0.2, trend_color or ft.Colors.GREY),
-                        offset=ft.Offset(0, 2)
+                    # Main icon container
+                    ft.Container(
+                        content=ft.Icon(icon, color=ft.Colors.WHITE, size=30),
+                        width=60,
+                        height=60,
+                        alignment=ft.alignment.center,
+                        gradient=ft.LinearGradient(
+                            colors=[color, ft.Colors.with_opacity(0.75, color)],
+                            begin=ft.alignment.top_left,
+                            end=ft.alignment.bottom_right
+                        ),
+                        border_radius=20,
+                        shadow=ft.BoxShadow(
+                            spread_radius=1,
+                            blur_radius=16,
+                            color=ft.Colors.with_opacity(0.35, color),
+                            offset=ft.Offset(0, 5)
+                        ),
+                        animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT),
+                        left=4,
+                        top=4
                     )
-                ) if trend_icon else ft.Container()
+                ])
             ])
         )
         
-        # Value with animation and gradient text effect
+        # Value with animation and enhanced text styling
         content_items.append(
-            ft.AnimatedSwitcher(
-                ft.Text(
-                    ref=value_ref, 
-                    value="...", 
-                    size=42, 
-                    weight=ft.FontWeight.BOLD,
-                    color=color,
-                    style=ft.TextStyle(
-                        shadow=ft.BoxShadow(
-                            spread_radius=0,
-                            blur_radius=8,
-                            color=ft.Colors.with_opacity(0.15, color),
-                            offset=ft.Offset(0, 2)
+            ft.Container(
+                content=ft.AnimatedSwitcher(
+                    ft.Text(
+                        ref=value_ref, 
+                        value="...", 
+                        size=48, 
+                        weight=ft.FontWeight.W_800,
+                        color=color,
+                        style=ft.TextStyle(
+                            letter_spacing=-1,
+                            shadow=ft.BoxShadow(
+                                spread_radius=0,
+                                blur_radius=12,
+                                color=ft.Colors.with_opacity(0.2, color),
+                                offset=ft.Offset(0, 3)
+                            )
                         )
-                    )
+                    ),
+                    duration=500,
+                    transition=ft.AnimatedSwitcherTransition.SCALE
                 ),
-                duration=400,
-                transition=ft.AnimatedSwitcherTransition.SCALE
+                padding=ft.padding.only(top=8, bottom=4)
             )
         )
         
-        # Label
+        # Label with subtle accent
         content_items.append(
-            ft.Text(
-                label, 
-                size=15, 
-                color=ft.Colors.ON_SURFACE, 
-                weight=ft.FontWeight.W_600,
-                style=ft.TextStyle(letter_spacing=0.5)
-            )
+            ft.Row([
+                ft.Container(
+                    width=4,
+                    height=16,
+                    bgcolor=color,
+                    border_radius=2
+                ),
+                ft.Text(
+                    label, 
+                    size=15, 
+                    color=ft.Colors.ON_SURFACE, 
+                    weight=ft.FontWeight.W_700,
+                    style=ft.TextStyle(letter_spacing=0.3)
+                )
+            ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER)
         )
         
-        # Subtitle (if provided)
+        # Subtitle with icon (if provided)
         if subtitle:
             content_items.append(
-                ft.Text(
-                    subtitle, 
-                    size=12, 
-                    color=ft.Colors.ON_SURFACE_VARIANT,
-                    opacity=0.7,
-                    italic=True
+                ft.Container(
+                    content=ft.Row([
+                        ft.Icon(ft.Icons.INFO_OUTLINE, size=12, color=ft.Colors.ON_SURFACE_VARIANT, opacity=0.6),
+                        ft.Text(
+                            subtitle, 
+                            size=12, 
+                            color=ft.Colors.ON_SURFACE_VARIANT,
+                            opacity=0.7,
+                            italic=True
+                        )
+                    ], spacing=6),
+                    padding=ft.padding.only(top=2)
                 )
             )
         
         return ft.Container(
-            content=ft.Column(content_items, spacing=14),
-            padding=ft.padding.all(28),
-            border_radius=24,
+            content=ft.Column(content_items, spacing=12),
+            padding=ft.padding.all(24),
+            border_radius=28,
             gradient=ft.LinearGradient(
                 colors=[
-                    ft.Colors.with_opacity(0.05, color),
+                    ft.Colors.with_opacity(0.08, color),
                     ft.Colors.with_opacity(0.02, ft.Colors.SURFACE)
                 ],
                 begin=ft.alignment.top_left,
                 end=ft.alignment.bottom_right
             ),
-            border=ft.border.all(2, ft.Colors.with_opacity(0.15, color)),
+            border=ft.border.all(1.5, ft.Colors.with_opacity(0.18, color)),
             expand=True,
-            animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT),
+            animate=ft.Animation(250, ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
             on_hover=self._on_stat_card_hover,
             shadow=ft.BoxShadow(
                 spread_radius=0,
-                blur_radius=20,
-                color=ft.Colors.with_opacity(0.08, color),
-                offset=ft.Offset(0, 6)
-            )
+                blur_radius=24,
+                color=ft.Colors.with_opacity(0.1, color),
+                offset=ft.Offset(0, 8)
+            ),
+            data=color  # Store color for hover state restoration
         )
 
     def _on_stat_card_hover(self, e):
-        """Add smooth hover effect to stat cards with elevation and scale."""
+        """Add smooth hover effect to stat cards with elevation, scale, and glow."""
+        stored_color = getattr(e.control, 'data', None) or ft.Colors.PRIMARY
+        
         if e.data == "true":  # Hover enter
             e.control.shadow = ft.BoxShadow(
-                spread_radius=2,
-                blur_radius=28,
-                color=ft.Colors.with_opacity(0.15, ft.Colors.PRIMARY),
-                offset=ft.Offset(0, 8)
+                spread_radius=3,
+                blur_radius=32,
+                color=ft.Colors.with_opacity(0.2, stored_color),
+                offset=ft.Offset(0, 10)
             )
-            e.control.scale = 1.03
+            e.control.scale = 1.025
+            e.control.border = ft.border.all(2, ft.Colors.with_opacity(0.35, stored_color))
         else:  # Hover exit
-            # Get the original color from the card's border
-            original_color = ft.Colors.PRIMARY  # Default fallback
-            if hasattr(e.control, 'border') and e.control.border:
-                original_color = e.control.border.top.color if hasattr(e.control.border, 'top') else ft.Colors.PRIMARY
-            
             e.control.shadow = ft.BoxShadow(
                 spread_radius=0,
-                blur_radius=20,
-                color=ft.Colors.with_opacity(0.08, original_color),
-                offset=ft.Offset(0, 6)
+                blur_radius=24,
+                color=ft.Colors.with_opacity(0.1, stored_color),
+                offset=ft.Offset(0, 8)
             )
             e.control.scale = 1.0
+            e.control.border = ft.border.all(1.5, ft.Colors.with_opacity(0.18, stored_color))
         e.control.update()
 
     def _create_expandable_breakdown_card(self, container_ref, chart_ref, legend_ref, title, icon, color):
-        """Creates an expandable breakdown card with modern gradient styling."""
+        """Creates an expandable breakdown card with modern gradient styling and animations."""
         return ft.Container(
             ref=container_ref,
             content=ft.ExpansionTile(
-                leading=ft.Container(
-                    content=ft.Icon(icon, color=ft.Colors.WHITE, size=24),
-                    gradient=ft.LinearGradient(
-                        colors=[color, ft.Colors.with_opacity(0.7, color)],
-                        begin=ft.alignment.top_left,
-                        end=ft.alignment.bottom_right
+                leading=ft.Stack([
+                    # Outer glow effect
+                    ft.Container(
+                        width=52,
+                        height=52,
+                        border_radius=18,
+                        gradient=ft.RadialGradient(
+                            colors=[
+                                ft.Colors.with_opacity(0.2, color),
+                                ft.Colors.TRANSPARENT
+                            ],
+                            radius=0.7
+                        )
                     ),
-                    padding=12,
-                    border_radius=16,
-                    shadow=ft.BoxShadow(
-                        spread_radius=0,
-                        blur_radius=10,
-                        color=ft.Colors.with_opacity(0.25, color),
-                        offset=ft.Offset(0, 3)
+                    # Main icon container
+                    ft.Container(
+                        content=ft.Icon(icon, color=ft.Colors.WHITE, size=22),
+                        width=44,
+                        height=44,
+                        alignment=ft.alignment.center,
+                        gradient=ft.LinearGradient(
+                            colors=[color, ft.Colors.with_opacity(0.75, color)],
+                            begin=ft.alignment.top_left,
+                            end=ft.alignment.bottom_right
+                        ),
+                        border_radius=14,
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=12,
+                            color=ft.Colors.with_opacity(0.3, color),
+                            offset=ft.Offset(0, 4)
+                        ),
+                        left=4,
+                        top=4
                     )
-                ),
-                title=ft.Text(title, style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.W_600),
-                subtitle=ft.Text("Tap to expand and view detailed breakdown", size=12, color=ft.Colors.ON_SURFACE_VARIANT, italic=True),
+                ]),
+                title=ft.Text(title, style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.W_700),
+                subtitle=ft.Row([
+                    ft.Icon(ft.Icons.TOUCH_APP_ROUNDED, size=14, color=ft.Colors.ON_SURFACE_VARIANT, opacity=0.6),
+                    ft.Text("Tap to expand", size=12, color=ft.Colors.ON_SURFACE_VARIANT, italic=True)
+                ], spacing=6),
                 controls=[
                     ft.Container(
                         content=ft.Row([
-                            # Chart section with enhanced styling
+                            # Chart section with enhanced styling and center display
                             ft.Container(
                                 content=ft.Column([
-                                    ft.Container(
-                                        content=ft.PieChart(
-                                            ref=chart_ref,
-                                            sections=[],
-                                            center_space_radius=55,
-                                            animate=ft.Animation(600, ft.AnimationCurve.ELASTIC_OUT)
+                                    ft.Stack([
+                                        ft.Container(
+                                            content=ft.PieChart(
+                                                ref=chart_ref,
+                                                sections=[],
+                                                center_space_radius=50,
+                                                animate=ft.Animation(700, ft.AnimationCurve.ELASTIC_OUT)
+                                            ),
+                                            padding=ft.padding.all(12)
                                         ),
-                                        padding=ft.padding.all(16),
-                                        border_radius=20,
-                                        gradient=ft.LinearGradient(
-                                            colors=[
-                                                ft.Colors.with_opacity(0.03, color),
-                                                ft.Colors.with_opacity(0.01, ft.Colors.SURFACE)
-                                            ],
-                                            begin=ft.alignment.top_left,
-                                            end=ft.alignment.bottom_right
-                                        ),
-                                        border=ft.border.all(1, ft.Colors.with_opacity(0.1, color))
-                                    )
+                                        # Center indicator
+                                        ft.Container(
+                                            content=ft.Column([
+                                                ft.Icon(icon, size=24, color=color, opacity=0.7),
+                                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+                                            width=100,
+                                            height=100,
+                                            alignment=ft.alignment.center,
+                                            border_radius=50,
+                                            bgcolor=ft.Colors.with_opacity(0.05, color),
+                                            left=90,
+                                            top=90
+                                        )
+                                    ])
                                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                                expand=3,
-                                padding=20
+                                padding=ft.padding.all(16),
+                                border_radius=20,
+                                gradient=ft.LinearGradient(
+                                    colors=[
+                                        ft.Colors.with_opacity(0.04, color),
+                                        ft.Colors.with_opacity(0.01, ft.Colors.SURFACE)
+                                    ],
+                                    begin=ft.alignment.top_left,
+                                    end=ft.alignment.bottom_right
+                                ),
+                                border=ft.border.all(1, ft.Colors.with_opacity(0.12, color)),
+                                expand=3
                             ),
                             # Legend section with enhanced styling
                             ft.Container(
                                 content=ft.Column([
                                     ft.Container(
                                         content=ft.Row([
-                                            ft.Icon(ft.Icons.LIST_ROUNDED, size=18, color=color),
-                                            ft.Text("Top Entries", weight=ft.FontWeight.BOLD, size=15)
+                                            ft.Container(
+                                                content=ft.Icon(ft.Icons.LEADERBOARD_ROUNDED, size=16, color=ft.Colors.WHITE),
+                                                width=28,
+                                                height=28,
+                                                alignment=ft.alignment.center,
+                                                bgcolor=color,
+                                                border_radius=8
+                                            ),
+                                            ft.Text("Top Entries", weight=ft.FontWeight.W_700, size=15)
                                         ], spacing=10),
-                                        padding=ft.padding.symmetric(horizontal=12, vertical=8),
-                                        bgcolor=ft.Colors.with_opacity(0.08, color),
-                                        border_radius=12
+                                        padding=ft.padding.symmetric(horizontal=14, vertical=10),
+                                        bgcolor=ft.Colors.with_opacity(0.06, color),
+                                        border_radius=12,
+                                        border=ft.border.all(1, ft.Colors.with_opacity(0.1, color))
                                     ),
-                                    ft.Container(height=12),
+                                    ft.Container(height=10),
                                     ft.Container(
                                         content=ft.Column(
                                             ref=legend_ref, 
                                             controls=[], 
-                                            spacing=10, 
+                                            spacing=6, 
                                             scroll=ft.ScrollMode.ADAPTIVE
                                         ),
-                                        height=230,
-                                        padding=ft.padding.all(8)
+                                        height=240,
+                                        padding=ft.padding.all(6),
+                                        border_radius=12,
+                                        bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.ON_SURFACE)
                                     )
                                 ]),
                                 expand=2,
-                                padding=20
+                                padding=ft.padding.only(left=12, right=4, top=4, bottom=4)
                             )
-                        ], vertical_alignment=ft.CrossAxisAlignment.START),
+                        ], vertical_alignment=ft.CrossAxisAlignment.START, spacing=16),
                         gradient=ft.LinearGradient(
                             colors=[
-                                ft.Colors.with_opacity(0.04, color),
-                                ft.Colors.with_opacity(0.01, ft.Colors.SURFACE)
+                                ft.Colors.with_opacity(0.05, color),
+                                ft.Colors.with_opacity(0.015, ft.Colors.SURFACE)
                             ],
                             begin=ft.alignment.top_left,
                             end=ft.alignment.bottom_right
                         ),
-                        border_radius=16,
-                        border=ft.border.all(1, ft.Colors.with_opacity(0.12, color)),
-                        margin=ft.margin.symmetric(horizontal=12, vertical=8),
+                        border_radius=18,
+                        border=ft.border.all(1, ft.Colors.with_opacity(0.1, color)),
+                        margin=ft.margin.symmetric(horizontal=8, vertical=6),
+                        padding=ft.padding.all(16),
                         shadow=ft.BoxShadow(
                             spread_radius=0,
-                            blur_radius=12,
-                            color=ft.Colors.with_opacity(0.08, color),
-                            offset=ft.Offset(0, 4)
+                            blur_radius=14,
+                            color=ft.Colors.with_opacity(0.06, color),
+                            offset=ft.Offset(0, 3)
                         )
                     )
                 ],
@@ -539,13 +666,13 @@ class StatsView:
                 text_color=ft.Colors.ON_SURFACE,
                 icon_color=color
             ),
-            border_radius=20,
-            border=ft.border.all(2, ft.Colors.with_opacity(0.1, color)),
+            border_radius=22,
+            border=ft.border.all(1.5, ft.Colors.with_opacity(0.12, color)),
             shadow=ft.BoxShadow(
                 spread_radius=0,
-                blur_radius=16,
-                color=ft.Colors.with_opacity(0.06, color),
-                offset=ft.Offset(0, 4)
+                blur_radius=18,
+                color=ft.Colors.with_opacity(0.07, color),
+                offset=ft.Offset(0, 5)
             ),
             animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT),
             visible=False

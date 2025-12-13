@@ -65,7 +65,7 @@ def _generate_pie_data_from_list(items_list: list, fallback_colors: list, color_
         color_map = {}
 
     # Loop through every unique item, sorted by the most common
-    for item, count in counts.most_common():
+    for rank, (item, count) in enumerate(counts.most_common()):
         percentage = (count / total_items * 100) if total_items > 0 else 0
         
         # Check for a specific color in the map, otherwise use the fallback list
@@ -79,16 +79,71 @@ def _generate_pie_data_from_list(items_list: list, fallback_colors: list, color_
             ft.PieChartSection(
                 value=percentage,
                 title=f"{percentage:.0f}%" if percentage >= 5 else "",
-                title_style=ft.TextStyle(size=10, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
+                title_style=ft.TextStyle(size=11, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
                 color=color,
-                radius=60
+                radius=65
             )
         )
+        
+        # Enhanced legend item with rank, color indicator, and count badge
         legend_controls.append(
-            ft.Row([
-                ft.Container(width=16, height=16, bgcolor=color, border_radius=3),
-                ft.Text(f"{item} ({count})", max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, tooltip=item)
-            ], spacing=10)
+            ft.Container(
+                content=ft.Row([
+                    # Rank indicator (for top 3)
+                    ft.Container(
+                        content=ft.Text(
+                            str(rank + 1), 
+                            size=10, 
+                            weight=ft.FontWeight.W_700,
+                            color=ft.Colors.WHITE if rank < 3 else ft.Colors.ON_SURFACE_VARIANT
+                        ),
+                        width=20,
+                        height=20,
+                        alignment=ft.alignment.center,
+                        border_radius=10,
+                        bgcolor=color if rank < 3 else ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
+                    ) if rank < 10 else ft.Container(width=20),
+                    # Color indicator with glow
+                    ft.Container(
+                        width=14,
+                        height=14,
+                        bgcolor=color,
+                        border_radius=7,
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=6,
+                            color=ft.Colors.with_opacity(0.3, color),
+                            offset=ft.Offset(0, 1)
+                        )
+                    ),
+                    # Item name
+                    ft.Text(
+                        item, 
+                        max_lines=1, 
+                        overflow=ft.TextOverflow.ELLIPSIS, 
+                        tooltip=item,
+                        size=13,
+                        weight=ft.FontWeight.W_500,
+                        expand=True
+                    ),
+                    # Count badge
+                    ft.Container(
+                        content=ft.Text(
+                            str(count), 
+                            size=11, 
+                            weight=ft.FontWeight.W_600,
+                            color=ft.Colors.WHITE
+                        ),
+                        bgcolor=ft.Colors.with_opacity(0.85, color),
+                        padding=ft.padding.symmetric(horizontal=8, vertical=2),
+                        border_radius=10
+                    )
+                ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=ft.padding.symmetric(vertical=4, horizontal=6),
+                border_radius=8,
+                bgcolor=ft.Colors.with_opacity(0.04, color),
+                animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT)
+            )
         )
 
     return pie_sections, legend_controls
