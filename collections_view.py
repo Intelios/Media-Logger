@@ -2,8 +2,11 @@
 
 import flet as ft
 from datetime import datetime
+import os
 
 import database
+import config
+import utils
 from ui_enhanced import EnhancedComponentFactory, AnimationHelpers, ColorThemeManager, GlassmorphismStyles
 
 class CollectionsView:
@@ -475,9 +478,188 @@ class CollectionsView:
         
         return card_content
 
+    def _create_collection_item_card(self, item, index, delete_callback, edit_callback, remove_callback):
+        """Creates a horizontal 'showcase' style card for items within a collection."""
+        from ui import get_entry_type_icon_name
+        
+        name = item.get('name', 'Unknown Title')
+        db_image_value = item.get('image_url')
+        image_src = config.DEFAULT_IMAGE_URL
+        
+        if db_image_value:
+            if db_image_value.lower().startswith("http://") or db_image_value.lower().startswith("https://"):
+                image_src = db_image_value
+            else:
+                full_local_path = os.path.join(config.ASSETS_DIR, db_image_value)
+                if os.path.exists(full_local_path):
+                    image_src = db_image_value
+        
+        entry_type_str = item.get('entry_type', 'Media')
+        score = item.get('review_score')
+        genres_str = item.get('genre', '')
+        parsed_genres = utils.parse_genres(genres_str)[:3]  # Limit to 3 genres
+        
+        # Card dimensions
+        CARD_HEIGHT = 140
+        IMAGE_WIDTH = 100
+        
+        # Order number badge (floating on image)
+        order_badge = ft.Container(
+            content=ft.Text(f"#{index + 1}", size=11, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+            bgcolor=ft.Colors.with_opacity(0.85, ft.Colors.BLACK),
+            padding=ft.padding.symmetric(horizontal=8, vertical=4),
+            border_radius=12,
+            left=6,
+            top=6
+        )
+        
+        # Image section with order badge overlay
+        image_section = ft.Container(
+            content=ft.Stack([
+                ft.Container(
+                    content=ft.Image(
+                        src=image_src,
+                        fit=ft.ImageFit.COVER,
+                        width=IMAGE_WIDTH,
+                        height=CARD_HEIGHT,
+                        error_content=ft.Container(
+                            width=IMAGE_WIDTH,
+                            height=CARD_HEIGHT,
+                            bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
+                            content=ft.Icon(ft.Icons.IMAGE_OUTLINED, size=32, color=ft.Colors.ON_SURFACE_VARIANT),
+                            alignment=ft.alignment.center
+                        )
+                    ),
+                    width=IMAGE_WIDTH,
+                    height=CARD_HEIGHT,
+                    clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                    border_radius=ft.border_radius.only(top_left=14, bottom_left=14)
+                ),
+                order_badge
+            ]),
+            width=IMAGE_WIDTH,
+            height=CARD_HEIGHT
+        )
+        
+        # Entry type badge (pill style)
+        entry_type_gradient = ColorThemeManager.get_entry_type_gradient(entry_type_str)
+        entry_type_badge = ft.Container(
+            content=ft.Row([
+                ft.Icon(get_entry_type_icon_name(entry_type_str), size=12, color=ft.Colors.WHITE),
+                ft.Text(entry_type_str, size=10, color=ft.Colors.WHITE, weight=ft.FontWeight.W_600)
+            ], spacing=4, tight=True),
+            gradient=entry_type_gradient,
+            padding=ft.padding.symmetric(horizontal=10, vertical=5),
+            border_radius=14
+        )
+        
+        # Score badge (if exists)
+        score_badge = ft.Container()
+        if score is not None:
+            color_scheme = ColorThemeManager.get_rating_color_scheme(score)
+            score_badge = ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.STAR_ROUNDED, size=12, color=color_scheme['primary']),
+                    ft.Text(f"{score:.1f}", size=11, weight=ft.FontWeight.BOLD, color=color_scheme['primary'])
+                ], spacing=3, tight=True),
+                bgcolor=color_scheme['bg'],
+                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                border_radius=12,
+                border=ft.border.all(1, ft.Colors.with_opacity(0.3, color_scheme['primary']))
+            )
+        
+        # Genre tags (compact)
+        genre_tags = ft.Row([
+            ft.Container(
+                content=ft.Text(genre, size=9, color=ft.Colors.ON_SURFACE_VARIANT),
+                bgcolor=ft.Colors.with_opacity(0.08, ft.Colors.ON_SURFACE),
+                padding=ft.padding.symmetric(horizontal=8, vertical=3),
+                border_radius=10
+            ) for genre in parsed_genres
+        ], spacing=4, wrap=True) if parsed_genres else ft.Container()
+        
+        # Options menu
+        options_button = ft.PopupMenuButton(
+            icon=ft.Icons.MORE_VERT_ROUNDED,
+            icon_color=ft.Colors.ON_SURFACE_VARIANT,
+            icon_size=18,
+            items=[
+                ft.PopupMenuItem(text="Edit", icon=ft.Icons.EDIT_OUTLINED, on_click=lambda _, i=item: edit_callback(i)),
+                ft.PopupMenuItem(text="Remove from Collection", icon=ft.Icons.REMOVE_CIRCLE_OUTLINE, on_click=lambda _, i=item: remove_callback(i['id'], i['name'])),
+                ft.PopupMenuItem(),
+                ft.PopupMenuItem(text="Delete Entry", icon=ft.Icons.DELETE_OUTLINE, on_click=lambda _, i=item: delete_callback(i['id'], i['name']))
+            ],
+            tooltip="Options"
+        )
+        
+        # Content section
+        content_section = ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Text(name, size=15, weight=ft.FontWeight.BOLD, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, expand=True),
+                    options_button
+                ], vertical_alignment=ft.CrossAxisAlignment.START),
+                ft.Container(height=4),
+                ft.Row([entry_type_badge, score_badge], spacing=8),
+                ft.Container(height=6),
+                genre_tags,
+                ft.Container(expand=True)
+            ], spacing=0, tight=True),
+            expand=True,
+            padding=ft.padding.only(left=14, right=8, top=12, bottom=12)
+        )
+        
+        # Main card layout
+        card_inner = ft.Row([
+            image_section,
+            content_section
+        ], spacing=0, expand=True, vertical_alignment=ft.CrossAxisAlignment.START)
+        
+        # Card container
+        card = ft.Container(
+            content=card_inner,
+            height=CARD_HEIGHT,
+            border_radius=14,
+            bgcolor=ft.Colors.SURFACE,
+            border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=8,
+                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                offset=ft.Offset(0, 2)
+            ),
+            animate=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
+        )
+        
+        def on_hover(e):
+            if e.data == "true":
+                card.shadow = ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=16,
+                    color=ft.Colors.with_opacity(0.15, ColorThemeManager.BRAND_COLORS['primary']),
+                    offset=ft.Offset(0, 4)
+                )
+                card.scale = 1.01
+                card.border = ft.border.all(1.5, ft.Colors.with_opacity(0.25, ColorThemeManager.BRAND_COLORS['primary']))
+            else:
+                card.shadow = ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=8,
+                    color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
+                    offset=ft.Offset(0, 2)
+                )
+                card.scale = 1.0
+                card.border = ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))
+            card.update()
+        
+        card.on_hover = on_hover
+        
+        return card
+
     def _build_collection_detail_view(self):
-        """Builds the UI that shows the items within a single collection."""
-        from ui import create_gallery_card # Local import to avoid circular dependency issues at startup
+        """Builds the UI that shows the items within a single collection using horizontal showcase cards."""
         collection_id = self.state["selected_collection_id"]
         collection_name = self.state["selected_collection_name"]
         items = database.get_collection_items_db(collection_id)
@@ -490,32 +672,35 @@ class CollectionsView:
         def open_edit_dialog_wrapper(item_data):
             self.app_ui.open_edit_jav_dialog(item_data, self.app_ui.refresh_current_view)
 
+        def delete_item_wrapper(media_id, media_name):
+            self.app_ui.delete_jav_action_with_callback(media_id, media_name, self.app_ui.refresh_current_view)
+
+        # Create horizontal showcase cards
         item_cards = [
-            create_gallery_card(
-                self.page, 
+            self._create_collection_item_card(
                 item, 
-                lambda mid, mname: self.app_ui.delete_jav_action_with_callback(mid, mname, self.app_ui.refresh_current_view),
+                i,
+                delete_item_wrapper,
                 open_edit_dialog_wrapper, 
-                self.app_ui.show_description_dialog,
-                self.app_ui.show_image_dialog,
-                remove_from_collection_callback=remove_item_from_this_collection
-            ) for item in items
+                remove_item_from_this_collection
+            ) for i, item in enumerate(items)
         ]
 
-        grid_view = ft.GridView(
-            controls=item_cards,
-            expand=True,
-            runs_count=5,
-            max_extent=270,
-            child_aspect_ratio=0.55,
-            spacing=10,
-            run_spacing=10,
-            padding=10
-        )
+        # Responsive row layout (2 columns on large screens)
+        cards_grid = ft.ResponsiveRow(
+            controls=[
+                ft.Container(
+                    content=card,
+                    col={"sm": 12, "md": 6, "lg": 6, "xl": 4}
+                ) for card in item_cards
+            ],
+            spacing=16,
+            run_spacing=16
+        ) if items else ft.Container()
 
         # Enhanced empty state for detail view
         if not items:
-            grid_view = ft.Container(
+            cards_grid = ft.Container(
                 content=ft.Column([
                     # Gradient icon container
                     ft.Container(
@@ -654,7 +839,8 @@ class CollectionsView:
 
         return ft.Container(
             content=ft.Column(
-                controls=[header_row, divider, grid_view],
+                controls=[header_row, divider, cards_grid],
+                scroll=ft.ScrollMode.ADAPTIVE,
             ),
             padding=ft.padding.all(24),
             expand=True
