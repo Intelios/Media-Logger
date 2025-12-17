@@ -159,16 +159,16 @@ class CollectionsView:
             margin=ft.margin.symmetric(vertical=16)
         )
 
-        # Grid layout for collection cards
+        # Grid layout for collection cards - 2 per row for wider magazine-style cards
         cards_grid = ft.ResponsiveRow(
             controls=[
                 ft.Container(
                     content=card,
-                    col={"sm": 12, "md": 6, "lg": 4, "xl": 4}
+                    col={"sm": 12, "md": 6, "lg": 6, "xl": 6}
                 ) for card in collection_cards
             ],
-            spacing=20,
-            run_spacing=20
+            spacing=24,
+            run_spacing=24
         )
 
         return ft.Container(
@@ -182,7 +182,7 @@ class CollectionsView:
         )
 
     def _create_collection_card(self, collection):
-        """Creates an enhanced UI card for a single collection."""
+        """Creates a 'Magazine Shelf' style card for a single collection with fanned cover images."""
         def on_delete_confirm(e):
             database.delete_collection_db(collection['id'])
             self.app_ui.show_snackbar(f"Collection '{collection['name']}' deleted.", color=ft.Colors.GREEN_700)
@@ -195,71 +195,132 @@ class CollectionsView:
                 on_confirm=on_delete_confirm
             )
         
-        # Get items for thumbnail preview
+        # Get items for cover stack preview
         items = database.get_collection_items_db(collection['id'])
         item_count = collection['item_count']
         description = collection.get('description') or ''
         
-        # Create thumbnail mosaic from first 4 items
-        thumbnail_images = []
-        for i, item in enumerate(items[:4]):
-            img_url = item.get('image_url', '')
-            thumbnail_images.append(
-                ft.Container(
-                    content=ft.Image(
-                        src=img_url,
-                        fit=ft.ImageFit.COVER,
-                        error_content=ft.Container(
-                            bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
-                            content=ft.Icon(ft.Icons.IMAGE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
-                            alignment=ft.alignment.center
-                        )
-                    ) if img_url else ft.Container(
-                        bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
-                        content=ft.Icon(ft.Icons.IMAGE, size=16, color=ft.Colors.ON_SURFACE_VARIANT),
-                        alignment=ft.alignment.center
-                    ),
-                    width=50,
-                    height=50,
-                    border_radius=8,
-                    clip_behavior=ft.ClipBehavior.ANTI_ALIAS
-                )
-            )
+        # Card dimensions
+        CARD_HEIGHT = 180
+        COVER_STACK_WIDTH = 160
+        COVER_WIDTH = 85
+        COVER_HEIGHT = 120
+        ACCENT_BAR_WIDTH = 6
         
-        # Fill remaining slots with placeholder if less than 4 items
-        while len(thumbnail_images) < 4:
-            thumbnail_images.append(
-                ft.Container(
+        # Create fanned cover stack - overlapping covers at slight angles
+        cover_stack_controls = []
+        rotation_angles = [-8, -4, 0, 4]  # Degrees for each cover
+        offsets = [(0, 8), (12, 4), (24, 0), (36, 4)]  # (left_offset, top_offset)
+        
+        # Use first 4 items for the stack, or create placeholders
+        for i in range(4):
+            if i < len(items):
+                img_url = items[i].get('image_url', '')
+                cover_content = ft.Image(
+                    src=img_url,
+                    fit=ft.ImageFit.COVER,
+                    width=COVER_WIDTH,
+                    height=COVER_HEIGHT,
+                    error_content=ft.Container(
+                        width=COVER_WIDTH,
+                        height=COVER_HEIGHT,
+                        bgcolor=ft.Colors.with_opacity(0.15, ft.Colors.PRIMARY),
+                        content=ft.Icon(ft.Icons.PHOTO_LIBRARY_ROUNDED, size=24, color=ft.Colors.with_opacity(0.5, ft.Colors.PRIMARY)),
+                        alignment=ft.alignment.center
+                    )
+                ) if img_url else ft.Container(
+                    width=COVER_WIDTH,
+                    height=COVER_HEIGHT,
+                    bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE),
+                    content=ft.Icon(ft.Icons.PHOTO_LIBRARY_ROUNDED, size=24, color=ft.Colors.ON_SURFACE_VARIANT),
+                    alignment=ft.alignment.center
+                )
+            else:
+                # Placeholder for empty slots
+                cover_content = ft.Container(
+                    width=COVER_WIDTH,
+                    height=COVER_HEIGHT,
                     bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
-                    width=50,
-                    height=50,
-                    border_radius=8,
                     border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))
                 )
+            
+            cover_container = ft.Container(
+                content=cover_content,
+                width=COVER_WIDTH,
+                height=COVER_HEIGHT,
+                border_radius=8,
+                clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+                shadow=ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=8,
+                    color=ft.Colors.with_opacity(0.2, ft.Colors.BLACK),
+                    offset=ft.Offset(2, 3)
+                ),
+                border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.WHITE)),
+                rotate=ft.Rotate(rotation_angles[i] * 3.14159 / 180),  # Convert to radians
+                left=offsets[i][0],
+                top=offsets[i][1],
+                animate_rotation=ft.Animation(300, ft.AnimationCurve.EASE_OUT),
+                animate_offset=ft.Animation(300, ft.AnimationCurve.EASE_OUT)
             )
+            cover_stack_controls.append(cover_container)
         
-        # Thumbnail grid
-        thumbnail_grid = ft.Column([
-            ft.Row([thumbnail_images[0], thumbnail_images[1]], spacing=6),
-            ft.Row([thumbnail_images[2], thumbnail_images[3]], spacing=6)
-        ], spacing=6)
+        # Reverse so the last one (front) is drawn on top
+        cover_stack_controls.reverse()
         
-        # Item count badge
+        # Floating item count badge with glassmorphism effect
         item_count_badge = ft.Container(
             content=ft.Row([
-                ft.Icon(ft.Icons.PHOTO_LIBRARY_OUTLINED, size=14, color=ft.Colors.PRIMARY),
-                ft.Text(f"{item_count}", size=13, weight=ft.FontWeight.W_600, color=ft.Colors.PRIMARY)
-            ], spacing=4, tight=True),
-            bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.PRIMARY),
-            padding=ft.padding.symmetric(horizontal=10, vertical=5),
-            border_radius=12,
-            border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.PRIMARY))
+                ft.Icon(ft.Icons.LAYERS_ROUNDED, size=14, color=ft.Colors.WHITE),
+                ft.Text(f"{item_count}", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)
+            ], spacing=5, tight=True),
+            bgcolor=ft.Colors.with_opacity(0.85, ColorThemeManager.BRAND_COLORS['primary']),
+            padding=ft.padding.symmetric(horizontal=12, vertical=6),
+            border_radius=20,
+            border=ft.border.all(1.5, ft.Colors.with_opacity(0.3, ft.Colors.WHITE)),
+            shadow=ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=10,
+                color=ft.Colors.with_opacity(0.3, ColorThemeManager.BRAND_COLORS['primary']),
+                offset=ft.Offset(0, 3)
+            ),
+            right=8,
+            bottom=8
+        )
+        
+        # Cover stack container with floating badge
+        cover_stack = ft.Container(
+            content=ft.Stack(
+                controls=cover_stack_controls + [item_count_badge],
+                width=COVER_STACK_WIDTH,
+                height=COVER_HEIGHT + 30
+            ),
+            width=COVER_STACK_WIDTH,
+            height=COVER_HEIGHT + 30,
+            padding=ft.padding.only(left=10, top=15)
+        )
+        
+        # Gradient accent bar (book spine effect)
+        accent_bar = ft.Container(
+            width=ACCENT_BAR_WIDTH,
+            gradient=ft.LinearGradient(
+                colors=[
+                    ColorThemeManager.BRAND_COLORS['primary'],
+                    ColorThemeManager.BRAND_COLORS['secondary'],
+                    ColorThemeManager.BRAND_COLORS['primary_dark']
+                ],
+                begin=ft.alignment.top_center,
+                end=ft.alignment.bottom_center
+            ),
+            border_radius=ft.border_radius.only(top_left=16, bottom_left=16),
+            animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT)
         )
         
         # Options menu
         options_button = ft.PopupMenuButton(
-            icon=ft.Icons.MORE_VERT,
+            icon=ft.Icons.MORE_HORIZ_ROUNDED,
             icon_color=ft.Colors.ON_SURFACE_VARIANT,
+            icon_size=20,
             items=[
                 ft.PopupMenuItem(text="Edit", icon=ft.Icons.EDIT_OUTLINED, on_click=lambda _, c=collection: self._open_create_edit_collection_dialog(c)),
                 ft.PopupMenuItem(),
@@ -268,69 +329,146 @@ class CollectionsView:
             tooltip="Collection options"
         )
         
-        # Card content
-        card_content = ft.Container(
+        # Content section
+        content_section = ft.Container(
             content=ft.Column([
-                # Header row with options
                 ft.Row([
                     ft.Container(expand=True),
                     options_button
                 ]),
-                # Main content row
+                ft.Container(height=4),
+                ft.Text(
+                    collection['name'], 
+                    size=20, 
+                    weight=ft.FontWeight.BOLD, 
+                    max_lines=2, 
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                    style=ft.TextStyle(letter_spacing=0.3)
+                ),
+                ft.Container(height=6),
+                ft.Text(
+                    description if description else "No description",
+                    size=13,
+                    color=ft.Colors.ON_SURFACE_VARIANT,
+                    max_lines=2,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                    italic=not description
+                ),
+                ft.Container(expand=True),
+                # Decorative bottom row with arrow hint
                 ft.Row([
-                    thumbnail_grid,
-                    ft.Container(width=16),
-                    ft.Column([
-                        ft.Text(collection['name'], size=18, weight=ft.FontWeight.BOLD, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
-                        ft.Container(height=4),
-                        ft.Text(
-                            description if description else "No description",
-                            size=13,
-                            color=ft.Colors.ON_SURFACE_VARIANT,
-                            max_lines=2,
-                            overflow=ft.TextOverflow.ELLIPSIS
-                        ),
-                        ft.Container(height=8),
-                        item_count_badge
-                    ], spacing=0, expand=True, alignment=ft.MainAxisAlignment.START)
-                ], vertical_alignment=ft.CrossAxisAlignment.START, expand=True),
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Text("View collection", size=12, color=ft.Colors.PRIMARY, weight=ft.FontWeight.W_500),
+                            ft.Icon(ft.Icons.ARROW_FORWARD_ROUNDED, size=14, color=ft.Colors.PRIMARY)
+                        ], spacing=4, tight=True),
+                        opacity=0.7
+                    )
+                ])
             ], spacing=0),
-            padding=ft.padding.all(16),
+            expand=True,
+            padding=ft.padding.only(top=8, right=16, bottom=12)
+        )
+        
+        # Main card layout
+        card_inner = ft.Row([
+            accent_bar,
+            cover_stack,
+            content_section
+        ], spacing=0, expand=True)
+        
+        # Card container with enhanced styling
+        card_content = ft.Container(
+            content=card_inner,
+            height=CARD_HEIGHT,
             border_radius=16,
             bgcolor=ft.Colors.SURFACE,
             border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
             ink=True,
             on_click=lambda _: self._switch_to_detail_view(collection['id'], collection['name']),
             shadow=ft.BoxShadow(
                 spread_radius=0,
-                blur_radius=8,
-                color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
-                offset=ft.Offset(0, 2)
+                blur_radius=12,
+                color=ft.Colors.with_opacity(0.1, ft.Colors.BLACK),
+                offset=ft.Offset(0, 4)
             ),
-            animate=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT),
-            animate_scale=ft.Animation(duration=200, curve=ft.AnimationCurve.EASE_OUT)
+            animate=ft.Animation(duration=250, curve=ft.AnimationCurve.EASE_OUT),
+            animate_scale=ft.Animation(duration=250, curve=ft.AnimationCurve.EASE_OUT)
         )
         
-        # Hover animation
+        # Store references for hover animation
+        card_content.data = {
+            'cover_stack': cover_stack_controls,
+            'accent_bar': accent_bar,
+            'original_rotations': rotation_angles.copy()
+        }
+        
+        # Enhanced hover animation with parallax effect on covers
         def on_hover(e):
-            if e.data == "true":
+            is_hovering = e.data == "true"
+            
+            if is_hovering:
+                # Card effects
                 card_content.shadow = ft.BoxShadow(
                     spread_radius=0,
-                    blur_radius=16,
-                    color=ft.Colors.with_opacity(0.15, ft.Colors.PRIMARY),
-                    offset=ft.Offset(0, 6)
+                    blur_radius=24,
+                    color=ft.Colors.with_opacity(0.2, ColorThemeManager.BRAND_COLORS['primary']),
+                    offset=ft.Offset(0, 8)
                 )
                 card_content.scale = 1.02
-                card_content.border = ft.border.all(1, ft.Colors.with_opacity(0.3, ft.Colors.PRIMARY))
+                card_content.border = ft.border.all(1.5, ft.Colors.with_opacity(0.3, ColorThemeManager.BRAND_COLORS['primary']))
+                
+                # Spread out the covers slightly (parallax effect)
+                spread_offsets = [(0, 6), (16, 2), (32, -2), (48, 2)]
+                for i, cover in enumerate(reversed(card_content.data['cover_stack'])):
+                    cover.left = spread_offsets[i][0]
+                    cover.top = spread_offsets[i][1]
+                    cover.update()
+                
+                # Brighten accent bar
+                accent_bar.gradient = ft.LinearGradient(
+                    colors=[
+                        ColorThemeManager.BRAND_COLORS['secondary'],
+                        ColorThemeManager.BRAND_COLORS['primary'],
+                        ColorThemeManager.BRAND_COLORS['secondary']
+                    ],
+                    begin=ft.alignment.top_center,
+                    end=ft.alignment.bottom_center
+                )
+                accent_bar.width = 8
+                accent_bar.update()
             else:
+                # Reset card effects
                 card_content.shadow = ft.BoxShadow(
                     spread_radius=0,
-                    blur_radius=8,
-                    color=ft.Colors.with_opacity(0.08, ft.Colors.BLACK),
-                    offset=ft.Offset(0, 2)
+                    blur_radius=12,
+                    color=ft.Colors.with_opacity(0.1, ft.Colors.BLACK),
+                    offset=ft.Offset(0, 4)
                 )
                 card_content.scale = 1.0
                 card_content.border = ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))
+                
+                # Reset cover positions
+                reset_offsets = [(0, 8), (12, 4), (24, 0), (36, 4)]
+                for i, cover in enumerate(reversed(card_content.data['cover_stack'])):
+                    cover.left = reset_offsets[i][0]
+                    cover.top = reset_offsets[i][1]
+                    cover.update()
+                
+                # Reset accent bar
+                accent_bar.gradient = ft.LinearGradient(
+                    colors=[
+                        ColorThemeManager.BRAND_COLORS['primary'],
+                        ColorThemeManager.BRAND_COLORS['secondary'],
+                        ColorThemeManager.BRAND_COLORS['primary_dark']
+                    ],
+                    begin=ft.alignment.top_center,
+                    end=ft.alignment.bottom_center
+                )
+                accent_bar.width = ACCENT_BAR_WIDTH
+                accent_bar.update()
+            
             card_content.update()
         
         card_content.on_hover = on_hover
