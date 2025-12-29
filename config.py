@@ -20,7 +20,7 @@ IMAGES_DIR = os.path.join(ASSETS_DIR, "images")
 
 # --- Application Metadata ---
 APP_TITLE = "Media Logger"
-YEARS = ["2023", "2024", "2025"] # TODO: Consider making this dynamic or configurable
+YEARS = ["2023", "2024", "2025", "2026"] # TODO: Consider making this dynamic or configurable
 
 # --- Formatting and Defaults ---
 GENRE_SEPARATOR = ", "
