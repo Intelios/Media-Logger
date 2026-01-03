@@ -2,12 +2,12 @@
   "schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
-    
     "dialog:default",
-
     "fs:default",
     "fs:allow-read-file",
     "fs:allow-write-file",
@@ -15,9 +15,21 @@
     "fs:allow-mkdir",
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "$APPLOCALDATA/**" }]
+      "allow": [
+        {
+          "path": "$APPLOCALDATA/**"
+        },
+        {
+          "path": "$DOCUMENT/**"
+        },
+        {
+          "path": "$DESKTOP/**"
+        },
+        {
+          "path": "$HOME/**"
+        }
+      ]
     },
-
     "sql:allow-load",
     "sql:allow-execute",
     "sql:allow-select",

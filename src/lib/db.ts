@@ -1,4 +1,6 @@
 import Database from '@tauri-apps/plugin-sql';
+import { join } from '@tauri-apps/api/path';
+import { getDataDirectory } from './settings';
 
 // 1. Define Interfaces matching your Python `database.py` schema
 export interface MediaEntry {
@@ -24,12 +26,41 @@ export interface MediaEntry {
 // 2. Database Service
 class DBService {
   private db: Database | null = null;
+  private currentDbPath: string = '';
 
   async connect() {
-    if (this.db) return this.db;
-    // This looks for jav_log.db in ~/Library/Application Support/com.medialogger.app/
-    this.db = await Database.load('sqlite:jav_log.db');
+    // Get the current data directory
+    const dataDir = await getDataDirectory();
+    const dbPath = await join(dataDir, 'jav_log.db');
+
+    // If already connected to the same path, reuse connection
+    if (this.db && this.currentDbPath === dbPath) {
+      return this.db;
+    }
+
+    // Close existing connection if switching paths
+    if (this.db && this.currentDbPath !== dbPath) {
+      await this.db.close();
+      this.db = null;
+    }
+
+    // Connect to the database
+    console.log('[DB] Connecting to:', dbPath);
+    this.db = await Database.load(`sqlite:${dbPath}`);
+    this.currentDbPath = dbPath;
     return this.db;
+  }
+
+  /**
+   * Force reconnect to database (useful when settings change)
+   */
+  async reconnect() {
+    if (this.db) {
+      await this.db.close();
+      this.db = null;
+      this.currentDbPath = '';
+    }
+    return this.connect();
   }
 
   // Equivalent to `get_all_javs_db`
@@ -54,8 +85,8 @@ class DBService {
     const db = await this.connect();
     // We can run multiple queries in parallel for speed
     const [totalResult, avgResult] = await Promise.all([
-      db.select<{total: number}[]>("SELECT COUNT(*) as total FROM javs"),
-      db.select<{avg_rating: number}[]>("SELECT AVG(review_score) as avg_rating FROM javs WHERE review_score IS NOT NULL")
+      db.select<{ total: number }[]>("SELECT COUNT(*) as total FROM javs"),
+      db.select<{ avg_rating: number }[]>("SELECT AVG(review_score) as avg_rating FROM javs WHERE review_score IS NOT NULL")
     ]);
 
     return {
@@ -70,7 +101,7 @@ class DBService {
     const keys = Object.keys(entry);
     const values = Object.values(entry);
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(",");
-    
+
     const result: any = await db.execute(
       `INSERT INTO javs (${keys.join(",")}) VALUES (${placeholders})`,
       values
@@ -85,9 +116,9 @@ class DBService {
     const { id: _, ...rest } = entry;
     const keys = Object.keys(rest);
     const values = Object.values(rest);
-    
+
     const setString = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
-    
+
     await db.execute(
       `UPDATE javs SET ${setString} WHERE id = $${values.length + 1}`,
       [...values, id]

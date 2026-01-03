@@ -1,12 +1,13 @@
-import { appLocalDataDir, join } from '@tauri-apps/api/path';
+import { join } from '@tauri-apps/api/path';
 import { readFile, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs';
+import { getDataDirectory } from './settings';
 
 // Helper to cache Object URLs so we don't leak memory creating duplicates
 const urlCache = new Map<string, string>();
 
 export async function getImageUrl(dbPath: string | null): Promise<string> {
   const DEFAULT_IMAGE = "https://via.placeholder.com/300x150.png?text=No+Image";
-  
+
   if (!dbPath) return DEFAULT_IMAGE;
   if (dbPath.startsWith('http')) return dbPath;
 
@@ -16,14 +17,14 @@ export async function getImageUrl(dbPath: string | null): Promise<string> {
   }
 
   try {
-    const appDataDirPath = await appLocalDataDir();
+    const dataDir = await getDataDirectory();
     // Construct the full path
-    const fullPath = await join(appDataDirPath, 'assets', dbPath);
-    
+    const fullPath = await join(dataDir, 'assets', dbPath);
+
     // 1. Read the file explicitly using the FS plugin
     // This uses the "fs:scope" permission we configured
     const fileBytes = await readFile(fullPath);
-    
+
     // 2. Determine mime type based on extension
     const ext = dbPath.split('.').pop()?.toLowerCase();
     let mime = 'image/jpeg';
@@ -34,10 +35,10 @@ export async function getImageUrl(dbPath: string | null): Promise<string> {
     // 3. Create a Blob and an Object URL
     const blob = new Blob([fileBytes], { type: mime });
     const objectUrl = URL.createObjectURL(blob);
-    
+
     // Cache it
     urlCache.set(dbPath, objectUrl);
-    
+
     console.log(`[Image Success] Loaded blob for: ${dbPath}`);
     return objectUrl;
 
@@ -49,10 +50,10 @@ export async function getImageUrl(dbPath: string | null): Promise<string> {
 
 export async function saveImage(sourcePath: string): Promise<string | null> {
   if (!sourcePath) return null;
-  
+
   try {
-    const appDataDirPath = await appLocalDataDir();
-    const assetsDir = await join(appDataDirPath, 'assets');
+    const dataDir = await getDataDirectory();
+    const assetsDir = await join(dataDir, 'assets');
     const imagesDir = await join(assetsDir, 'images');
 
     // DEBUG LOG
