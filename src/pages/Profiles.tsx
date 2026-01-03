@@ -191,8 +191,7 @@ export default function ProfilesPage() {
       });
 
       if (file) {
-        // Tauri v2 dialog return type check
-        const path = typeof file === 'string' ? file : file.path;
+        const path = file as string;
 
         if (path) {
           // Save to DB

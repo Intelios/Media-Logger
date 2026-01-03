@@ -75,7 +75,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
       });
 
       if (file) {
-        const path = typeof file === 'string' ? file : file.path;
+        const path = file as string;
         if (path) {
           setRawImagePath(path);
           setFormData({ ...formData, image_url: path });

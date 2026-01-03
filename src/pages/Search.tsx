@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search as SearchIcon, X, Filter } from "lucide-react";
+import { Search as SearchIcon, X } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { MediaCard } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm"; // Reuse for editing search results
@@ -8,7 +8,7 @@ export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MediaEntry[]>([]);
   const [allEntries, setAllEntries] = useState<MediaEntry[]>([]);
-  
+
   // Reuse Modal Logic
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
@@ -26,8 +26,8 @@ export default function SearchPage() {
     }
 
     const lowerQuery = query.toLowerCase();
-    const filtered = allEntries.filter(e => 
-      e.name.toLowerCase().includes(lowerQuery) || 
+    const filtered = allEntries.filter(e =>
+      e.name.toLowerCase().includes(lowerQuery) ||
       (e.author && e.author.toLowerCase().includes(lowerQuery)) ||
       (e.artist && e.artist.toLowerCase().includes(lowerQuery)) ||
       (e.genre && e.genre.toLowerCase().includes(lowerQuery))
@@ -44,16 +44,11 @@ export default function SearchPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    await dbService.deleteEntry(id);
-    dbService.getAllEntries().then(setAllEntries);
-  };
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <header className="flex flex-col gap-4">
         <h2 className="text-3xl font-bold">Search Collection</h2>
-        
+
         <div className="relative">
           <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
           <input
@@ -65,7 +60,7 @@ export default function SearchPage() {
             autoFocus
           />
           {query && (
-            <button 
+            <button
               onClick={() => setQuery("")}
               className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded-full"
             >
@@ -97,11 +92,10 @@ export default function SearchPage() {
       )}
 
       {/* Form Modal */}
-      <EntryForm 
+      <EntryForm
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
-        onDelete={handleDelete}
         initialData={editingEntry}
       />
     </div>

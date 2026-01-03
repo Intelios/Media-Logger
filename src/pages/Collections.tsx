@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Layers, Plus, ChevronLeft, Trash2, MoreVertical } from "lucide-react";
+import { Layers, Plus, ChevronLeft, Trash2 } from "lucide-react";
 import { collectionsLogic, type Collection } from "../lib/collections-logic";
 import type { MediaEntry } from "../lib/db";
 import { MediaCard } from "../components/MediaCard";

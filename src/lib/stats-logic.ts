@@ -5,6 +5,7 @@ export interface StatItem {
   count: number;
   value?: number; // For charts
   color?: string;
+  [key: string]: string | number | undefined; // Index signature for Recharts compatibility
 }
 
 export interface FullStats {
@@ -34,11 +35,11 @@ export const statsLogic = {
   // NEW: Accept typeFilter array
   async getStats(yearFilter?: string, typeFilter: string[] = []): Promise<FullStats> {
     const db = await dbService.connect();
-    
+
     // Base Query Construction
     let query = "SELECT * FROM javs WHERE 1=1";
     const params: any[] = [];
-    
+
     // 1. Year Filter
     if (yearFilter && yearFilter !== "All Time") {
       params.push(yearFilter);
@@ -60,7 +61,7 @@ export const statsLogic = {
     // 1. Basic Counts
     const total = entries.length;
     const rewatch_count = entries.filter(e => e.is_rewatch).length;
-    
+
     // 2. Ratings (1-10)
     const ratedEntries = entries.filter(e => e.review_score);
     const sumScore = ratedEntries.reduce((acc, e) => acc + (e.review_score || 0), 0);
@@ -69,12 +70,12 @@ export const statsLogic = {
     // Prepare Rating Distribution (10 down to 1)
     const ratingMap = new Array(11).fill(0);
     ratedEntries.forEach(e => {
-        if(e.review_score) ratingMap[e.review_score]++;
+      if (e.review_score) ratingMap[e.review_score]++;
     });
-    
+
     const ratings: StatItem[] = [];
     for (let i = 10; i >= 1; i--) {
-        ratings.push({ name: i.toString(), count: ratingMap[i], value: ratingMap[i] });
+      ratings.push({ name: i.toString(), count: ratingMap[i], value: ratingMap[i] });
     }
 
     // 3. Aggregations (Genre, Platform, Studio, Author)
@@ -84,10 +85,10 @@ export const statsLogic = {
     const allAuthors: string[] = [];
 
     entries.forEach(e => {
-        if (e.genre) allGenres.push(...e.genre.split(','));
-        if (e.platform) allPlatforms.push(e.platform);
-        if (e.director) allStudios.push(e.director); // "director" column is used for Studio in JAV/Movies
-        if (e.author) allAuthors.push(e.author);
+      if (e.genre) allGenres.push(...e.genre.split(','));
+      if (e.platform) allPlatforms.push(e.platform);
+      if (e.director) allStudios.push(e.director); // "director" column is used for Studio in JAV/Movies
+      if (e.author) allAuthors.push(e.author);
     });
 
     return {
