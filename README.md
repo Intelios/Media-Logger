@@ -1,7 +1,3 @@
-# Tauri + React + Typescript
+# Media Logger 2.0 built with Tauri + React + Typescript
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
-
-## Recommended IDE Setup
-
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+This is a complete rebuild of my Media Logger app, replacing the old Python/Flet implementation but with full forward compaitbility, you can import your DB and assets with no issue and all functions and features are retained and improved.
