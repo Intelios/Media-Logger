@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film } from "lucide-react";
+import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film, FileText } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { saveImage, getImageUrl } from "../lib/utils";
@@ -316,6 +316,21 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
           placeholder="Action, Sci-Fi, Drama..."
         />
         <p className="text-xs text-gray-500">Separate multiple genres with commas</p>
+      </div>
+
+      {/* Description */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+          <FileText size={14} className="text-primary" />
+          Description
+        </label>
+        <textarea
+          value={formData.description || ""}
+          onChange={e => updateField("description", e.target.value)}
+          rows={4}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all resize-none"
+          placeholder="Add notes or thoughts about this entry..."
+        />
       </div>
 
       {/* Toggle Options */}

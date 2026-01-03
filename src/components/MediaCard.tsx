@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy } from "lucide-react";
+import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, X } from "lucide-react";
 import { getImageUrl } from "../lib/utils";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
@@ -103,6 +103,7 @@ interface MediaCardProps {
 export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardProps) {
   const [imgSrc, setImgSrc] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const contextInfo = getContextInfo(entry);
@@ -150,6 +151,12 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
     }
   };
 
+  const handleViewDescription = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    setDescriptionOpen(true);
+  };
+
   return (
     <div className={cn(
       "group relative bg-surface/80 backdrop-blur-md rounded-2xl overflow-hidden hover:scale-[1.03] transition-all duration-300 cursor-pointer",
@@ -184,7 +191,15 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
 
           {/* Dropdown Menu */}
           {menuOpen && (
-            <div className="absolute right-0 top-9 w-36 bg-surface/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="absolute right-0 top-9 w-44 bg-surface/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <button
+                onClick={handleViewDescription}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-purple-500/20 hover:text-purple-400 transition-colors"
+              >
+                <FileText size={14} />
+                <span>View Description</span>
+              </button>
+              <div className="h-px bg-white/10" />
               <button
                 onClick={handleEdit}
                 className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-primary/20 hover:text-primary transition-colors"
@@ -315,6 +330,59 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
           </div>
         )}
       </div>
+
+      {/* Description Modal */}
+      {descriptionOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          onClick={(e) => {
+            e.stopPropagation();
+            setDescriptionOpen(false);
+          }}
+        >
+          <div
+            className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-lg rounded-2xl shadow-2xl shadow-primary/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-white/5 bg-gradient-to-r from-purple-500/10 via-transparent to-transparent">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-500/20 rounded-lg">
+                  <FileText size={18} className="text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white">Description</h3>
+                  <p className="text-xs text-gray-400 line-clamp-1">{entry.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDescriptionOpen(false);
+                }}
+                className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              {entry.description ? (
+                <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">
+                  {entry.description}
+                </p>
+              ) : (
+                <div className="text-center py-8">
+                  <FileText size={40} className="mx-auto text-gray-600 mb-3" />
+                  <p className="text-gray-500 text-sm">No description available</p>
+                  <p className="text-gray-600 text-xs mt-1">Edit the entry to add one</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

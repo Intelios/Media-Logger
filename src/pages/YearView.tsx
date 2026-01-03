@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import { Plus, Gamepad2, Film, Heart } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
@@ -69,6 +69,7 @@ const loadPersistedFilter = (): string[] => {
 
 export default function YearView() {
   const { year } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [entries, setEntries] = useState<MediaEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = useState<MediaEntry[]>([]);
 
@@ -84,6 +85,11 @@ export default function YearView() {
 
   // Awards data
   const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
+
+  // Highlight state for featured entry navigation
+  const [highlightedId, setHighlightedId] = useState<number | null>(null);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+  const hasProcessedHighlight = useRef(false);
 
   // Handle preset button click
   const handlePresetClick = (presetKey: Exclude<PresetKey, null>) => {
@@ -129,6 +135,45 @@ export default function YearView() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Handle highlight param from Featured Entry navigation
+  useEffect(() => {
+    const highlightParam = searchParams.get('highlight');
+    const typeParam = searchParams.get('type');
+
+    if (highlightParam && !hasProcessedHighlight.current) {
+      hasProcessedHighlight.current = true;
+      const entryId = parseInt(highlightParam, 10);
+
+      // If a type is specified and not currently in our filter, add it
+      if (typeParam && !selectedTypes.includes(typeParam) && ENTRY_TYPES.includes(typeParam)) {
+        setSelectedTypes([typeParam]);
+        setActivePreset(null);
+        localStorage.removeItem(PRESET_STORAGE_KEY);
+      }
+
+      // Set highlighted ID for animation
+      setHighlightedId(entryId);
+
+      // Clear animation after 3 seconds
+      setTimeout(() => {
+        setHighlightedId(null);
+      }, 3000);
+
+      // Clean up URL params
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, selectedTypes, setSearchParams]);
+
+  // Scroll to highlighted entry when it becomes visible
+  useEffect(() => {
+    if (highlightedId && highlightRef.current) {
+      // Wait for filter and render to complete
+      setTimeout(() => {
+        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [highlightedId, filteredEntries]);
 
   // Handle Filtering Logic
   const applyFilter = (data: MediaEntry[], types: string[]) => {
@@ -244,16 +289,26 @@ export default function YearView() {
       {/* Grid */}
       {filteredEntries.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-20">
-          {filteredEntries.map(entry => (
-            <div key={entry.id}>
-              <MediaCard
-                entry={entry}
-                onEdit={handleEditFromCard}
-                onDelete={handleDelete}
-                awards={entry.id ? awardsMap.get(entry.id) : undefined}
-              />
-            </div>
-          ))}
+          {filteredEntries.map(entry => {
+            const isHighlighted = entry.id === highlightedId;
+            return (
+              <div
+                key={entry.id}
+                ref={isHighlighted ? highlightRef : null}
+                className={`transition-all duration-300 ${isHighlighted
+                    ? 'ring-4 ring-amber-400 ring-offset-2 ring-offset-gray-900 rounded-2xl animate-pulse'
+                    : ''
+                  }`}
+              >
+                <MediaCard
+                  entry={entry}
+                  onEdit={handleEditFromCard}
+                  onDelete={handleDelete}
+                  awards={entry.id ? awardsMap.get(entry.id) : undefined}
+                />
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-gray-500">

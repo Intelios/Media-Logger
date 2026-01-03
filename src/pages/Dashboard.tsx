@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Library, Star, Calendar, Folder, ArrowRight, Search, BarChart3, CalendarDays } from "lucide-react";
 import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";
@@ -10,9 +10,11 @@ import { getImageUrl } from "../lib/utils";
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recent, setRecent] = useState<MediaEntry[]>([]);
-  const [featured, setFeatured] = useState<MediaEntry | null>(null);
-  const [featuredImg, setFeaturedImg] = useState("");
+  const [featured, setFeatured] = useState<{ entry: MediaEntry; imageUrl: string } | null>(null);
   const [greeting, setGreeting] = useState("Hello");
+
+  // Track the current load operation to prevent stale updates
+  const loadIdRef = useRef(0);
 
   useEffect(() => {
     // Time based greeting
@@ -21,15 +23,21 @@ export default function Dashboard() {
     else if (hour < 18) setGreeting("Good Afternoon");
     else setGreeting("Good Evening");
 
+    // Increment load ID to invalidate any in-flight requests
+    const currentLoadId = ++loadIdRef.current;
+
     // Load Data
     const load = async () => {
       setStats(await dashboardLogic.getStats());
       setRecent(await dashboardLogic.getRecentEntries());
-      
+
       const feat = await dashboardLogic.getFeaturedEntry();
-      setFeatured(feat);
       if (feat) {
-        setFeaturedImg(await getImageUrl(feat.image_url));
+        const imageUrl = await getImageUrl(feat.image_url);
+        // Only update state if this is still the current load operation
+        if (loadIdRef.current === currentLoadId) {
+          setFeatured({ entry: feat, imageUrl });
+        }
       }
     };
     load();
@@ -39,7 +47,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 pb-10">
-      
+
       {/* 1. Welcome Header */}
       <header className="bg-gradient-to-r from-primary/20 to-secondary/20 p-8 rounded-3xl border border-white/5 relative overflow-hidden">
         <div className="relative z-10">
@@ -52,33 +60,33 @@ export default function Dashboard() {
 
       {/* 2. Stats Grid */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <DashboardStatCard 
-          icon={<Library size={24} />} 
-          value={stats.total_entries} 
-          label="Total Entries" 
+        <DashboardStatCard
+          icon={<Library size={24} />}
+          value={stats.total_entries}
+          label="Total Entries"
           subtext="Your complete collection"
           colorClass="blue"
         />
-        <DashboardStatCard 
-          icon={<Star size={24} />} 
-          value={stats.average_rating} 
-          label="Average Rating" 
+        <DashboardStatCard
+          icon={<Star size={24} />}
+          value={stats.average_rating}
+          label="Average Rating"
           subtext="Quality score"
           colorClass="amber"
           progress={parseFloat(stats.average_rating) * 10}
         />
-        <DashboardStatCard 
-          icon={<Folder size={24} />} 
-          value={stats.most_common_type} 
-          label="Most Common" 
+        <DashboardStatCard
+          icon={<Folder size={24} />}
+          value={stats.most_common_type}
+          label="Most Common"
           subtext="Preferred content"
           colorClass="green"
           progress={65} // Example static, or calc from logic
         />
-        <DashboardStatCard 
-          icon={<Calendar size={24} />} 
-          value={stats.most_productive_year} 
-          label="Peak Year" 
+        <DashboardStatCard
+          icon={<Calendar size={24} />}
+          value={stats.most_productive_year}
+          label="Peak Year"
           subtext="Highest activity"
           colorClass="purple"
           progress={stats.completion_rate}
@@ -86,42 +94,45 @@ export default function Dashboard() {
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         {/* 3. Featured Entry (Takes up 1 column on large screens, usually displayed nicely) */}
         {featured && (
           <section className="lg:col-span-1 h-full">
-            <div className="h-full bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col hover:border-amber-500/30 transition-colors">
+            <Link
+              to={`/year/${featured.entry.year_completed}?highlight=${featured.entry.id}&type=${encodeURIComponent(featured.entry.entry_type || '')}`}
+              className="h-full bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col hover:border-amber-500/30 transition-colors cursor-pointer block"
+            >
               <div className="flex items-center gap-3 mb-4">
                 <Star className="text-amber-400 fill-amber-400" size={20} />
                 <h3 className="text-xl font-bold">Featured Entry</h3>
               </div>
-              
+
               <div className="relative aspect-video w-full rounded-xl overflow-hidden mb-4 shadow-lg">
-                <img src={featuredImg} className="w-full h-full object-cover" alt={featured.name} />
+                <img src={featured.imageUrl} className="w-full h-full object-cover" alt={featured.entry.name} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                 <div className="absolute bottom-3 left-3 right-3">
                   <span className="text-xs font-bold px-2 py-1 bg-primary text-white rounded-md mb-2 inline-block">
-                    {featured.entry_type}
+                    {featured.entry.entry_type}
                   </span>
-                  <h4 className="text-lg font-bold leading-tight line-clamp-1">{featured.name}</h4>
+                  <h4 className="text-lg font-bold leading-tight line-clamp-1">{featured.entry.name}</h4>
                 </div>
               </div>
 
               <div className="mt-auto space-y-3">
                 <div className="flex justify-between text-sm text-gray-400 border-b border-white/5 pb-2">
                   <span>Rating</span>
-                  <span className="text-white font-bold">{featured.review_score}/10</span>
+                  <span className="text-white font-bold">{featured.entry.review_score}/10</span>
                 </div>
                 <div className="flex justify-between text-sm text-gray-400 border-b border-white/5 pb-2">
                   <span>Completed</span>
-                  <span className="text-white">{featured.completion_date || "N/A"}</span>
+                  <span className="text-white">{featured.entry.completion_date || "N/A"}</span>
                 </div>
                 <div className="flex justify-between text-sm text-gray-400">
                   <span>Year</span>
-                  <span className="text-white">{featured.year_completed}</span>
+                  <span className="text-white">{featured.entry.year_completed}</span>
                 </div>
               </div>
-            </div>
+            </Link>
           </section>
         )}
 
@@ -161,7 +172,7 @@ export default function Dashboard() {
             View All <ArrowRight size={16} />
           </Link>
         </div>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
           {recent.map(entry => (
             <MediaCard key={entry.id} entry={entry} />
