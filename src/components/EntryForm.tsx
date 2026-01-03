@@ -185,7 +185,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, onDelete }: En
               </div>
             </div>
 
-            {/* Conditional Fields */}
+{/* Conditional Fields */}
             {formData.entry_type === 'Game' && (
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Platform</label>
@@ -193,20 +193,73 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, onDelete }: En
                   type="text" 
                   value={formData.platform || ""} 
                   onChange={e => setFormData({...formData, platform: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
                   placeholder="PC, PS5, Switch..."
                 />
               </div>
             )}
             
-            {(formData.entry_type === 'Book' || formData.entry_type === 'Adult Visual Novel') && (
+            {/* CORRECTED: Author for Book only */}
+            {formData.entry_type === 'Book' && (
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Author</label>
                 <input 
                   type="text" 
                   value={formData.author || ""} 
                   onChange={e => setFormData({...formData, author: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                />
+              </div>
+            )}
+
+            {/* CORRECTED: Artist for Album */}
+            {formData.entry_type === 'Album' && (
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Artist</label>
+                <input 
+                  type="text" 
+                  value={formData.artist || ""} 
+                  onChange={e => setFormData({...formData, artist: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                />
+              </div>
+            )}
+
+            {/* CORRECTED: JAV needs both Director (Studio) and Actress */}
+            {formData.entry_type === 'JAV' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Studio</label>
+                  {/* Note: 'director' column is used for Studio in DB schema based on python code */}
+                  <input 
+                    type="text" 
+                    value={formData.director || ""} 
+                    onChange={e => setFormData({...formData, director: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Actress</label>
+                  <input 
+                    type="text" 
+                    value={formData.actress || ""} 
+                    onChange={e => setFormData({...formData, actress: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* CORRECTED: Adult Visual Novel uses update_version, not Author */}
+            {formData.entry_type === 'Adult Visual Novel' && (
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Version / Update</label>
+                <input 
+                  type="text" 
+                  value={formData.update_version || ""} 
+                  onChange={e => setFormData({...formData, update_version: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                  placeholder="v1.0, Update 5..."
                 />
               </div>
             )}
