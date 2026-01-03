@@ -119,5 +119,43 @@ export const awardsLogic = {
         [i, categoryIds[i], year]
       );
     }
+  },
+
+  // 7. Get all awards won by a specific media entry
+  async getAwardsForMedia(mediaId: number): Promise<{ categoryName: string; year: number }[]> {
+    const db = await dbService.connect();
+    const results = await db.select<{ name: string; year: number }[]>(
+      `SELECT c.name, c.year 
+       FROM award_winners w 
+       JOIN award_categories c ON w.category_id = c.id 
+       WHERE w.media_id = $1 
+       ORDER BY c.year DESC, c.name ASC`,
+      [mediaId]
+    );
+    return results.map(r => ({ categoryName: r.name, year: r.year }));
+  },
+
+  // 8. Get all awards for a list of media IDs (batch query for efficiency)
+  async getAwardsForMediaBatch(mediaIds: number[]): Promise<Map<number, { categoryName: string; year: number }[]>> {
+    if (mediaIds.length === 0) return new Map();
+
+    const db = await dbService.connect();
+    const placeholders = mediaIds.map((_, i) => `$${i + 1}`).join(',');
+    const results = await db.select<{ media_id: number; name: string; year: number }[]>(
+      `SELECT w.media_id, c.name, c.year 
+       FROM award_winners w 
+       JOIN award_categories c ON w.category_id = c.id 
+       WHERE w.media_id IN (${placeholders}) 
+       ORDER BY c.year DESC, c.name ASC`,
+      mediaIds
+    );
+
+    const awardsMap = new Map<number, { categoryName: string; year: number }[]>();
+    for (const r of results) {
+      const existing = awardsMap.get(r.media_id) || [];
+      existing.push({ categoryName: r.name, year: r.year });
+      awardsMap.set(r.media_id, existing);
+    }
+    return awardsMap;
   }
 };
