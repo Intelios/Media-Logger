@@ -5,7 +5,8 @@
 /* Global Dark Mode Setup */
 :root {
   color-scheme: dark;
-  background-color: #121212; /* Your Flet background color */
+  background-color: #121212;
+  /* Your Flet background color */
   color: #ffffff;
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
@@ -43,4 +44,21 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
+}
+
+/* Perfect 10 glow animation */
+@keyframes perfect-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(52, 211, 153, 0.4), 0 0 40px rgba(52, 211, 153, 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 25px rgba(52, 211, 153, 0.5), 0 0 50px rgba(52, 211, 153, 0.25);
+  }
+}
+
+.animate-perfect-glow {
+  animation: perfect-glow 3s ease-in-out infinite;
 }

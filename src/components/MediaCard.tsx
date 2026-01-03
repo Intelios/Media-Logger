@@ -82,6 +82,11 @@ const parseGenres = (genre: string | null): string[] => {
   return genre.split(',').map(g => g.trim()).filter(g => g.length > 0);
 };
 
+// Check if entry is a perfect 10
+const isPerfectTen = (score: number | null | undefined): boolean => {
+  return score === 10;
+};
+
 interface MediaCardProps {
   entry: MediaEntry;
   onEdit?: (entry: MediaEntry) => void;
@@ -94,6 +99,7 @@ export function MediaCard({ entry, onEdit, onDelete }: MediaCardProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const contextInfo = getContextInfo(entry);
+  const perfectTen = isPerfectTen(entry.review_score);
   const genres = parseGenres(entry.genre);
 
   // Check boolean flags (stored as 0/1 in SQLite)
@@ -137,7 +143,12 @@ export function MediaCard({ entry, onEdit, onDelete }: MediaCardProps) {
   };
 
   return (
-    <div className="group relative bg-surface/80 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden hover:scale-[1.03] hover:shadow-2xl hover:shadow-primary/20 hover:border-primary/40 transition-all duration-300 cursor-pointer">
+    <div className={cn(
+      "group relative bg-surface/80 backdrop-blur-md rounded-2xl overflow-hidden hover:scale-[1.03] transition-all duration-300 cursor-pointer",
+      perfectTen
+        ? "border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4),0_0_40px_rgba(52,211,153,0.2)] hover:shadow-[0_0_25px_rgba(52,211,153,0.5),0_0_50px_rgba(52,211,153,0.3)] hover:border-emerald-300 animate-perfect-glow"
+        : "border border-white/10 hover:shadow-2xl hover:shadow-primary/20 hover:border-primary/40"
+    )}>
 
       {/* Image Container */}
       <div className="h-52 w-full relative overflow-hidden">
