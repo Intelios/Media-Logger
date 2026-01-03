@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { X, Upload, Save, Calendar as CalIcon } from "lucide-react";
+import { X, Upload, Save, Calendar as CalIcon, Trash2 } from "lucide-react"; // Added Trash2 icon
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { saveImage, getImageUrl } from "../lib/utils"; // Import getImageUrl
+import { saveImage, getImageUrl } from "../lib/utils";
 import type { MediaEntry } from "../lib/db";
 
 interface EntryFormProps {
@@ -10,6 +10,7 @@ interface EntryFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Partial<MediaEntry>) => void;
+  onDelete?: (id: number) => void; // Optional prop
 }
 
 const ENTRY_TYPES = [
@@ -17,22 +18,18 @@ const ENTRY_TYPES = [
   "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"
 ];
 
-export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormProps) {
+export function EntryForm({ initialData, isOpen, onClose, onSave, onDelete }: EntryFormProps) {
   const [formData, setFormData] = useState<Partial<MediaEntry>>({});
   const [previewImage, setPreviewImage] = useState<string>("");
-  
-  // NEW: Specific state to hold the raw path selected from file picker
   const [rawImagePath, setRawImagePath] = useState<string | null>(null);
-  
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      setRawImagePath(null); // Reset raw path
+      setRawImagePath(null);
       
       if (initialData) {
         setFormData(initialData);
-        // Load existing image for preview
         if (initialData.image_url) {
             getImageUrl(initialData.image_url).then(setPreviewImage);
         } else {
@@ -51,29 +48,19 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
     }
   }, [isOpen, initialData]);
 
-const handleImagePick = async () => {
+  const handleImagePick = async () => {
     try {
       const file = await open({
         multiple: false,
         filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }]
       });
       
-      console.log("Dialog result raw:", file); // <--- Add this
-
       if (file) {
-        // In v2, if multiple: false, it might return the file object directly OR the path string depending on the exact beta version.
-        // Let's handle both possibilities safely.
         const path = typeof file === 'string' ? file : file.path;
-        
-        console.log("Extracted path:", path); 
-
         if (path) {
           setRawImagePath(path);
           setFormData({ ...formData, image_url: path });
-          // Note: convertFileSrc expects a string path
           setPreviewImage(convertFileSrc(path));
-        } else {
-            console.error("Path was undefined on file object:", file);
         }
       }
     } catch (e) {
@@ -88,17 +75,11 @@ const handleImagePick = async () => {
     try {
       let finalImageUrl = formData.image_url;
 
-      // ONLY save if we have a new raw path from the picker
       if (rawImagePath) {
-        console.log("Attempting to save image from:", rawImagePath);
         const savedPath = await saveImage(rawImagePath);
-        if (savedPath) {
-            finalImageUrl = savedPath;
-            console.log("Image saved as:", finalImageUrl);
-        }
+        if (savedPath) finalImageUrl = savedPath;
       }
 
-      // Prepare year from date
       let yearCompleted = formData.year_completed;
       if (formData.completion_date) {
         yearCompleted = parseInt(formData.completion_date.split('-')[0]);
@@ -114,6 +95,16 @@ const handleImagePick = async () => {
       console.error("Error in submit:", err);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // CORRECTED DELETE HANDLER
+  const handleDeleteClick = () => {
+    if (initialData?.id && onDelete) {
+      if (window.confirm("Are you sure you want to delete this entry? This cannot be undone.")) {
+        onDelete(initialData.id);
+        onClose();
+      }
     }
   };
 
@@ -154,7 +145,6 @@ const handleImagePick = async () => {
           </div>
 
           <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar">
-            
             {/* Basic Info */}
             <div className="space-y-4">
               <div>
@@ -195,7 +185,7 @@ const handleImagePick = async () => {
               </div>
             </div>
 
-            {/* Conditional Fields based on Python logic */}
+            {/* Conditional Fields */}
             {formData.entry_type === 'Game' && (
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Platform</label>
@@ -259,25 +249,41 @@ const handleImagePick = async () => {
                 placeholder="Action, Sci-Fi..."
               />
             </div>
-
           </div>
 
-          <div className="p-6 border-t border-white/5 flex justify-end gap-3">
-            <button 
-              type="button" 
-              onClick={onClose}
-              className="px-6 py-2.5 rounded-xl font-medium hover:bg-white/5 text-gray-300 transition-colors"
-            >
-              Cancel
-            </button>
-            <button 
-              type="submit" 
-              disabled={isSaving}
-              className="px-6 py-2.5 rounded-xl font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25 flex items-center gap-2 transition-all"
-            >
-              <Save size={18} />
-              {isSaving ? "Saving..." : "Save Entry"}
-            </button>
+          <div className="p-6 border-t border-white/5 flex justify-between items-center">
+            
+            {/* DELETE BUTTON */}
+            <div>
+              {initialData?.id && onDelete && (
+                <button
+                  type="button"
+                  onClick={handleDeleteClick}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-red-400 hover:bg-red-500/10 font-medium transition-colors"
+                >
+                  <Trash2 size={18} />
+                  <span>Delete</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                type="button" 
+                onClick={onClose}
+                className="px-6 py-2.5 rounded-xl font-medium hover:bg-white/5 text-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                disabled={isSaving}
+                className="px-6 py-2.5 rounded-xl font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25 flex items-center gap-2 transition-all"
+              >
+                <Save size={18} />
+                {isSaving ? "Saving..." : "Save Entry"}
+              </button>
+            </div>
           </div>
         </form>
       </div>

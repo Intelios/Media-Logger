@@ -54,6 +54,11 @@ export default function YearView() {
     loadData(); // Refresh grid
   };
 
+    const handleDelete = async (id: number) => {
+        await dbService.deleteEntry(id);
+        loadData(); // Refresh grid
+  };
+
   return (
     <div className="space-y-6 relative min-h-[calc(100vh-100px)]">
       {/* Header & Filters */}
@@ -107,6 +112,7 @@ export default function YearView() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
+        onDelete={handleDelete} // Pass it here
         initialData={editingEntry}
       />
     </div>
