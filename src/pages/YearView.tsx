@@ -9,13 +9,32 @@ import { MultiSelectFilter } from "../components/MultiSelectFilter"; // Import t
 // Matches your Python config
 const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"];
 
+const FILTER_STORAGE_KEY = "yearview-filter-types";
+
+// Helper to load persisted filter from localStorage
+const loadPersistedFilter = (): string[] => {
+  try {
+    const stored = localStorage.getItem(FILTER_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Validate that parsed values are valid entry types
+      if (Array.isArray(parsed) && parsed.every(t => ENTRY_TYPES.includes(t))) {
+        return parsed;
+      }
+    }
+  } catch {
+    // If parsing fails, fall back to default
+  }
+  return ENTRY_TYPES; // Default: all types selected
+};
+
 export default function YearView() {
   const { year } = useParams();
   const [entries, setEntries] = useState<MediaEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = useState<MediaEntry[]>([]);
 
-  // State for multi-select (Default to ALL types selected)
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(ENTRY_TYPES);
+  // State for multi-select - Initialize from localStorage
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedFilter);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -30,6 +49,11 @@ export default function YearView() {
       });
     }
   }, [year]); // Removed selectedTypes from dependency to prevent infinite loops if logic changes
+
+  // Persist filter selection to localStorage
+  useEffect(() => {
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(selectedTypes));
+  }, [selectedTypes]);
 
   // Re-run filter when selection changes OR entries change
   useEffect(() => {
