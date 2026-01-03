@@ -1,39 +1,58 @@
 import { useState, useEffect } from "react";
-import { X, Upload, Save, Calendar as CalIcon, Trash2 } from "lucide-react"; // Added Trash2 icon
+import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { saveImage, getImageUrl } from "../lib/utils";
 import type { MediaEntry } from "../lib/db";
+import { cn } from "../lib/utils_ui";
 
 interface EntryFormProps {
   initialData?: MediaEntry | null;
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Partial<MediaEntry>) => void;
-  onDelete?: (id: number) => void; // Optional prop
 }
 
 const ENTRY_TYPES = [
-  "Movie", "Show", "Anime", "Book", "Album", "K-Drama", 
-  "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"
+  { value: "Movie", icon: <Film size={14} /> },
+  { value: "Show", icon: <Film size={14} /> },
+  { value: "Anime", icon: <Sparkles size={14} /> },
+  { value: "Book", icon: <Book size={14} /> },
+  { value: "Album", icon: <Music size={14} /> },
+  { value: "K-Drama", icon: <Film size={14} /> },
+  { value: "JAV", icon: <Star size={14} /> },
+  { value: "Hentai", icon: <Star size={14} /> },
+  { value: "Game", icon: <Gamepad size={14} /> },
+  { value: "Adult Visual Novel", icon: <Gamepad size={14} /> },
+  { value: "Other", icon: <Tag size={14} /> },
 ];
 
-export function EntryForm({ initialData, isOpen, onClose, onSave, onDelete }: EntryFormProps) {
+type TabId = "basic" | "details" | "media";
+
+const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+  { id: "basic", label: "Basic Info", icon: <Tag size={15} /> },
+  { id: "details", label: "Details", icon: <Sparkles size={15} /> },
+  { id: "media", label: "Media", icon: <ImageIcon size={15} /> },
+];
+
+export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormProps) {
   const [formData, setFormData] = useState<Partial<MediaEntry>>({});
   const [previewImage, setPreviewImage] = useState<string>("");
   const [rawImagePath, setRawImagePath] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabId>("basic");
 
   useEffect(() => {
     if (isOpen) {
       setRawImagePath(null);
-      
+      setActiveTab("basic");
+
       if (initialData) {
         setFormData(initialData);
         if (initialData.image_url) {
-            getImageUrl(initialData.image_url).then(setPreviewImage);
+          getImageUrl(initialData.image_url).then(setPreviewImage);
         } else {
-            setPreviewImage("");
+          setPreviewImage("");
         }
       } else {
         setFormData({
@@ -54,7 +73,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, onDelete }: En
         multiple: false,
         filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }]
       });
-      
+
       if (file) {
         const path = typeof file === 'string' ? file : file.path;
         if (path) {
@@ -98,245 +117,360 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, onDelete }: En
     }
   };
 
-  // CORRECTED DELETE HANDLER
-  const handleDeleteClick = () => {
-    if (initialData?.id && onDelete) {
-      if (window.confirm("Are you sure you want to delete this entry? This cannot be undone.")) {
-        onDelete(initialData.id);
-        onClose();
-      }
-    }
+  const updateField = (key: keyof MediaEntry, value: unknown) => {
+    setFormData(prev => ({ ...prev, [key]: value }));
   };
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-[#1a1a1a] border border-white/10 w-full max-w-4xl rounded-2xl shadow-2xl flex overflow-hidden max-h-[90vh]">
-        
-        {/* Left Side: Preview */}
-        <div className="w-1/3 bg-black/30 relative hidden md:block">
-          {previewImage ? (
-            <img 
-              src={previewImage} 
-              className="w-full h-full object-cover opacity-60" 
-              alt="Preview" 
+  const renderBasicTab = () => (
+    <div className="space-y-5 animate-in fade-in duration-300">
+      {/* Title Input */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+          <Tag size={14} className="text-primary" />
+          Title
+        </label>
+        <input
+          required
+          type="text"
+          value={formData.name || ""}
+          onChange={e => updateField("name", e.target.value)}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+          placeholder="Enter title..."
+        />
+      </div>
+
+      {/* Type Selection Grid */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-300">Type</label>
+        <div className="grid grid-cols-3 gap-2">
+          {ENTRY_TYPES.map(type => (
+            <button
+              key={type.value}
+              type="button"
+              onClick={() => updateField("entry_type", type.value)}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all border",
+                formData.entry_type === type.value
+                  ? "bg-primary/20 border-primary text-primary shadow-lg shadow-primary/10"
+                  : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
+              )}
+            >
+              {type.icon}
+              <span className="truncate">{type.value}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Date Input */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+          <CalIcon size={14} className="text-primary" />
+          Completion Date
+        </label>
+        <input
+          type="date"
+          value={formData.completion_date || ""}
+          onChange={e => updateField("completion_date", e.target.value)}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+        />
+      </div>
+
+      {/* Score Selector */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+          <Star size={14} className="text-primary" />
+          Rating
+        </label>
+        <div className="flex gap-1">
+          {[...Array(11)].map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => updateField("review_score", formData.review_score === i ? null : i)}
+              className={cn(
+                "flex-1 py-2.5 rounded-lg text-sm font-bold transition-all",
+                formData.review_score === i
+                  ? i >= 9 ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+                    : i >= 7 ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30"
+                      : i >= 5 ? "bg-yellow-500 text-white shadow-lg shadow-yellow-500/30"
+                        : "bg-red-500 text-white shadow-lg shadow-red-500/30"
+                  : "bg-white/5 text-gray-500 hover:bg-white/10 hover:text-white"
+              )}
+            >
+              {i}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-gray-500 text-center">
+          {formData.review_score !== null && formData.review_score !== undefined
+            ? `Score: ${formData.review_score}/10`
+            : "Click to select a score"}
+        </p>
+      </div>
+    </div>
+  );
+
+  const renderDetailsTab = () => (
+    <div className="space-y-5 animate-in fade-in duration-300">
+      {/* Conditional Fields Based on Type */}
+      {formData.entry_type === 'Game' && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+            <Gamepad size={14} className="text-purple-400" />
+            Platform
+          </label>
+          <input
+            type="text"
+            value={formData.platform || ""}
+            onChange={e => updateField("platform", e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+            placeholder="PC, PS5, Switch..."
+          />
+        </div>
+      )}
+
+      {formData.entry_type === 'Book' && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+            <Book size={14} className="text-amber-400" />
+            Author
+          </label>
+          <input
+            type="text"
+            value={formData.author || ""}
+            onChange={e => updateField("author", e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+            placeholder="Author name..."
+          />
+        </div>
+      )}
+
+      {formData.entry_type === 'Album' && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+            <Music size={14} className="text-emerald-400" />
+            Artist
+          </label>
+          <input
+            type="text"
+            value={formData.artist || ""}
+            onChange={e => updateField("artist", e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+            placeholder="Artist name..."
+          />
+        </div>
+      )}
+
+      {formData.entry_type === 'JAV' && (
+        <>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">Studio</label>
+            <input
+              type="text"
+              value={formData.director || ""}
+              onChange={e => updateField("director", e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              placeholder="Studio name..."
             />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">Actress</label>
+            <input
+              type="text"
+              value={formData.actress || ""}
+              onChange={e => updateField("actress", e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              placeholder="Actress name..."
+            />
+          </div>
+        </>
+      )}
+
+      {formData.entry_type === 'Adult Visual Novel' && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-300">Version / Update</label>
+          <input
+            type="text"
+            value={formData.update_version || ""}
+            onChange={e => updateField("update_version", e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+            placeholder="v1.0, Update 5..."
+          />
+        </div>
+      )}
+
+      {/* Genre */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+          <Tag size={14} className="text-primary" />
+          Genre
+        </label>
+        <input
+          type="text"
+          value={formData.genre || ""}
+          onChange={e => updateField("genre", e.target.value)}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+          placeholder="Action, Sci-Fi, Drama..."
+        />
+        <p className="text-xs text-gray-500">Separate multiple genres with commas</p>
+      </div>
+
+      {/* Toggle Options */}
+      <div className="grid grid-cols-2 gap-4">
+        <button
+          type="button"
+          onClick={() => updateField("is_rewatch", formData.is_rewatch === 1 ? 0 : 1)}
+          className={cn(
+            "flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all border",
+            formData.is_rewatch === 1
+              ? "bg-amber-500/20 border-amber-500 text-amber-400"
+              : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
+          )}
+        >
+          <span>🔄</span>
+          <span>Rewatch</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => updateField("own_local_copy", formData.own_local_copy === 1 ? 0 : 1)}
+          className={cn(
+            "flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all border",
+            formData.own_local_copy === 1
+              ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
+              : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
+          )}
+        >
+          <span>💾</span>
+          <span>Own Copy</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderMediaTab = () => (
+    <div className="space-y-5 animate-in fade-in duration-300">
+      {/* Image Upload */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+          <ImageIcon size={14} className="text-primary" />
+          Cover Image
+        </label>
+        <div
+          onClick={handleImagePick}
+          className="group relative w-full aspect-[2/3] bg-white/5 border-2 border-dashed border-white/20 rounded-2xl overflow-hidden cursor-pointer hover:border-primary/50 transition-all"
+        >
+          {previewImage ? (
+            <>
+              <img
+                src={previewImage}
+                className="w-full h-full object-cover"
+                alt="Preview"
+              />
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <div className="flex flex-col items-center gap-2 text-white">
+                  <Upload size={32} />
+                  <span className="font-medium">Change Image</span>
+                </div>
+              </div>
+            </>
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-600">
-              No Image
+            <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 group-hover:text-primary transition-colors">
+              <Upload size={48} className="mb-3" />
+              <span className="font-medium">Click to upload</span>
+              <span className="text-xs mt-1">PNG, JPG, WebP supported</span>
             </div>
           )}
-          <div className="absolute bottom-0 left-0 p-6 bg-gradient-to-t from-black to-transparent w-full">
-            <h2 className="text-2xl font-bold text-white line-clamp-2">{formData.name || "New Entry"}</h2>
-            <p className="text-primary font-medium">{formData.entry_type}</p>
-          </div>
         </div>
+      </div>
+    </div>
+  );
 
-        {/* Right Side: Form */}
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-w-0">
-          <div className="p-6 border-b border-white/5 flex justify-between items-center">
-            <h3 className="text-xl font-bold">
-              {initialData ? "Edit Entry" : "Add New Entry"}
-            </h3>
-            <button type="button" onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      {/* Modal Container */}
+      <div className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-2xl rounded-3xl shadow-2xl shadow-primary/10 overflow-hidden max-h-[90vh] flex flex-col">
+
+        {/* Header with Preview */}
+        <div className="relative bg-gradient-to-r from-primary/20 via-purple-500/10 to-transparent p-6 border-b border-white/5">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              {/* Mini Preview */}
+              {previewImage && (
+                <div className="w-14 h-20 rounded-xl overflow-hidden border border-white/20 shadow-lg">
+                  <img src={previewImage} className="w-full h-full object-cover" alt="" />
+                </div>
+              )}
+              <div>
+                <h3 className="text-xl font-bold text-white">
+                  {initialData ? "Edit Entry" : "Add New Entry"}
+                </h3>
+                <p className="text-gray-400 text-sm mt-0.5 line-clamp-1">
+                  {formData.name || "Untitled"}
+                  {formData.entry_type && <span className="text-primary ml-2">• {formData.entry_type}</span>}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white"
+            >
               <X size={20} />
             </button>
           </div>
+        </div>
 
-          <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar">
-            {/* Basic Info */}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Title</label>
-                <input 
-                  required
-                  type="text" 
-                  value={formData.name || ""} 
-                  onChange={e => setFormData({...formData, name: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none transition-colors"
-                  placeholder="Enter title..."
-                />
-              </div>
+        {/* Tabs */}
+        <div className="flex gap-1 px-6 py-3 border-b border-white/5 bg-black/20">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                activeTab === tab.id
+                  ? "bg-primary text-white shadow-lg shadow-primary/25"
+                  : "text-gray-400 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Type</label>
-                  <select 
-                    value={formData.entry_type || "Movie"}
-                    onChange={e => setFormData({...formData, entry_type: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary outline-none appearance-none"
-                  >
-                    {ENTRY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Date</label>
-                  <div className="relative">
-                    <input 
-                      type="date" 
-                      value={formData.completion_date || ""}
-                      onChange={e => setFormData({...formData, completion_date: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary outline-none"
-                    />
-                    <CalIcon className="absolute right-3 top-3 text-gray-500 pointer-events-none" size={18} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-{/* Conditional Fields */}
-            {formData.entry_type === 'Game' && (
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Platform</label>
-                <input 
-                  type="text" 
-                  value={formData.platform || ""} 
-                  onChange={e => setFormData({...formData, platform: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
-                  placeholder="PC, PS5, Switch..."
-                />
-              </div>
-            )}
-            
-            {/* CORRECTED: Author for Book only */}
-            {formData.entry_type === 'Book' && (
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Author</label>
-                <input 
-                  type="text" 
-                  value={formData.author || ""} 
-                  onChange={e => setFormData({...formData, author: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
-                />
-              </div>
-            )}
-
-            {/* CORRECTED: Artist for Album */}
-            {formData.entry_type === 'Album' && (
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Artist</label>
-                <input 
-                  type="text" 
-                  value={formData.artist || ""} 
-                  onChange={e => setFormData({...formData, artist: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
-                />
-              </div>
-            )}
-
-            {/* CORRECTED: JAV needs both Director (Studio) and Actress */}
-            {formData.entry_type === 'JAV' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Studio</label>
-                  {/* Note: 'director' column is used for Studio in DB schema based on python code */}
-                  <input 
-                    type="text" 
-                    value={formData.director || ""} 
-                    onChange={e => setFormData({...formData, director: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Actress</label>
-                  <input 
-                    type="text" 
-                    value={formData.actress || ""} 
-                    onChange={e => setFormData({...formData, actress: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* CORRECTED: Adult Visual Novel uses update_version, not Author */}
-            {formData.entry_type === 'Adult Visual Novel' && (
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Version / Update</label>
-                <input 
-                  type="text" 
-                  value={formData.update_version || ""} 
-                  onChange={e => setFormData({...formData, update_version: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
-                  placeholder="v1.0, Update 5..."
-                />
-              </div>
-            )}
-
-            {/* Image & Rating */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Image</label>
-                <button 
-                  type="button"
-                  onClick={handleImagePick}
-                  className="w-full bg-white/5 border border-white/10 border-dashed rounded-lg p-3 text-sm text-gray-400 hover:text-white hover:border-primary flex items-center justify-center gap-2 transition-all"
-                >
-                  <Upload size={16} />
-                  {rawImagePath || formData.image_url ? "Change Image" : "Select Image"}
-                </button>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Score (0-10)</label>
-                <select 
-                  value={formData.review_score || ""}
-                  onChange={e => setFormData({...formData, review_score: e.target.value ? parseInt(e.target.value) : null})}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-primary outline-none"
-                >
-                  <option value="">N/A</option>
-                  {[...Array(11)].map((_, i) => (
-                    <option key={i} value={i}>{i}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Genre (comma separated)</label>
-              <input 
-                type="text" 
-                value={formData.genre || ""} 
-                onChange={e => setFormData({...formData, genre: e.target.value})}
-                className="w-full bg-white/5 border border-white/10 rounded-lg p-3"
-                placeholder="Action, Sci-Fi..."
-              />
-            </div>
+        {/* Form Content */}
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+          <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+            {activeTab === "basic" && renderBasicTab()}
+            {activeTab === "details" && renderDetailsTab()}
+            {activeTab === "media" && renderMediaTab()}
           </div>
 
-          <div className="p-6 border-t border-white/5 flex justify-between items-center">
-            
-            {/* DELETE BUTTON */}
-            <div>
-              {initialData?.id && onDelete && (
-                <button
-                  type="button"
-                  onClick={handleDeleteClick}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-red-400 hover:bg-red-500/10 font-medium transition-colors"
-                >
-                  <Trash2 size={18} />
-                  <span>Delete</span>
-                </button>
+          {/* Footer Actions */}
+          <div className="p-4 border-t border-white/5 bg-black/20 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-xl font-medium text-gray-400 hover:bg-white/5 hover:text-white transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving || !formData.name}
+              className={cn(
+                "px-6 py-2.5 rounded-xl font-bold bg-gradient-to-r from-primary to-purple-500 text-white shadow-lg shadow-primary/25 flex items-center gap-2 transition-all",
+                (isSaving || !formData.name) ? "opacity-50 cursor-not-allowed" : "hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.02]"
               )}
-            </div>
-
-            <div className="flex gap-3">
-              <button 
-                type="button" 
-                onClick={onClose}
-                className="px-6 py-2.5 rounded-xl font-medium hover:bg-white/5 text-gray-300 transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                type="submit" 
-                disabled={isSaving}
-                className="px-6 py-2.5 rounded-xl font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25 flex items-center gap-2 transition-all"
-              >
-                <Save size={18} />
-                {isSaving ? "Saving..." : "Save Entry"}
-              </button>
-            </div>
+            >
+              <Save size={18} />
+              {isSaving ? "Saving..." : "Save Entry"}
+            </button>
           </div>
         </form>
       </div>

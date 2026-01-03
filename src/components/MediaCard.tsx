@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2 } from "lucide-react";
 import { getImageUrl } from "../lib/utils";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
@@ -82,8 +82,16 @@ const parseGenres = (genre: string | null): string[] => {
   return genre.split(',').map(g => g.trim()).filter(g => g.length > 0);
 };
 
-export function MediaCard({ entry }: { entry: MediaEntry }) {
+interface MediaCardProps {
+  entry: MediaEntry;
+  onEdit?: (entry: MediaEntry) => void;
+  onDelete?: (id: number) => void;
+}
+
+export function MediaCard({ entry, onEdit, onDelete }: MediaCardProps) {
   const [imgSrc, setImgSrc] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const contextInfo = getContextInfo(entry);
   const genres = parseGenres(entry.genre);
@@ -96,9 +104,36 @@ export function MediaCard({ entry }: { entry: MediaEntry }) {
     getImageUrl(entry.image_url).then(setImgSrc);
   }, [entry.image_url]);
 
+  // Click outside to close menu
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
+
   const handleMenuClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Menu functionality - can be extended later
+    setMenuOpen(!menuOpen);
+  };
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    onEdit?.(entry);
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    if (entry.id && window.confirm("Are you sure you want to delete this entry? This cannot be undone.")) {
+      onDelete?.(entry.id);
+    }
   };
 
   return (
@@ -117,12 +152,38 @@ export function MediaCard({ entry }: { entry: MediaEntry }) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
         {/* Top Right: Action Menu */}
-        <button
-          onClick={handleMenuClick}
-          className="absolute top-2 right-2 p-1.5 bg-black/50 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-black/70 z-10"
-        >
-          <MoreVertical size={16} className="text-white" />
-        </button>
+        <div className="absolute top-2 right-2 z-20" ref={menuRef}>
+          <button
+            onClick={handleMenuClick}
+            className={cn(
+              "p-1.5 bg-black/50 backdrop-blur-sm rounded-full transition-all hover:bg-black/70",
+              menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            )}
+          >
+            <MoreVertical size={16} className="text-white" />
+          </button>
+
+          {/* Dropdown Menu */}
+          {menuOpen && (
+            <div className="absolute right-0 top-9 w-36 bg-surface/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <button
+                onClick={handleEdit}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-primary/20 hover:text-primary transition-colors"
+              >
+                <Pencil size={14} />
+                <span>Edit</span>
+              </button>
+              <div className="h-px bg-white/10" />
+              <button
+                onClick={handleDelete}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-400 hover:bg-red-500/15 transition-colors"
+              >
+                <Trash2 size={14} />
+                <span>Delete</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Rating Badge - single badge that moves on hover */}
         {(entry.review_score !== null && entry.review_score !== undefined) && (

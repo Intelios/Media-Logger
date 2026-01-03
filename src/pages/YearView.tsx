@@ -13,10 +13,10 @@ export default function YearView() {
   const { year } = useParams();
   const [entries, setEntries] = useState<MediaEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = useState<MediaEntry[]>([]);
-  
+
   // State for multi-select (Default to ALL types selected)
   const [selectedTypes, setSelectedTypes] = useState<string[]>(ENTRY_TYPES);
-  
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
@@ -67,6 +67,11 @@ export default function YearView() {
     loadData();
   };
 
+  const handleEditFromCard = (entry: MediaEntry) => {
+    setEditingEntry(entry);
+    setIsModalOpen(true);
+  };
+
   return (
     <div className="space-y-6 relative min-h-[calc(100vh-100px)]">
       {/* Header & Filters */}
@@ -83,7 +88,7 @@ export default function YearView() {
 
           <div className="flex items-center gap-3">
             {/* Multi-Select Filter */}
-            <MultiSelectFilter 
+            <MultiSelectFilter
               options={ENTRY_TYPES}
               selected={selectedTypes}
               onChange={setSelectedTypes}
@@ -91,7 +96,7 @@ export default function YearView() {
             />
 
             {/* Add Button */}
-            <button 
+            <button
               onClick={() => { setEditingEntry(null); setIsModalOpen(true); }}
               className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2.5 rounded-xl font-semibold shadow-lg shadow-primary/25 transition-all"
             >
@@ -106,15 +111,19 @@ export default function YearView() {
       {filteredEntries.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-20">
           {filteredEntries.map(entry => (
-            <div key={entry.id} onClick={() => { setEditingEntry(entry); setIsModalOpen(true); }}>
-              <MediaCard entry={entry} />
+            <div key={entry.id}>
+              <MediaCard
+                entry={entry}
+                onEdit={handleEditFromCard}
+                onDelete={handleDelete}
+              />
             </div>
           ))}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-gray-500">
           <p className="text-lg">No entries match your filter.</p>
-          <button 
+          <button
             onClick={() => setSelectedTypes(ENTRY_TYPES)}
             className="mt-4 text-primary hover:underline"
           >
@@ -123,12 +132,11 @@ export default function YearView() {
         </div>
       )}
 
-      {/* The Form Modal */}
-      <EntryForm 
+      {/* The Form Modal - Delete removed from here */}
+      <EntryForm
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
-        onDelete={handleDelete}
         initialData={editingEntry}
       />
     </div>
