@@ -1,81 +1,210 @@
 import { useState, useEffect } from "react";
-import { Star, Calendar, MonitorPlay, Book, Music, Gamepad2, Film, Tv, Video } from "lucide-react";
+import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check } from "lucide-react";
 import { getImageUrl } from "../lib/utils";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 
-// Helper to pick icons based on entry type
-const getTypeIcon = (type: string | null) => {
+// Type badge colors matching Flet version
+const getTypeBadgeStyle = (type: string | null) => {
   const t = (type || "").toLowerCase();
-  if (t.includes("game")) return <Gamepad2 size={12} />;
-  if (t.includes("book")) return <Book size={12} />;
-  if (t.includes("album")) return <Music size={12} />;
-  if (t.includes("movie")) return <Film size={12} />;
-  if (t.includes("show") || t.includes("drama")) return <Tv size={12} />;
-  return <MonitorPlay size={12} />;
+  if (t.includes("album")) return { bg: "bg-emerald-600", icon: <Disc3 size={12} /> };
+  if (t.includes("game")) return { bg: "bg-purple-600", icon: <Gamepad2 size={12} /> };
+  if (t.includes("anime")) return { bg: "bg-pink-500", icon: <MonitorPlay size={12} /> };
+  if (t.includes("k-drama")) return { bg: "bg-teal-600", icon: <Tv size={12} /> };
+  if (t.includes("movie")) return { bg: "bg-blue-600", icon: <Film size={12} /> };
+  if (t.includes("show")) return { bg: "bg-cyan-600", icon: <Tv size={12} /> };
+  if (t.includes("book")) return { bg: "bg-amber-600", icon: <BookOpen size={12} /> };
+  if (t.includes("jav") || t.includes("hentai")) return { bg: "bg-rose-600", icon: <Heart size={12} /> };
+  if (t.includes("visual novel")) return { bg: "bg-indigo-600", icon: <Monitor size={12} /> };
+  return { bg: "bg-gray-600", icon: <MonitorPlay size={12} /> };
 };
 
-// Helper for rating colors (matching your Flet theme)
+// Rating badge colors
 const getRatingColor = (score: number | null) => {
-  if (!score) return "bg-gray-700 text-gray-300";
-  if (score >= 9) return "bg-green-600 text-white";
-  if (score >= 7) return "bg-blue-600 text-white";
-  if (score >= 5) return "bg-yellow-600 text-white";
-  return "bg-red-600 text-white";
+  if (!score && score !== 0) return "bg-gray-700/80 text-gray-300";
+  if (score >= 9) return "bg-emerald-500 text-white";
+  if (score >= 7) return "bg-blue-500 text-white";
+  if (score >= 5) return "bg-yellow-500 text-white";
+  return "bg-red-500 text-white";
+};
+
+// Format date to "14th March 2026" style
+const formatDate = (dateString: string | null): string => {
+  if (!dateString) return "";
+  try {
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const month = date.toLocaleString('en-US', { month: 'long' });
+    const year = date.getFullYear();
+
+    // Add ordinal suffix
+    const suffix = (d: number) => {
+      if (d > 3 && d < 21) return 'th';
+      switch (d % 10) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+      }
+    };
+
+    return `${day}${suffix(day)} ${month} ${year}`;
+  } catch {
+    return dateString;
+  }
+};
+
+// Get context info based on entry type
+const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon: React.ReactNode } | null => {
+  const type = (entry.entry_type || "").toLowerCase();
+
+  if (type.includes("album") && entry.artist) {
+    return { label: "Artist", value: entry.artist, icon: <Disc3 size={12} /> };
+  }
+  if (type.includes("book") && entry.author) {
+    return { label: "Author", value: entry.author, icon: <BookOpen size={12} /> };
+  }
+  if (type.includes("game") && entry.platform) {
+    return { label: "Platform", value: entry.platform, icon: <Gamepad2 size={12} /> };
+  }
+  if ((type.includes("jav") || type.includes("hentai")) && entry.actress) {
+    return { label: "Actress", value: entry.actress, icon: <Heart size={12} /> };
+  }
+  if (type.includes("visual novel") && entry.update_version) {
+    return { label: "Version", value: entry.update_version, icon: <Monitor size={12} /> };
+  }
+  return null;
+};
+
+// Parse genres from comma-separated string
+const parseGenres = (genre: string | null): string[] => {
+  if (!genre) return [];
+  return genre.split(',').map(g => g.trim()).filter(g => g.length > 0);
 };
 
 export function MediaCard({ entry }: { entry: MediaEntry }) {
   const [imgSrc, setImgSrc] = useState("");
+  const typeBadge = getTypeBadgeStyle(entry.entry_type);
+  const contextInfo = getContextInfo(entry);
+  const genres = parseGenres(entry.genre);
+
+  // Check boolean flags (stored as 0/1 in SQLite)
+  const isRewatch = entry.is_rewatch === 1;
+  const hasLocalCopy = entry.own_local_copy === 1;
 
   useEffect(() => {
     getImageUrl(entry.image_url).then(setImgSrc);
   }, [entry.image_url]);
 
+  const handleMenuClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Menu functionality - can be extended later
+  };
+
   return (
-    <div className="group relative bg-white/5 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden hover:scale-105 hover:shadow-2xl hover:border-primary/50 transition-all duration-300 cursor-pointer">
-      
+    <div className="group relative bg-surface/80 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden hover:scale-[1.03] hover:shadow-2xl hover:shadow-primary/20 hover:border-primary/40 transition-all duration-300 cursor-pointer">
+
       {/* Image Container */}
-      <div className="h-40 w-full relative overflow-hidden">
-        <img 
-          src={imgSrc} 
+      <div className="h-52 w-full relative overflow-hidden">
+        <img
+          src={imgSrc}
           alt={entry.name}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
           loading="lazy"
         />
-        
-        {/* Top Right: Rating Badge */}
-        {entry.review_score && (
+
+        {/* Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+        {/* Top Right: Action Menu */}
+        <button
+          onClick={handleMenuClick}
+          className="absolute top-2 right-2 p-1.5 bg-black/50 backdrop-blur-sm rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-black/70 z-10"
+        >
+          <MoreVertical size={16} className="text-white" />
+        </button>
+
+        {/* Rating Badge - single badge that moves on hover */}
+        {(entry.review_score !== null && entry.review_score !== undefined) && (
           <div className={cn(
-            "absolute top-2 right-2 px-2 py-1 rounded-full flex items-center gap-1 text-xs font-bold shadow-lg",
+            "absolute top-2 px-2.5 py-1 rounded-full flex items-center gap-1 text-xs font-bold shadow-lg transition-all duration-300",
+            "right-2 group-hover:right-11",
             getRatingColor(entry.review_score)
           )}>
-            <Star size={10} className="fill-current" />
-            <span>{entry.review_score}</span>
+            <Star size={11} className="fill-current" />
+            <span>{entry.review_score.toFixed(1)}</span>
           </div>
         )}
       </div>
 
       {/* Content Container */}
-      <div className="p-3 flex flex-col gap-2">
-        <h3 className="font-bold text-sm leading-tight line-clamp-2 text-gray-100 group-hover:text-primary transition-colors">
+      <div className="p-4 flex flex-col gap-3">
+        {/* Title */}
+        <h3 className="font-bold text-sm leading-tight line-clamp-2 text-gray-100 group-hover:text-primary transition-colors min-h-[2.5rem]">
           {entry.name}
         </h3>
 
-        <div className="flex items-center justify-between mt-auto">
-          {/* Entry Type Badge */}
-          <div className="flex items-center gap-1 px-2 py-0.5 bg-white/10 rounded-md text-[10px] text-gray-300 uppercase tracking-wider font-semibold">
-            {getTypeIcon(entry.entry_type)}
+        {/* Type Badge Row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className={cn(
+            "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] text-white font-semibold shadow-md",
+            typeBadge.bg
+          )}>
+            {typeBadge.icon}
             <span>{entry.entry_type}</span>
           </div>
-
-          {/* Date */}
-          {entry.year_completed && (
-            <div className="flex items-center gap-1 text-[10px] text-gray-500">
-              <Calendar size={10} />
-              <span>{entry.year_completed}</span>
-            </div>
-          )}
         </div>
+
+        {/* Context Info (Artist/Platform/Author) */}
+        {contextInfo && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/5 rounded-lg text-xs text-gray-300 w-fit">
+            <span className="text-gray-500">{contextInfo.icon}</span>
+            <span className="truncate max-w-[150px]">{contextInfo.value}</span>
+          </div>
+        )}
+
+        {/* Genre Tags */}
+        {genres.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {genres.slice(0, 3).map((genre, i) => (
+              <span
+                key={i}
+                className="px-2 py-0.5 bg-white/10 rounded-md text-[10px] text-gray-300 font-medium"
+              >
+                {genre}
+              </span>
+            ))}
+            {genres.length > 3 && (
+              <span className="px-2 py-0.5 bg-white/5 rounded-md text-[10px] text-gray-500 font-medium">
+                +{genres.length - 3}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Rewatch / Local Copy Badges */}
+        {(isRewatch || hasLocalCopy) && (
+          <div className="flex items-center gap-2">
+            {isRewatch && (
+              <div className="w-8 h-8 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center" title="Replay/Rewatch">
+                <RotateCcw size={14} className="text-amber-500" />
+              </div>
+            )}
+            {hasLocalCopy && (
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center" title="Local Copy">
+                <Check size={14} className="text-emerald-500" />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Date */}
+        {entry.completion_date && (
+          <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-auto pt-2 border-t border-white/5">
+            <Calendar size={12} />
+            <span>{formatDate(entry.completion_date)}</span>
+          </div>
+        )}
       </div>
     </div>
   );
