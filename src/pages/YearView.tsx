@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Plus, Gamepad2, Film, Heart } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { MediaCard } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
@@ -10,6 +10,44 @@ import { MultiSelectFilter } from "../components/MultiSelectFilter"; // Import t
 const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"];
 
 const FILTER_STORAGE_KEY = "yearview-filter-types";
+const PRESET_STORAGE_KEY = "yearview-active-preset";
+
+// Quick filter presets
+type PresetKey = "gaming" | "media" | "adult" | null;
+
+const FILTER_PRESETS: Record<Exclude<PresetKey, null>, { label: string; icon: typeof Gamepad2; types: string[]; gradient: string }> = {
+  gaming: {
+    label: "Gaming",
+    icon: Gamepad2,
+    types: ["Game"],
+    gradient: "from-green-500 to-emerald-600",
+  },
+  media: {
+    label: "Media",
+    icon: Film,
+    types: ["K-Drama", "Anime", "Show", "Movie", "Book", "Album"],
+    gradient: "from-blue-500 to-purple-600",
+  },
+  adult: {
+    label: "Adult",
+    icon: Heart,
+    types: ["JAV", "Hentai", "Adult Visual Novel"],
+    gradient: "from-pink-500 to-rose-600",
+  },
+};
+
+// Helper to load persisted preset from localStorage
+const loadPersistedPreset = (): PresetKey => {
+  try {
+    const stored = localStorage.getItem(PRESET_STORAGE_KEY);
+    if (stored && (stored === "gaming" || stored === "media" || stored === "adult")) {
+      return stored as PresetKey;
+    }
+  } catch {
+    // If parsing fails, fall back to default
+  }
+  return null;
+};
 
 // Helper to load persisted filter from localStorage
 const loadPersistedFilter = (): string[] => {
@@ -36,9 +74,27 @@ export default function YearView() {
   // State for multi-select - Initialize from localStorage
   const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedFilter);
 
+  // State for active preset
+  const [activePreset, setActivePreset] = useState<PresetKey>(loadPersistedPreset);
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
+
+  // Handle preset button click
+  const handlePresetClick = (presetKey: Exclude<PresetKey, null>) => {
+    if (activePreset === presetKey) {
+      // Deactivate preset - reset to all types
+      setActivePreset(null);
+      setSelectedTypes(ENTRY_TYPES);
+      localStorage.removeItem(PRESET_STORAGE_KEY);
+    } else {
+      // Activate preset
+      setActivePreset(presetKey);
+      setSelectedTypes(FILTER_PRESETS[presetKey].types);
+      localStorage.setItem(PRESET_STORAGE_KEY, presetKey);
+    }
+  };
 
   const loadData = useCallback(() => {
     if (year) {
@@ -100,6 +156,45 @@ export default function YearView() {
     <div className="space-y-6 relative min-h-[calc(100vh-100px)]">
       {/* Header & Filters */}
       <header className="flex flex-col gap-4">
+        {/* Quick Filter Preset Buttons */}
+        <div className="flex items-center gap-3">
+          {(Object.keys(FILTER_PRESETS) as Exclude<PresetKey, null>[]).map((key) => {
+            const preset = FILTER_PRESETS[key];
+            const Icon = preset.icon;
+            const isActive = activePreset === key;
+            return (
+              <button
+                key={key}
+                onClick={() => handlePresetClick(key)}
+                className={`
+                  flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold
+                  transition-all duration-200 shadow-lg
+                  ${isActive
+                    ? `bg-gradient-to-r ${preset.gradient} text-white shadow-lg scale-105`
+                    : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10'}
+                `}
+              >
+                <Icon size={18} />
+                <span>{preset.label}</span>
+              </button>
+            );
+          })}
+
+          {/* Reset button - only show when a preset is active */}
+          {activePreset && (
+            <button
+              onClick={() => {
+                setActivePreset(null);
+                setSelectedTypes(ENTRY_TYPES);
+                localStorage.removeItem(PRESET_STORAGE_KEY);
+              }}
+              className="text-gray-400 hover:text-white text-sm underline underline-offset-2 transition-colors"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400">
@@ -115,7 +210,12 @@ export default function YearView() {
             <MultiSelectFilter
               options={ENTRY_TYPES}
               selected={selectedTypes}
-              onChange={setSelectedTypes}
+              onChange={(types) => {
+                setSelectedTypes(types);
+                // Clear active preset when manually changing filters
+                setActivePreset(null);
+                localStorage.removeItem(PRESET_STORAGE_KEY);
+              }}
               label="Filter Types"
             />
 
