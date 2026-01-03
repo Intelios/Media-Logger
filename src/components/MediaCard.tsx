@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2 } from "lucide-react";
+import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy } from "lucide-react";
 import { getImageUrl } from "../lib/utils";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
@@ -87,19 +87,27 @@ const isPerfectTen = (score: number | null | undefined): boolean => {
   return score === 10;
 };
 
+// Award type for badges
+export interface MediaAward {
+  categoryName: string;
+  year: number;
+}
+
 interface MediaCardProps {
   entry: MediaEntry;
+  awards?: MediaAward[];
   onEdit?: (entry: MediaEntry) => void;
   onDelete?: (id: number) => void;
 }
 
-export function MediaCard({ entry, onEdit, onDelete }: MediaCardProps) {
+export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardProps) {
   const [imgSrc, setImgSrc] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const contextInfo = getContextInfo(entry);
   const perfectTen = isPerfectTen(entry.review_score);
+  const hasAwards = awards.length > 0;
   const genres = parseGenres(entry.genre);
 
   // Check boolean flags (stored as 0/1 in SQLite)
@@ -205,6 +213,35 @@ export function MediaCard({ entry, onEdit, onDelete }: MediaCardProps) {
           )}>
             <Star size={11} className="fill-current" />
             <span>{entry.review_score.toFixed(1)}</span>
+          </div>
+        )}
+
+        {/* Award Badge */}
+        {hasAwards && (
+          <div className="absolute bottom-2 left-2 group/award">
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full shadow-lg shadow-amber-500/30 cursor-pointer">
+              <Trophy size={14} className="text-white fill-white/20" />
+              {awards.length > 1 && (
+                <span className="text-xs font-bold text-white">{awards.length}</span>
+              )}
+            </div>
+            {/* Tooltip */}
+            <div className="absolute bottom-full left-0 mb-2 w-48 opacity-0 invisible group-hover/award:opacity-100 group-hover/award:visible transition-all duration-200 z-30">
+              <div className="bg-surface/95 backdrop-blur-xl border border-amber-500/30 rounded-xl p-3 shadow-2xl shadow-black/50">
+                <div className="text-xs font-semibold text-amber-400 mb-2 flex items-center gap-1.5">
+                  <Trophy size={12} />
+                  <span>Awards Won</span>
+                </div>
+                <ul className="space-y-1">
+                  {awards.map((award, i) => (
+                    <li key={i} className="text-xs text-gray-200">
+                      {award.categoryName}
+                      <span className="text-gray-500 ml-1">({award.year})</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
         )}
       </div>

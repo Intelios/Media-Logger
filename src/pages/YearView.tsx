@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, Gamepad2, Film, Heart } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
-import { MediaCard } from "../components/MediaCard";
+import { awardsLogic } from "../lib/awards-logic";
+import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
 import { MultiSelectFilter } from "../components/MultiSelectFilter"; // Import the component
 
@@ -81,6 +82,9 @@ export default function YearView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
 
+  // Awards data
+  const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
+
   // Handle preset button click
   const handlePresetClick = (presetKey: Exclude<PresetKey, null>) => {
     if (activePreset === presetKey) {
@@ -96,13 +100,19 @@ export default function YearView() {
     }
   };
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     if (year) {
-      dbService.getEntriesByYear(year).then(data => {
-        setEntries(data);
-        // Apply current filter immediately upon load
-        applyFilter(data, selectedTypes);
-      });
+      const data = await dbService.getEntriesByYear(year);
+      setEntries(data);
+      // Apply current filter immediately upon load
+      applyFilter(data, selectedTypes);
+
+      // Fetch awards for all entries
+      const mediaIds = data.map(e => e.id).filter((id): id is number => id !== undefined);
+      if (mediaIds.length > 0) {
+        const awards = await awardsLogic.getAwardsForMediaBatch(mediaIds);
+        setAwardsMap(awards);
+      }
     }
   }, [year]); // Removed selectedTypes from dependency to prevent infinite loops if logic changes
 
@@ -240,6 +250,7 @@ export default function YearView() {
                 entry={entry}
                 onEdit={handleEditFromCard}
                 onDelete={handleDelete}
+                awards={entry.id ? awardsMap.get(entry.id) : undefined}
               />
             </div>
           ))}
