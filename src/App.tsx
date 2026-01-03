@@ -6,6 +6,7 @@ import SearchPage from "./pages/Search";
 import StatsPage from "./pages/Stats";
 import ProfilesPage from "./pages/Profiles";
 import AwardsPage from "./pages/Awards";
+import CollectionsPage from "./pages/Collections";
 
 function App() {
   return (
@@ -18,9 +19,7 @@ function App() {
           <Route path="stats" element={<StatsPage />} />
           <Route path="profiles" element={<ProfilesPage />} />
           <Route path="awards" element={<AwardsPage />} />
-          
-          {/* Placeholders for other routes - we'll build these next */}
-          <Route path="collections" element={<div>Collections View (Coming Soon)</div>} />
+          <Route path="collections" element={<CollectionsPage />} />
           
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
