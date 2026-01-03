@@ -63,6 +63,41 @@ class DBService {
       average_rating: avgResult[0].avg_rating
     };
   }
+
+  async addEntry(entry: Omit<MediaEntry, "id">): Promise<number> {
+    const db = await this.connect();
+    // Helper to handle optional fields effectively
+    const keys = Object.keys(entry);
+    const values = Object.values(entry);
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(",");
+    
+    const result: any = await db.execute(
+      `INSERT INTO javs (${keys.join(",")}) VALUES (${placeholders})`,
+      values
+    );
+    return result.lastInsertId;
+  }
+
+  async updateEntry(entry: MediaEntry): Promise<void> {
+    const db = await this.connect();
+    const id = entry.id;
+    // Remove ID from update set
+    const { id: _, ...rest } = entry;
+    const keys = Object.keys(rest);
+    const values = Object.values(rest);
+    
+    const setString = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
+    
+    await db.execute(
+      `UPDATE javs SET ${setString} WHERE id = $${values.length + 1}`,
+      [...values, id]
+    );
+  }
+
+  async deleteEntry(id: number): Promise<void> {
+    const db = await this.connect();
+    await db.execute("DELETE FROM javs WHERE id = $1", [id]);
+  }
 }
 
 export const dbService = new DBService();

@@ -1,5 +1,5 @@
 import { appLocalDataDir, join } from '@tauri-apps/api/path';
-import { readFile } from '@tauri-apps/plugin-fs';
+import { readFile, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs';
 
 // Helper to cache Object URLs so we don't leak memory creating duplicates
 const urlCache = new Map<string, string>();
@@ -44,5 +44,37 @@ export async function getImageUrl(dbPath: string | null): Promise<string> {
   } catch (e) {
     console.error(`[Image Failed] Could not read file: ${dbPath}`, e);
     return DEFAULT_IMAGE;
+  }
+}
+
+export async function saveImage(sourcePath: string): Promise<string | null> {
+  if (!sourcePath) return null;
+  
+  try {
+    const appDataDirPath = await appLocalDataDir();
+    const assetsDir = await join(appDataDirPath, 'assets');
+    const imagesDir = await join(assetsDir, 'images');
+
+    // DEBUG LOG
+    console.log("Saving image to:", imagesDir);
+
+    if (!(await exists(imagesDir))) {
+      await mkdir(imagesDir, { recursive: true });
+    }
+
+    const ext = sourcePath.split('.').pop() || 'png';
+    const filename = `${crypto.randomUUID()}.${ext}`;
+    const destinationPath = await join(imagesDir, filename);
+
+    const fileData = await readFile(sourcePath);
+    await writeFile(destinationPath, fileData);
+
+    console.log("Image saved successfully to:", destinationPath);
+
+    // Return the relative string for the database
+    return `images/${filename}`;
+  } catch (e) {
+    console.error("Failed to save image:", e);
+    return null;
   }
 }
