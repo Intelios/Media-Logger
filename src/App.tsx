@@ -5,6 +5,7 @@ import YearView from "./pages/YearView";
 import SearchPage from "./pages/Search";
 import StatsPage from "./pages/Stats";
 import ProfilesPage from "./pages/Profiles";
+import AwardsPage from "./pages/Awards";
 
 function App() {
   return (
@@ -16,9 +17,9 @@ function App() {
           <Route path="search" element={<SearchPage />} />
           <Route path="stats" element={<StatsPage />} />
           <Route path="profiles" element={<ProfilesPage />} />
+          <Route path="awards" element={<AwardsPage />} />
           
           {/* Placeholders for other routes - we'll build these next */}
-          <Route path="awards" element={<div>Awards View (Coming Soon)</div>} />
           <Route path="collections" element={<div>Collections View (Coming Soon)</div>} />
           
           {/* Fallback */}
