@@ -1,4 +1,5 @@
 import { dbService, type MediaEntry } from "./db";
+import { saveImage } from "./utils";
 
 export interface ProfileSummary {
   type: string;
@@ -8,13 +9,25 @@ export interface ProfileSummary {
   image_url?: string; // If you implement custom profile images later
 }
 
-const PROFILE_TYPES = ["director", "actress", "artist", "author"];
+export const PROFILE_TYPES = ["director", "actress", "artist", "author"];
 
 export const profilesLogic = {
   // Get list of all profiles (for the main Profiles grid)
   async getAllProfiles(): Promise<ProfileSummary[]> {
     const db = await dbService.connect();
     const entries = await db.select<MediaEntry[]>("SELECT * FROM javs");
+    
+    // Fetch custom profile images
+    // We assume the table exists from your python migration
+    const customImages = await db.select<{type: string, name: string, image_url: string}[]>(
+        "SELECT * FROM profiles"
+    );
+    
+    // Create a quick lookup map: "type:name" -> image_url
+    const imageMap = new Map<string, string>();
+    customImages.forEach(img => {
+        imageMap.set(`${img.type}:${img.name}`, img.image_url);
+    });
     
     const profileMap = new Map<string, { count: number; totalScore: number; scoreCount: number }>();
 
@@ -56,17 +69,18 @@ export const profilesLogic = {
     const results: ProfileSummary[] = [];
     profileMap.forEach((data, key) => {
       const [type, name] = key.split(':');
-      if (data.count >= 2) { // Minimum 2 entries to show up
+      if (data.count >= 3) {
         results.push({
           type,
           name,
           count: data.count,
-          average_score: data.scoreCount > 0 ? parseFloat((data.totalScore / data.scoreCount).toFixed(1)) : 0
+          average_score: data.scoreCount > 0 ? parseFloat((data.totalScore / data.scoreCount).toFixed(1)) : 0,
+          // NEW: Attach custom image if it exists
+          image_url: imageMap.get(key)
         });
       }
     });
 
-    // Sort by count desc
     return results.sort((a, b) => b.count - a.count);
   },
 
@@ -87,5 +101,22 @@ export const profilesLogic = {
         }
         return false;
     });
+  },
+
+  async setProfileImage(type: string, name: string, sysPath: string): Promise<string | null> {
+    const db = await dbService.connect();
+    
+    // Save file to assets folder
+    const relativePath = await saveImage(sysPath);
+    if (!relativePath) return null;
+
+    // Update DB (Upsert)
+    // SQLite upsert syntax: INSERT OR REPLACE
+    await db.execute(
+        "INSERT OR REPLACE INTO profiles (type, name, image_url) VALUES ($1, $2, $3)",
+        [type, name, relativePath]
+    );
+
+    return relativePath;
   }
 };
