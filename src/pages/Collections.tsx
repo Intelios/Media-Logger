@@ -28,16 +28,16 @@ function CollectionThumbnails({ images }: { images: string[] }) {
   // Create a 2x2 grid
   return (
     <div className="grid grid-cols-2 gap-0.5 h-full w-full">
-        {/* Fill up to 4 slots, use placeholders if needed */}
-        {[0,1,2,3].map(i => (
-            <div key={i} className="bg-white/5 overflow-hidden relative">
-                {urls[i] ? (
-                    <img src={urls[i]} className="w-full h-full object-cover" />
-                ) : (
-                    <div className="w-full h-full bg-white/5" />
-                )}
-            </div>
-        ))}
+      {/* Fill up to 4 slots, use placeholders if needed */}
+      {[0, 1, 2, 3].map(i => (
+        <div key={i} className="bg-white/5 overflow-hidden relative">
+          {urls[i] ? (
+            <img src={urls[i]} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-white/5" />
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -46,7 +46,7 @@ export default function CollectionsPage() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [items, setItems] = useState<MediaEntry[]>([]);
-  
+
   // Modals
   const [createOpen, setCreateOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -80,31 +80,31 @@ export default function CollectionsPage() {
 
   const handleAddItems = async (mediaId: number) => {
     if (selectedCollection) {
-        await collectionsLogic.addItems(selectedCollection.id, [mediaId]);
-        // Refresh items
-        const newItems = await collectionsLogic.getCollectionItems(selectedCollection.id);
-        setItems(newItems);
-        // Picker stays open to add more? Or close. Let's keep open for bulk add feel.
-        // Actually, for simplicity, close it.
-        setPickerOpen(false); 
+      await collectionsLogic.addItems(selectedCollection.id, [mediaId]);
+      // Refresh items
+      const newItems = await collectionsLogic.getCollectionItems(selectedCollection.id);
+      setItems(newItems);
+      // Picker stays open to add more? Or close. Let's keep open for bulk add feel.
+      // Actually, for simplicity, close it.
+      setPickerOpen(false);
     }
   };
 
   const handleRemoveItem = async (mediaId: number) => {
     if (selectedCollection && confirm("Remove from collection?")) {
-        await collectionsLogic.removeItem(selectedCollection.id, mediaId);
-        const newItems = await collectionsLogic.getCollectionItems(selectedCollection.id);
-        setItems(newItems);
+      await collectionsLogic.removeItem(selectedCollection.id, mediaId);
+      const newItems = await collectionsLogic.getCollectionItems(selectedCollection.id);
+      setItems(newItems);
     }
   };
 
   const handleReorderSave = async (newOrder: MediaEntry[]) => {
     if (selectedCollection) {
-        const ids = newOrder.map(i => i.id);
-        await collectionsLogic.updateItemOrder(selectedCollection.id, ids);
-        // Refresh local view
-        setItems(newOrder); 
-        setReorderOpen(false);
+      const ids = newOrder.map(i => i.id);
+      await collectionsLogic.updateItemOrder(selectedCollection.id, ids);
+      // Refresh local view
+      setItems(newOrder);
+      setReorderOpen(false);
     }
   };
 
@@ -114,7 +114,7 @@ export default function CollectionsPage() {
       <div className="space-y-6">
         <header className="flex flex-col gap-4">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => setSelectedCollection(null)}
               className="p-2 hover:bg-white/10 rounded-full transition-colors"
             >
@@ -126,7 +126,7 @@ export default function CollectionsPage() {
             </div>
             <div className="ml-auto flex gap-2">
               {/* NEW: Reorder Button */}
-              <button 
+              <button
                 onClick={() => setReorderOpen(true)}
                 disabled={items.length < 2}
                 className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -135,7 +135,7 @@ export default function CollectionsPage() {
                 Reorder
               </button>
 
-              <button 
+              <button
                 onClick={() => setPickerOpen(true)}
                 className="flex items-center gap-2 bg-primary hover:bg-primary/90 px-4 py-2 rounded-lg font-semibold transition-colors"
               >
@@ -147,39 +147,40 @@ export default function CollectionsPage() {
         </header>
 
         {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-500 border-2 border-dashed border-white/5 rounded-2xl">
-                <p className="text-lg">This collection is empty.</p>
-                <button onClick={() => setPickerOpen(true)} className="mt-4 text-primary hover:underline">Add your first item</button>
-            </div>
+          <div className="flex flex-col items-center justify-center py-20 text-gray-500 border-2 border-dashed border-white/5 rounded-2xl">
+            <p className="text-lg">This collection is empty.</p>
+            <button onClick={() => setPickerOpen(true)} className="mt-4 text-primary hover:underline">Add your first item</button>
+          </div>
         ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {items.map(entry => (
-                <div key={entry.id} className="relative group">
-                    <MediaCard entry={entry} />
-                    {/* Hover Remove Button */}
-                    <button 
-                        onClick={() => handleRemoveItem(entry.id)}
-                        className="absolute top-2 right-2 bg-red-600 p-1.5 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                        title="Remove from collection"
-                    >
-                        <Trash2 size={14} />
-                    </button>
-                </div>
+              <div key={entry.id} className="relative group">
+                <MediaCard entry={entry} />
+                {/* Hover Remove Button */}
+                <button
+                  onClick={() => handleRemoveItem(entry.id)}
+                  className="absolute top-2 right-2 bg-red-600 p-1.5 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                  title="Remove from collection"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             ))}
-            </div>
+          </div>
         )}
 
-        <WinnerPicker 
-            isOpen={pickerOpen}
-            onClose={() => setPickerOpen(false)}
-            onSelect={handleAddItems}
+        <WinnerPicker
+          isOpen={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          onSelect={handleAddItems}
         />
 
-        <ReorderModal 
-            isOpen={reorderOpen}
-            onClose={() => setReorderOpen(false)}
-            items={items}
-            onSave={handleReorderSave}
+        <ReorderModal
+          isOpen={reorderOpen}
+          onClose={() => setReorderOpen(false)}
+          items={items.map(i => ({ ...i, subtitle: i.entry_type ?? undefined }))}
+          onSave={handleReorderSave}
+          title="Reorder Collection"
         />
       </div>
     );
@@ -196,7 +197,7 @@ export default function CollectionsPage() {
           </h2>
           <p className="text-gray-400">Curate your favorite groups of media.</p>
         </div>
-        <button 
+        <button
           onClick={() => setCreateOpen(true)}
           className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg font-semibold transition-colors"
         >
@@ -207,39 +208,39 @@ export default function CollectionsPage() {
 
       {collections.length === 0 ? (
         <div className="text-center py-20 text-gray-500">
-            No collections yet. Create one to get started!
+          No collections yet. Create one to get started!
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {collections.map(col => (
-                <div 
-                    key={col.id} 
-                    onClick={() => handleSelectCollection(col)}
-                    className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:border-primary/50 transition-all cursor-pointer group hover:shadow-xl"
-                >
-                    {/* Thumbnail Grid */}
-                    <div className="aspect-video w-full border-b border-white/5">
-                        <CollectionThumbnails images={col.thumbnails || []} />
-                    </div>
-                    
-                    <div className="p-4 flex items-start justify-between">
-                        <div>
-                            <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{col.name}</h3>
-                            <p className="text-sm text-gray-400">{col.item_count} items</p>
-                        </div>
-                        <button 
-                            onClick={(e) => handleDeleteCollection(e, col.id)}
-                            className="text-gray-600 hover:text-red-400 p-1"
-                        >
-                            <Trash2 size={18} />
-                        </button>
-                    </div>
+          {collections.map(col => (
+            <div
+              key={col.id}
+              onClick={() => handleSelectCollection(col)}
+              className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:border-primary/50 transition-all cursor-pointer group hover:shadow-xl"
+            >
+              {/* Thumbnail Grid */}
+              <div className="aspect-video w-full border-b border-white/5">
+                <CollectionThumbnails images={col.thumbnails || []} />
+              </div>
+
+              <div className="p-4 flex items-start justify-between">
+                <div>
+                  <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{col.name}</h3>
+                  <p className="text-sm text-gray-400">{col.item_count} items</p>
                 </div>
-            ))}
+                <button
+                  onClick={(e) => handleDeleteCollection(e, col.id)}
+                  className="text-gray-600 hover:text-red-400 p-1"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      <CollectionModal 
+      <CollectionModal
         isOpen={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={handleCreate}
