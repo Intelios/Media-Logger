@@ -98,5 +98,20 @@ export const collectionsLogic = {
   async removeItem(collectionId: number, mediaId: number) {
     const db = await dbService.connect();
     await db.execute("DELETE FROM collection_items WHERE collection_id = $1 AND media_id = $2", [collectionId, mediaId]);
+  },
+
+  // 7. Update Item Order
+  async updateItemOrder(collectionId: number, mediaIds: number[]) {
+    const db = await dbService.connect();
+    
+    // We update them sequentially. 
+    // Since this is local SQLite, doing a loop of updates is fast enough for <100 items.
+    // If you had thousands, we'd use a transaction, but this is fine here.
+    for (let i = 0; i < mediaIds.length; i++) {
+        await db.execute(
+            "UPDATE collection_items SET sort_order = $1 WHERE collection_id = $2 AND media_id = $3",
+            [i, collectionId, mediaIds[i]]
+        );
+    }
   }
 };

@@ -6,6 +6,8 @@ import { MediaCard } from "../components/MediaCard";
 import { CollectionModal } from "../components/CollectionModal";
 import { WinnerPicker } from "../components/WinnerPicker"; // Reusing the picker for adding items
 import { getImageUrl } from "../lib/utils";
+import { ArrowUpDown } from "lucide-react"; // Import ArrowUpDown icon
+import { ReorderModal } from "../components/ReorderModal"; // Import Modal
 
 // Helper for thumbnail grid
 function CollectionThumbnails({ images }: { images: string[] }) {
@@ -48,6 +50,7 @@ export default function CollectionsPage() {
   // Modals
   const [createOpen, setCreateOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
 
   useEffect(() => {
     loadCollections();
@@ -95,6 +98,16 @@ export default function CollectionsPage() {
     }
   };
 
+  const handleReorderSave = async (newOrder: MediaEntry[]) => {
+    if (selectedCollection) {
+        const ids = newOrder.map(i => i.id);
+        await collectionsLogic.updateItemOrder(selectedCollection.id, ids);
+        // Refresh local view
+        setItems(newOrder); 
+        setReorderOpen(false);
+    }
+  };
+
   // --- VIEW 1: DETAIL (Grid of Items) ---
   if (selectedCollection) {
     return (
@@ -111,7 +124,17 @@ export default function CollectionsPage() {
               <h2 className="text-3xl font-bold">{selectedCollection.name}</h2>
               <p className="text-gray-400">{items.length} items • {selectedCollection.description || "No description"}</p>
             </div>
-            <div className="ml-auto">
+            <div className="ml-auto flex gap-2">
+              {/* NEW: Reorder Button */}
+              <button 
+                onClick={() => setReorderOpen(true)}
+                disabled={items.length < 2}
+                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ArrowUpDown size={18} />
+                Reorder
+              </button>
+
               <button 
                 onClick={() => setPickerOpen(true)}
                 className="flex items-center gap-2 bg-primary hover:bg-primary/90 px-4 py-2 rounded-lg font-semibold transition-colors"
@@ -150,6 +173,13 @@ export default function CollectionsPage() {
             isOpen={pickerOpen}
             onClose={() => setPickerOpen(false)}
             onSelect={handleAddItems}
+        />
+
+        <ReorderModal 
+            isOpen={reorderOpen}
+            onClose={() => setReorderOpen(false)}
+            items={items}
+            onSave={handleReorderSave}
         />
       </div>
     );
