@@ -296,11 +296,19 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
             </div>
           </div>
 
-          {/* Context Info (Artist/Platform/Author) */}
+          {/* Context Info (Artist/Platform/Author/Actress) */}
           {contextInfo && (
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-white/5 rounded-lg text-[11px] text-gray-300 w-fit">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-gray-500">{contextInfo.icon}</span>
-              <span className="truncate max-w-[150px]">{contextInfo.value}</span>
+              {/* Split comma-separated values (like actresses) into individual tags */}
+              {contextInfo.value.split(',').map((item, i) => (
+                <span
+                  key={i}
+                  className="px-2 py-0.5 bg-white/5 rounded-lg text-[11px] text-gray-300"
+                >
+                  {item.trim()}
+                </span>
+              ))}
             </div>
           )}
 
