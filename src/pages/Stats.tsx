@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { statsLogic, type FullStats } from "../lib/stats-logic";
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
-import { Filter, Star, RefreshCw, Hash, Play, PieChart as PieIcon, Heart } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, AreaChart, Area } from "recharts";
+import { Filter, Star, RefreshCw, Hash, Play, PieChart as PieIcon, Heart, Building2, User, Sparkles, Calendar, Trophy } from "lucide-react";
 import { cn } from "../lib/utils_ui";
-import { MultiSelectFilter } from "../components/MultiSelectFilter"; // NEW Import
+import { MultiSelectFilter } from "../components/MultiSelectFilter";
+import { CollapsibleStatSection } from "../components/CollapsibleStatSection";
 
 const YEARS = ["All Time", "2023", "2024", "2025", "2026"];
 const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"];
-const COLORS = ["#5E35B1", "#1E88E5", "#43A047", "#FB8C00", "#E53935", "#8E24AA", "#00ACC1"];
+const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1"];
 
 // LocalStorage keys for persistence
 const STATS_YEAR_KEY = "stats-active-year";
@@ -58,9 +59,8 @@ export default function StatsPage() {
   }, [selectedTypes]);
 
   useEffect(() => {
-    // Pass both year and types to logic
     statsLogic.getStats(activeYear, selectedTypes).then(setData);
-  }, [activeYear, selectedTypes]); // Re-run when either changes
+  }, [activeYear, selectedTypes]);
 
   if (!data) return <div className="p-10 text-gray-400">Calculating analytics...</div>;
 
@@ -77,7 +77,6 @@ export default function StatsPage() {
             <p className="text-gray-400">Deep dive analytics for {activeYear}</p>
           </div>
 
-          {/* NEW: Multi-Select Filter placed prominently */}
           <div className="flex items-center gap-4">
             <MultiSelectFilter
               options={ENTRY_TYPES}
@@ -107,15 +106,45 @@ export default function StatsPage() {
         </div>
       </header>
 
-      {/* ... Rest of the component (Overview Cards, Charts) is IDENTICAL to previous step ... */}
-      {/* Copy paste the grid sections from previous response here */}
-      {/* 2. Overview Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* 2. Overview Cards - Enhanced */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard icon={<Hash />} label="Total Entries" value={data.total} color="blue" />
         <StatCard icon={<Star />} label="Avg Score" value={data.average_score.toFixed(1)} color="amber" />
         <StatCard icon={<RefreshCw />} label="Rewatches" value={data.rewatch_count} color="green" />
-        <StatCard icon={<PieIcon />} label="Unique Genres" value={data.genres.length} color="purple" />
+        <StatCard icon={<Trophy />} label="Perfect 10s" value={data.perfectTenCount} color="pink" />
+        <StatCard icon={<Calendar />} label="This Month" value={data.entriesThisMonth} color="cyan" />
+        <StatCard icon={<PieIcon />} label="Genres" value={data.genres.length} color="purple" />
       </div>
+
+      {/* 3. Monthly Activity Sparkline */}
+      {activeYear !== "All Time" && (
+        <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
+          <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <Sparkles className="text-cyan-400" size={20} />
+            Monthly Activity
+          </h3>
+          <div className="h-32 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data.monthlyCompletions} margin={{ left: 0, right: 0, top: 10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorActivity" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="month" tick={{ fill: '#9CA3AF', fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis hide />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1f1f1f', borderColor: '#333', borderRadius: 8 }}
+                  itemStyle={{ color: '#fff' }}
+                  labelStyle={{ color: '#9CA3AF' }}
+                />
+                <Area type="monotone" dataKey="count" stroke="#8b5cf6" strokeWidth={2} fill="url(#colorActivity)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Rating Chart */}
@@ -146,8 +175,8 @@ export default function StatsPage() {
             <div className="h-64 w-full md:w-1/2">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={data.genres} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                    {data.genres.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />)}
+                  <Pie data={data.genres.slice(0, 7)} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                    {data.genres.slice(0, 7).map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />)}
                   </Pie>
                   <Tooltip
                     contentStyle={{ backgroundColor: '#1f1f1f', borderColor: '#333' }}
@@ -158,13 +187,16 @@ export default function StatsPage() {
               </ResponsiveContainer>
             </div>
             <div className="w-full md:w-1/2 space-y-2">
-              {data.genres.slice(0, 5).map((g, i) => (
+              {data.genres.slice(0, 7).map((g, i) => (
                 <div key={g.name} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                     <span className="text-gray-300">{g.name}</span>
                   </div>
-                  <span className="font-bold text-white">{g.count}</span>
+                  <div className="flex items-center gap-2">
+                    {g.avgScore && <span className="text-xs text-amber-400">⭐{g.avgScore.toFixed(1)}</span>}
+                    <span className="font-bold text-white">{g.count}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -172,60 +204,89 @@ export default function StatsPage() {
         </div>
       </div>
 
-      {/* Breakdowns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <BreakdownList title="Platforms" items={data.platforms} icon={<Play size={18} />} />
-        <BreakdownList title="Top Studios" items={data.studios} icon={<PieIcon size={18} />} />
-        <BreakdownList title="Top Authors" items={data.authors} icon={<Filter size={18} />} />
-        <BreakdownList title="Top Actresses" items={data.actresses} icon={<Heart size={18} />} />
-      </div>
-    </div>
-  );
-}
-
-// ... StatCard and BreakdownList components (Same as before)
-function StatCard({ icon, label, value, color }: { icon: any, label: string, value: string | number, color: string }) {
-  const colors = {
-    blue: "text-blue-400 bg-blue-500/10",
-    amber: "text-amber-400 bg-amber-500/10",
-    green: "text-green-400 bg-green-500/10",
-    purple: "text-purple-400 bg-purple-500/10",
-  }[color];
-
-  return (
-    <div className="bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center gap-4">
-      <div className={cn("p-3 rounded-xl", colors)}>{icon}</div>
-      <div>
-        <div className="text-2xl font-bold">{value}</div>
-        <div className="text-xs text-gray-400 uppercase tracking-wide font-semibold">{label}</div>
-      </div>
-    </div>
-  );
-}
-
-function BreakdownList({ title, items, icon }: { title: string, items: { name: string, count: number }[], icon: any }) {
-  if (items.length === 0) return null;
-  return (
-    <div className="bg-white/5 border border-white/10 rounded-2xl p-5 h-full">
-      <h4 className="font-bold text-lg mb-4 flex items-center gap-2 text-gray-200">
-        {icon} {title}
-      </h4>
-      <div className="space-y-3">
-        {items.slice(0, 6).map((item, i) => (
-          <div key={i} className="flex justify-between items-center group">
-            <span className="text-sm text-gray-400 group-hover:text-white transition-colors truncate pr-2">{item.name}</span>
-            <div className="flex items-center gap-2">
-              <div className="w-16 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-white/20 group-hover:bg-primary transition-all"
-                  style={{ width: `${(item.count / items[0].count) * 100}%` }}
-                />
-              </div>
-              <span className="text-xs font-bold w-4 text-right">{item.count}</span>
-            </div>
+      {/* Media Type Breakdown */}
+      {data.mediaTypeBreakdown.length > 0 && (
+        <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
+          <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+            <PieIcon className="text-green-400" size={20} />
+            Content Type Breakdown
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {data.mediaTypeBreakdown.map((item) => {
+              const percentage = data.total > 0 ? (item.count / data.total) * 100 : 0;
+              return (
+                <div key={item.name} className="bg-white/5 rounded-xl p-4 text-center hover:bg-white/10 transition-colors">
+                  <div className="text-2xl font-bold text-white">{item.count}</div>
+                  <div className="text-sm text-gray-400 truncate">{item.name}</div>
+                  <div className="text-xs text-gray-500 mt-1">{percentage.toFixed(1)}%</div>
+                  {item.avgScore && (
+                    <div className="text-xs text-amber-400 mt-1">⭐ {item.avgScore.toFixed(1)}</div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* Collapsible Breakdown Sections */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <CollapsibleStatSection
+          title="Platforms"
+          icon={<Play size={18} />}
+          items={data.platforms.filter(item => item.count >= 3)}
+          accentColor="blue"
+          storageKey="platforms"
+        />
+        <CollapsibleStatSection
+          title="Studios"
+          icon={<Building2 size={18} />}
+          items={data.studios.filter(item => item.count >= 3)}
+          accentColor="purple"
+          storageKey="studios"
+        />
+        <CollapsibleStatSection
+          title="Authors"
+          icon={<User size={18} />}
+          items={data.authors.filter(item => item.count >= 3)}
+          accentColor="green"
+          storageKey="authors"
+        />
+        <CollapsibleStatSection
+          title="Actresses"
+          icon={<Heart size={18} />}
+          items={data.actresses.filter(item => item.count >= 3)}
+          accentColor="pink"
+          storageKey="actresses"
+        />
       </div>
+    </div>
+  );
+}
+
+// Enhanced StatCard component
+function StatCard({ icon, label, value, color }: { icon: any, label: string, value: string | number, color: string }) {
+  const colors: Record<string, string> = {
+    blue: "text-blue-400 bg-blue-500/10 border-blue-500/20",
+    amber: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+    green: "text-green-400 bg-green-500/10 border-green-500/20",
+    purple: "text-purple-400 bg-purple-500/10 border-purple-500/20",
+    pink: "text-pink-400 bg-pink-500/10 border-pink-500/20",
+    cyan: "text-cyan-400 bg-cyan-500/10 border-cyan-500/20",
+  };
+
+  const colorClasses = colors[color] || colors.blue;
+
+  return (
+    <div className={cn(
+      "border p-4 rounded-2xl flex flex-col gap-2 transition-all duration-300 hover:scale-[1.02]",
+      colorClasses
+    )}>
+      <div className={cn("p-2 rounded-xl bg-white/5 w-fit", colorClasses.split(' ')[0])}>
+        {icon}
+      </div>
+      <div className="text-2xl font-bold text-white">{value}</div>
+      <div className="text-xs text-gray-400 uppercase tracking-wide font-semibold">{label}</div>
     </div>
   );
 }
