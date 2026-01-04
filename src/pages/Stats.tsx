@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { statsLogic, type FullStats } from "../lib/stats-logic";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
-import { Filter, Star, RefreshCw, Hash, Play, PieChart as PieIcon } from "lucide-react";
+import { Filter, Star, RefreshCw, Hash, Play, PieChart as PieIcon, Heart } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { MultiSelectFilter } from "../components/MultiSelectFilter"; // NEW Import
 
@@ -9,10 +9,53 @@ const YEARS = ["All Time", "2023", "2024", "2025", "2026"];
 const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"];
 const COLORS = ["#5E35B1", "#1E88E5", "#43A047", "#FB8C00", "#E53935", "#8E24AA", "#00ACC1"];
 
+// LocalStorage keys for persistence
+const STATS_YEAR_KEY = "stats-active-year";
+const STATS_TYPES_KEY = "stats-selected-types";
+
+// Load persisted year from localStorage
+const loadPersistedYear = (): string => {
+  try {
+    const stored = localStorage.getItem(STATS_YEAR_KEY);
+    if (stored && YEARS.includes(stored)) {
+      return stored;
+    }
+  } catch {
+    // Fall back to default
+  }
+  return "All Time";
+};
+
+// Load persisted types from localStorage
+const loadPersistedTypes = (): string[] => {
+  try {
+    const stored = localStorage.getItem(STATS_TYPES_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.every(t => ENTRY_TYPES.includes(t))) {
+        return parsed;
+      }
+    }
+  } catch {
+    // Fall back to default
+  }
+  return ENTRY_TYPES;
+};
+
 export default function StatsPage() {
-  const [activeYear, setActiveYear] = useState("All Time");
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(ENTRY_TYPES); // Default to all selected
+  const [activeYear, setActiveYear] = useState(loadPersistedYear);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedTypes);
   const [data, setData] = useState<FullStats | null>(null);
+
+  // Persist activeYear to localStorage
+  useEffect(() => {
+    localStorage.setItem(STATS_YEAR_KEY, activeYear);
+  }, [activeYear]);
+
+  // Persist selectedTypes to localStorage
+  useEffect(() => {
+    localStorage.setItem(STATS_TYPES_KEY, JSON.stringify(selectedTypes));
+  }, [selectedTypes]);
 
   useEffect(() => {
     // Pass both year and types to logic
@@ -23,7 +66,7 @@ export default function StatsPage() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-20">
-      
+
       {/* 1. Header & Filter */}
       <header className="flex flex-col gap-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -36,12 +79,12 @@ export default function StatsPage() {
 
           {/* NEW: Multi-Select Filter placed prominently */}
           <div className="flex items-center gap-4">
-             <MultiSelectFilter 
-               options={ENTRY_TYPES} 
-               selected={selectedTypes} 
-               onChange={setSelectedTypes}
-               label="Content Types"
-             />
+            <MultiSelectFilter
+              options={ENTRY_TYPES}
+              selected={selectedTypes}
+              onChange={setSelectedTypes}
+              label="Content Types"
+            />
           </div>
         </div>
 
@@ -53,8 +96,8 @@ export default function StatsPage() {
               onClick={() => setActiveYear(year)}
               className={cn(
                 "px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap",
-                activeYear === year 
-                  ? "bg-primary text-white shadow-lg" 
+                activeYear === year
+                  ? "bg-primary text-white shadow-lg"
                   : "text-gray-400 hover:text-white hover:bg-white/5"
               )}
             >
@@ -86,7 +129,7 @@ export default function StatsPage() {
               <BarChart data={[...data.ratings].reverse()} layout="vertical" margin={{ left: 0, right: 30 }}>
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" width={30} tick={{ fill: '#9CA3AF' }} />
-                <Tooltip contentStyle={{ backgroundColor: '#1f1f1f', borderColor: '#333' }} itemStyle={{ color: '#fff' }} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
+                <Tooltip contentStyle={{ backgroundColor: '#1f1f1f', borderColor: '#333' }} itemStyle={{ color: '#fff' }} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
                 <Bar dataKey="count" fill="#fbbf24" radius={[0, 4, 4, 0]} barSize={20} />
               </BarChart>
             </ResponsiveContainer>
@@ -106,7 +149,11 @@ export default function StatsPage() {
                   <Pie data={data.genres} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                     {data.genres.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />)}
                   </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#1f1f1f', borderColor: '#333' }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1f1f1f', borderColor: '#333' }}
+                    itemStyle={{ color: '#fff' }}
+                    labelStyle={{ color: '#fff' }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -126,10 +173,11 @@ export default function StatsPage() {
       </div>
 
       {/* Breakdowns */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <BreakdownList title="Platforms" items={data.platforms} icon={<Play size={18} />} />
         <BreakdownList title="Top Studios" items={data.studios} icon={<PieIcon size={18} />} />
         <BreakdownList title="Top Authors" items={data.authors} icon={<Filter size={18} />} />
+        <BreakdownList title="Top Actresses" items={data.actresses} icon={<Heart size={18} />} />
       </div>
     </div>
   );
@@ -155,7 +203,7 @@ function StatCard({ icon, label, value, color }: { icon: any, label: string, val
   );
 }
 
-function BreakdownList({ title, items, icon }: { title: string, items: {name: string, count: number}[], icon: any }) {
+function BreakdownList({ title, items, icon }: { title: string, items: { name: string, count: number }[], icon: any }) {
   if (items.length === 0) return null;
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl p-5 h-full">
@@ -168,9 +216,9 @@ function BreakdownList({ title, items, icon }: { title: string, items: {name: st
             <span className="text-sm text-gray-400 group-hover:text-white transition-colors truncate pr-2">{item.name}</span>
             <div className="flex items-center gap-2">
               <div className="w-16 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-white/20 group-hover:bg-primary transition-all" 
-                  style={{ width: `${(item.count / items[0].count) * 100}%` }} 
+                <div
+                  className="h-full bg-white/20 group-hover:bg-primary transition-all"
+                  style={{ width: `${(item.count / items[0].count) * 100}%` }}
                 />
               </div>
               <span className="text-xs font-bold w-4 text-right">{item.count}</span>

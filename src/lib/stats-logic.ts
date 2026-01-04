@@ -17,6 +17,7 @@ export interface FullStats {
   platforms: StatItem[];
   studios: StatItem[];
   authors: StatItem[];
+  actresses: StatItem[];
 }
 
 // Helper to process list-based strings (e.g. "Action, Sci-Fi")
@@ -83,12 +84,14 @@ export const statsLogic = {
     const allPlatforms: string[] = [];
     const allStudios: string[] = [];
     const allAuthors: string[] = [];
+    const allActresses: string[] = [];
 
     entries.forEach(e => {
       if (e.genre) allGenres.push(...e.genre.split(','));
       if (e.platform) allPlatforms.push(e.platform);
       if (e.director) allStudios.push(e.director); // "director" column is used for Studio in JAV/Movies
       if (e.author) allAuthors.push(e.author);
+      if (e.actress) allActresses.push(e.actress);
     });
 
     return {
@@ -99,7 +102,8 @@ export const statsLogic = {
       genres: countOccurrences(allGenres).slice(0, 10), // Top 10
       platforms: countOccurrences(allPlatforms),
       studios: countOccurrences(allStudios).slice(0, 10),
-      authors: countOccurrences(allAuthors).slice(0, 10)
+      authors: countOccurrences(allAuthors).slice(0, 10),
+      actresses: countOccurrences(allActresses).slice(0, 10)
     };
   }
 };

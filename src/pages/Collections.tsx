@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { Layers, Plus, ChevronLeft, Trash2 } from "lucide-react";
 import { collectionsLogic, type Collection } from "../lib/collections-logic";
-import type { MediaEntry } from "../lib/db";
+import { dbService, type MediaEntry } from "../lib/db";
 import { MediaCard } from "../components/MediaCard";
 import { CollectionModal } from "../components/CollectionModal";
 import { WinnerPicker } from "../components/WinnerPicker"; // Reusing the picker for adding items
 import { getImageUrl } from "../lib/utils";
 import { ArrowUpDown } from "lucide-react"; // Import ArrowUpDown icon
 import { ReorderModal } from "../components/ReorderModal"; // Import Modal
+import { EntryForm } from "../components/EntryForm"; // Import EntryForm for editing
 
 // Helper for thumbnail grid
 function CollectionThumbnails({ images }: { images: string[] }) {
@@ -51,6 +52,8 @@ export default function CollectionsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
 
   useEffect(() => {
     loadCollections();
@@ -108,6 +111,36 @@ export default function CollectionsPage() {
     }
   };
 
+  // Handle editing from MediaCard dropdown
+  const handleEditFromCard = (entry: MediaEntry) => {
+    setEditingEntry(entry);
+    setEditModalOpen(true);
+  };
+
+  // Handle save from edit modal
+  const handleEditSave = async (data: Partial<MediaEntry>) => {
+    if (editingEntry) {
+      await dbService.updateEntry({ ...editingEntry, ...data } as MediaEntry);
+      // Refresh items in collection
+      if (selectedCollection) {
+        const newItems = await collectionsLogic.getCollectionItems(selectedCollection.id);
+        setItems(newItems);
+      }
+      setEditModalOpen(false);
+      setEditingEntry(null);
+    }
+  };
+
+  // Handle delete from MediaCard dropdown
+  const handleDeleteFromCard = async (id: number) => {
+    await dbService.deleteEntry(id);
+    // Refresh items in collection
+    if (selectedCollection) {
+      const newItems = await collectionsLogic.getCollectionItems(selectedCollection.id);
+      setItems(newItems);
+    }
+  };
+
   // --- VIEW 1: DETAIL (Grid of Items) ---
   if (selectedCollection) {
     return (
@@ -155,7 +188,11 @@ export default function CollectionsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {items.map(entry => (
               <div key={entry.id} className="relative group">
-                <MediaCard entry={entry} />
+                <MediaCard
+                  entry={entry}
+                  onEdit={handleEditFromCard}
+                  onDelete={handleDeleteFromCard}
+                />
                 {/* Hover Remove Button */}
                 <button
                   onClick={() => handleRemoveItem(entry.id)}
@@ -181,6 +218,14 @@ export default function CollectionsPage() {
           items={items.map(i => ({ ...i, subtitle: i.entry_type ?? undefined }))}
           onSave={handleReorderSave}
           title="Reorder Collection"
+        />
+
+        {/* Edit Entry Modal */}
+        <EntryForm
+          isOpen={editModalOpen}
+          onClose={() => { setEditModalOpen(false); setEditingEntry(null); }}
+          onSave={handleEditSave}
+          initialData={editingEntry}
         />
       </div>
     );

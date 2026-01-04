@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Home, Calendar, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Sparkles, Settings } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
+import { dbService, type MediaEntry } from "../lib/db";
 
 // Configurable Years matching your python config
 const YEARS = ["2023", "2024", "2025", "2026"];
@@ -22,11 +23,17 @@ export function Layout() {
     localStorage.setItem("sidebar-compact", String(isCompact));
   }, [isCompact]);
 
-  const handleEntryCreated = (entry: unknown) => {
-    setShowEntryForm(false);
-    // Navigate to the year view for the new entry
-    if (entry && typeof entry === 'object' && 'year_completed' in entry) {
-      navigate(`/year/${(entry as { year_completed: string }).year_completed}`);
+  const handleEntryCreated = async (entryData: Partial<MediaEntry>) => {
+    try {
+      // Save to database
+      await dbService.addEntry(entryData as Omit<MediaEntry, "id">);
+      setShowEntryForm(false);
+      // Navigate to the year view for the new entry
+      if (entryData.year_completed) {
+        navigate(`/year/${entryData.year_completed}`);
+      }
+    } catch (error) {
+      console.error("Failed to save entry:", error);
     }
   };
 

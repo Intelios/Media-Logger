@@ -36,12 +36,22 @@ export default function SearchPage() {
   }, [query, allEntries]);
 
   // Handlers for editing from search results
+  const handleEdit = (entry: MediaEntry) => {
+    setEditingEntry(entry);
+    setIsModalOpen(true);
+  };
+
   const handleSave = async (data: Partial<MediaEntry>) => {
     if (editingEntry) {
       await dbService.updateEntry({ ...editingEntry, ...data } as MediaEntry);
       // Reload db data to reflect changes
       dbService.getAllEntries().then(setAllEntries);
     }
+  };
+
+  const handleDelete = async (id: number) => {
+    await dbService.deleteEntry(id);
+    dbService.getAllEntries().then(setAllEntries);
   };
 
   return (
@@ -73,8 +83,12 @@ export default function SearchPage() {
       {/* Results Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {results.map(entry => (
-          <div key={entry.id} onClick={() => { setEditingEntry(entry); setIsModalOpen(true); }}>
-            <MediaCard entry={entry} />
+          <div key={entry.id}>
+            <MediaCard
+              entry={entry}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
           </div>
         ))}
       </div>
