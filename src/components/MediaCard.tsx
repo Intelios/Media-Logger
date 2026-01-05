@@ -106,6 +106,7 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
   const [menuOpen, setMenuOpen] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [imageViewOpen, setImageViewOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const contextInfo = getContextInfo(entry);
@@ -148,7 +149,12 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     setMenuOpen(false);
-    if (entry.id && window.confirm("Are you sure you want to delete this entry? This cannot be undone.")) {
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = () => {
+    setDeleteConfirmOpen(false);
+    if (entry.id) {
       onDelete?.(entry.id);
     }
   };
@@ -479,6 +485,66 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
               <div className="mt-4 text-center">
                 <h3 className="text-xl font-bold text-white">{entry.name}</h3>
                 <p className="text-sm text-gray-400 mt-1">{entry.entry_type}</p>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Delete Confirmation Modal - rendered via Portal */}
+        {deleteConfirmOpen && createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDeleteConfirmOpen(false);
+            }}
+          >
+            <div
+              className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl shadow-red-500/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 p-5 border-b border-white/5 bg-gradient-to-r from-red-500/10 via-transparent to-transparent">
+                <div className="p-2.5 bg-red-500/20 rounded-xl">
+                  <Trash2 size={20} className="text-red-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-lg">Delete Entry</h3>
+                  <p className="text-xs text-gray-400">This action cannot be undone</p>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-5">
+                <p className="text-gray-200 text-sm leading-relaxed">
+                  Are you sure you want to delete <span className="font-semibold text-white">"{entry.name}"</span>?
+                </p>
+                <p className="text-gray-500 text-xs mt-2">
+                  This will permanently remove the entry from your library.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 p-5 pt-0">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeleteConfirmOpen(false);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-semibold text-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    confirmDelete();
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 rounded-xl font-semibold text-white transition-colors shadow-lg shadow-red-500/25"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           </div>,
