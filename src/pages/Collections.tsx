@@ -196,7 +196,7 @@ export default function CollectionsPage() {
                 {/* Hover Remove Button */}
                 <button
                   onClick={() => handleRemoveItem(entry.id)}
-                  className="absolute top-2 right-2 bg-red-600 p-1.5 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                  className="absolute top-2 right-12 bg-red-600 p-1.5 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-30"
                   title="Remove from collection"
                 >
                   <Trash2 size={14} />
