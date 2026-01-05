@@ -5,16 +5,17 @@
 /* Global Dark Mode Setup */
 :root {
   color-scheme: dark;
-  background-color: #121212;
-  /* Your Flet background color */
+  background-color: transparent;
   color: #ffffff;
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
 
+html,
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: transparent;
 }
 
 /* Custom Scrollbar */

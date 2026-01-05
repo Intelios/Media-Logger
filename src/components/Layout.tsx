@@ -38,11 +38,11 @@ export function Layout() {
   };
 
   return (
-    <div className="flex h-screen bg-[#121212] text-white overflow-hidden">
+    <div className="flex h-screen text-white overflow-hidden">
 
-      {/* Sidebar */}
+      {/* Sidebar - transparent to show native macOS vibrancy */}
       <aside className={cn(
-        "bg-[#1E1E1E]/50 backdrop-blur-xl border-r border-white/5 flex flex-col transition-all duration-300 ease-out",
+        "bg-transparent border-r border-white/10 flex flex-col transition-all duration-300 ease-out",
         isCompact ? "w-[72px] p-3" : "w-64 p-4"
       )}>
         {/* Logo */}
@@ -142,8 +142,8 @@ export function Layout() {
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto p-6 scroll-smooth">
+      {/* Main Content Area - solid background for contrast with vibrancy sidebar */}
+      <main className="flex-1 overflow-y-auto p-6 scroll-smooth bg-[#121212]">
         <Outlet />
       </main>
 
