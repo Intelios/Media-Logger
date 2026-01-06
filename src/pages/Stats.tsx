@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { statsLogic, type FullStats } from "../lib/stats-logic";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, AreaChart, Area } from "recharts";
-import { Filter, Star, RefreshCw, Hash, Play, PieChart as PieIcon, Heart, Building2, User, Sparkles, Calendar, Trophy } from "lucide-react";
+import { Filter, Star, RefreshCw, Hash, Play, PieChart as PieIcon, Heart, Building2, User, Sparkles, Calendar, Trophy, Gamepad2, Film } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { CollapsibleStatSection } from "../components/CollapsibleStatSection";
@@ -13,6 +13,44 @@ const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"
 // LocalStorage keys for persistence
 const STATS_YEAR_KEY = "stats-active-year";
 const STATS_TYPES_KEY = "stats-selected-types";
+const STATS_PRESET_KEY = "stats-active-preset";
+
+// Quick filter presets
+type PresetKey = "gaming" | "media" | "adult" | null;
+
+const FILTER_PRESETS: Record<Exclude<PresetKey, null>, { label: string; icon: typeof Gamepad2; types: string[]; gradient: string }> = {
+  gaming: {
+    label: "Gaming",
+    icon: Gamepad2,
+    types: ["Game"],
+    gradient: "from-green-500 to-emerald-600",
+  },
+  media: {
+    label: "Media",
+    icon: Film,
+    types: ["K-Drama", "Anime", "Show", "Movie", "Book", "Album"],
+    gradient: "from-blue-500 to-purple-600",
+  },
+  adult: {
+    label: "Adult",
+    icon: Heart,
+    types: ["JAV", "Hentai", "Adult Visual Novel"],
+    gradient: "from-pink-500 to-rose-600",
+  },
+};
+
+// Helper to load persisted preset from localStorage
+const loadPersistedPreset = (): PresetKey => {
+  try {
+    const stored = localStorage.getItem(STATS_PRESET_KEY);
+    if (stored && (stored === "gaming" || stored === "media" || stored === "adult")) {
+      return stored as PresetKey;
+    }
+  } catch {
+    // If parsing fails, fall back to default
+  }
+  return null;
+};
 
 // Load persisted year from localStorage
 const loadPersistedYear = (): string => {
@@ -46,7 +84,23 @@ const loadPersistedTypes = (): string[] => {
 export default function StatsPage() {
   const [activeYear, setActiveYear] = useState(loadPersistedYear);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedTypes);
+  const [activePreset, setActivePreset] = useState<PresetKey>(loadPersistedPreset);
   const [data, setData] = useState<FullStats | null>(null);
+
+  // Handle preset button click
+  const handlePresetClick = (presetKey: Exclude<PresetKey, null>) => {
+    if (activePreset === presetKey) {
+      // Deactivate preset - reset to all types
+      setActivePreset(null);
+      setSelectedTypes(ENTRY_TYPES);
+      localStorage.removeItem(STATS_PRESET_KEY);
+    } else {
+      // Activate preset
+      setActivePreset(presetKey);
+      setSelectedTypes(FILTER_PRESETS[presetKey].types);
+      localStorage.setItem(STATS_PRESET_KEY, presetKey);
+    }
+  };
 
   // Persist activeYear to localStorage
   useEffect(() => {
@@ -81,10 +135,54 @@ export default function StatsPage() {
             <MultiSelectFilter
               options={ENTRY_TYPES}
               selected={selectedTypes}
-              onChange={setSelectedTypes}
+              onChange={(types) => {
+                setSelectedTypes(types);
+                // Clear active preset when manually changing filters
+                setActivePreset(null);
+                localStorage.removeItem(STATS_PRESET_KEY);
+              }}
               label="Content Types"
             />
           </div>
+        </div>
+
+        {/* Quick Filter Preset Buttons */}
+        <div className="flex items-center gap-3">
+          {(Object.keys(FILTER_PRESETS) as Exclude<PresetKey, null>[]).map((key) => {
+            const preset = FILTER_PRESETS[key];
+            const Icon = preset.icon;
+            const isActive = activePreset === key;
+            return (
+              <button
+                key={key}
+                onClick={() => handlePresetClick(key)}
+                className={`
+                  flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold
+                  transition-all duration-200 shadow-lg
+                  ${isActive
+                    ? `bg-gradient-to-r ${preset.gradient} text-white shadow-lg scale-105`
+                    : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10'}
+                `}
+              >
+                <Icon size={18} />
+                <span>{preset.label}</span>
+              </button>
+            );
+          })}
+
+          {/* Reset button - only show when a preset is active */}
+          {activePreset && (
+            <button
+              onClick={() => {
+                setActivePreset(null);
+                setSelectedTypes(ENTRY_TYPES);
+                localStorage.removeItem(STATS_PRESET_KEY);
+              }}
+              className="text-gray-400 hover:text-white text-sm underline underline-offset-2 transition-colors"
+            >
+              Reset
+            </button>
+          )}
         </div>
 
         {/* Year Filter Pills */}
