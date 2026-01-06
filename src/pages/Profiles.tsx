@@ -219,74 +219,163 @@ export default function ProfilesPage() {
 
   const selectedProfileConfig = selectedProfile ? getTypeConfig(selectedProfile.type) : null;
 
-  // --- VIEW 1: DETAILS (Drill Down) ---
+  // --- VIEW 1: DETAILS (Drill Down) - Magazine/Portfolio Layout ---
   if (selectedProfile && selectedProfileConfig) {
     return (
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
-        {/* Hero Header */}
-        <header className="relative">
-          {/* Background gradient */}
-          <div className={`absolute inset-0 bg-gradient-to-r ${selectedProfileConfig.gradient} opacity-10 blur-3xl -z-10`} />
+      <div className="animate-in fade-in duration-500 -mx-6 -mt-6">
+        {/* Full-Width Hero Section with Blurred Background */}
+        <div className="relative h-72 overflow-hidden">
+          {/* Blurred Background Image */}
+          {headerImgSrc ? (
+            <img
+              src={headerImgSrc}
+              className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-40"
+              alt=""
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-rose-600/30 via-pink-600/20 to-purple-600/30" />
+          )}
 
-          <div className="flex items-center gap-6">
-            <button
-              onClick={() => setSelectedProfile(null)}
-              className="p-3 hover:bg-white/10 rounded-full transition-colors self-start mt-2 border border-white/10 hover:border-white/20"
-            >
-              <ChevronLeft size={24} />
-            </button>
+          {/* Gradient Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-[#0d0d0d]/80 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-rose-500/10 to-pink-500/10" />
 
-            {/* Profile Image with Edit Button */}
-            <div className="relative group">
-              <div className={`h-28 w-28 rounded-2xl bg-black/50 overflow-hidden border-2 border-white/20 shadow-2xl flex items-center justify-center ring-4 ring-white/5`}>
-                {headerImgSrc ? (
-                  <img src={headerImgSrc} className="h-full w-full object-cover" alt={selectedProfile.name} />
-                ) : (
-                  <div className={`h-full w-full flex items-center justify-center bg-gradient-to-br ${selectedProfileConfig.gradient} opacity-30`}>
-                    <span className="text-4xl font-bold opacity-60 uppercase">{selectedProfile.name[0]}</span>
-                  </div>
-                )}
-              </div>
+          {/* Back Button - Floating */}
+          <button
+            onClick={() => setSelectedProfile(null)}
+            className="absolute top-6 left-6 p-3 bg-black/40 backdrop-blur-md hover:bg-black/60 rounded-full transition-all border border-white/10 hover:border-white/30 hover:scale-105 z-10"
+          >
+            <ChevronLeft size={24} />
+          </button>
+        </div>
 
-              {/* Edit Overlay */}
-              <button
-                onClick={handleUpdateImage}
-                className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-              >
-                <Camera size={28} className="text-white" />
-              </button>
-            </div>
-
-            <div className="flex-1">
-              <h2 className="text-4xl font-bold">{selectedProfile.name}</h2>
-              <div className="flex items-center gap-4 mt-3">
-                <span className={`capitalize bg-gradient-to-r ${selectedProfileConfig.gradient} px-4 py-1.5 rounded-full text-sm font-semibold text-white shadow-lg`}>
-                  {selectedProfile.type}
-                </span>
-
-                {/* Stats pills */}
-                <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10">
-                  <Hash size={14} className="text-gray-400" />
-                  <span className="text-sm font-medium">{selectedProfile.count} entries</span>
+        {/* Floating Profile Card - Overlapping Hero */}
+        <div className="relative px-6 -mt-32 z-10">
+          <div className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl shadow-black/50">
+            <div className="flex flex-col md:flex-row gap-8">
+              {/* Large Profile Image */}
+              <div className="relative group flex-shrink-0 self-start">
+                <div className="h-40 w-40 rounded-2xl bg-black/50 overflow-hidden border-2 border-rose-500/30 shadow-2xl shadow-rose-500/20 ring-4 ring-rose-500/10">
+                  {headerImgSrc ? (
+                    <img src={headerImgSrc} className="h-full w-full object-cover" alt={selectedProfile.name} />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-rose-600 to-pink-600 opacity-60">
+                      <span className="text-5xl font-bold uppercase text-white/80">{selectedProfile.name[0]}</span>
+                    </div>
+                  )}
                 </div>
 
-                {selectedProfile.average_score > 0 && (
-                  <div className="flex items-center gap-2 bg-yellow-500/10 px-3 py-1.5 rounded-full border border-yellow-500/20">
-                    <Star size={14} fill="currentColor" className="text-yellow-500" />
-                    <span className="text-sm font-medium text-yellow-500">{selectedProfile.average_score} avg</span>
+                {/* Edit Overlay */}
+                <button
+                  onClick={handleUpdateImage}
+                  className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer backdrop-blur-sm"
+                >
+                  <Camera size={32} className="text-white" />
+                </button>
+              </div>
+
+              {/* Profile Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-300">
+                      {selectedProfile.name}
+                    </h1>
+                    <div className="flex items-center gap-3 mt-4">
+                      <span className="capitalize bg-gradient-to-r from-rose-500 to-pink-600 px-5 py-2 rounded-full text-sm font-bold text-white shadow-lg shadow-rose-500/25">
+                        {selectedProfile.type}
+                      </span>
+                      <span className="text-rose-400/60 text-sm font-medium">Profile</span>
+                    </div>
                   </div>
-                )}
+                </div>
+
+                {/* Stats Row */}
+                <div className="flex flex-wrap gap-4 mt-6">
+                  {/* Entry Count */}
+                  <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl px-6 py-4 flex items-center gap-4 hover:border-rose-500/30 transition-colors">
+                    <div className="p-3 rounded-xl bg-rose-500/10">
+                      <Hash size={20} className="text-rose-400" />
+                    </div>
+                    <div>
+                      <div className="text-3xl font-bold text-white">{selectedProfile.count}</div>
+                      <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Entries</div>
+                    </div>
+                  </div>
+
+                  {/* Average Score */}
+                  {selectedProfile.average_score > 0 && (
+                    <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl px-6 py-4 flex items-center gap-4 hover:border-yellow-500/30 transition-colors">
+                      <div className="p-3 rounded-xl bg-yellow-500/10">
+                        <Star size={20} className="text-yellow-400" fill="currentColor" />
+                      </div>
+                      <div>
+                        <div className="text-3xl font-bold text-white">{selectedProfile.average_score}</div>
+                        <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Avg Score</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Visual Score Bar */}
+                  {selectedProfile.average_score > 0 && (
+                    <div className="flex-1 min-w-[200px] bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl px-6 py-4 flex flex-col justify-center">
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-gray-400">Rating</span>
+                        <span className="text-white font-medium">{selectedProfile.average_score}/10</span>
+                      </div>
+                      <div className="h-2 bg-black/40 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-rose-500 to-pink-500 rounded-full transition-all duration-1000"
+                          style={{ width: `${(selectedProfile.average_score / 10) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </header>
-
-        {/* Entries Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-10">
-          {profileEntries.map(entry => (
-            <MediaCard key={entry.id} entry={entry} />
-          ))}
         </div>
+
+        {/* Section Divider */}
+        <div className="px-6 mt-10 mb-6 flex items-center gap-4">
+          <div className="h-px flex-1 bg-gradient-to-r from-rose-500/20 to-transparent" />
+          <span className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Collection</span>
+          <div className="h-px flex-1 bg-gradient-to-l from-rose-500/20 to-transparent" />
+        </div>
+
+        {/* Masonry-Style Staggered Grid */}
+        <div className="px-6 pb-10">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 auto-rows-fr">
+            {profileEntries.map((entry, idx) => (
+              <div
+                key={entry.id}
+                className={`${idx % 5 === 0 ? 'row-span-1' : ''} transform hover:scale-[1.02] transition-transform duration-200`}
+                style={{
+                  animationDelay: `${idx * 50}ms`,
+                  animation: 'fadeInUp 0.4s ease-out forwards',
+                  opacity: 0
+                }}
+              >
+                <MediaCard entry={entry} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Inline Keyframe Animation */}
+        <style>{`
+          @keyframes fadeInUp {
+            from {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}</style>
       </div>
     );
   }
