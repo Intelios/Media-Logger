@@ -8,26 +8,29 @@ import ProfilesPage from "./pages/Profiles";
 import AwardsPage from "./pages/Awards";
 import CollectionsPage from "./pages/Collections";
 import SettingsPage from "./pages/Settings";
+import { ThemeProvider } from "./lib/ThemeContext";
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="year/:year" element={<YearView />} />
-          <Route path="search" element={<SearchPage />} />
-          <Route path="stats" element={<StatsPage />} />
-          <Route path="profiles" element={<ProfilesPage />} />
-          <Route path="awards" element={<AwardsPage />} />
-          <Route path="collections" element={<CollectionsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+    <ThemeProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="year/:year" element={<YearView />} />
+            <Route path="search" element={<SearchPage />} />
+            <Route path="stats" element={<StatsPage />} />
+            <Route path="profiles" element={<ProfilesPage />} />
+            <Route path="awards" element={<AwardsPage />} />
+            <Route path="collections" element={<CollectionsPage />} />
+            <Route path="settings" element={<SettingsPage />} />
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }
 

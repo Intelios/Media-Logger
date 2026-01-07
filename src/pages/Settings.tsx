@@ -1,19 +1,23 @@
 import { useState, useEffect } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { appLocalDataDir } from '@tauri-apps/api/path';
-import { FolderOpen, RotateCcw, Info, Database, Image, CheckCircle2 } from 'lucide-react';
+import { FolderOpen, RotateCcw, Info, Database, Image, CheckCircle2, Palette, Sun, Moon, Check } from 'lucide-react';
 import {
     getDataDirectory,
     setDataDirectory,
     clearDataDirectory,
     hasCustomDataDirectory
 } from '../lib/settings';
+import { useTheme } from '../lib/ThemeContext';
+import type { ColorTheme, ThemeMode } from '../lib/themes';
 
 export default function Settings() {
     const [currentPath, setCurrentPath] = useState<string>('');
     const [defaultPath, setDefaultPath] = useState<string>('');
     const [isCustom, setIsCustom] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
+
+    const { colorTheme, themeMode, setColorTheme, setThemeMode, colorThemes } = useTheme();
 
     useEffect(() => {
         // Load current paths on mount
@@ -52,6 +56,14 @@ export default function Settings() {
         setTimeout(() => setShowSuccess(false), 3000);
     };
 
+    const handleColorThemeChange = (theme: ColorTheme) => {
+        setColorTheme(theme);
+    };
+
+    const handleThemeModeChange = (mode: ThemeMode) => {
+        setThemeMode(mode);
+    };
+
     return (
         <div className="max-w-3xl mx-auto space-y-8">
             {/* Header */}
@@ -59,8 +71,8 @@ export default function Settings() {
                 <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">
                     Settings
                 </h1>
-                <p className="text-gray-400 mt-2">
-                    Configure where Media Logger stores and retrieves your data
+                <p style={{ color: 'var(--color-text-muted)' }} className="mt-2">
+                    Configure your Media Logger preferences
                 </p>
             </div>
 
@@ -72,15 +84,131 @@ export default function Settings() {
                 </div>
             )}
 
+            {/* Appearance Section */}
+            <div style={{ backgroundColor: 'var(--color-surface)', opacity: 0.8 }} className="backdrop-blur-xl rounded-2xl border border-white/5 p-6 space-y-6">
+                <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-xl bg-primary/10">
+                        <Palette className="text-primary" size={24} />
+                    </div>
+                    <div className="flex-1">
+                        <h2 style={{ color: 'var(--color-text)' }} className="text-xl font-semibold">Appearance</h2>
+                        <p style={{ color: 'var(--color-text-muted)' }} className="text-sm mt-1">
+                            Customize the look and feel of Media Logger
+                        </p>
+                    </div>
+                </div>
+
+                {/* Theme Mode Toggle */}
+                <div className="space-y-3">
+                    <label style={{ color: 'var(--color-text-muted)' }} className="text-sm font-medium">Theme Mode</label>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => handleThemeModeChange('light')}
+                            className={`flex-1 flex items-center justify-center gap-3 py-3 px-4 rounded-xl font-medium transition-all duration-200 ${themeMode === 'light'
+                                    ? 'bg-primary/20 border-2 border-primary text-primary'
+                                    : 'border-2 border-white/10 hover:border-white/20'
+                                }`}
+                            style={{ color: themeMode !== 'light' ? 'var(--color-text-muted)' : undefined }}
+                        >
+                            <Sun size={20} />
+                            <span>Light</span>
+                            {themeMode === 'light' && <Check size={16} className="ml-auto" />}
+                        </button>
+                        <button
+                            onClick={() => handleThemeModeChange('dark')}
+                            className={`flex-1 flex items-center justify-center gap-3 py-3 px-4 rounded-xl font-medium transition-all duration-200 ${themeMode === 'dark'
+                                    ? 'bg-primary/20 border-2 border-primary text-primary'
+                                    : 'border-2 border-white/10 hover:border-white/20'
+                                }`}
+                            style={{ color: themeMode !== 'dark' ? 'var(--color-text-muted)' : undefined }}
+                        >
+                            <Moon size={20} />
+                            <span>Dark</span>
+                            {themeMode === 'dark' && <Check size={16} className="ml-auto" />}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Color Theme Selector */}
+                <div className="space-y-3">
+                    <label style={{ color: 'var(--color-text-muted)' }} className="text-sm font-medium">Color Theme</label>
+                    <div className="grid grid-cols-3 gap-3">
+                        {colorThemes.map((theme) => (
+                            <button
+                                key={theme.id}
+                                onClick={() => handleColorThemeChange(theme)}
+                                className={`group relative flex flex-col items-center gap-2 py-4 px-3 rounded-xl transition-all duration-200 ${colorTheme.id === theme.id
+                                        ? 'ring-2 ring-primary ring-offset-2 ring-offset-transparent'
+                                        : 'hover:scale-[1.02]'
+                                    }`}
+                                style={{
+                                    backgroundColor: 'var(--color-background)',
+                                    border: '1px solid var(--color-border)'
+                                }}
+                            >
+                                {/* Color Swatch */}
+                                <div
+                                    className="w-12 h-12 rounded-full shadow-lg transition-transform group-hover:scale-110"
+                                    style={{ background: theme.previewGradient }}
+                                />
+
+                                {/* Theme Name */}
+                                <span
+                                    style={{ color: 'var(--color-text)' }}
+                                    className="text-sm font-medium"
+                                >
+                                    {theme.name}
+                                </span>
+
+                                {/* Selected Indicator */}
+                                {colorTheme.id === theme.id && (
+                                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                                        <Check size={12} className="text-white" />
+                                    </div>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Preview */}
+                <div className="mt-4 p-4 rounded-xl" style={{ backgroundColor: 'var(--color-background)' }}>
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${colorTheme.primary}, ${colorTheme.secondary})` }}>
+                            <Palette size={20} className="text-white" />
+                        </div>
+                        <div>
+                            <p style={{ color: 'var(--color-text)' }} className="font-semibold">Preview</p>
+                            <p style={{ color: 'var(--color-text-muted)' }} className="text-sm">Current theme: {colorTheme.name} ({themeMode})</p>
+                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        <button className="px-4 py-2 rounded-lg font-medium text-white" style={{ background: `linear-gradient(135deg, ${colorTheme.primary}, ${colorTheme.secondary})` }}>
+                            Primary Button
+                        </button>
+                        <button
+                            className="px-4 py-2 rounded-lg font-medium"
+                            style={{
+                                backgroundColor: 'var(--color-surface)',
+                                color: 'var(--color-text)',
+                                border: '1px solid var(--color-border)'
+                            }}
+                        >
+                            Secondary
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             {/* Data Directory Section */}
-            <div className="bg-[#1E1E1E]/50 backdrop-blur-xl rounded-2xl border border-white/5 p-6 space-y-6">
+            <div style={{ backgroundColor: 'var(--color-surface)', opacity: 0.8 }} className="backdrop-blur-xl rounded-2xl border border-white/5 p-6 space-y-6">
                 <div className="flex items-start gap-4">
                     <div className="p-3 rounded-xl bg-primary/10">
                         <FolderOpen className="text-primary" size={24} />
                     </div>
                     <div className="flex-1">
-                        <h2 className="text-xl font-semibold text-white">Data Directory</h2>
-                        <p className="text-gray-400 text-sm mt-1">
+                        <h2 style={{ color: 'var(--color-text)' }} className="text-xl font-semibold">Data Directory</h2>
+                        <p style={{ color: 'var(--color-text-muted)' }} className="text-sm mt-1">
                             Choose a custom location for your database and image assets
                         </p>
                     </div>
@@ -88,9 +216,16 @@ export default function Settings() {
 
                 {/* Current Path Display */}
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">Current Location</label>
+                    <label style={{ color: 'var(--color-text-muted)' }} className="text-sm font-medium">Current Location</label>
                     <div className="flex items-center gap-3">
-                        <div className="flex-1 px-4 py-3 bg-[#121212] rounded-xl border border-white/10 font-mono text-sm text-gray-300 overflow-x-auto">
+                        <div
+                            className="flex-1 px-4 py-3 rounded-xl font-mono text-sm overflow-x-auto"
+                            style={{
+                                backgroundColor: 'var(--color-background)',
+                                border: '1px solid var(--color-border)',
+                                color: 'var(--color-text-muted)'
+                            }}
+                        >
                             {currentPath || 'Loading...'}
                         </div>
                         {isCustom && (
@@ -113,7 +248,12 @@ export default function Settings() {
                     {isCustom && (
                         <button
                             onClick={handleReset}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium hover:bg-white/10 transition-all"
+                            style={{
+                                backgroundColor: 'var(--color-surface)',
+                                border: '1px solid var(--color-border)',
+                                color: 'var(--color-text)'
+                            }}
                         >
                             <RotateCcw size={18} />
                             Reset to Default
@@ -123,57 +263,58 @@ export default function Settings() {
             </div>
 
             {/* Directory Structure Info */}
-            <div className="bg-[#1E1E1E]/50 backdrop-blur-xl rounded-2xl border border-white/5 p-6 space-y-4">
+            <div style={{ backgroundColor: 'var(--color-surface)', opacity: 0.8 }} className="backdrop-blur-xl rounded-2xl border border-white/5 p-6 space-y-4">
                 <div className="flex items-start gap-4">
                     <div className="p-3 rounded-xl bg-blue-500/10">
                         <Info className="text-blue-400" size={24} />
                     </div>
                     <div>
-                        <h2 className="text-lg font-semibold text-white">Expected Directory Structure</h2>
-                        <p className="text-gray-400 text-sm mt-1">
+                        <h2 style={{ color: 'var(--color-text)' }} className="text-lg font-semibold">Expected Directory Structure</h2>
+                        <p style={{ color: 'var(--color-text-muted)' }} className="text-sm mt-1">
                             Your data directory should contain these files and folders:
                         </p>
                     </div>
                 </div>
 
-                <div className="bg-[#121212] rounded-xl border border-white/5 p-4 font-mono text-sm">
-                    <div className="flex items-center gap-2 text-gray-300">
+                <div className="rounded-xl p-4 font-mono text-sm" style={{ backgroundColor: 'var(--color-background)', border: '1px solid var(--color-border-subtle)' }}>
+                    <div className="flex items-center gap-2" style={{ color: 'var(--color-text-muted)' }}>
                         <FolderOpen size={16} className="text-yellow-400" />
-                        <span className="text-white">Your Data Directory</span>
+                        <span style={{ color: 'var(--color-text)' }}>Your Data Directory</span>
                     </div>
                     <div className="ml-6 mt-2 space-y-1">
-                        <div className="flex items-center gap-2 text-gray-400">
+                        <div className="flex items-center gap-2" style={{ color: 'var(--color-text-muted)' }}>
                             <Database size={14} className="text-primary" />
                             <span>jav_log.db</span>
-                            <span className="text-xs text-gray-600">— SQLite database</span>
+                            <span style={{ color: 'var(--color-text-subtle)' }} className="text-xs">— SQLite database</span>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-400">
+                        <div className="flex items-center gap-2" style={{ color: 'var(--color-text-muted)' }}>
                             <FolderOpen size={14} className="text-yellow-400" />
                             <span>assets/</span>
                         </div>
-                        <div className="ml-5 flex items-center gap-2 text-gray-500">
+                        <div className="ml-5 flex items-center gap-2" style={{ color: 'var(--color-text-subtle)' }}>
                             <FolderOpen size={14} className="text-yellow-400/60" />
                             <span>images/</span>
                         </div>
-                        <div className="ml-10 flex items-center gap-2 text-gray-500">
+                        <div className="ml-10 flex items-center gap-2" style={{ color: 'var(--color-text-subtle)' }}>
                             <Image size={14} className="text-secondary/60" />
                             <span>{'{uuid}'}.png / .jpg / .webp</span>
                         </div>
                     </div>
                 </div>
 
-                <p className="text-xs text-gray-500">
+                <p className="text-xs" style={{ color: 'var(--color-text-subtle)' }}>
                     <span className="text-amber-400">Note:</span> After changing the data directory, you may need to refresh the app for changes to take effect.
                 </p>
             </div>
 
             {/* Default Path Reference */}
             {defaultPath && (
-                <div className="text-sm text-gray-500">
+                <div className="text-sm" style={{ color: 'var(--color-text-subtle)' }}>
                     <span className="font-medium">Default location:</span>{' '}
-                    <code className="px-2 py-1 bg-[#1E1E1E] rounded text-xs">{defaultPath}</code>
+                    <code className="px-2 py-1 rounded text-xs" style={{ backgroundColor: 'var(--color-surface)' }}>{defaultPath}</code>
                 </div>
             )}
         </div>
     );
 }
+

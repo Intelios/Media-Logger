@@ -160,8 +160,8 @@ export function Layout() {
         </div>
       </aside>
 
-      {/* Main Content Area - solid background for contrast with vibrancy sidebar */}
-      <main className="flex-1 overflow-y-auto p-6 scroll-smooth bg-[#121212]">
+      {/* Main Content Area - uses theme variable for background */}
+      <main className="flex-1 overflow-y-auto p-6 scroll-smooth" style={{ backgroundColor: 'var(--color-background)' }}>
         <Outlet />
       </main>
 
