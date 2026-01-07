@@ -1,6 +1,42 @@
 import { appLocalDataDir } from '@tauri-apps/api/path';
 
 const STORAGE_KEY = 'media-logger-data-directory';
+const DISPLAY_NAME_KEY = 'media-logger-display-name';
+
+// Default display name for the dashboard greeting
+const DEFAULT_DISPLAY_NAME = 'Collector';
+
+/**
+ * Get the configured display name, or fall back to the default.
+ */
+export function getDisplayName(): string {
+    return localStorage.getItem(DISPLAY_NAME_KEY) || DEFAULT_DISPLAY_NAME;
+}
+
+/**
+ * Set a custom display name.
+ */
+export function setDisplayName(name: string): void {
+    if (name.trim()) {
+        localStorage.setItem(DISPLAY_NAME_KEY, name.trim());
+    } else {
+        localStorage.removeItem(DISPLAY_NAME_KEY);
+    }
+}
+
+/**
+ * Clear the custom display name and revert to default.
+ */
+export function clearDisplayName(): void {
+    localStorage.removeItem(DISPLAY_NAME_KEY);
+}
+
+/**
+ * Check if a custom display name is set.
+ */
+export function hasCustomDisplayName(): boolean {
+    return localStorage.getItem(DISPLAY_NAME_KEY) !== null;
+}
 
 /**
  * Get the configured data directory, or fall back to the default app data directory.

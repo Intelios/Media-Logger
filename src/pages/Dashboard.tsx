@@ -6,12 +6,14 @@ import { MediaCard } from "../components/MediaCard";
 import { DashboardStatCard } from "../components/DashboardStatCard";
 import type { MediaEntry } from "../lib/db";
 import { getImageUrl } from "../lib/utils";
+import { getDisplayName } from "../lib/settings";
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recent, setRecent] = useState<MediaEntry[]>([]);
   const [featured, setFeatured] = useState<{ entry: MediaEntry; imageUrl: string } | null>(null);
   const [greeting, setGreeting] = useState("Hello");
+  const [displayName, setDisplayName] = useState("Collector");
 
   // Track the current load operation to prevent stale updates
   const loadIdRef = useRef(0);
@@ -22,6 +24,9 @@ export default function Dashboard() {
     if (hour < 12) setGreeting("Good Morning");
     else if (hour < 18) setGreeting("Good Afternoon");
     else setGreeting("Good Evening");
+
+    // Load custom display name
+    setDisplayName(getDisplayName());
 
     // Increment load ID to invalidate any in-flight requests
     const currentLoadId = ++loadIdRef.current;
@@ -77,7 +82,7 @@ export default function Dashboard() {
             <span className="text-sm font-medium text-amber-400/80 uppercase tracking-wider">Welcome Back</span>
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-3 tracking-tight">
-            {greeting}, <span className="bg-gradient-to-r from-primary via-secondary to-purple-400 bg-clip-text text-transparent">Collector</span>
+            {greeting}, <span className="bg-gradient-to-r from-primary via-secondary to-purple-400 bg-clip-text text-transparent">{displayName}</span>
           </h1>
           <p className="text-gray-300 text-lg max-w-xl">Your personal media collection dashboard. Track, discover, and celebrate your journey.</p>
         </div>
