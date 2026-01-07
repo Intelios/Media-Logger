@@ -85,7 +85,8 @@ export const profilesLogic = {
   },
 
   // Get details for a specific profile (when clicked)
-  async getProfileDetails(type: string, name: string): Promise<MediaEntry[]> {
+  // ascending = true for timeline view (oldest first), false for collection view (newest first)
+  async getProfileDetails(type: string, name: string, ascending: boolean = false): Promise<MediaEntry[]> {
     const db = await dbService.connect();
     // We fetch all and filter in JS because SQLite LIKE '%name%' can be inaccurate with similar names
     // given the multi-value field nature.
@@ -102,11 +103,13 @@ export const profilesLogic = {
       return false;
     });
 
-    // Sort by completion_date descending (newest first)
+    // Sort by completion_date
     return filtered.sort((a, b) => {
       const dateA = a.completion_date || '';
       const dateB = b.completion_date || '';
-      return dateB.localeCompare(dateA);
+      return ascending
+        ? dateA.localeCompare(dateB)  // Oldest first for timeline
+        : dateB.localeCompare(dateA); // Newest first for collection
     });
   },
 

@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2 } from "lucide-react";
+import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
 import type { MediaEntry } from "../lib/db";
 import { MediaCard } from "../components/MediaCard";
 import { getImageUrl } from "../lib/utils";
+
+type ViewMode = 'collection' | 'timeline';
 
 // Filter Options with visual config
 const PROFILE_TYPES = [
@@ -37,6 +39,141 @@ const loadPersistedFilter = (): string[] => {
 const getTypeConfig = (type: string) => {
   return PROFILE_TYPES.find(t => t.key === type) || PROFILE_TYPES[0];
 };
+
+// Format date for timeline
+const formatTimelineDate = (dateString: string | null): string => {
+  if (!dateString) return 'Unknown Date';
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return dateString;
+  }
+};
+
+// --- SUB-COMPONENT: Timeline Entry Card ---
+function TimelineCard({
+  entry,
+  index,
+  isFirst,
+  isLast
+}: {
+  entry: MediaEntry;
+  index: number;
+  isFirst: boolean;
+  isLast: boolean;
+}) {
+  const [imgSrc, setImgSrc] = useState('');
+  const isLeft = index % 2 === 0;
+
+  useEffect(() => {
+    if (entry.image_url) {
+      getImageUrl(entry.image_url).then(setImgSrc);
+    }
+  }, [entry.image_url]);
+
+  return (
+    <div
+      className={`relative flex items-center gap-4 ${isLeft ? 'flex-row' : 'flex-row-reverse'} md:flex-row`}
+      style={{
+        animationDelay: `${index * 80}ms`,
+        animation: 'fadeInUp 0.5s ease-out forwards',
+        opacity: 0
+      }}
+    >
+      {/* Timeline Line and Node */}
+      <div className="absolute left-1/2 md:left-8 -translate-x-1/2 md:translate-x-0 top-0 bottom-0 flex flex-col items-center">
+        {/* Top line */}
+        {!isFirst && (
+          <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500/40 to-rose-500/20" />
+        )}
+        {isFirst && <div className="flex-1" />}
+
+        {/* Node */}
+        <div className={`relative z-10 flex-shrink-0 w-4 h-4 rounded-full border-2 ${isFirst
+          ? 'bg-green-500 border-green-400 shadow-lg shadow-green-500/50'
+          : isLast
+            ? 'bg-rose-500 border-rose-400 shadow-lg shadow-rose-500/50'
+            : 'bg-gray-700 border-gray-500'
+          }`}>
+          {(isFirst || isLast) && (
+            <div className="absolute inset-0 rounded-full animate-ping opacity-30" style={{ backgroundColor: isFirst ? '#22c55e' : '#f43f5e' }} />
+          )}
+        </div>
+
+        {/* Bottom line */}
+        {!isLast && (
+          <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500/20 to-rose-500/40" />
+        )}
+        {isLast && <div className="flex-1" />}
+      </div>
+
+      {/* Entry Card */}
+      <div className={`ml-0 md:ml-20 flex-1 max-w-lg ${isLeft ? 'mr-auto md:mr-0' : 'ml-auto md:ml-20'
+        }`}>
+        <div className="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden hover:border-white/25 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/40">
+          {/* Milestone Badge */}
+          {isFirst && (
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-green-500/90 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg">
+              <Flag size={12} />
+              <span>First</span>
+            </div>
+          )}
+          {isLast && (
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-rose-500/90 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg">
+              <Flame size={12} />
+              <span>Latest</span>
+            </div>
+          )}
+
+          <div className="flex gap-3 p-3">
+            {/* Thumbnail */}
+            <div className="w-16 h-20 rounded-lg overflow-hidden bg-black/40 flex-shrink-0 border border-white/10">
+              {imgSrc ? (
+                <img src={imgSrc} className="w-full h-full object-cover" alt={entry.name} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-500">
+                  <LayoutGrid size={20} />
+                </div>
+              )}
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              <h4 className="font-semibold text-sm text-white truncate group-hover:text-rose-200 transition-colors">
+                {entry.name}
+              </h4>
+
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="text-xs text-gray-400 capitalize bg-white/5 px-2 py-0.5 rounded">
+                  {entry.entry_type || 'Entry'}
+                </span>
+                {entry.review_score && (
+                  <div className="flex items-center gap-1 text-yellow-500">
+                    <Star size={10} fill="currentColor" />
+                    <span className="text-xs font-medium">{entry.review_score}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 mt-2 text-gray-400">
+                <Calendar size={11} />
+                <span className="text-xs">{formatTimelineDate(entry.completion_date)}</span>
+              </div>
+            </div>
+
+            {/* Entry Number Badge */}
+            <div className="flex-shrink-0 self-center">
+              <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                <span className="text-xs font-bold text-gray-400">#{index + 1}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // --- SUB-COMPONENT: Individual Profile Card for the Grid ---
 function ProfileCard({ profile, onClick }: { profile: ProfileSummary, onClick: (p: ProfileSummary) => void }) {
@@ -105,6 +242,10 @@ export default function ProfilesPage() {
   // Navigation State
   const [selectedProfile, setSelectedProfile] = useState<ProfileSummary | null>(null);
   const [profileEntries, setProfileEntries] = useState<MediaEntry[]>([]);
+  const [timelineEntries, setTimelineEntries] = useState<MediaEntry[]>([]);
+
+  // View Mode State
+  const [viewMode, setViewMode] = useState<ViewMode>('collection');
 
   // Detail View Image State
   const [headerImgSrc, setHeaderImgSrc] = useState("");
@@ -176,8 +317,14 @@ export default function ProfilesPage() {
   // Handle drill-down
   const handleProfileClick = async (profile: ProfileSummary) => {
     setSelectedProfile(profile);
-    const entries = await profilesLogic.getProfileDetails(profile.type, profile.name);
-    setProfileEntries(entries);
+    setViewMode('collection'); // Reset to collection view when opening a new profile
+    // Load both collection (newest first) and timeline (oldest first) entries
+    const [collectionData, timelineData] = await Promise.all([
+      profilesLogic.getProfileDetails(profile.type, profile.name, false),
+      profilesLogic.getProfileDetails(profile.type, profile.name, true)
+    ]);
+    setProfileEntries(collectionData);
+    setTimelineEntries(timelineData);
   };
 
   // Handle Image Upload
@@ -337,31 +484,102 @@ export default function ProfilesPage() {
           </div>
         </div>
 
-        {/* Section Divider */}
-        <div className="px-6 mt-10 mb-6 flex items-center gap-4">
-          <div className="h-px flex-1 bg-gradient-to-r from-rose-500/20 to-transparent" />
-          <span className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Collection</span>
-          <div className="h-px flex-1 bg-gradient-to-l from-rose-500/20 to-transparent" />
-        </div>
+        {/* View Toggle and Section Divider */}
+        <div className="px-6 mt-10 mb-6">
+          <div className="flex items-center justify-center gap-2">
+            <div className="h-px flex-1 bg-gradient-to-r from-transparent to-rose-500/20" />
 
-        {/* Masonry-Style Staggered Grid */}
-        <div className="px-6 pb-10">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 auto-rows-fr">
-            {profileEntries.map((entry, idx) => (
-              <div
-                key={entry.id}
-                className={`${idx % 5 === 0 ? 'row-span-1' : ''} transform hover:scale-[1.02] transition-transform duration-200`}
-                style={{
-                  animationDelay: `${idx * 50}ms`,
-                  animation: 'fadeInUp 0.4s ease-out forwards',
-                  opacity: 0
-                }}
+            {/* Toggle Buttons */}
+            <div className="flex items-center gap-1 p-1 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl">
+              <button
+                onClick={() => setViewMode('collection')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'collection'
+                  ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
               >
-                <MediaCard entry={entry} />
-              </div>
-            ))}
+                <LayoutGrid size={16} />
+                <span>Collection</span>
+              </button>
+              <button
+                onClick={() => setViewMode('timeline')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'timeline'
+                  ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
+              >
+                <Clock size={16} />
+                <span>Timeline</span>
+              </button>
+            </div>
+
+            <div className="h-px flex-1 bg-gradient-to-l from-transparent to-rose-500/20" />
           </div>
         </div>
+
+        {/* Content based on view mode */}
+        {viewMode === 'collection' ? (
+          /* Masonry-Style Staggered Grid */
+          <div className="px-6 pb-10">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 auto-rows-fr">
+              {profileEntries.map((entry, idx) => (
+                <div
+                  key={entry.id}
+                  className={`${idx % 5 === 0 ? 'row-span-1' : ''} transform hover:scale-[1.02] transition-transform duration-200`}
+                  style={{
+                    animationDelay: `${idx * 50}ms`,
+                    animation: 'fadeInUp 0.4s ease-out forwards',
+                    opacity: 0
+                  }}
+                >
+                  <MediaCard entry={entry} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* Timeline View */
+          <div className="px-6 pb-10">
+            {/* Timeline Header */}
+            <div className="mb-8 text-center">
+              <p className="text-gray-400 text-sm">
+                Your journey with <span className="text-rose-400 font-medium">{selectedProfile.name}</span> — from first discovery to latest experience
+              </p>
+            </div>
+
+            {/* Timeline */}
+            <div className="relative max-w-2xl mx-auto space-y-4">
+              {timelineEntries.map((entry, idx) => (
+                <TimelineCard
+                  key={entry.id}
+                  entry={entry}
+                  index={idx}
+                  isFirst={idx === 0}
+                  isLast={idx === timelineEntries.length - 1}
+                />
+              ))}
+            </div>
+
+            {/* Timeline Summary */}
+            {timelineEntries.length > 0 && (
+              <div className="mt-10 text-center">
+                <div className="inline-flex items-center gap-3 px-6 py-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl">
+                  <div className="flex items-center gap-1 text-green-400">
+                    <Flag size={14} />
+                    <span className="text-xs font-medium">{formatTimelineDate(timelineEntries[0]?.completion_date)}</span>
+                  </div>
+                  <span className="text-gray-500">→</span>
+                  <div className="flex items-center gap-1 text-rose-400">
+                    <Flame size={14} />
+                    <span className="text-xs font-medium">{formatTimelineDate(timelineEntries[timelineEntries.length - 1]?.completion_date)}</span>
+                  </div>
+                  <span className="text-gray-500 mx-2">|</span>
+                  <span className="text-gray-400 text-xs">{timelineEntries.length} entries total</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Inline Keyframe Animation */}
         <style>{`
