@@ -290,3 +290,372 @@ body {
 .progress-glow-purple {
   box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
 }
+
+/* ===== APPLE-STYLE SETTINGS UI ===== */
+
+/* Settings Container - Two Panel Layout */
+.settings-layout {
+  display: flex;
+  gap: 0;
+  min-height: calc(100vh - 80px);
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+/* Sidebar Navigation */
+.settings-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-right: 1px solid var(--color-border);
+}
+
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+}
+
+.settings-nav-item:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.settings-nav-item.active {
+  background: var(--color-primary);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  color: white;
+}
+
+.settings-nav-item .nav-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Settings Content Area */
+.settings-content {
+  flex: 1;
+  padding: 24px 32px;
+  overflow-y: auto;
+}
+
+.settings-section-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 24px;
+}
+
+/* Apple-Style Grouped Settings */
+.settings-group {
+  background: var(--color-surface);
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.settings-group-label {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+  padding: 16px 16px 8px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  transition: background 0.15s ease;
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-row:hover {
+  background: var(--color-surface-hover);
+}
+
+.settings-row-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.settings-row-description {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.settings-row-value {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Apple-Style Segmented Control */
+.segmented-control {
+  display: inline-flex;
+  background: var(--color-background);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.segmented-control-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--color-text-muted);
+  border: none;
+  background: transparent;
+}
+
+.segmented-control-item:hover:not(.active) {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.segmented-control-item.active {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* Color Theme Swatches */
+.color-swatches {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.color-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  border: 2px solid transparent;
+}
+
+.color-swatch:hover {
+  transform: scale(1.1);
+}
+
+.color-swatch.selected {
+  border-color: var(--color-text);
+  box-shadow: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-text);
+}
+
+.color-swatch.selected::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Apple-Style Input */
+.settings-input {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text);
+  font-size: 14px;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.settings-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb, 94, 53, 177), 0.15);
+}
+
+.settings-input::placeholder {
+  color: var(--color-text-subtle);
+}
+
+/* Apple-Style Buttons */
+.settings-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-btn-primary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  color: white;
+}
+
+.settings-btn-primary:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.settings-btn-secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.settings-btn-secondary:hover {
+  background: var(--color-surface-hover);
+}
+
+/* Path Display */
+.path-display {
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 12px;
+  padding: 10px 14px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+/* Custom Badge */
+.settings-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--color-primary);
+  color: white;
+}
+
+/* Directory Tree */
+.directory-tree {
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 12px;
+  padding: 16px;
+  background: var(--color-background);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  color: var(--color-text-muted);
+}
+
+.tree-item-name {
+  color: var(--color-text);
+}
+
+.tree-item-desc {
+  color: var(--color-text-subtle);
+  font-size: 11px;
+}
+
+.tree-indent-1 {
+  margin-left: 20px;
+}
+
+.tree-indent-2 {
+  margin-left: 40px;
+}
+
+.tree-indent-3 {
+  margin-left: 60px;
+}
+
+/* Settings Toast */
+.settings-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  animation: slideInRight 0.3s ease;
+  z-index: 1000;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.settings-toast-icon {
+  color: #22C55E;
+}
+
+.settings-toast-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+/* Section Fade Animation */
+.settings-section-enter {
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
