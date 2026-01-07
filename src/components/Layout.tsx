@@ -4,6 +4,7 @@ import { Home, Calendar, BarChart3, Search, Award, Users, Layers, Plus, ChevronD
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
 import { dbService, type MediaEntry } from "../lib/db";
+import { listen } from "@tauri-apps/api/event";
 
 // Configurable Years matching your python config
 const YEARS = ["2023", "2024", "2025", "2026"];
@@ -22,6 +23,23 @@ export function Layout() {
   useEffect(() => {
     localStorage.setItem("sidebar-compact", String(isCompact));
   }, [isCompact]);
+
+  // Listen for menu events from Tauri backend
+  useEffect(() => {
+    const unlistenNav = listen<string>("menu-navigate", (event) => {
+      navigate(event.payload);
+    });
+
+    const unlistenNewEntry = listen("menu-new-entry", () => {
+      setShowEntryForm(true);
+    });
+
+    return () => {
+      unlistenNav.then((fn) => fn());
+      unlistenNewEntry.then((fn) => fn());
+    };
+  }, [navigate]);
+
 
   const handleEntryCreated = async (entryData: Partial<MediaEntry>) => {
     try {
