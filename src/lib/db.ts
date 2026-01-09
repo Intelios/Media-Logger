@@ -21,12 +21,14 @@ export interface MediaEntry {
   director: string | null;
   actress: string | null;
   update_version: string | null;
+  franchise: string | null;
 }
 
 // 2. Database Service
 class DBService {
   private db: Database | null = null;
   private currentDbPath: string = '';
+  private migrationsRun: boolean = false;
 
   async connect() {
     // Get the current data directory
@@ -42,13 +44,45 @@ class DBService {
     if (this.db && this.currentDbPath !== dbPath) {
       await this.db.close();
       this.db = null;
+      this.migrationsRun = false;
     }
 
     // Connect to the database
     console.log('[DB] Connecting to:', dbPath);
     this.db = await Database.load(`sqlite:${dbPath}`);
     this.currentDbPath = dbPath;
+
+    // Run migrations if not already done for this connection
+    if (!this.migrationsRun) {
+      await this.runMigrations();
+      this.migrationsRun = true;
+    }
+
     return this.db;
+  }
+
+  /**
+   * Run database migrations to add new columns
+   */
+  private async runMigrations() {
+    if (!this.db) return;
+
+    // Check if franchise column exists by querying table info
+    try {
+      const columns = await this.db.select<{ name: string }[]>(
+        "PRAGMA table_info(javs)"
+      );
+      const columnNames = columns.map(c => c.name);
+
+      // Add franchise column if it doesn't exist
+      if (!columnNames.includes('franchise')) {
+        console.log('[DB] Adding franchise column...');
+        await this.db.execute("ALTER TABLE javs ADD COLUMN franchise TEXT");
+        console.log('[DB] Franchise column added successfully');
+      }
+    } catch (error) {
+      console.error('[DB] Migration error:', error);
+    }
   }
 
   /**

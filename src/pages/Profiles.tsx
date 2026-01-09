@@ -15,6 +15,7 @@ const PROFILE_TYPES = [
   { key: "artist", label: "Artist", icon: Music, gradient: "from-purple-500 to-violet-600", color: "text-purple-400" },
   { key: "author", label: "Author", icon: BookOpen, gradient: "from-amber-500 to-orange-600", color: "text-amber-400" },
   { key: "platform", label: "Platform", icon: Gamepad2, gradient: "from-green-500 to-emerald-600", color: "text-green-400" },
+  { key: "franchise", label: "Franchise", icon: Gamepad2, gradient: "from-indigo-500 to-purple-600", color: "text-indigo-400" },
 ];
 
 const FILTER_STORAGE_KEY = "profiles-filter-types";

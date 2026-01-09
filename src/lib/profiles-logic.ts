@@ -9,7 +9,7 @@ export interface ProfileSummary {
   image_url?: string; // If you implement custom profile images later
 }
 
-export const PROFILE_TYPES = ["director", "actress", "artist", "author"];
+export const PROFILE_TYPES = ["director", "actress", "artist", "author", "franchise"];
 
 export const profilesLogic = {
   // Get list of all profiles (for the main Profiles grid)
@@ -59,9 +59,13 @@ export const profilesLogic = {
       processField(entry, "actress", "actress");
       processField(entry, "artist", "artist");
       processField(entry, "author", "author");
-      if (entry.entry_type === "Game" && entry.platform) {
-        // Optionally treat platforms as profiles? Python app seemed to allow it in config
-        processField(entry, "platform", "platform");
+      if (entry.entry_type === "Game") {
+        if (entry.platform) {
+          processField(entry, "platform", "platform");
+        }
+        if (entry.franchise) {
+          processField(entry, "franchise", "franchise");
+        }
       }
     });
 
