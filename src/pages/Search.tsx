@@ -18,6 +18,7 @@ interface SearchFilters {
   actresses: string[];
   directors: string[];
   authors: string[];
+  franchises: string[];
 }
 
 const defaultFilters: SearchFilters = {
@@ -26,6 +27,7 @@ const defaultFilters: SearchFilters = {
   actresses: [],
   directors: [],
   authors: [],
+  franchises: [],
 };
 
 // Load persisted filters
@@ -68,6 +70,7 @@ export default function SearchPage() {
     const actresses = new Set<string>();
     const directors = new Set<string>();
     const authors = new Set<string>();
+    const franchises = new Set<string>();
 
     allEntries.forEach(e => {
       if (e.platform) platforms.add(e.platform);
@@ -80,6 +83,7 @@ export default function SearchPage() {
       }
       if (e.director) directors.add(e.director);
       if (e.author) authors.add(e.author);
+      if (e.franchise) franchises.add(e.franchise);
     });
 
     return {
@@ -87,6 +91,7 @@ export default function SearchPage() {
       actresses: Array.from(actresses).sort(),
       directors: Array.from(directors).sort(),
       authors: Array.from(authors).sort(),
+      franchises: Array.from(franchises).sort(),
     };
   }, [allEntries]);
 
@@ -97,7 +102,8 @@ export default function SearchPage() {
       filters.platforms.length +
       filters.actresses.length +
       filters.directors.length +
-      filters.authors.length
+      filters.authors.length +
+      filters.franchises.length
     );
   }, [filters]);
 
@@ -146,6 +152,11 @@ export default function SearchPage() {
     // Apply author filter
     if (filters.authors.length > 0) {
       filtered = filtered.filter(e => e.author && filters.authors.includes(e.author));
+    }
+
+    // Apply franchise filter
+    if (filters.franchises.length > 0) {
+      filtered = filtered.filter(e => e.franchise && filters.franchises.includes(e.franchise));
     }
 
     setResults(filtered);
@@ -291,6 +302,14 @@ export default function SearchPage() {
                     selected={filters.authors}
                     onChange={(v) => updateFilter('authors', v)}
                     label="Author"
+                  />
+                )}
+                {uniqueValues.franchises.length > 0 && (
+                  <MultiSelectFilter
+                    options={uniqueValues.franchises}
+                    selected={filters.franchises}
+                    onChange={(v) => updateFilter('franchises', v)}
+                    label="Franchise"
                   />
                 )}
               </div>

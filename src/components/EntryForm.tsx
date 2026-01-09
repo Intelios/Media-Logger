@@ -217,19 +217,34 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
     <div className="space-y-5 animate-in fade-in duration-300">
       {/* Conditional Fields Based on Type */}
       {formData.entry_type === 'Game' && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-            <Gamepad size={14} className="text-purple-400" />
-            Platform
-          </label>
-          <input
-            type="text"
-            value={formData.platform || ""}
-            onChange={e => updateField("platform", e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-            placeholder="PC, PS5, Switch..."
-          />
-        </div>
+        <>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+              <Gamepad size={14} className="text-purple-400" />
+              Platform
+            </label>
+            <input
+              type="text"
+              value={formData.platform || ""}
+              onChange={e => updateField("platform", e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              placeholder="PC, PS5, Switch..."
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+              <Sparkles size={14} className="text-indigo-400" />
+              Franchise
+            </label>
+            <input
+              type="text"
+              value={formData.franchise || ""}
+              onChange={e => updateField("franchise", e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              placeholder="Zelda, Mario, Final Fantasy..."
+            />
+          </div>
+        </>
       )}
 
       {formData.entry_type === 'Book' && (

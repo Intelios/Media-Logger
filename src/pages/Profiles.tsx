@@ -8,13 +8,110 @@ import { getImageUrl } from "../lib/utils";
 
 type ViewMode = 'collection' | 'timeline';
 
-// Filter Options with visual config
+// Filter Options with visual config - each type has its own color palette
 const PROFILE_TYPES = [
-  { key: "director", label: "Director", icon: Clapperboard, gradient: "from-blue-500 to-cyan-600", color: "text-blue-400" },
-  { key: "actress", label: "Actress", icon: Sparkles, gradient: "from-pink-500 to-rose-600", color: "text-pink-400" },
-  { key: "artist", label: "Artist", icon: Music, gradient: "from-purple-500 to-violet-600", color: "text-purple-400" },
-  { key: "author", label: "Author", icon: BookOpen, gradient: "from-amber-500 to-orange-600", color: "text-amber-400" },
-  { key: "platform", label: "Platform", icon: Gamepad2, gradient: "from-green-500 to-emerald-600", color: "text-green-400" },
+  {
+    key: "director", label: "Director", icon: Clapperboard,
+    gradient: "from-blue-500 to-cyan-600", color: "text-blue-400",
+    bgGradient: "from-blue-600/30 via-cyan-600/20 to-blue-600/30",
+    overlayGradient: "from-blue-500/10 to-cyan-500/10",
+    placeholderGradient: "from-blue-600 to-cyan-600",
+    badgeGradient: "from-blue-500 to-cyan-600",
+    badgeShadow: "shadow-blue-500/25",
+    borderColor: "border-blue-500/30",
+    ringColor: "ring-blue-500/10",
+    shadowColor: "shadow-blue-500/20",
+    bgIconColor: "bg-blue-500/10",
+    iconColor: "text-blue-400",
+    barGradient: "from-blue-500 to-cyan-500",
+    dividerGradient: "to-blue-500/20",
+    accentColor: "text-blue-400/60"
+  },
+  {
+    key: "actress", label: "Actress", icon: Sparkles,
+    gradient: "from-pink-500 to-rose-600", color: "text-pink-400",
+    bgGradient: "from-rose-600/30 via-pink-600/20 to-purple-600/30",
+    overlayGradient: "from-rose-500/10 to-pink-500/10",
+    placeholderGradient: "from-rose-600 to-pink-600",
+    badgeGradient: "from-rose-500 to-pink-600",
+    badgeShadow: "shadow-rose-500/25",
+    borderColor: "border-rose-500/30",
+    ringColor: "ring-rose-500/10",
+    shadowColor: "shadow-rose-500/20",
+    bgIconColor: "bg-rose-500/10",
+    iconColor: "text-rose-400",
+    barGradient: "from-rose-500 to-pink-500",
+    dividerGradient: "to-rose-500/20",
+    accentColor: "text-rose-400/60"
+  },
+  {
+    key: "artist", label: "Artist", icon: Music,
+    gradient: "from-purple-500 to-violet-600", color: "text-purple-400",
+    bgGradient: "from-purple-600/30 via-violet-600/20 to-purple-600/30",
+    overlayGradient: "from-purple-500/10 to-violet-500/10",
+    placeholderGradient: "from-purple-600 to-violet-600",
+    badgeGradient: "from-purple-500 to-violet-600",
+    badgeShadow: "shadow-purple-500/25",
+    borderColor: "border-purple-500/30",
+    ringColor: "ring-purple-500/10",
+    shadowColor: "shadow-purple-500/20",
+    bgIconColor: "bg-purple-500/10",
+    iconColor: "text-purple-400",
+    barGradient: "from-purple-500 to-violet-500",
+    dividerGradient: "to-purple-500/20",
+    accentColor: "text-purple-400/60"
+  },
+  {
+    key: "author", label: "Author", icon: BookOpen,
+    gradient: "from-amber-500 to-orange-600", color: "text-amber-400",
+    bgGradient: "from-amber-600/30 via-orange-600/20 to-amber-600/30",
+    overlayGradient: "from-amber-500/10 to-orange-500/10",
+    placeholderGradient: "from-amber-600 to-orange-600",
+    badgeGradient: "from-amber-500 to-orange-600",
+    badgeShadow: "shadow-amber-500/25",
+    borderColor: "border-amber-500/30",
+    ringColor: "ring-amber-500/10",
+    shadowColor: "shadow-amber-500/20",
+    bgIconColor: "bg-amber-500/10",
+    iconColor: "text-amber-400",
+    barGradient: "from-amber-500 to-orange-500",
+    dividerGradient: "to-amber-500/20",
+    accentColor: "text-amber-400/60"
+  },
+  {
+    key: "platform", label: "Platform", icon: Gamepad2,
+    gradient: "from-green-500 to-emerald-600", color: "text-green-400",
+    bgGradient: "from-green-600/30 via-emerald-600/20 to-green-600/30",
+    overlayGradient: "from-green-500/10 to-emerald-500/10",
+    placeholderGradient: "from-green-600 to-emerald-600",
+    badgeGradient: "from-green-500 to-emerald-600",
+    badgeShadow: "shadow-green-500/25",
+    borderColor: "border-green-500/30",
+    ringColor: "ring-green-500/10",
+    shadowColor: "shadow-green-500/20",
+    bgIconColor: "bg-green-500/10",
+    iconColor: "text-green-400",
+    barGradient: "from-green-500 to-emerald-500",
+    dividerGradient: "to-green-500/20",
+    accentColor: "text-green-400/60"
+  },
+  {
+    key: "franchise", label: "Franchise", icon: Gamepad2,
+    gradient: "from-indigo-500 to-purple-600", color: "text-indigo-400",
+    bgGradient: "from-indigo-600/30 via-purple-600/20 to-indigo-600/30",
+    overlayGradient: "from-indigo-500/10 to-purple-500/10",
+    placeholderGradient: "from-indigo-600 to-purple-600",
+    badgeGradient: "from-indigo-500 to-purple-600",
+    badgeShadow: "shadow-indigo-500/25",
+    borderColor: "border-indigo-500/30",
+    ringColor: "ring-indigo-500/10",
+    shadowColor: "shadow-indigo-500/20",
+    bgIconColor: "bg-indigo-500/10",
+    iconColor: "text-indigo-400",
+    barGradient: "from-indigo-500 to-purple-500",
+    dividerGradient: "to-indigo-500/20",
+    accentColor: "text-indigo-400/60"
+  },
 ];
 
 const FILTER_STORAGE_KEY = "profiles-filter-types";
@@ -380,12 +477,12 @@ export default function ProfilesPage() {
               alt=""
             />
           ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-rose-600/30 via-pink-600/20 to-purple-600/30" />
+            <div className={`absolute inset-0 bg-gradient-to-br ${selectedProfileConfig.bgGradient}`} />
           )}
 
           {/* Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-[#0d0d0d]/80 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-rose-500/10 to-pink-500/10" />
+          <div className={`absolute inset-0 bg-gradient-to-r ${selectedProfileConfig.overlayGradient}`} />
 
           {/* Back Button - Floating */}
           <button
@@ -402,11 +499,11 @@ export default function ProfilesPage() {
             <div className="flex flex-col md:flex-row gap-8">
               {/* Large Profile Image */}
               <div className="relative group flex-shrink-0 self-start">
-                <div className="h-40 w-40 rounded-2xl bg-black/50 overflow-hidden border-2 border-rose-500/30 shadow-2xl shadow-rose-500/20 ring-4 ring-rose-500/10">
+                <div className={`h-40 w-40 rounded-2xl bg-black/50 overflow-hidden border-2 ${selectedProfileConfig.borderColor} shadow-2xl ${selectedProfileConfig.shadowColor} ring-4 ${selectedProfileConfig.ringColor}`}>
                   {headerImgSrc ? (
                     <img src={headerImgSrc} className="h-full w-full object-cover" alt={selectedProfile.name} />
                   ) : (
-                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-rose-600 to-pink-600 opacity-60">
+                    <div className={`h-full w-full flex items-center justify-center bg-gradient-to-br ${selectedProfileConfig.placeholderGradient} opacity-60`}>
                       <span className="text-5xl font-bold uppercase text-white/80">{selectedProfile.name[0]}</span>
                     </div>
                   )}
@@ -429,10 +526,10 @@ export default function ProfilesPage() {
                       {selectedProfile.name}
                     </h1>
                     <div className="flex items-center gap-3 mt-4">
-                      <span className="capitalize bg-gradient-to-r from-rose-500 to-pink-600 px-5 py-2 rounded-full text-sm font-bold text-white shadow-lg shadow-rose-500/25">
+                      <span className={`capitalize bg-gradient-to-r ${selectedProfileConfig.badgeGradient} px-5 py-2 rounded-full text-sm font-bold text-white shadow-lg ${selectedProfileConfig.badgeShadow}`}>
                         {selectedProfile.type}
                       </span>
-                      <span className="text-rose-400/60 text-sm font-medium">Profile</span>
+                      <span className={`${selectedProfileConfig.accentColor} text-sm font-medium`}>Profile</span>
                     </div>
                   </div>
                 </div>
@@ -440,9 +537,9 @@ export default function ProfilesPage() {
                 {/* Stats Row */}
                 <div className="flex flex-wrap gap-4 mt-6">
                   {/* Entry Count */}
-                  <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl px-6 py-4 flex items-center gap-4 hover:border-rose-500/30 transition-colors">
-                    <div className="p-3 rounded-xl bg-rose-500/10">
-                      <Hash size={20} className="text-rose-400" />
+                  <div className={`bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl px-6 py-4 flex items-center gap-4 hover:${selectedProfileConfig.borderColor} transition-colors`}>
+                    <div className={`p-3 rounded-xl ${selectedProfileConfig.bgIconColor}`}>
+                      <Hash size={20} className={selectedProfileConfig.iconColor} />
                     </div>
                     <div>
                       <div className="text-3xl font-bold text-white">{selectedProfile.count}</div>
@@ -472,7 +569,7 @@ export default function ProfilesPage() {
                       </div>
                       <div className="h-2 bg-black/40 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-rose-500 to-pink-500 rounded-full transition-all duration-1000"
+                          className={`h-full bg-gradient-to-r ${selectedProfileConfig.barGradient} rounded-full transition-all duration-1000`}
                           style={{ width: `${(selectedProfile.average_score / 10) * 100}%` }}
                         />
                       </div>
@@ -487,14 +584,14 @@ export default function ProfilesPage() {
         {/* View Toggle and Section Divider */}
         <div className="px-6 mt-10 mb-6">
           <div className="flex items-center justify-center gap-2">
-            <div className="h-px flex-1 bg-gradient-to-r from-transparent to-rose-500/20" />
+            <div className={`h-px flex-1 bg-gradient-to-r from-transparent ${selectedProfileConfig.dividerGradient}`} />
 
             {/* Toggle Buttons */}
             <div className="flex items-center gap-1 p-1 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl">
               <button
                 onClick={() => setViewMode('collection')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'collection'
-                  ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg'
+                  ? `bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
                   }`}
               >
@@ -504,7 +601,7 @@ export default function ProfilesPage() {
               <button
                 onClick={() => setViewMode('timeline')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'timeline'
-                  ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg'
+                  ? `bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
                   }`}
               >
@@ -513,7 +610,7 @@ export default function ProfilesPage() {
               </button>
             </div>
 
-            <div className="h-px flex-1 bg-gradient-to-l from-transparent to-rose-500/20" />
+            <div className={`h-px flex-1 bg-gradient-to-l from-transparent ${selectedProfileConfig.dividerGradient}`} />
           </div>
         </div>
 
@@ -543,7 +640,7 @@ export default function ProfilesPage() {
             {/* Timeline Header */}
             <div className="mb-8 text-center">
               <p className="text-gray-400 text-sm">
-                Your journey with <span className="text-rose-400 font-medium">{selectedProfile.name}</span> — from first discovery to latest experience
+                Your journey with <span className={`${selectedProfileConfig.color} font-medium`}>{selectedProfile.name}</span> — from first discovery to latest experience
               </p>
             </div>
 

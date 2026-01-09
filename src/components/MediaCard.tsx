@@ -55,26 +55,33 @@ const formatDate = (dateString: string | null): string => {
   }
 };
 
-// Get context info based on entry type
-const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon: React.ReactNode } | null => {
+// Get context info based on entry type - returns an array for entries with multiple fields
+const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon: React.ReactNode }[] => {
   const type = (entry.entry_type || "").toLowerCase();
+  const items: { label: string; value: string; icon: React.ReactNode }[] = [];
 
   if (type.includes("album") && entry.artist) {
-    return { label: "Artist", value: entry.artist, icon: <Disc3 size={12} /> };
+    items.push({ label: "Artist", value: entry.artist, icon: <Disc3 size={12} /> });
   }
   if (type.includes("book") && entry.author) {
-    return { label: "Author", value: entry.author, icon: <BookOpen size={12} /> };
+    items.push({ label: "Author", value: entry.author, icon: <BookOpen size={12} /> });
   }
   if (type.includes("game") && entry.platform) {
-    return { label: "Platform", value: entry.platform, icon: <Gamepad2 size={12} /> };
+    items.push({ label: "Platform", value: entry.platform, icon: <Gamepad2 size={12} /> });
   }
-  if ((type.includes("jav") || type.includes("hentai")) && entry.actress) {
-    return { label: "Actress", value: entry.actress, icon: <Heart size={12} /> };
+  if (type.includes("jav") || type.includes("hentai")) {
+    // Add both actress and director/studio for JAV/Hentai entries
+    if (entry.actress) {
+      items.push({ label: "Actress", value: entry.actress, icon: <Heart size={12} /> });
+    }
+    if (entry.director) {
+      items.push({ label: "Director/Studio", value: entry.director, icon: <Film size={12} /> });
+    }
   }
   if (type.includes("visual novel") && entry.update_version) {
-    return { label: "Version", value: entry.update_version, icon: <Monitor size={12} /> };
+    items.push({ label: "Version", value: entry.update_version, icon: <Monitor size={12} /> });
   }
-  return null;
+  return items;
 };
 
 // Parse genres from comma-separated string
@@ -302,18 +309,22 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
             </div>
           </div>
 
-          {/* Context Info (Artist/Platform/Author/Actress) */}
-          {contextInfo && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-gray-500">{contextInfo.icon}</span>
-              {/* Split comma-separated values (like actresses) into individual tags */}
-              {contextInfo.value.split(',').map((item, i) => (
-                <span
-                  key={i}
-                  className="px-2 py-0.5 bg-white/5 rounded-lg text-[11px] text-gray-300"
-                >
-                  {item.trim()}
-                </span>
+          {/* Context Info (Artist/Platform/Author/Actress/Director) */}
+          {contextInfo.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              {contextInfo.map((info, infoIdx) => (
+                <div key={infoIdx} className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-gray-500">{info.icon}</span>
+                  {/* Split comma-separated values (like actresses) into individual tags */}
+                  {info.value.split(',').map((item, i) => (
+                    <span
+                      key={i}
+                      className="px-2 py-0.5 bg-white/5 rounded-lg text-[11px] text-gray-300"
+                    >
+                      {item.trim()}
+                    </span>
+                  ))}
+                </div>
               ))}
             </div>
           )}
