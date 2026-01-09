@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Layers, Plus, ChevronLeft, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Layers, Plus, ChevronLeft, Trash2, X } from "lucide-react";
 import { collectionsLogic, type Collection } from "../lib/collections-logic";
 import { dbService, type MediaEntry } from "../lib/db";
 import { MediaCard } from "../components/MediaCard";
@@ -54,6 +55,8 @@ export default function CollectionsPage() {
   const [reorderOpen, setReorderOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [collectionToDelete, setCollectionToDelete] = useState<Collection | null>(null);
 
   useEffect(() => {
     loadCollections();
@@ -72,13 +75,20 @@ export default function CollectionsPage() {
     loadCollections();
   };
 
-  const handleDeleteCollection = async (e: React.MouseEvent, id: number) => {
+  const handleDeleteCollection = (e: React.MouseEvent, col: Collection) => {
     e.stopPropagation();
-    if (confirm("Delete this collection? Items will not be deleted from library.")) {
-      await collectionsLogic.deleteCollection(id);
+    setCollectionToDelete(col);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteCollection = async () => {
+    if (collectionToDelete) {
+      await collectionsLogic.deleteCollection(collectionToDelete.id);
       loadCollections();
-      if (selectedCollection?.id === id) setSelectedCollection(null);
+      if (selectedCollection?.id === collectionToDelete.id) setSelectedCollection(null);
     }
+    setDeleteConfirmOpen(false);
+    setCollectionToDelete(null);
   };
 
   const handleAddItems = async (mediaId: number) => {
@@ -274,7 +284,7 @@ export default function CollectionsPage() {
                   <p className="text-sm text-gray-400">{col.item_count} items</p>
                 </div>
                 <button
-                  onClick={(e) => handleDeleteCollection(e, col.id)}
+                  onClick={(e) => handleDeleteCollection(e, col)}
                   className="text-gray-600 hover:text-red-400 p-1"
                 >
                   <Trash2 size={18} />
@@ -290,6 +300,72 @@ export default function CollectionsPage() {
         onClose={() => setCreateOpen(false)}
         onSubmit={handleCreate}
       />
+
+      {/* Delete Collection Confirmation Modal */}
+      {deleteConfirmOpen && collectionToDelete && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          onClick={() => {
+            setDeleteConfirmOpen(false);
+            setCollectionToDelete(null);
+          }}
+        >
+          <div
+            className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl shadow-red-500/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 p-5 border-b border-white/5 bg-gradient-to-r from-red-500/10 via-transparent to-transparent">
+              <div className="p-2.5 bg-red-500/20 rounded-xl">
+                <Trash2 size={20} className="text-red-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-lg">Delete Collection</h3>
+                <p className="text-xs text-gray-400">This action cannot be undone</p>
+              </div>
+              <button
+                onClick={() => {
+                  setDeleteConfirmOpen(false);
+                  setCollectionToDelete(null);
+                }}
+                className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5">
+              <p className="text-gray-200 text-sm leading-relaxed">
+                Are you sure you want to delete <span className="font-semibold text-white">"{collectionToDelete.name}"</span>?
+              </p>
+              <p className="text-gray-500 text-xs mt-2">
+                Items in this collection will not be deleted from your library.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 p-5 pt-0">
+              <button
+                onClick={() => {
+                  setDeleteConfirmOpen(false);
+                  setCollectionToDelete(null);
+                }}
+                className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-semibold text-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteCollection}
+                className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 rounded-xl font-semibold text-white transition-colors shadow-lg shadow-red-500/25"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
