@@ -659,3 +659,149 @@ body {
     transform: translateY(0);
   }
 }
+
+/* ===== COLLECTIONS PREMIUM STYLES ===== */
+
+/* Collection card glow animation */
+@keyframes collection-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.1),
+      0 0 40px rgba(139, 92, 246, 0.05),
+      inset 0 0 60px rgba(255, 255, 255, 0.02);
+  }
+
+  50% {
+    box-shadow: 0 0 30px rgba(59, 130, 246, 0.2),
+      0 0 60px rgba(139, 92, 246, 0.1),
+      inset 0 0 80px rgba(255, 255, 255, 0.03);
+  }
+}
+
+.animate-collection-glow {
+  animation: collection-glow 4s ease-in-out infinite;
+}
+
+/* Collection card gradient backgrounds */
+.collection-card-gradient {
+  background: linear-gradient(135deg,
+      rgba(59, 130, 246, 0.08) 0%,
+      rgba(139, 92, 246, 0.06) 50%,
+      rgba(236, 72, 153, 0.04) 100%);
+}
+
+.collection-card-gradient:hover {
+  background: linear-gradient(135deg,
+      rgba(59, 130, 246, 0.12) 0%,
+      rgba(139, 92, 246, 0.10) 50%,
+      rgba(236, 72, 153, 0.08) 100%);
+}
+
+/* Glassmorphism effect for collection cards */
+.collection-glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Thumbnail container styling */
+.collection-thumbnails {
+  position: relative;
+  overflow: hidden;
+}
+
+.collection-thumbnails::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+      transparent 40%,
+      rgba(0, 0, 0, 0.3) 100%);
+  pointer-events: none;
+}
+
+/* Collection stat badge */
+.collection-stat-badge {
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.1) 0%,
+      rgba(255, 255, 255, 0.05) 100%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Collection watermark number */
+.collection-watermark {
+  position: absolute;
+  font-size: 8rem;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.02);
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  transition: all 0.5s ease;
+}
+
+/* Floating decoration animation */
+@keyframes float-decoration {
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0.3;
+  }
+
+  50% {
+    transform: translateY(-10px) rotate(5deg);
+    opacity: 0.5;
+  }
+}
+
+.animate-float-decoration {
+  animation: float-decoration 6s ease-in-out infinite;
+}
+
+/* Collection modal enhancements */
+.collection-modal-glass {
+  background: linear-gradient(135deg,
+      rgba(30, 30, 30, 0.95) 0%,
+      rgba(20, 20, 20, 0.98) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Staggered fade-in animation for collection cards */
+@keyframes stagger-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.collection-card-enter {
+  animation: stagger-fade-in 0.4s ease-out forwards;
+}
+
+/* Item count ring indicator */
+.collection-ring-indicator {
+  position: relative;
+}
+
+.collection-ring-indicator::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg,
+      var(--ring-color, #3b82f6) var(--ring-percent, 0%),
+      rgba(255, 255, 255, 0.1) var(--ring-percent, 0%));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px));
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Layers, Plus, ChevronLeft, Trash2, X } from "lucide-react";
+import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image } from "lucide-react";
 import { collectionsLogic, type Collection } from "../lib/collections-logic";
 import { dbService, type MediaEntry } from "../lib/db";
 import { MediaCard } from "../components/MediaCard";
@@ -11,7 +11,7 @@ import { ArrowUpDown } from "lucide-react"; // Import ArrowUpDown icon
 import { ReorderModal } from "../components/ReorderModal"; // Import Modal
 import { EntryForm } from "../components/EntryForm"; // Import EntryForm for editing
 
-// Helper for thumbnail grid
+// Helper for thumbnail grid - Enhanced version
 function CollectionThumbnails({ images }: { images: string[] }) {
   const [urls, setUrls] = useState<string[]>([]);
 
@@ -21,22 +21,29 @@ function CollectionThumbnails({ images }: { images: string[] }) {
 
   if (urls.length === 0) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-white/5 text-gray-500">
-        <Layers size={24} />
+      <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-white/5 to-white/[0.02] text-gray-600">
+        <div className="flex flex-col items-center gap-2">
+          <Image size={32} className="opacity-50" />
+          <span className="text-xs opacity-50">No items</span>
+        </div>
       </div>
     );
   }
 
-  // Create a 2x2 grid
+  // Create a 2x2 grid with enhanced styling
   return (
-    <div className="grid grid-cols-2 gap-0.5 h-full w-full">
+    <div className="grid grid-cols-2 gap-1 h-full w-full p-1">
       {/* Fill up to 4 slots, use placeholders if needed */}
       {[0, 1, 2, 3].map(i => (
-        <div key={i} className="bg-white/5 overflow-hidden relative">
+        <div key={i} className="bg-white/5 overflow-hidden relative rounded-md group/thumb">
           {urls[i] ? (
-            <img src={urls[i]} className="w-full h-full object-cover" />
+            <img
+              src={urls[i]}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover/thumb:scale-110"
+              alt=""
+            />
           ) : (
-            <div className="w-full h-full bg-white/5" />
+            <div className="w-full h-full bg-gradient-to-br from-white/[0.03] to-transparent" />
           )}
         </div>
       ))}
@@ -155,24 +162,43 @@ export default function CollectionsPage() {
   if (selectedCollection) {
     return (
       <div className="space-y-6">
-        <header className="flex flex-col gap-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSelectedCollection(null)}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
-            >
-              <ChevronLeft size={24} />
-            </button>
-            <div>
-              <h2 className="text-3xl font-bold">{selectedCollection.name}</h2>
-              <p className="text-gray-400">{items.length} items • {selectedCollection.description || "No description"}</p>
+        {/* Enhanced Header with gradient background */}
+        <header className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-500/10 via-purple-500/5 to-pink-500/10 border border-white/10 p-6">
+          {/* Decorative background elements */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/10 to-transparent rounded-full blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-500/10 to-transparent rounded-full blur-3xl" />
+
+          <div className="relative z-10 flex flex-col gap-4">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setSelectedCollection(null)}
+                className="p-2.5 hover:bg-white/10 rounded-xl transition-all border border-white/10 hover:border-white/20 hover:scale-105"
+              >
+                <ChevronLeft size={22} />
+              </button>
+              <div className="flex-1">
+                <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
+                  {selectedCollection.name}
+                </h2>
+                <p className="text-gray-400 mt-1">{selectedCollection.description || "Your curated collection"}</p>
+              </div>
+
+              {/* Stats badges */}
+              <div className="flex items-center gap-3">
+                <div className="collection-stat-badge px-4 py-2 rounded-xl flex items-center gap-2">
+                  <FolderOpen size={16} className="text-blue-400" />
+                  <span className="font-bold text-white">{items.length}</span>
+                  <span className="text-gray-400 text-sm">items</span>
+                </div>
+              </div>
             </div>
-            <div className="ml-auto flex gap-2">
-              {/* NEW: Reorder Button */}
+
+            <div className="flex gap-2 justify-end">
+              {/* Reorder Button */}
               <button
                 onClick={() => setReorderOpen(true)}
                 disabled={items.length < 2}
-                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 px-4 py-2.5 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ArrowUpDown size={18} />
                 Reorder
@@ -180,7 +206,7 @@ export default function CollectionsPage() {
 
               <button
                 onClick={() => setPickerOpen(true)}
-                className="flex items-center gap-2 bg-primary hover:bg-primary/90 px-4 py-2 rounded-lg font-semibold transition-colors"
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 px-5 py-2.5 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02]"
               >
                 <Plus size={18} />
                 Add Items
@@ -190,14 +216,34 @@ export default function CollectionsPage() {
         </header>
 
         {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-500 border-2 border-dashed border-white/5 rounded-2xl">
-            <p className="text-lg">This collection is empty.</p>
-            <button onClick={() => setPickerOpen(true)} className="mt-4 text-primary hover:underline">Add your first item</button>
+          <div className="relative flex flex-col items-center justify-center py-24 border-2 border-dashed border-white/10 rounded-2xl bg-gradient-to-br from-white/[0.02] to-transparent overflow-hidden">
+            {/* Floating decorations */}
+            <div className="absolute top-10 left-10 w-20 h-20 bg-blue-500/10 rounded-full blur-2xl animate-float-decoration" />
+            <div className="absolute bottom-10 right-10 w-16 h-16 bg-purple-500/10 rounded-full blur-2xl animate-float-decoration" style={{ animationDelay: '-2s' }} />
+
+            <div className="relative z-10 flex flex-col items-center">
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 mb-4">
+                <Layers size={40} className="text-blue-400" />
+              </div>
+              <p className="text-lg text-gray-400 mb-2">This collection is empty</p>
+              <p className="text-sm text-gray-500 mb-6">Start building your collection by adding items</p>
+              <button
+                onClick={() => setPickerOpen(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20"
+              >
+                <Plus size={18} />
+                Add your first item
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {items.map(entry => (
-              <div key={entry.id} className="relative group">
+            {items.map((entry, index) => (
+              <div
+                key={entry.id}
+                className="relative group collection-card-enter"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
                 <MediaCard
                   entry={entry}
                   onEdit={handleEditFromCard}
@@ -206,7 +252,7 @@ export default function CollectionsPage() {
                 {/* Hover Remove Button */}
                 <button
                   onClick={() => handleRemoveItem(entry.id)}
-                  className="absolute top-2 left-2 bg-red-600 p-1.5 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-30"
+                  className="absolute top-2 left-2 bg-red-600 hover:bg-red-500 p-2 rounded-xl text-white opacity-0 group-hover:opacity-100 transition-all shadow-lg z-30 hover:scale-110"
                   title="Remove from collection"
                 >
                   <Trash2 size={14} />
@@ -244,17 +290,20 @@ export default function CollectionsPage() {
   // --- VIEW 2: LIST (Grid of Collections) ---
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
+      {/* Enhanced Header */}
       <header className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-400 inline-flex items-center gap-3">
-            <Layers className="text-blue-500" />
+          <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 inline-flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20">
+              <Layers className="text-blue-400" size={24} />
+            </div>
             Collections
           </h2>
-          <p className="text-gray-400">Curate your favorite groups of media.</p>
+          <p className="text-gray-400 mt-1">Curate and organize your favorite media groups</p>
         </div>
         <button
           onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg font-semibold transition-colors"
+          className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 px-5 py-2.5 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02]"
         >
           <Plus size={18} />
           New Collection
@@ -262,33 +311,77 @@ export default function CollectionsPage() {
       </header>
 
       {collections.length === 0 ? (
-        <div className="text-center py-20 text-gray-500">
-          No collections yet. Create one to get started!
+        <div className="relative text-center py-24 border-2 border-dashed border-white/10 rounded-2xl bg-gradient-to-br from-white/[0.02] to-transparent overflow-hidden">
+          {/* Floating decorations */}
+          <div className="absolute top-10 left-1/4 w-24 h-24 bg-blue-500/10 rounded-full blur-3xl animate-float" />
+          <div className="absolute bottom-10 right-1/4 w-20 h-20 bg-purple-500/10 rounded-full blur-3xl animate-float-delayed" />
+
+          <div className="relative z-10">
+            <div className="inline-block p-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 mb-4">
+              <Sparkles size={40} className="text-blue-400" />
+            </div>
+            <p className="text-lg text-gray-400 mb-2">No collections yet</p>
+            <p className="text-sm text-gray-500 mb-6">Create your first collection to start organizing</p>
+            <button
+              onClick={() => setCreateOpen(true)}
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20"
+            >
+              <Plus size={18} />
+              Create your first collection
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {collections.map(col => (
+          {collections.map((col, index) => (
             <div
               key={col.id}
               onClick={() => handleSelectCollection(col)}
-              className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:border-primary/50 transition-all cursor-pointer group hover:shadow-xl"
+              className="relative collection-card-gradient border border-white/10 rounded-2xl overflow-hidden hover:border-blue-500/50 transition-all duration-300 cursor-pointer group hover:shadow-2xl hover:shadow-blue-500/10 card-shine collection-card-enter"
+              style={{ animationDelay: `${index * 80}ms` }}
             >
-              {/* Thumbnail Grid */}
-              <div className="aspect-video w-full border-b border-white/5">
-                <CollectionThumbnails images={col.thumbnails || []} />
+              {/* Watermark number */}
+              <div className="collection-watermark -top-4 -right-2 group-hover:text-white/[0.04] transition-all">
+                #{index + 1}
               </div>
 
-              <div className="p-4 flex items-start justify-between">
-                <div>
-                  <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{col.name}</h3>
-                  <p className="text-sm text-gray-400">{col.item_count} items</p>
+              {/* Glow effect on hover */}
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-purple-500/0 group-hover:from-blue-500/10 group-hover:to-purple-500/5 transition-all duration-500 z-0" />
+
+              {/* Thumbnail Grid */}
+              <div className="aspect-video w-full border-b border-white/5 collection-thumbnails relative z-10">
+                <CollectionThumbnails images={col.thumbnails || []} />
+
+                {/* Overlay gradient */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              </div>
+
+              <div className="relative z-10 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-lg text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-blue-400 group-hover:to-purple-400 transition-all truncate">
+                      {col.name}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="collection-stat-badge px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                        <FolderOpen size={12} className="text-blue-400" />
+                        <span className="text-sm font-semibold text-white">{col.item_count}</span>
+                        <span className="text-xs text-gray-400">items</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => handleDeleteCollection(e, col)}
+                    className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
-                <button
-                  onClick={(e) => handleDeleteCollection(e, col)}
-                  className="text-gray-600 hover:text-red-400 p-1"
-                >
-                  <Trash2 size={18} />
-                </button>
+
+                {/* Description if available */}
+                {col.description && (
+                  <p className="text-sm text-gray-500 mt-2 line-clamp-2">{col.description}</p>
+                )}
               </div>
             </div>
           ))}
@@ -311,7 +404,7 @@ export default function CollectionsPage() {
           }}
         >
           <div
-            className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl shadow-red-500/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            className="collection-modal-glass border border-white/10 w-full max-w-md rounded-2xl shadow-2xl shadow-red-500/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
