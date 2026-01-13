@@ -83,6 +83,84 @@ class DBService {
     } catch (error) {
       console.error('[DB] Migration error:', error);
     }
+
+    // Award templates migration
+    await this.runAwardTemplatesMigration();
+  }
+
+  /**
+   * Migrate awards system to support reusable templates
+   */
+  private async runAwardTemplatesMigration() {
+    if (!this.db) return;
+
+    try {
+      // Check if award_templates table exists
+      const tables = await this.db.select<{ name: string }[]>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='award_templates'"
+      );
+
+      if (tables.length === 0) {
+        console.log('[DB] Creating award_templates table...');
+
+        // Create award_templates table
+        await this.db.execute(`
+          CREATE TABLE IF NOT EXISTS award_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            created_date TEXT NOT NULL
+          )
+        `);
+        console.log('[DB] award_templates table created');
+      }
+
+      // Check if template_id column exists in award_categories
+      const catColumns = await this.db.select<{ name: string }[]>(
+        "PRAGMA table_info(award_categories)"
+      );
+      const catColumnNames = catColumns.map(c => c.name);
+
+      if (!catColumnNames.includes('template_id')) {
+        console.log('[DB] Adding template_id column to award_categories...');
+        await this.db.execute(
+          "ALTER TABLE award_categories ADD COLUMN template_id INTEGER REFERENCES award_templates(id)"
+        );
+
+        // Migrate existing categories to templates
+        console.log('[DB] Migrating existing categories to templates...');
+
+        // Get unique category names
+        const uniqueNames = await this.db.select<{ name: string }[]>(
+          "SELECT DISTINCT name FROM award_categories"
+        );
+
+        for (const { name } of uniqueNames) {
+          // Create template for this name
+          await this.db.execute(
+            "INSERT OR IGNORE INTO award_templates (name, created_date) VALUES ($1, datetime('now'))",
+            [name]
+          );
+
+          // Get the template id
+          const template = await this.db.select<{ id: number }[]>(
+            "SELECT id FROM award_templates WHERE name = $1",
+            [name]
+          );
+
+          if (template.length > 0) {
+            // Link all categories with this name to the template
+            await this.db.execute(
+              "UPDATE award_categories SET template_id = $1 WHERE name = $2",
+              [template[0].id, name]
+            );
+          }
+        }
+
+        console.log('[DB] Award categories migration complete');
+      }
+    } catch (error) {
+      console.error('[DB] Award templates migration error:', error);
+    }
   }
 
   /**
