@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
+import { awardsLogic } from "../lib/awards-logic";
 import type { MediaEntry } from "../lib/db";
-import { MediaCard } from "../components/MediaCard";
+import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { getImageUrl } from "../lib/utils";
 
 type ViewMode = 'collection' | 'timeline';
@@ -340,6 +341,7 @@ export default function ProfilesPage() {
   const [selectedProfile, setSelectedProfile] = useState<ProfileSummary | null>(null);
   const [profileEntries, setProfileEntries] = useState<MediaEntry[]>([]);
   const [timelineEntries, setTimelineEntries] = useState<MediaEntry[]>([]);
+  const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
 
   // View Mode State
   const [viewMode, setViewMode] = useState<ViewMode>('collection');
@@ -422,6 +424,15 @@ export default function ProfilesPage() {
     ]);
     setProfileEntries(collectionData);
     setTimelineEntries(timelineData);
+
+    // Fetch awards for all entries in the profile
+    const mediaIds = collectionData.map(e => e.id).filter((id): id is number => id !== undefined);
+    if (mediaIds.length > 0) {
+      const awards = await awardsLogic.getAwardsForMediaBatch(mediaIds);
+      setAwardsMap(awards);
+    } else {
+      setAwardsMap(new Map());
+    }
   };
 
   // Handle Image Upload
@@ -629,7 +640,7 @@ export default function ProfilesPage() {
                     opacity: 0
                   }}
                 >
-                  <MediaCard entry={entry} />
+                  <MediaCard entry={entry} awards={entry.id ? awardsMap.get(entry.id) : undefined} />
                 </div>
               ))}
             </div>

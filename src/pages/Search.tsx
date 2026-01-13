@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { Search as SearchIcon, X, Filter, ChevronDown, ChevronUp, Sparkles, RotateCcw } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
-import { MediaCard } from "../components/MediaCard";
+import { awardsLogic } from "../lib/awards-logic";
+import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { cn } from "../lib/utils_ui";
@@ -50,9 +51,9 @@ export default function SearchPage() {
   const [filters, setFilters] = useState<SearchFilters>(loadPersistedFilters);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  // Modal state for editing
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
+  const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
 
   // Load all entries
   useEffect(() => {
@@ -63,6 +64,20 @@ export default function SearchPage() {
   useEffect(() => {
     localStorage.setItem(SEARCH_FILTERS_KEY, JSON.stringify(filters));
   }, [filters]);
+
+  // Fetch awards for all entries
+  useEffect(() => {
+    const fetchAwards = async () => {
+      const mediaIds = allEntries.map(e => e.id).filter((id): id is number => id !== undefined);
+      if (mediaIds.length > 0) {
+        const awards = await awardsLogic.getAwardsForMediaBatch(mediaIds);
+        setAwardsMap(awards);
+      } else {
+        setAwardsMap(new Map());
+      }
+    };
+    fetchAwards();
+  }, [allEntries]);
 
   // Extract unique values for filter dropdowns
   const uniqueValues = useMemo(() => {
@@ -341,6 +356,7 @@ export default function SearchPage() {
                 entry={entry}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                awards={entry.id ? awardsMap.get(entry.id) : undefined}
               />
             </div>
           ))}
