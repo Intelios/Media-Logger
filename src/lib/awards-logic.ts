@@ -1,10 +1,18 @@
 import { dbService, type MediaEntry } from "./db";
 
+export interface AwardTemplate {
+  id: number;
+  name: string;
+  created_date: string;
+  usage_count?: number; // How many years used this template
+}
+
 export interface AwardCategory {
   id: number;
   name: string;
   year: number;
   sort_order: number;
+  template_id: number | null;
 }
 
 export interface AwardWinner {
@@ -17,6 +25,12 @@ export interface AwardYearSummary {
   year: number;
   categories: number;
   winners: number;
+}
+
+export interface TemplateWinnerHistory {
+  year: number;
+  winner: MediaEntry | null;
+  category_id: number;
 }
 
 export const awardsLogic = {
@@ -80,16 +94,30 @@ export const awardsLogic = {
     }));
   },
 
-  // 3. Create Category
+  // 3. Create Category (also creates template if it doesn't exist)
   async createCategory(name: string, year: number) {
     const db = await dbService.connect();
+
+    // First, ensure template exists for this name
+    await db.execute(
+      "INSERT OR IGNORE INTO award_templates (name, created_date) VALUES ($1, datetime('now'))",
+      [name]
+    );
+
+    // Get the template id
+    const template = await db.select<{ id: number }[]>(
+      "SELECT id FROM award_templates WHERE name = $1",
+      [name]
+    );
+    const templateId = template[0]?.id || null;
+
     // Get max sort order
     const maxSort = await db.select<{ max: number }[]>("SELECT MAX(sort_order) as max FROM award_categories WHERE year = $1", [year]);
     const nextSort = (maxSort[0].max || 0) + 1;
 
     await db.execute(
-      "INSERT INTO award_categories (name, year, created_date, sort_order) VALUES ($1, $2, datetime('now'), $3)",
-      [name, year, nextSort]
+      "INSERT INTO award_categories (name, year, created_date, sort_order, template_id) VALUES ($1, $2, datetime('now'), $3, $4)",
+      [name, year, nextSort, templateId]
     );
   },
 
@@ -157,5 +185,129 @@ export const awardsLogic = {
       awardsMap.set(r.media_id, existing);
     }
     return awardsMap;
+  },
+
+  // ============ TEMPLATE FUNCTIONS ============
+
+  // 9. Get all award templates with usage count
+  async getAllTemplates(): Promise<AwardTemplate[]> {
+    const db = await dbService.connect();
+    const templates = await db.select<(AwardTemplate & { usage_count: number })[]>(
+      `SELECT t.*, COUNT(DISTINCT c.year) as usage_count 
+       FROM award_templates t 
+       LEFT JOIN award_categories c ON c.template_id = t.id 
+       GROUP BY t.id 
+       ORDER BY usage_count DESC, t.name ASC`
+    );
+    return templates;
+  },
+
+  // 10. Get template by ID with full winner history
+  async getTemplateById(templateId: number): Promise<AwardTemplate | null> {
+    const db = await dbService.connect();
+    const templates = await db.select<AwardTemplate[]>(
+      "SELECT * FROM award_templates WHERE id = $1",
+      [templateId]
+    );
+    return templates[0] || null;
+  },
+
+  // 11. Get winner history for a template (all years)
+  async getTemplateHistory(templateId: number): Promise<TemplateWinnerHistory[]> {
+    const db = await dbService.connect();
+
+    // Get all categories for this template
+    const categories = await db.select<{ id: number; year: number }[]>(
+      "SELECT id, year FROM award_categories WHERE template_id = $1 ORDER BY year DESC",
+      [templateId]
+    );
+
+    if (categories.length === 0) return [];
+
+    // Get winners for these categories
+    const categoryIds = categories.map(c => c.id);
+    const placeholders = categoryIds.map((_, i) => `$${i + 1}`).join(',');
+
+    const winners = await db.select<(AwardWinner & MediaEntry)[]>(
+      `SELECT w.category_id, w.media_id, m.* 
+       FROM award_winners w 
+       JOIN javs m ON w.media_id = m.id 
+       WHERE w.category_id IN (${placeholders})`,
+      categoryIds
+    );
+
+    const winnerMap = new Map<number, MediaEntry>();
+    winners.forEach(w => {
+      const { category_id, media_id, ...media } = w;
+      winnerMap.set(category_id, media as MediaEntry);
+    });
+
+    return categories.map(cat => ({
+      year: cat.year,
+      winner: winnerMap.get(cat.id) || null,
+      category_id: cat.id
+    }));
+  },
+
+  // 12. Create a new template (standalone)
+  async createTemplate(name: string): Promise<number> {
+    const db = await dbService.connect();
+    const result: any = await db.execute(
+      "INSERT INTO award_templates (name, created_date) VALUES ($1, datetime('now'))",
+      [name]
+    );
+    return result.lastInsertId;
+  },
+
+  // 13. Create category from existing template
+  async createCategoryFromTemplate(templateId: number, year: number): Promise<void> {
+    const db = await dbService.connect();
+
+    // Get template name
+    const template = await db.select<{ name: string }[]>(
+      "SELECT name FROM award_templates WHERE id = $1",
+      [templateId]
+    );
+
+    if (template.length === 0) {
+      throw new Error("Template not found");
+    }
+
+    // Check if this template is already used in this year
+    const existing = await db.select<{ id: number }[]>(
+      "SELECT id FROM award_categories WHERE template_id = $1 AND year = $2",
+      [templateId, year]
+    );
+
+    if (existing.length > 0) {
+      throw new Error("This award already exists for this year");
+    }
+
+    // Get max sort order
+    const maxSort = await db.select<{ max: number }[]>(
+      "SELECT MAX(sort_order) as max FROM award_categories WHERE year = $1",
+      [year]
+    );
+    const nextSort = (maxSort[0].max || 0) + 1;
+
+    await db.execute(
+      "INSERT INTO award_categories (name, year, created_date, sort_order, template_id) VALUES ($1, $2, datetime('now'), $3, $4)",
+      [template[0].name, year, nextSort, templateId]
+    );
+  },
+
+  // 14. Get templates not yet used in a specific year (for the picker)
+  async getTemplatesNotUsedInYear(year: number): Promise<AwardTemplate[]> {
+    const db = await dbService.connect();
+    const templates = await db.select<AwardTemplate[]>(
+      `SELECT t.* 
+       FROM award_templates t 
+       WHERE t.id NOT IN (
+         SELECT template_id FROM award_categories WHERE year = $1 AND template_id IS NOT NULL
+       )
+       ORDER BY t.name ASC`,
+      [year]
+    );
+    return templates;
   }
 };
