@@ -3,7 +3,8 @@ import { createPortal } from "react-dom";
 import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image } from "lucide-react";
 import { collectionsLogic, type Collection } from "../lib/collections-logic";
 import { dbService, type MediaEntry } from "../lib/db";
-import { MediaCard } from "../components/MediaCard";
+import { awardsLogic } from "../lib/awards-logic";
+import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { CollectionModal } from "../components/CollectionModal";
 import { WinnerPicker } from "../components/WinnerPicker"; // Reusing the picker for adding items
 import { getImageUrl } from "../lib/utils";
@@ -55,6 +56,7 @@ export default function CollectionsPage() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [items, setItems] = useState<MediaEntry[]>([]);
+  const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
 
   // Modals
   const [createOpen, setCreateOpen] = useState(false);
@@ -75,6 +77,15 @@ export default function CollectionsPage() {
     const items = await collectionsLogic.getCollectionItems(col.id);
     setItems(items);
     setSelectedCollection(col);
+
+    // Fetch awards for all items in the collection
+    const mediaIds = items.map(e => e.id).filter((id): id is number => id !== undefined);
+    if (mediaIds.length > 0) {
+      const awards = await awardsLogic.getAwardsForMediaBatch(mediaIds);
+      setAwardsMap(awards);
+    } else {
+      setAwardsMap(new Map());
+    }
   };
 
   const handleCreate = async (name: string, desc: string) => {
@@ -248,6 +259,7 @@ export default function CollectionsPage() {
                   entry={entry}
                   onEdit={handleEditFromCard}
                   onDelete={handleDeleteFromCard}
+                  awards={entry.id ? awardsMap.get(entry.id) : undefined}
                 />
                 {/* Hover Remove Button */}
                 <button
