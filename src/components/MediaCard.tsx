@@ -281,7 +281,7 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
                     {awards.map((award, i) => (
                       <li key={i} className="text-xs text-gray-200">
                         {award.categoryName}
-                        <span className="text-gray-500 ml-1">({award.year})</span>
+                        <span className="text-amber-400/70 ml-1">({award.year})</span>
                       </li>
                     ))}
                   </ul>
