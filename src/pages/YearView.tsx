@@ -252,11 +252,11 @@ export default function YearView() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400">
-              {year} Collection
+            <h2 className="text-3xl font-bold">
+              <span className="text-primary">{year}</span> Collection
             </h2>
-            <p className="text-gray-400 text-sm mt-1">
-              Showing {filteredEntries.length} of {entries.length} items
+            <p className="text-gray-500 text-sm mt-1">
+              {filteredEntries.length} of {entries.length} items
             </p>
           </div>
 
@@ -296,8 +296,8 @@ export default function YearView() {
                 key={entry.id}
                 ref={isHighlighted ? highlightRef : null}
                 className={`transition-all duration-300 ${isHighlighted
-                    ? 'ring-4 ring-amber-400 ring-offset-2 ring-offset-gray-900 rounded-2xl animate-pulse'
-                    : ''
+                  ? 'ring-4 ring-amber-400 ring-offset-2 ring-offset-gray-900 rounded-2xl animate-pulse'
+                  : ''
                   }`}
               >
                 <MediaCard
