@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { Plus, Gamepad2, Film, Heart } from "lucide-react";
+import { Gamepad2, Film, Heart } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
@@ -260,29 +260,18 @@ export default function YearView() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Multi-Select Filter */}
-            <MultiSelectFilter
-              options={ENTRY_TYPES}
-              selected={selectedTypes}
-              onChange={(types) => {
-                setSelectedTypes(types);
-                // Clear active preset when manually changing filters
-                setActivePreset(null);
-                localStorage.removeItem(PRESET_STORAGE_KEY);
-              }}
-              label="Filter Types"
-            />
-
-            {/* Add Button */}
-            <button
-              onClick={() => { setEditingEntry(null); setIsModalOpen(true); }}
-              className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2.5 rounded-xl font-semibold shadow-lg shadow-primary/25 transition-all"
-            >
-              <Plus size={18} />
-              <span className="hidden sm:inline">Add Entry</span>
-            </button>
-          </div>
+          {/* Multi-Select Filter */}
+          <MultiSelectFilter
+            options={ENTRY_TYPES}
+            selected={selectedTypes}
+            onChange={(types) => {
+              setSelectedTypes(types);
+              // Clear active preset when manually changing filters
+              setActivePreset(null);
+              localStorage.removeItem(PRESET_STORAGE_KEY);
+            }}
+            label="Filter Types"
+          />
         </div>
       </header>
 
