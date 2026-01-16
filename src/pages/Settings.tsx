@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
+import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { appLocalDataDir } from '@tauri-apps/api/path';
 import {
     FolderOpen,
@@ -12,8 +13,14 @@ import {
     User,
     Palette,
     HardDrive,
-    ChevronRight
+    ChevronRight,
+    Download,
+    Upload,
+    FileSpreadsheet,
+    AlertCircle,
+    Loader2
 } from 'lucide-react';
+import { exportToFile, importFromFile, getDataStats, type ImportResult } from '../lib/csv-logic';
 import {
     getDataDirectory,
     setDataDirectory,
@@ -27,7 +34,7 @@ import {
 import { useTheme } from '../lib/ThemeContext';
 import type { ColorTheme, ThemeMode } from '../lib/themes';
 
-type SettingsSection = 'general' | 'appearance' | 'storage';
+type SettingsSection = 'general' | 'appearance' | 'storage' | 'data';
 
 export default function Settings() {
     const [activeSection, setActiveSection] = useState<SettingsSection>('general');
@@ -43,6 +50,13 @@ export default function Settings() {
 
     const { colorTheme, themeMode, setColorTheme, setThemeMode, colorThemes } = useTheme();
 
+    // Data export/import state
+    const [dataStats, setDataStats] = useState<{ mediaCount: number; collectionCount: number; awardCount: number } | null>(null);
+    const [isExporting, setIsExporting] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const [importResult, setImportResult] = useState<ImportResult | null>(null);
+    const [showImportModal, setShowImportModal] = useState(false);
+
     useEffect(() => {
         const loadPaths = async () => {
             const dataDir = await getDataDirectory();
@@ -55,6 +69,9 @@ export default function Settings() {
 
         setDisplayNameState(getDisplayName());
         setIsCustomName(hasCustomDisplayName());
+
+        // Load data stats
+        getDataStats().then(setDataStats).catch(console.error);
     }, []);
 
     const showToast = (message: string) => {
@@ -111,10 +128,55 @@ export default function Settings() {
         setThemeMode(mode);
     };
 
+    const handleExport = async () => {
+        setIsExporting(true);
+        try {
+            const content = await exportToFile();
+            const filePath = await save({
+                defaultPath: `media-logger-backup-${new Date().toISOString().split('T')[0]}.json`,
+                filters: [{ name: 'JSON', extensions: ['json'] }]
+            });
+            if (filePath) {
+                await writeTextFile(filePath, content);
+                showToast('Data exported successfully!');
+            }
+        } catch (error) {
+            console.error('Export error:', error);
+            showToast('Export failed: ' + String(error));
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handleImport = async () => {
+        try {
+            const filePath = await open({
+                multiple: false,
+                filters: [{ name: 'JSON', extensions: ['json'] }]
+            });
+            if (filePath && typeof filePath === 'string') {
+                setIsImporting(true);
+                const content = await readTextFile(filePath);
+                const result = await importFromFile(content);
+                setImportResult(result);
+                setShowImportModal(true);
+                // Refresh stats after import
+                const newStats = await getDataStats();
+                setDataStats(newStats);
+            }
+        } catch (error) {
+            console.error('Import error:', error);
+            showToast('Import failed: ' + String(error));
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
     const navItems: { id: SettingsSection; label: string; icon: React.ReactNode }[] = [
         { id: 'general', label: 'General', icon: <User size={18} /> },
         { id: 'appearance', label: 'Appearance', icon: <Palette size={18} /> },
         { id: 'storage', label: 'Storage', icon: <HardDrive size={18} /> },
+        { id: 'data', label: 'Data', icon: <FileSpreadsheet size={18} /> },
     ];
 
     return (
@@ -355,6 +417,184 @@ export default function Settings() {
                         }}>
                             <ChevronRight size={16} style={{ color: '#F59E0B' }} />
                             <span>Changes may require app refresh to take effect.</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Data Section */}
+                {activeSection === 'data' && (
+                    <div className="settings-section-enter" key="data">
+                        <h1 className="settings-section-title">Data</h1>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Current Data</div>
+                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(3, 1fr)',
+                                    gap: 12
+                                }}>
+                                    <div style={{
+                                        padding: '16px',
+                                        borderRadius: 10,
+                                        background: 'var(--color-surface)',
+                                        border: '1px solid var(--color-border)',
+                                        textAlign: 'center'
+                                    }}>
+                                        <div style={{ fontSize: 28, fontWeight: 600, color: 'var(--color-primary)' }}>
+                                            {dataStats?.mediaCount ?? '...'}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                                            Media Entries
+                                        </div>
+                                    </div>
+                                    <div style={{
+                                        padding: '16px',
+                                        borderRadius: 10,
+                                        background: 'var(--color-surface)',
+                                        border: '1px solid var(--color-border)',
+                                        textAlign: 'center'
+                                    }}>
+                                        <div style={{ fontSize: 28, fontWeight: 600, color: 'var(--color-secondary)' }}>
+                                            {dataStats?.collectionCount ?? '...'}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                                            Collections
+                                        </div>
+                                    </div>
+                                    <div style={{
+                                        padding: '16px',
+                                        borderRadius: 10,
+                                        background: 'var(--color-surface)',
+                                        border: '1px solid var(--color-border)',
+                                        textAlign: 'center'
+                                    }}>
+                                        <div style={{ fontSize: 28, fontWeight: 600, color: '#F59E0B' }}>
+                                            {dataStats?.awardCount ?? '...'}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                                            Awards
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Export</div>
+                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+                                <div>
+                                    <div className="settings-row-label">Export All Data</div>
+                                    <div className="settings-row-description">
+                                        Save all your entries, collections, and awards to a backup file
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleExport}
+                                    disabled={isExporting}
+                                    className="settings-btn settings-btn-primary"
+                                    style={{ alignSelf: 'flex-start' }}
+                                >
+                                    {isExporting ? (
+                                        <><Loader2 size={14} className="spin" /> Exporting...</>
+                                    ) : (
+                                        <><Download size={14} /> Export to File</>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Import</div>
+                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+                                <div>
+                                    <div className="settings-row-label">Import Data</div>
+                                    <div className="settings-row-description">
+                                        Restore data from a backup file. Duplicate entries will be skipped.
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleImport}
+                                    disabled={isImporting}
+                                    className="settings-btn settings-btn-secondary"
+                                    style={{ alignSelf: 'flex-start' }}
+                                >
+                                    {isImporting ? (
+                                        <><Loader2 size={14} className="spin" /> Importing...</>
+                                    ) : (
+                                        <><Upload size={14} /> Import from File</>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 8,
+                            padding: '12px 16px',
+                            borderRadius: 8,
+                            background: 'rgba(59, 130, 246, 0.1)',
+                            border: '1px solid rgba(59, 130, 246, 0.2)',
+                            fontSize: 13,
+                            color: 'var(--color-text-muted)'
+                        }}>
+                            <AlertCircle size={16} style={{ color: '#3B82F6', flexShrink: 0, marginTop: 2 }} />
+                            <span>Export files include all your data in JSON format with embedded CSVs. Images are not included in exports—only references to image paths.</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Import Result Modal */}
+                {showImportModal && importResult && (
+                    <div className="modal-overlay" onClick={() => setShowImportModal(false)}>
+                        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 450 }}>
+                            <h2 style={{ marginBottom: 16 }}>
+                                {importResult.success ? 'Import Complete' : 'Import Failed'}
+                            </h2>
+                            {importResult.success ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Media entries imported:</span>
+                                        <strong style={{ color: 'var(--color-primary)' }}>{importResult.mediaEntriesImported}</strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Media entries skipped (duplicates):</span>
+                                        <strong>{importResult.mediaEntriesSkipped}</strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Collections imported:</span>
+                                        <strong style={{ color: 'var(--color-secondary)' }}>{importResult.collectionsImported}</strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Collections skipped:</span>
+                                        <strong>{importResult.collectionsSkipped}</strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Award templates imported:</span>
+                                        <strong>{importResult.awardTemplatesImported}</strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Award categories imported:</span>
+                                        <strong>{importResult.awardCategoriesImported}</strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Award winners imported:</span>
+                                        <strong>{importResult.awardWinnersImported}</strong>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{ color: '#EF4444' }}>
+                                    {importResult.errors.join(', ')}
+                                </div>
+                            )}
+                            <button
+                                onClick={() => setShowImportModal(false)}
+                                className="settings-btn settings-btn-primary"
+                                style={{ marginTop: 20, width: '100%' }}
+                            >
+                                <CheckCircle2 size={14} /> Done
+                            </button>
                         </div>
                     </div>
                 )}
