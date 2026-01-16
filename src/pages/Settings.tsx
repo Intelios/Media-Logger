@@ -12,11 +12,8 @@ import {
     Moon,
     User,
     Palette,
-    HardDrive,
-    ChevronRight,
     Download,
     Upload,
-    FileSpreadsheet,
     AlertCircle,
     Loader2
 } from 'lucide-react';
@@ -34,7 +31,7 @@ import {
 import { useTheme } from '../lib/ThemeContext';
 import type { ColorTheme, ThemeMode } from '../lib/themes';
 
-type SettingsSection = 'general' | 'appearance' | 'storage' | 'data';
+type SettingsSection = 'general' | 'appearance' | 'data';
 
 export default function Settings() {
     const [activeSection, setActiveSection] = useState<SettingsSection>('general');
@@ -175,8 +172,7 @@ export default function Settings() {
     const navItems: { id: SettingsSection; label: string; icon: React.ReactNode }[] = [
         { id: 'general', label: 'General', icon: <User size={18} /> },
         { id: 'appearance', label: 'Appearance', icon: <Palette size={18} /> },
-        { id: 'storage', label: 'Storage', icon: <HardDrive size={18} /> },
-        { id: 'data', label: 'Data', icon: <FileSpreadsheet size={18} /> },
+        { id: 'data', label: 'Data', icon: <Database size={18} /> },
     ];
 
     return (
@@ -314,13 +310,13 @@ export default function Settings() {
                     </div>
                 )}
 
-                {/* Storage Section */}
-                {activeSection === 'storage' && (
-                    <div className="settings-section-enter" key="storage">
-                        <h1 className="settings-section-title">Storage</h1>
+                {/* Data Section */}
+                {activeSection === 'data' && (
+                    <div className="settings-section-enter" key="data">
+                        <h1 className="settings-section-title">Data</h1>
 
                         <div className="settings-group">
-                            <div className="settings-group-label">Data Location</div>
+                            <div className="settings-group-label">Storage Location</div>
 
                             <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -404,30 +400,8 @@ export default function Settings() {
                             </div>
                         </div>
 
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            padding: '12px 16px',
-                            borderRadius: 8,
-                            background: 'rgba(245, 158, 11, 0.1)',
-                            border: '1px solid rgba(245, 158, 11, 0.2)',
-                            fontSize: 13,
-                            color: 'var(--color-text-muted)'
-                        }}>
-                            <ChevronRight size={16} style={{ color: '#F59E0B' }} />
-                            <span>Changes may require app refresh to take effect.</span>
-                        </div>
-                    </div>
-                )}
-
-                {/* Data Section */}
-                {activeSection === 'data' && (
-                    <div className="settings-section-enter" key="data">
-                        <h1 className="settings-section-title">Data</h1>
-
                         <div className="settings-group">
-                            <div className="settings-group-label">Current Data</div>
+                            <div className="settings-group-label">Overview</div>
                             <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
                                 <div style={{
                                     display: 'grid',
