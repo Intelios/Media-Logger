@@ -136,6 +136,20 @@ export default function YearView() {
     loadData();
   }, [loadData]);
 
+  // Listen for 'entry-added' event from Layout sidebar to refresh data
+  useEffect(() => {
+    const handleEntryAdded = (event: Event) => {
+      const customEvent = event as CustomEvent<{ year: number | string }>;
+      // Refresh if the added entry is for this year (compare as strings)
+      if (String(customEvent.detail?.year) === year) {
+        loadData();
+      }
+    };
+
+    window.addEventListener('entry-added', handleEntryAdded);
+    return () => window.removeEventListener('entry-added', handleEntryAdded);
+  }, [year, loadData]);
+
   // Handle highlight param from Featured Entry navigation
   useEffect(() => {
     const highlightParam = searchParams.get('highlight');

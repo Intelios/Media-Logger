@@ -46,9 +46,15 @@ export function Layout() {
       // Save to database
       await dbService.addEntry(entryData as Omit<MediaEntry, "id">);
       setShowEntryForm(false);
+
       // Navigate to the year view for the new entry
       if (entryData.year_completed) {
         navigate(`/year/${entryData.year_completed}`);
+
+        // Dispatch event after navigation with delay to ensure YearView is mounted
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('entry-added', { detail: { year: entryData.year_completed } }));
+        }, 100);
       }
     } catch (error) {
       console.error("Failed to save entry:", error);

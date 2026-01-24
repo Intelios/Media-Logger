@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar } from "lucide-react";
+import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
 import { awardsLogic } from "../lib/awards-logic";
@@ -242,10 +242,16 @@ function TimelineCard({
                 {entry.name}
               </h4>
 
-              <div className="flex items-center gap-2 mt-1.5">
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 <span className="text-xs text-gray-400 capitalize bg-white/5 px-2 py-0.5 rounded">
                   {entry.entry_type || 'Entry'}
                 </span>
+                {entry.is_rewatch === 1 && (
+                  <div className="flex items-center gap-1 bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30">
+                    <RotateCcw size={10} />
+                    <span className="text-xs font-medium">Replay</span>
+                  </div>
+                )}
                 {entry.review_score && (
                   <div className="flex items-center gap-1 text-yellow-500">
                     <Star size={10} fill="currentColor" />
