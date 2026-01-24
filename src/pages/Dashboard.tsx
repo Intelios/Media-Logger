@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Library, Star, Calendar, Folder, ArrowRight, Search, BarChart3, CalendarDays, Sparkles, TrendingUp } from "lucide-react";
+import { Library, Star, Calendar, Folder, ArrowRight, Search, BarChart3, CalendarDays, Sparkles } from "lucide-react";
 import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";
 import { MediaCard } from "../components/MediaCard";
 import type { MediaEntry } from "../lib/db";
