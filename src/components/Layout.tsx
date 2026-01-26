@@ -3,8 +3,10 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Home, Calendar, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Sparkles, Settings } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
+import { WelcomeScreen } from "./WelcomeScreen";
 import { dbService, type MediaEntry } from "../lib/db";
 import { listen } from "@tauri-apps/api/event";
+import { shouldShowWelcome } from "../lib/onboarding-logic";
 
 // Configurable Years matching your python config
 const YEARS = ["2023", "2024", "2025", "2026"];
@@ -17,6 +19,7 @@ export function Layout() {
     return saved === "true";
   });
   const [showEntryForm, setShowEntryForm] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
   const navigate = useNavigate();
 
   // Persist compact mode
@@ -39,6 +42,22 @@ export function Layout() {
       unlistenNewEntry.then((fn) => fn());
     };
   }, [navigate]);
+
+  // Check if we should show welcome screen
+  useEffect(() => {
+    const checkWelcome = async () => {
+      const show = await shouldShowWelcome();
+      setShowWelcome(show);
+    };
+    checkWelcome();
+  }, []);
+
+  const handleWelcomeComplete = (openEntryForm?: boolean) => {
+    setShowWelcome(false);
+    if (openEntryForm) {
+      setShowEntryForm(true);
+    }
+  };
 
 
   const handleEntryCreated = async (entryData: Partial<MediaEntry>) => {
@@ -171,13 +190,17 @@ export function Layout() {
         <Outlet />
       </main>
 
-      {/* Entry Form Modal */}
       {showEntryForm && (
         <EntryForm
           isOpen={showEntryForm}
           onClose={() => setShowEntryForm(false)}
           onSave={handleEntryCreated}
         />
+      )}
+
+      {/* Welcome Screen for New Users */}
+      {showWelcome && (
+        <WelcomeScreen onComplete={handleWelcomeComplete} />
       )}
     </div>
   );
