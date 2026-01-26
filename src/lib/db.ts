@@ -67,6 +67,9 @@ class DBService {
   private async runMigrations() {
     if (!this.db) return;
 
+    // First, ensure base tables exist
+    await this.createTables();
+
     // Check if franchise column exists by querying table info
     try {
       const columns = await this.db.select<{ name: string }[]>(
@@ -86,6 +89,88 @@ class DBService {
 
     // Award templates migration
     await this.runAwardTemplatesMigration();
+  }
+
+  /**
+   * Create base tables if they don't exist (for new users)
+   */
+  private async createTables() {
+    if (!this.db) return;
+
+    try {
+      // Create main entries table
+      await this.db.execute(`
+        CREATE TABLE IF NOT EXISTS javs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          genre TEXT,
+          completion_date TEXT,
+          review_score REAL,
+          description TEXT,
+          year_completed INTEGER,
+          is_rewatch INTEGER DEFAULT 0,
+          own_local_copy INTEGER DEFAULT 0,
+          image_url TEXT,
+          entry_type TEXT,
+          platform TEXT,
+          author TEXT,
+          artist TEXT,
+          director TEXT,
+          actress TEXT,
+          update_version TEXT,
+          franchise TEXT
+        )
+      `);
+
+      // Create collections table
+      await this.db.execute(`
+        CREATE TABLE IF NOT EXISTS collections (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          description TEXT,
+          created_date TEXT NOT NULL
+        )
+      `);
+
+      // Create collection items table
+      await this.db.execute(`
+        CREATE TABLE IF NOT EXISTS collection_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          collection_id INTEGER NOT NULL,
+          entry_id INTEGER NOT NULL,
+          added_date TEXT NOT NULL,
+          sort_order INTEGER DEFAULT 0,
+          FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+          FOREIGN KEY (entry_id) REFERENCES javs(id) ON DELETE CASCADE
+        )
+      `);
+
+      // Create award categories table
+      await this.db.execute(`
+        CREATE TABLE IF NOT EXISTS award_categories (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          year INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          sort_order INTEGER DEFAULT 0,
+          template_id INTEGER REFERENCES award_templates(id)
+        )
+      `);
+
+      // Create award winners table
+      await this.db.execute(`
+        CREATE TABLE IF NOT EXISTS award_winners (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          category_id INTEGER NOT NULL,
+          entry_id INTEGER NOT NULL,
+          FOREIGN KEY (category_id) REFERENCES award_categories(id) ON DELETE CASCADE,
+          FOREIGN KEY (entry_id) REFERENCES javs(id) ON DELETE CASCADE
+        )
+      `);
+
+      console.log('[DB] Base tables ensured');
+    } catch (error) {
+      console.error('[DB] Error creating tables:', error);
+    }
   }
 
   /**
