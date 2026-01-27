@@ -1,6 +1,6 @@
 [package]
 name = "Media-Logger"
-version = "2.5.5"
+version = "2.6.0"
 description = "A Media Logging Application"
 authors = ["Intelios"]
 edition = "2024"
