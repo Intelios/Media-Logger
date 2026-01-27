@@ -12,7 +12,7 @@ type ViewMode = 'collection' | 'timeline';
 // Filter Options with visual config - each type has its own color palette
 const PROFILE_TYPES = [
   {
-    key: "director", label: "Director", icon: Clapperboard,
+    key: "director", label: "Studio", icon: Clapperboard,
     gradient: "from-blue-500 to-cyan-600", color: "text-blue-400",
     bgGradient: "from-blue-600/30 via-cyan-600/20 to-blue-600/30",
     overlayGradient: "from-blue-500/10 to-cyan-500/10",
