@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { Gamepad2, Film, Heart } from "lucide-react";
+import { Gamepad2, Film, Heart, Sparkles, ChevronDown, ChevronUp, X } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
@@ -12,6 +12,7 @@ const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV"
 
 const FILTER_STORAGE_KEY = "yearview-filter-types";
 const PRESET_STORAGE_KEY = "yearview-active-preset";
+const QUICK_FILTERS_VISIBLE_KEY = "yearview-quick-filters-visible";
 
 // Quick filter presets
 type PresetKey = "gaming" | "media" | "adult" | null;
@@ -48,6 +49,19 @@ const loadPersistedPreset = (): PresetKey => {
     // If parsing fails, fall back to default
   }
   return null;
+};
+
+// Helper to load persisted quick filters visibility
+const loadQuickFiltersVisible = (): boolean => {
+  try {
+    const stored = localStorage.getItem(QUICK_FILTERS_VISIBLE_KEY);
+    if (stored !== null) {
+      return stored === "true";
+    }
+  } catch {
+    // If parsing fails, fall back to default
+  }
+  return true; // Default: visible
 };
 
 // Helper to load persisted filter from localStorage
@@ -90,6 +104,16 @@ export default function YearView() {
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const hasProcessedHighlight = useRef(false);
+
+  // Quick filters visibility state
+  const [quickFiltersVisible, setQuickFiltersVisible] = useState<boolean>(loadQuickFiltersVisible);
+
+  // Toggle quick filters visibility
+  const toggleQuickFilters = () => {
+    const newValue = !quickFiltersVisible;
+    setQuickFiltersVisible(newValue);
+    localStorage.setItem(QUICK_FILTERS_VISIBLE_KEY, String(newValue));
+  };
 
   // Handle preset button click
   const handlePresetClick = (presetKey: Exclude<PresetKey, null>) => {
@@ -225,50 +249,34 @@ export default function YearView() {
     <div className="space-y-6 relative min-h-[calc(100vh-100px)]">
       {/* Header & Filters */}
       <header className="flex flex-col gap-4">
-        {/* Quick Filter Preset Buttons */}
-        <div className="flex items-center gap-3">
-          {(Object.keys(FILTER_PRESETS) as Exclude<PresetKey, null>[]).map((key) => {
-            const preset = FILTER_PRESETS[key];
-            const Icon = preset.icon;
-            const isActive = activePreset === key;
-            return (
-              <button
-                key={key}
-                onClick={() => handlePresetClick(key)}
-                className={`
-                  flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold
-                  transition-all duration-200 shadow-lg
-                  ${isActive
-                    ? `bg-gradient-to-r ${preset.gradient} text-white shadow-lg scale-105`
-                    : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10'}
-                `}
-              >
-                <Icon size={18} />
-                <span>{preset.label}</span>
-              </button>
-            );
-          })}
-
-          {/* Reset button - only show when a preset is active */}
-          {activePreset && (
-            <button
-              onClick={() => {
-                setActivePreset(null);
-                setSelectedTypes(ENTRY_TYPES);
-                localStorage.removeItem(PRESET_STORAGE_KEY);
-              }}
-              className="text-gray-400 hover:text-white text-sm underline underline-offset-2 transition-colors"
-            >
-              Reset
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Title Row with Quick Filters Toggle */}
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold">
-              <span className="text-primary">{year}</span> Collection
-            </h2>
+            {/* Title and button on same line */}
+            <div className="flex items-center gap-4">
+              <h2 className="text-3xl font-bold">
+                <span className="text-primary">{year}</span> Collection
+              </h2>
+
+              {/* Quick Filters Toggle Button */}
+              <button
+                onClick={toggleQuickFilters}
+                className={`
+                  flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
+                  transition-all duration-200
+                  ${quickFiltersVisible
+                    ? 'bg-primary/20 text-primary border border-primary/30'
+                    : 'bg-white/5 text-gray-400 hover:text-gray-300 border border-white/10 hover:border-white/20'}
+                `}
+                title={quickFiltersVisible ? "Hide quick filters" : "Show quick filters"}
+              >
+                <Sparkles size={14} />
+                <span>Quick Filters</span>
+                {quickFiltersVisible ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            </div>
+
+            {/* Item count below */}
             <p className="text-gray-500 text-sm mt-1">
               {filteredEntries.length} of {entries.length} items
             </p>
@@ -286,6 +294,70 @@ export default function YearView() {
             }}
             label="Filter Types"
           />
+        </div>
+
+        {/* Collapsible Quick Filter Panel */}
+        <div
+          className={`
+            overflow-hidden transition-all duration-300 ease-in-out
+            ${quickFiltersVisible ? 'max-h-32 opacity-100' : 'max-h-0 opacity-0'}
+          `}
+        >
+          <div className="
+            flex items-center gap-3 p-4 rounded-xl
+            bg-white/[0.03] backdrop-blur-sm
+            border border-white/[0.08]
+            shadow-lg shadow-black/10
+          ">
+            <span className="text-xs text-gray-500 uppercase tracking-wider font-medium mr-2">Presets</span>
+
+            {(Object.keys(FILTER_PRESETS) as Exclude<PresetKey, null>[]).map((key) => {
+              const preset = FILTER_PRESETS[key];
+              const Icon = preset.icon;
+              const isActive = activePreset === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => handlePresetClick(key)}
+                  className={`
+                    group relative flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm
+                    transition-all duration-200
+                    ${isActive
+                      ? `bg-gradient-to-r ${preset.gradient} text-white shadow-lg shadow-black/20`
+                      : 'bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15]'}
+                  `}
+                >
+                  <Icon size={16} className={isActive ? '' : 'opacity-70 group-hover:opacity-100'} />
+                  <span>{preset.label}</span>
+                  <span className={`
+                    text-xs px-1.5 py-0.5 rounded-md ml-1
+                    ${isActive ? 'bg-white/20' : 'bg-white/[0.05] text-gray-500 group-hover:text-gray-400'}
+                  `}>
+                    {preset.types.length}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* Clear/Reset button - only show when a preset is active */}
+            {activePreset && (
+              <button
+                onClick={() => {
+                  setActivePreset(null);
+                  setSelectedTypes(ENTRY_TYPES);
+                  localStorage.removeItem(PRESET_STORAGE_KEY);
+                }}
+                className="
+                  flex items-center gap-1 px-2 py-1.5 rounded-lg text-sm
+                  text-gray-400 hover:text-white hover:bg-white/[0.05]
+                  transition-all duration-200 ml-auto
+                "
+              >
+                <X size={14} />
+                <span>Clear</span>
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
