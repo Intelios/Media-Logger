@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { Gamepad2, Film, Heart, Sparkles, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Gamepad2, Film, Heart, Sparkles, ChevronDown, ChevronUp, X, HardDrive, RotateCcw } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
@@ -13,6 +13,11 @@ const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV"
 const FILTER_STORAGE_KEY = "yearview-filter-types";
 const PRESET_STORAGE_KEY = "yearview-active-preset";
 const QUICK_FILTERS_VISIBLE_KEY = "yearview-quick-filters-visible";
+const LOCAL_COPY_FILTER_KEY = "yearview-local-copy-filter";
+const REWATCH_FILTER_KEY = "yearview-rewatch-filter";
+
+// Status filter types: null = show all, true = show only with status, false = show only without status
+type StatusFilter = boolean | null;
 
 // Quick filter presets
 type PresetKey = "gaming" | "media" | "adult" | null;
@@ -64,6 +69,18 @@ const loadQuickFiltersVisible = (): boolean => {
   return true; // Default: visible
 };
 
+// Helper to load persisted status filter from localStorage
+const loadStatusFilter = (key: string): StatusFilter => {
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored === "true") return true;
+    if (stored === "false") return false;
+  } catch {
+    // If parsing fails, fall back to default
+  }
+  return null; // Default: show all
+};
+
 // Helper to load persisted filter from localStorage
 const loadPersistedFilter = (): string[] => {
   try {
@@ -108,11 +125,44 @@ export default function YearView() {
   // Quick filters visibility state
   const [quickFiltersVisible, setQuickFiltersVisible] = useState<boolean>(loadQuickFiltersVisible);
 
+  // Status filters state
+  const [localCopyFilter, setLocalCopyFilter] = useState<StatusFilter>(() => loadStatusFilter(LOCAL_COPY_FILTER_KEY));
+  const [rewatchFilter, setRewatchFilter] = useState<StatusFilter>(() => loadStatusFilter(REWATCH_FILTER_KEY));
+
   // Toggle quick filters visibility
   const toggleQuickFilters = () => {
     const newValue = !quickFiltersVisible;
     setQuickFiltersVisible(newValue);
     localStorage.setItem(QUICK_FILTERS_VISIBLE_KEY, String(newValue));
+  };
+
+  // Cycle status filter: null -> true -> false -> null
+  const cycleStatusFilter = (current: StatusFilter): StatusFilter => {
+    if (current === null) return true;
+    if (current === true) return false;
+    return null;
+  };
+
+  // Handle local copy filter toggle
+  const handleLocalCopyToggle = () => {
+    const newValue = cycleStatusFilter(localCopyFilter);
+    setLocalCopyFilter(newValue);
+    if (newValue === null) {
+      localStorage.removeItem(LOCAL_COPY_FILTER_KEY);
+    } else {
+      localStorage.setItem(LOCAL_COPY_FILTER_KEY, String(newValue));
+    }
+  };
+
+  // Handle rewatch filter toggle
+  const handleRewatchToggle = () => {
+    const newValue = cycleStatusFilter(rewatchFilter);
+    setRewatchFilter(newValue);
+    if (newValue === null) {
+      localStorage.removeItem(REWATCH_FILTER_KEY);
+    } else {
+      localStorage.setItem(REWATCH_FILTER_KEY, String(newValue));
+    }
   };
 
   // Handle preset button click
@@ -135,7 +185,7 @@ export default function YearView() {
       const data = await dbService.getEntriesByYear(year);
       setEntries(data);
       // Apply current filter immediately upon load
-      applyFilter(data, selectedTypes);
+      applyFilter(data, selectedTypes, localCopyFilter, rewatchFilter);
 
       // Fetch awards for all entries
       const mediaIds = data.map(e => e.id).filter((id): id is number => id !== undefined);
@@ -151,10 +201,10 @@ export default function YearView() {
     localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(selectedTypes));
   }, [selectedTypes]);
 
-  // Re-run filter when selection changes OR entries change
+  // Re-run filter when selection changes OR entries change OR status filters change
   useEffect(() => {
-    applyFilter(entries, selectedTypes);
-  }, [selectedTypes, entries]);
+    applyFilter(entries, selectedTypes, localCopyFilter, rewatchFilter);
+  }, [selectedTypes, entries, localCopyFilter, rewatchFilter]);
 
   useEffect(() => {
     loadData();
@@ -214,15 +264,28 @@ export default function YearView() {
   }, [highlightedId, filteredEntries]);
 
   // Handle Filtering Logic
-  const applyFilter = (data: MediaEntry[], types: string[]) => {
-    // If all types selected, show everything (optimization)
-    if (types.length === ENTRY_TYPES.length) {
-      setFilteredEntries(data);
-    } else if (types.length === 0) {
+  const applyFilter = (data: MediaEntry[], types: string[], localCopy: StatusFilter, rewatch: StatusFilter) => {
+    let result = data;
+
+    // Apply type filter
+    if (types.length === 0) {
       setFilteredEntries([]); // Nothing selected = nothing shown
-    } else {
-      setFilteredEntries(data.filter(e => e.entry_type && types.includes(e.entry_type)));
+      return;
+    } else if (types.length !== ENTRY_TYPES.length) {
+      result = result.filter(e => e.entry_type && types.includes(e.entry_type));
     }
+
+    // Apply local copy filter
+    if (localCopy !== null) {
+      result = result.filter(e => (e.own_local_copy === 1) === localCopy);
+    }
+
+    // Apply rewatch filter
+    if (rewatch !== null) {
+      result = result.filter(e => (e.is_rewatch === 1) === rewatch);
+    }
+
+    setFilteredEntries(result);
   };
 
   const handleSave = async (data: Partial<MediaEntry>) => {
@@ -339,13 +402,69 @@ export default function YearView() {
               );
             })}
 
-            {/* Clear/Reset button - only show when a preset is active */}
-            {activePreset && (
+            {/* Separator */}
+            <div className="w-px h-8 bg-white/10 mx-2" />
+
+            {/* Status Filters */}
+            <span className="text-xs text-gray-500 uppercase tracking-wider font-medium mr-2">Status</span>
+
+            {/* Local Copy Filter */}
+            <button
+              onClick={handleLocalCopyToggle}
+              className={`
+                group relative flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm
+                transition-all duration-200
+                ${localCopyFilter !== null
+                  ? localCopyFilter
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-black/20'
+                    : 'bg-gradient-to-r from-gray-600 to-gray-700 text-white shadow-lg shadow-black/20'
+                  : 'bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15]'}
+              `}
+              title={localCopyFilter === null ? "Show all" : localCopyFilter ? "Showing only with local copy" : "Showing only without local copy"}
+            >
+              <HardDrive size={16} className={localCopyFilter !== null ? '' : 'opacity-70 group-hover:opacity-100'} />
+              <span>Local Copy</span>
+              {localCopyFilter !== null && (
+                <span className="text-xs px-1.5 py-0.5 rounded-md ml-1 bg-white/20">
+                  {localCopyFilter ? "Yes" : "No"}
+                </span>
+              )}
+            </button>
+
+            {/* Rewatch Filter */}
+            <button
+              onClick={handleRewatchToggle}
+              className={`
+                group relative flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm
+                transition-all duration-200
+                ${rewatchFilter !== null
+                  ? rewatchFilter
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-black/20'
+                    : 'bg-gradient-to-r from-gray-600 to-gray-700 text-white shadow-lg shadow-black/20'
+                  : 'bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15]'}
+              `}
+              title={rewatchFilter === null ? "Show all" : rewatchFilter ? "Showing only rewatches/replays" : "Showing only first-time entries"}
+            >
+              <RotateCcw size={16} className={rewatchFilter !== null ? '' : 'opacity-70 group-hover:opacity-100'} />
+              <span>Rewatch</span>
+              {rewatchFilter !== null && (
+                <span className="text-xs px-1.5 py-0.5 rounded-md ml-1 bg-white/20">
+                  {rewatchFilter ? "Yes" : "No"}
+                </span>
+              )}
+            </button>
+
+            {/* Clear/Reset button - only show when a preset or status filter is active */}
+            {(activePreset || localCopyFilter !== null || rewatchFilter !== null) && (
               <button
                 onClick={() => {
                   setActivePreset(null);
                   setSelectedTypes(ENTRY_TYPES);
+                  setLocalCopyFilter(null);
+                  setRewatchFilter(null);
                   localStorage.removeItem(PRESET_STORAGE_KEY);
+                  localStorage.removeItem(LOCAL_COPY_FILTER_KEY);
+                  localStorage.removeItem(REWATCH_FILTER_KEY);
                 }}
                 className="
                   flex items-center gap-1 px-2 py-1.5 rounded-lg text-sm
@@ -354,7 +473,7 @@ export default function YearView() {
                 "
               >
                 <X size={14} />
-                <span>Clear</span>
+                <span>Clear All</span>
               </button>
             )}
           </div>
