@@ -523,6 +523,11 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
               <div className="mt-4 text-center">
                 <h3 className="text-xl font-bold text-white">{entry.name}</h3>
                 <p className="text-sm text-gray-400 mt-1">{entry.entry_type}</p>
+                {entry.image_url && (
+                  <p className="text-xs text-gray-500 mt-2 font-mono px-4 break-all max-w-[80vw]">
+                    {entry.image_url}
+                  </p>
+                )}
               </div>
             </div>
           </div>,
