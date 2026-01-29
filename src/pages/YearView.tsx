@@ -289,9 +289,11 @@ export default function YearView() {
   };
 
   const handleSave = async (data: Partial<MediaEntry>) => {
-    if (editingEntry) {
+    if (editingEntry?.id) {
+      // Update existing entry
       await dbService.updateEntry({ ...editingEntry, ...data } as MediaEntry);
     } else {
+      // Create new entry (either brand new or duplicated)
       await dbService.addEntry(data as Omit<MediaEntry, "id">);
     }
     // Small delay to ensure DB write commits before read
@@ -305,6 +307,22 @@ export default function YearView() {
 
   const handleEditFromCard = (entry: MediaEntry) => {
     setEditingEntry(entry);
+    setIsModalOpen(true);
+  };
+
+  // Handle duplicating an entry (for rewatch/replay)
+  const handleDuplicate = (entry: MediaEntry) => {
+    // Create a new entry based on the original, but:
+    // - Remove the ID (so it creates a new entry)
+    // - Set is_rewatch to 1
+    // - Clear the completion date (so user can set a new date)
+    const duplicatedEntry: MediaEntry = {
+      ...entry,
+      id: undefined as unknown as number, // Remove ID to create new entry
+      is_rewatch: 1,
+      completion_date: null, // Clear date for new entry
+    };
+    setEditingEntry(duplicatedEntry);
     setIsModalOpen(true);
   };
 
@@ -498,6 +516,7 @@ export default function YearView() {
                   entry={entry}
                   onEdit={handleEditFromCard}
                   onDelete={handleDelete}
+                  onDuplicate={handleDuplicate}
                   awards={entry.id ? awardsMap.get(entry.id) : undefined}
                 />
               </div>

@@ -326,6 +326,17 @@ class DBService {
     const db = await this.connect();
     await db.execute("DELETE FROM javs WHERE id = $1", [id]);
   }
+
+  /**
+   * Find all entries with the same name (for duplicate/rewatch detection)
+   */
+  async getEntriesByName(name: string): Promise<MediaEntry[]> {
+    const db = await this.connect();
+    return await db.select<MediaEntry[]>(
+      "SELECT * FROM javs WHERE name = $1 ORDER BY completion_date ASC",
+      [name]
+    );
+  }
 }
 
 export const dbService = new DBService();

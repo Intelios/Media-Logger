@@ -177,5 +177,60 @@ export const statsLogic = {
       monthlyCompletions,
       mediaTypeBreakdown,
     };
+  },
+
+  // Get entries with a perfect 10 score
+  async getPerfect10Entries(yearFilter?: string, typeFilter: string[] = []): Promise<any[]> {
+    const db = await dbService.connect();
+
+    let query = "SELECT * FROM javs WHERE review_score = 10";
+    const params: any[] = [];
+
+    if (yearFilter && yearFilter !== "All Time") {
+      params.push(yearFilter);
+      query += ` AND year_completed = $${params.length}`;
+    }
+
+    if (typeFilter.length > 0) {
+      const placeholders = typeFilter.map((_, i) => `$${params.length + i + 1}`).join(", ");
+      query += ` AND entry_type IN (${placeholders})`;
+      params.push(...typeFilter);
+    }
+
+    query += " ORDER BY completion_date DESC";
+
+    return db.select<any[]>(query, params);
+  },
+
+  // Get entries completed this month
+  async getThisMonthEntries(yearFilter?: string, typeFilter: string[] = []): Promise<any[]> {
+    const db = await dbService.connect();
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // First day of current month
+    const startDate = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
+    // First day of next month
+    const endDate = new Date(currentYear, currentMonth + 1, 1).toISOString().split('T')[0];
+
+    let query = "SELECT * FROM javs WHERE completion_date >= $1 AND completion_date < $2";
+    const params: any[] = [startDate, endDate];
+
+    if (yearFilter && yearFilter !== "All Time") {
+      params.push(yearFilter);
+      query += ` AND year_completed = $${params.length}`;
+    }
+
+    if (typeFilter.length > 0) {
+      const placeholders = typeFilter.map((_, i) => `$${params.length + i + 1}`).join(", ");
+      query += ` AND entry_type IN (${placeholders})`;
+      params.push(...typeFilter);
+    }
+
+    query += " ORDER BY completion_date DESC";
+
+    return db.select<any[]>(query, params);
   }
 };
