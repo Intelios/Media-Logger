@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { statsLogic, type FullStats } from "../lib/stats-logic";
+import { type MediaEntry } from "../lib/db";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, AreaChart, Area } from "recharts";
 import { Filter, Star, RefreshCw, Hash, Play, PieChart as PieIcon, Heart, Building2, User, Sparkles, Calendar, Trophy, Gamepad2, Film } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { CollapsibleStatSection } from "../components/CollapsibleStatSection";
+import { StatsEntriesModal } from "../components/StatsEntriesModal";
 
 const YEARS = ["All Time", "2023", "2024", "2025", "2026"];
 const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"];
@@ -87,6 +89,11 @@ export default function StatsPage() {
   const [activePreset, setActivePreset] = useState<PresetKey>(loadPersistedPreset);
   const [data, setData] = useState<FullStats | null>(null);
 
+  // Modal state for clickable stat cards
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalTitle, setModalTitle] = useState("");
+  const [modalEntries, setModalEntries] = useState<MediaEntry[]>([]);
+
   // Handle preset button click
   const handlePresetClick = (presetKey: Exclude<PresetKey, null>) => {
     if (activePreset === presetKey) {
@@ -115,6 +122,31 @@ export default function StatsPage() {
   useEffect(() => {
     statsLogic.getStats(activeYear, selectedTypes).then(setData);
   }, [activeYear, selectedTypes]);
+
+  // Click handlers for stat cards
+  const handlePerfect10Click = async () => {
+    const entries = await statsLogic.getPerfect10Entries(activeYear, selectedTypes);
+    setModalTitle("Perfect 10s");
+    setModalEntries(entries);
+    setModalOpen(true);
+  };
+
+  const handleThisMonthClick = async () => {
+    const entries = await statsLogic.getThisMonthEntries(activeYear, selectedTypes);
+    setModalTitle("This Month");
+    setModalEntries(entries);
+    setModalOpen(true);
+  };
+
+  const handleModalEntriesChange = () => {
+    // Refresh both the stats and the modal entries
+    statsLogic.getStats(activeYear, selectedTypes).then(setData);
+    if (modalTitle === "Perfect 10s") {
+      statsLogic.getPerfect10Entries(activeYear, selectedTypes).then(setModalEntries);
+    } else if (modalTitle === "This Month") {
+      statsLogic.getThisMonthEntries(activeYear, selectedTypes).then(setModalEntries);
+    }
+  };
 
   if (!data) return <div className="p-10 text-gray-400">Calculating analytics...</div>;
 
@@ -209,8 +241,8 @@ export default function StatsPage() {
         <StatCard icon={<Hash />} label="Total Entries" value={data.total} color="blue" />
         <StatCard icon={<Star />} label="Avg Score" value={data.average_score.toFixed(1)} color="amber" />
         <StatCard icon={<RefreshCw />} label="Rewatches" value={data.rewatch_count} color="green" />
-        <StatCard icon={<Trophy />} label="Perfect 10s" value={data.perfectTenCount} color="pink" />
-        <StatCard icon={<Calendar />} label="This Month" value={data.entriesThisMonth} color="cyan" />
+        <StatCard icon={<Trophy />} label="Perfect 10s" value={data.perfectTenCount} color="pink" onClick={handlePerfect10Click} />
+        <StatCard icon={<Calendar />} label="This Month" value={data.entriesThisMonth} color="cyan" onClick={handleThisMonthClick} />
         <StatCard icon={<PieIcon />} label="Genres" value={data.genres.length} color="purple" />
       </div>
 
@@ -358,12 +390,21 @@ export default function StatsPage() {
           storageKey="actresses"
         />
       </div>
+
+      {/* Stats Entries Modal */}
+      <StatsEntriesModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={modalTitle}
+        entries={modalEntries}
+        onEntriesChange={handleModalEntriesChange}
+      />
     </div>
   );
 }
 
 // Enhanced StatCard component
-function StatCard({ icon, label, value, color }: { icon: any, label: string, value: string | number, color: string }) {
+function StatCard({ icon, label, value, color, onClick }: { icon: any, label: string, value: string | number, color: string, onClick?: () => void }) {
   const colors: Record<string, string> = {
     blue: "text-blue-400 bg-blue-500/10 border-blue-500/20",
     amber: "text-amber-400 bg-amber-500/10 border-amber-500/20",
@@ -376,10 +417,17 @@ function StatCard({ icon, label, value, color }: { icon: any, label: string, val
   const colorClasses = colors[color] || colors.blue;
 
   return (
-    <div className={cn(
-      "border p-4 rounded-2xl flex flex-col gap-2 transition-all duration-300 hover:scale-[1.02]",
-      colorClasses
-    )}>
+    <div
+      className={cn(
+        "border p-4 rounded-2xl flex flex-col gap-2 transition-all duration-300 hover:scale-[1.02]",
+        colorClasses,
+        onClick && "cursor-pointer hover:ring-2 hover:ring-white/20"
+      )}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+    >
       <div className={cn("p-2 rounded-xl bg-white/5 w-fit", colorClasses.split(' ')[0])}>
         {icon}
       </div>
