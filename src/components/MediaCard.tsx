@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, X, Image as ImageIcon } from "lucide-react";
+import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, X, Image as ImageIcon, Copy } from "lucide-react";
 import { getImageUrl } from "../lib/utils";
-import type { MediaEntry } from "../lib/db";
+import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 
 // Type badge colors matching Flet version
@@ -114,6 +114,9 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [imageViewOpen, setImageViewOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [duplicatesModalOpen, setDuplicatesModalOpen] = useState(false);
+  const [duplicateEntries, setDuplicateEntries] = useState<MediaEntry[]>([]);
+  const [duplicatesLoading, setDuplicatesLoading] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const contextInfo = getContextInfo(entry);
@@ -178,6 +181,22 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
     setImageViewOpen(true);
   };
 
+  const handleFindDuplicates = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    setDuplicatesLoading(true);
+    setDuplicatesModalOpen(true);
+    try {
+      const entries = await dbService.getEntriesByName(entry.name);
+      setDuplicateEntries(entries);
+    } catch (error) {
+      console.error('Error finding duplicates:', error);
+      setDuplicateEntries([]);
+    } finally {
+      setDuplicatesLoading(false);
+    }
+  };
+
   return (
     <>
       <div className={cn(
@@ -236,6 +255,14 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
                 >
                   <Pencil size={14} />
                   <span>Edit</span>
+                </button>
+                <div className="h-px bg-white/10" />
+                <button
+                  onClick={handleFindDuplicates}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-amber-500/20 hover:text-amber-400 transition-colors"
+                >
+                  <Copy size={14} />
+                  <span>Find Duplicates</span>
                 </button>
                 <div className="h-px bg-white/10" />
                 <button
@@ -556,6 +583,134 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
                 >
                   Delete
                 </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Duplicates Modal - rendered via Portal */}
+        {duplicatesModalOpen && createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDuplicatesModalOpen(false);
+            }}
+          >
+            <div
+              className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-2xl rounded-2xl shadow-2xl shadow-amber-500/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-white/5 bg-gradient-to-r from-amber-500/10 via-transparent to-transparent">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-500/20 rounded-lg">
+                    <Copy size={18} className="text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white">Duplicates & Rewatches</h3>
+                    <p className="text-xs text-gray-400 line-clamp-1">All entries matching "{entry.name}"</p>
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDuplicatesModalOpen(false);
+                  }}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                {duplicatesLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full" />
+                  </div>
+                ) : duplicateEntries.length > 1 ? (
+                  <div className="space-y-3">
+                    <p className="text-xs text-gray-500 mb-4">
+                      Found {duplicateEntries.length} entries with this name
+                    </p>
+                    {duplicateEntries.map((dup) => (
+                      <div
+                        key={dup.id}
+                        className={cn(
+                          "flex items-center gap-4 p-3 rounded-xl border transition-colors",
+                          dup.id === entry.id
+                            ? "bg-amber-500/10 border-amber-500/30"
+                            : "bg-white/5 border-white/10 hover:bg-white/10"
+                        )}
+                      >
+                        {/* Rating */}
+                        <div className={cn(
+                          "w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shrink-0",
+                          dup.review_score !== null
+                            ? dup.review_score >= 9
+                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                              : dup.review_score >= 7
+                                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                : dup.review_score >= 5
+                                  ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                                  : "bg-red-500/20 text-red-400 border border-red-500/30"
+                            : "bg-gray-500/20 text-gray-400 border border-gray-500/30"
+                        )}>
+                          {dup.review_score !== null ? dup.review_score.toFixed(1) : "—"}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-gray-200 font-medium truncate">{dup.name}</span>
+                            {dup.id === entry.id && (
+                              <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] font-semibold rounded-full">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                            {/* Date */}
+                            {dup.completion_date && (
+                              <span className="flex items-center gap-1">
+                                <Calendar size={11} />
+                                {formatDate(dup.completion_date)}
+                              </span>
+                            )}
+                            {/* Type */}
+                            {dup.entry_type && (
+                              <span className="px-1.5 py-0.5 bg-white/10 rounded text-[10px]">
+                                {dup.entry_type}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Status Badges */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {dup.is_rewatch === 1 && (
+                            <div className="w-7 h-7 rounded-full bg-amber-500/20 border border-amber-500 flex items-center justify-center" title="Rewatch/Replay">
+                              <RotateCcw size={12} className="text-amber-500" />
+                            </div>
+                          )}
+                          {dup.own_local_copy === 1 && (
+                            <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center" title="Local Copy">
+                              <Check size={12} className="text-emerald-500" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Copy size={40} className="mx-auto text-gray-600 mb-3" />
+                    <p className="text-gray-500 text-sm">No duplicate entries found</p>
+                    <p className="text-gray-600 text-xs mt-1">This is the only entry with this name</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>,
