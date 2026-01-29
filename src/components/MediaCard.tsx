@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, X, Image as ImageIcon, Copy } from "lucide-react";
+import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, X, Image as ImageIcon, Copy, CopyPlus } from "lucide-react";
 import { getImageUrl } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
@@ -106,9 +106,10 @@ interface MediaCardProps {
   awards?: MediaAward[];
   onEdit?: (entry: MediaEntry) => void;
   onDelete?: (id: number) => void;
+  onDuplicate?: (entry: MediaEntry) => void;
 }
 
-export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardProps) {
+export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [] }: MediaCardProps) {
   const [imgSrc, setImgSrc] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
@@ -118,6 +119,8 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
   const [duplicateEntries, setDuplicateEntries] = useState<MediaEntry[]>([]);
   const [duplicatesLoading, setDuplicatesLoading] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const contextInfo = getContextInfo(entry);
   const perfectTen = isPerfectTen(entry.review_score);
@@ -147,6 +150,13 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
 
   const handleMenuClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!menuOpen && menuButtonRef.current) {
+      const rect = menuButtonRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
     setMenuOpen(!menuOpen);
   };
 
@@ -221,6 +231,7 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
           {/* Top Right: Action Menu */}
           <div className="absolute top-2 right-2 z-20" ref={menuRef}>
             <button
+              ref={menuButtonRef}
               onClick={handleMenuClick}
               className={cn(
                 "p-1.5 bg-black/50 backdrop-blur-sm rounded-full transition-all hover:bg-black/70",
@@ -229,51 +240,6 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
             >
               <MoreVertical size={16} className="text-white" />
             </button>
-
-            {/* Dropdown Menu */}
-            {menuOpen && (
-              <div className="absolute right-0 top-9 w-44 bg-surface/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                <button
-                  onClick={handleViewDescription}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-purple-500/20 hover:text-purple-400 transition-colors"
-                >
-                  <FileText size={14} />
-                  <span>View Description</span>
-                </button>
-                <div className="h-px bg-white/10" />
-                <button
-                  onClick={handleViewImage}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-blue-500/20 hover:text-blue-400 transition-colors"
-                >
-                  <ImageIcon size={14} />
-                  <span>View Image</span>
-                </button>
-                <div className="h-px bg-white/10" />
-                <button
-                  onClick={handleEdit}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-primary/20 hover:text-primary transition-colors"
-                >
-                  <Pencil size={14} />
-                  <span>Edit</span>
-                </button>
-                <div className="h-px bg-white/10" />
-                <button
-                  onClick={handleFindDuplicates}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-amber-500/20 hover:text-amber-400 transition-colors"
-                >
-                  <Copy size={14} />
-                  <span>Find Duplicates</span>
-                </button>
-                <div className="h-px bg-white/10" />
-                <button
-                  onClick={handleDelete}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-400 hover:bg-red-500/15 transition-colors"
-                >
-                  <Trash2 size={14} />
-                  <span>Delete</span>
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Rating Badge - single badge that moves on hover */}
@@ -317,6 +283,69 @@ export function MediaCard({ entry, onEdit, onDelete, awards = [] }: MediaCardPro
             </div>
           )}
         </div>
+
+        {/* Dropdown Menu - rendered via Portal */}
+        {menuOpen && createPortal(
+          <div
+            ref={menuRef}
+            className="fixed w-44 bg-surface/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[200]"
+            style={{ top: menuPosition.top, right: menuPosition.right }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={handleViewDescription}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-purple-500/20 hover:text-purple-400 transition-colors"
+            >
+              <FileText size={14} />
+              <span>View Description</span>
+            </button>
+            <div className="h-px bg-white/10" />
+            <button
+              onClick={handleViewImage}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-blue-500/20 hover:text-blue-400 transition-colors"
+            >
+              <ImageIcon size={14} />
+              <span>View Image</span>
+            </button>
+            <div className="h-px bg-white/10" />
+            <button
+              onClick={handleEdit}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-primary/20 hover:text-primary transition-colors"
+            >
+              <Pencil size={14} />
+              <span>Edit</span>
+            </button>
+            <div className="h-px bg-white/10" />
+            <button
+              onClick={handleFindDuplicates}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-amber-500/20 hover:text-amber-400 transition-colors"
+            >
+              <Copy size={14} />
+              <span>Find Duplicates</span>
+            </button>
+            <div className="h-px bg-white/10" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+                onDuplicate?.(entry);
+              }}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-green-500/20 hover:text-green-400 transition-colors"
+            >
+              <CopyPlus size={14} />
+              <span>Duplicate</span>
+            </button>
+            <div className="h-px bg-white/10" />
+            <button
+              onClick={handleDelete}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-400 hover:bg-red-500/15 transition-colors"
+            >
+              <Trash2 size={14} />
+              <span>Delete</span>
+            </button>
+          </div>,
+          document.body
+        )}
 
         {/* Content Container */}
         <div className="p-3.5 flex flex-col gap-2">
