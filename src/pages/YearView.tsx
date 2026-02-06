@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { Gamepad2, Film, Heart, Sparkles, ChevronDown, ChevronUp, X, HardDrive, RotateCcw } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
+import { profilesLogic } from "../lib/profiles-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
 import { MultiSelectFilter } from "../components/MultiSelectFilter"; // Import the component
@@ -117,6 +118,9 @@ export default function YearView() {
   // Awards data
   const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
 
+  // Profile keys for clickable profile links
+  const [profileKeys, setProfileKeys] = useState<Set<string>>(new Set());
+
   // Highlight state for featured entry navigation
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
   const highlightRef = useRef<HTMLDivElement | null>(null);
@@ -193,6 +197,10 @@ export default function YearView() {
         const awards = await awardsLogic.getAwardsForMediaBatch(mediaIds);
         setAwardsMap(awards);
       }
+
+      // Load profile keys for clickable profile links
+      const keys = await profilesLogic.getProfileKeys();
+      setProfileKeys(keys);
     }
   }, [year]); // Removed selectedTypes from dependency to prevent infinite loops if logic changes
 
@@ -518,6 +526,7 @@ export default function YearView() {
                   onDelete={handleDelete}
                   onDuplicate={handleDuplicate}
                   awards={entry.id ? awardsMap.get(entry.id) : undefined}
+                  profileKeys={profileKeys}
                 />
               </div>
             );

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
@@ -359,6 +360,13 @@ export default function ProfilesPage() {
   const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedFilter);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // URL params for deep-linking to a specific profile
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  // Return-to info: where the user came from (e.g., year view)
+  const [returnTo, setReturnTo] = useState<{ year: string; entryId: string; entryType: string } | null>(null);
+
   // Initial Load
   useEffect(() => {
     loadProfiles();
@@ -367,7 +375,30 @@ export default function ProfilesPage() {
   const loadProfiles = async () => {
     const data = await profilesLogic.getAllProfiles();
     setProfiles(data);
+    return data;
   };
+
+  // Handle deep-link URL params (e.g., /profiles?type=artist&name=SomeName)
+  useEffect(() => {
+    const typeParam = searchParams.get('type');
+    const nameParam = searchParams.get('name');
+    if (!typeParam || !nameParam || profiles.length === 0) return;
+
+    // Store return-to info if present
+    const fromYear = searchParams.get('fromYear');
+    const fromEntry = searchParams.get('fromEntry');
+    const fromType = searchParams.get('fromType');
+    if (fromYear && fromEntry) {
+      setReturnTo({ year: fromYear, entryId: fromEntry, entryType: fromType || '' });
+    }
+
+    const match = profiles.find(p => p.type === typeParam && p.name === nameParam);
+    if (match) {
+      handleProfileClick(match);
+      // Clean up URL params
+      setSearchParams({}, { replace: true });
+    }
+  }, [profiles, searchParams]);
 
   // Persist filter selection to localStorage
   useEffect(() => {
@@ -503,7 +534,17 @@ export default function ProfilesPage() {
 
           {/* Back Button - Floating */}
           <button
-            onClick={() => setSelectedProfile(null)}
+            onClick={() => {
+              if (returnTo) {
+                // Navigate back to the year view, highlighting the entry they came from
+                const params = new URLSearchParams({ highlight: returnTo.entryId });
+                if (returnTo.entryType) params.set('type', returnTo.entryType);
+                navigate(`/year/${returnTo.year}?${params.toString()}`);
+                setReturnTo(null);
+              } else {
+                setSelectedProfile(null);
+              }
+            }}
             className="absolute top-6 left-6 p-3 bg-black/40 backdrop-blur-md hover:bg-black/60 rounded-full transition-all border border-white/10 hover:border-white/30 hover:scale-105 z-10"
           >
             <ChevronLeft size={24} />
