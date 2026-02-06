@@ -74,6 +74,48 @@ export const COLOR_THEMES: ColorTheme[] = [
         secondary: '#8B5CF6',
         previewGradient: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
     },
+    {
+        id: 'crimson',
+        name: 'Crimson',
+        primary: '#DC2626',
+        secondary: '#B91C1C',
+        previewGradient: 'linear-gradient(135deg, #DC2626, #B91C1C)',
+    },
+    {
+        id: 'amber',
+        name: 'Amber',
+        primary: '#D97706',
+        secondary: '#B45309',
+        previewGradient: 'linear-gradient(135deg, #D97706, #B45309)',
+    },
+    {
+        id: 'lavender',
+        name: 'Lavender',
+        primary: '#A78BFA',
+        secondary: '#C084FC',
+        previewGradient: 'linear-gradient(135deg, #A78BFA, #C084FC)',
+    },
+    {
+        id: 'aurora',
+        name: 'Aurora',
+        primary: '#06B6D4',
+        secondary: '#10B981',
+        previewGradient: 'linear-gradient(135deg, #06B6D4, #10B981)',
+    },
+    {
+        id: 'slate',
+        name: 'Slate',
+        primary: '#64748B',
+        secondary: '#475569',
+        previewGradient: 'linear-gradient(135deg, #64748B, #475569)',
+    },
+    {
+        id: 'coral',
+        name: 'Coral',
+        primary: '#F43F5E',
+        secondary: '#FB923C',
+        previewGradient: 'linear-gradient(135deg, #F43F5E, #FB923C)',
+    },
 ];
 
 // Mode themes
