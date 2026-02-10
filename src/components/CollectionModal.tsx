@@ -1,24 +1,30 @@
 import { useState, useEffect } from "react";
-import { X, Save, Layers, Sparkles } from "lucide-react";
+import { X, Save, Layers, Sparkles, Pencil } from "lucide-react";
 
 interface CollectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (name: string, desc: string) => void;
+  initialName?: string;
+  initialDesc?: string;
+  mode?: "create" | "edit";
 }
 
-export function CollectionModal({ isOpen, onClose, onSubmit }: CollectionModalProps) {
+export function CollectionModal({ isOpen, onClose, onSubmit, initialName, initialDesc, mode = "create" }: CollectionModalProps) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
 
   useEffect(() => {
     if (isOpen) {
-      setName("");
-      setDesc("");
+      setName(initialName ?? "");
+      setDesc(initialDesc ?? "");
     }
-  }, [isOpen]);
+  }, [isOpen, initialName, initialDesc]);
 
   if (!isOpen) return null;
+
+  const isEdit = mode === "edit";
+  const Icon = isEdit ? Pencil : Layers;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -26,13 +32,15 @@ export function CollectionModal({ isOpen, onClose, onSubmit }: CollectionModalPr
         {/* Enhanced Header with gradient */}
         <div className="flex items-center gap-3 p-5 border-b border-white/5" style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent)` }}>
           <div className="p-2.5 rounded-xl" style={{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 20%, transparent))` }}>
-            <Layers size={20} style={{ color: 'var(--color-primary)' }} />
+            <Icon size={20} style={{ color: 'var(--color-primary)' }} />
           </div>
           <div className="flex-1">
             <h3 className="text-xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}>
-              New Collection
+              {isEdit ? "Edit Collection" : "New Collection"}
             </h3>
-            <p className="text-xs text-gray-400">Create a new collection to organize your media</p>
+            <p className="text-xs text-gray-400">
+              {isEdit ? "Update your collection's name and description" : "Create a new collection to organize your media"}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -73,13 +81,15 @@ export function CollectionModal({ isOpen, onClose, onSubmit }: CollectionModalPr
               />
             </div>
 
-            {/* Tip */}
-            <div className="flex items-start gap-3 p-3 rounded-xl border border-white/5" style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 5%, transparent), color-mix(in srgb, var(--color-secondary) 5%, transparent))` }}>
-              <Sparkles size={16} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />
-              <p className="text-xs text-gray-400">
-                Collections help you organize media into themed groups. Add items after creating.
-              </p>
-            </div>
+            {/* Tip - only show for create */}
+            {!isEdit && (
+              <div className="flex items-start gap-3 p-3 rounded-xl border border-white/5" style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 5%, transparent), color-mix(in srgb, var(--color-secondary) 5%, transparent))` }}>
+                <Sparkles size={16} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />
+                <p className="text-xs text-gray-400">
+                  Collections help you organize media into themed groups. Add items after creating.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Actions */}
@@ -98,7 +108,7 @@ export function CollectionModal({ isOpen, onClose, onSubmit }: CollectionModalPr
               style={{ background: `linear-gradient(to right, var(--color-primary), var(--color-secondary))`, boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)` }}
             >
               <Save size={18} />
-              Create Collection
+              {isEdit ? "Save Changes" : "Create Collection"}
             </button>
           </div>
         </form>

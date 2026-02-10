@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image } from "lucide-react";
+import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image, Pencil } from "lucide-react";
 import { collectionsLogic, type Collection } from "../lib/collections-logic";
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
@@ -64,6 +64,7 @@ export default function CollectionsPage() {
   const [reorderOpen, setReorderOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
+  const [editCollectionOpen, setEditCollectionOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [collectionToDelete, setCollectionToDelete] = useState<Collection | null>(null);
 
@@ -91,6 +92,14 @@ export default function CollectionsPage() {
   const handleCreate = async (name: string, desc: string) => {
     await collectionsLogic.createCollection(name, desc);
     loadCollections();
+  };
+
+  const handleEditCollection = async (name: string, desc: string) => {
+    if (selectedCollection) {
+      await collectionsLogic.updateCollection(selectedCollection.id, name, desc);
+      setSelectedCollection({ ...selectedCollection, name, description: desc || null });
+      loadCollections();
+    }
   };
 
   const handleDeleteCollection = (e: React.MouseEvent, col: Collection) => {
@@ -205,6 +214,15 @@ export default function CollectionsPage() {
             </div>
 
             <div className="flex gap-2 justify-end">
+              {/* Edit Button */}
+              <button
+                onClick={() => setEditCollectionOpen(true)}
+                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 px-4 py-2.5 rounded-xl font-semibold transition-all"
+              >
+                <Pencil size={18} />
+                Edit
+              </button>
+
               {/* Reorder Button */}
               <button
                 onClick={() => setReorderOpen(true)}
@@ -288,6 +306,16 @@ export default function CollectionsPage() {
           items={items.map(i => ({ ...i, subtitle: i.entry_type ?? undefined }))}
           onSave={handleReorderSave}
           title="Reorder Collection"
+        />
+
+        {/* Edit Collection Modal */}
+        <CollectionModal
+          isOpen={editCollectionOpen}
+          onClose={() => setEditCollectionOpen(false)}
+          onSubmit={handleEditCollection}
+          initialName={selectedCollection.name}
+          initialDesc={selectedCollection.description ?? ""}
+          mode="edit"
         />
 
         {/* Edit Entry Modal */}
