@@ -667,14 +667,14 @@ body {
 
   0%,
   100% {
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.1),
-      0 0 40px rgba(139, 92, 246, 0.05),
+    box-shadow: 0 0 20px color-mix(in srgb, var(--color-primary) 10%, transparent),
+      0 0 40px color-mix(in srgb, var(--color-secondary) 5%, transparent),
       inset 0 0 60px rgba(255, 255, 255, 0.02);
   }
 
   50% {
-    box-shadow: 0 0 30px rgba(59, 130, 246, 0.2),
-      0 0 60px rgba(139, 92, 246, 0.1),
+    box-shadow: 0 0 30px color-mix(in srgb, var(--color-primary) 20%, transparent),
+      0 0 60px color-mix(in srgb, var(--color-secondary) 10%, transparent),
       inset 0 0 80px rgba(255, 255, 255, 0.03);
   }
 }
@@ -686,16 +686,18 @@ body {
 /* Collection card gradient backgrounds */
 .collection-card-gradient {
   background: linear-gradient(135deg,
-      rgba(59, 130, 246, 0.08) 0%,
-      rgba(139, 92, 246, 0.06) 50%,
-      rgba(236, 72, 153, 0.04) 100%);
+      color-mix(in srgb, var(--color-primary) 8%, transparent) 0%,
+      color-mix(in srgb, var(--color-secondary) 6%, transparent) 50%,
+      color-mix(in srgb, var(--color-primary) 4%, transparent) 100%);
 }
 
 .collection-card-gradient:hover {
   background: linear-gradient(135deg,
-      rgba(59, 130, 246, 0.12) 0%,
-      rgba(139, 92, 246, 0.10) 50%,
-      rgba(236, 72, 153, 0.08) 100%);
+      color-mix(in srgb, var(--color-primary) 12%, transparent) 0%,
+      color-mix(in srgb, var(--color-secondary) 10%, transparent) 50%,
+      color-mix(in srgb, var(--color-primary) 8%, transparent) 100%);
+  border-color: color-mix(in srgb, var(--color-primary) 50%, transparent);
+  box-shadow: 0 25px 50px -12px color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 /* Glassmorphism effect for collection cards */
@@ -800,7 +802,7 @@ body {
   inset: -3px;
   border-radius: 50%;
   background: conic-gradient(from 0deg,
-      var(--ring-color, #3b82f6) var(--ring-percent, 0%),
+      var(--ring-color, var(--color-primary)) var(--ring-percent, 0%),
       rgba(255, 255, 255, 0.1) var(--ring-percent, 0%));
   mask: radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px));
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px));
