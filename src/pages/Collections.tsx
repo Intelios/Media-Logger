@@ -183,7 +183,7 @@ export default function CollectionsPage() {
     return (
       <div className="space-y-6">
         {/* Enhanced Header with gradient background */}
-        <header className="relative overflow-hidden rounded-2xl border border-white/10 p-6" style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 10%, transparent), color-mix(in srgb, var(--color-secondary) 5%, transparent))` }}>
+        <header className="relative overflow-hidden rounded-2xl border border-white/10 p-6 collection-header-enter" style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 10%, transparent), color-mix(in srgb, var(--color-secondary) 5%, transparent))` }}>
           {/* Decorative background elements */}
           <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl" style={{ background: `color-mix(in srgb, var(--color-primary) 10%, transparent)` }} />
           <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full blur-3xl" style={{ background: `color-mix(in srgb, var(--color-secondary) 10%, transparent)` }} />
@@ -272,8 +272,8 @@ export default function CollectionsPage() {
             {items.map((entry, index) => (
               <div
                 key={entry.id}
-                className="relative group collection-card-enter"
-                style={{ animationDelay: `${index * 50}ms` }}
+                className="relative group collection-item-enter"
+                style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
               >
                 <MediaCard
                   entry={entry}
@@ -333,7 +333,7 @@ export default function CollectionsPage() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       {/* Enhanced Header */}
-      <header className="flex items-center justify-between">
+      <header className="flex items-center justify-between collection-header-enter">
         <div>
           <h2 className="text-3xl font-bold bg-clip-text text-transparent inline-flex items-center gap-3" style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}>
             <div className="p-2 rounded-xl" style={{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 20%, transparent))` }}>
@@ -382,7 +382,7 @@ export default function CollectionsPage() {
               key={col.id}
               onClick={() => handleSelectCollection(col)}
               className="relative collection-card-gradient border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer group hover:shadow-2xl card-shine collection-card-enter"
-              style={{ animationDelay: `${index * 80}ms` }}
+              style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
             >
               {/* Watermark number */}
               <div className="collection-watermark -top-4 -right-2 group-hover:text-white/[0.04] transition-all">

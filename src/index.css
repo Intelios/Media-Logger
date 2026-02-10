@@ -774,11 +774,11 @@ body {
   -webkit-backdrop-filter: blur(20px);
 }
 
-/* Staggered fade-in animation for collection cards */
-@keyframes stagger-fade-in {
+/* Collection card entrance animation */
+@keyframes collection-card-in {
   from {
     opacity: 0;
-    transform: translateY(20px) scale(0.95);
+    transform: translateY(16px) scale(0.97);
   }
 
   to {
@@ -788,7 +788,43 @@ body {
 }
 
 .collection-card-enter {
-  animation: stagger-fade-in 0.4s ease-out forwards;
+  opacity: 0;
+  animation: collection-card-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Collection header slide-in */
+@keyframes collection-header-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.collection-header-enter {
+  animation: collection-header-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Collection items entrance */
+@keyframes collection-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.collection-item-enter {
+  opacity: 0;
+  animation: collection-item-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Item count ring indicator */
