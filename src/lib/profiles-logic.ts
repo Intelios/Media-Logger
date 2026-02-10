@@ -117,6 +117,13 @@ export const profilesLogic = {
     });
   },
 
+  // Get a Set of "type:name" keys for all valid profiles (count >= 3)
+  // Used by MediaCard to know which names are clickable
+  async getProfileKeys(): Promise<Set<string>> {
+    const profiles = await this.getAllProfiles();
+    return new Set(profiles.map(p => `${p.type}:${p.name}`));
+  },
+
   async setProfileImage(type: string, name: string, sysPath: string): Promise<string | null> {
     const db = await dbService.connect();
 

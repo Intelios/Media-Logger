@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, X, Image as ImageIcon, Copy, CopyPlus } from "lucide-react";
 import { getImageUrl } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
@@ -56,30 +57,30 @@ const formatDate = (dateString: string | null): string => {
 };
 
 // Get context info based on entry type - returns an array for entries with multiple fields
-const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon: React.ReactNode }[] => {
+// profileType maps to the profile system's type key (null means no profile possible)
+const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon: React.ReactNode; profileType: string | null }[] => {
   const type = (entry.entry_type || "").toLowerCase();
-  const items: { label: string; value: string; icon: React.ReactNode }[] = [];
+  const items: { label: string; value: string; icon: React.ReactNode; profileType: string | null }[] = [];
 
   if (type.includes("album") && entry.artist) {
-    items.push({ label: "Artist", value: entry.artist, icon: <Disc3 size={12} /> });
+    items.push({ label: "Artist", value: entry.artist, icon: <Disc3 size={12} />, profileType: "artist" });
   }
   if (type.includes("book") && entry.author) {
-    items.push({ label: "Author", value: entry.author, icon: <BookOpen size={12} /> });
+    items.push({ label: "Author", value: entry.author, icon: <BookOpen size={12} />, profileType: "author" });
   }
   if (type.includes("game") && entry.platform) {
-    items.push({ label: "Platform", value: entry.platform, icon: <Gamepad2 size={12} /> });
+    items.push({ label: "Platform", value: entry.platform, icon: <Gamepad2 size={12} />, profileType: "platform" });
   }
   if (type.includes("jav") || type.includes("hentai")) {
-    // Add both actress and director/studio for JAV/Hentai entries
     if (entry.actress) {
-      items.push({ label: "Actress", value: entry.actress, icon: <Heart size={12} /> });
+      items.push({ label: "Actress", value: entry.actress, icon: <Heart size={12} />, profileType: "actress" });
     }
     if (entry.director) {
-      items.push({ label: "Director/Studio", value: entry.director, icon: <Film size={12} /> });
+      items.push({ label: "Director/Studio", value: entry.director, icon: <Film size={12} />, profileType: "director" });
     }
   }
   if (type.includes("visual novel") && entry.update_version) {
-    items.push({ label: "Version", value: entry.update_version, icon: <Monitor size={12} /> });
+    items.push({ label: "Version", value: entry.update_version, icon: <Monitor size={12} />, profileType: null });
   }
   return items;
 };
@@ -104,12 +105,14 @@ export interface MediaAward {
 interface MediaCardProps {
   entry: MediaEntry;
   awards?: MediaAward[];
+  profileKeys?: Set<string>;
   onEdit?: (entry: MediaEntry) => void;
   onDelete?: (id: number) => void;
   onDuplicate?: (entry: MediaEntry) => void;
 }
 
-export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [] }: MediaCardProps) {
+export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys }: MediaCardProps) {
+  const navigate = useNavigate();
   const [imgSrc, setImgSrc] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
@@ -372,14 +375,32 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [] }:
                 <div key={infoIdx} className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-gray-500">{info.icon}</span>
                   {/* Split comma-separated values (like actresses) into individual tags */}
-                  {info.value.split(',').map((item, i) => (
-                    <span
-                      key={i}
-                      className="px-2 py-0.5 bg-white/5 rounded-lg text-[11px] text-gray-300"
-                    >
-                      {item.trim()}
-                    </span>
-                  ))}
+                  {info.value.split(',').map((item, i) => {
+                    const trimmed = item.trim();
+                    const hasProfile = info.profileType && profileKeys?.has(`${info.profileType}:${trimmed}`);
+                    return (
+                      <span
+                        key={i}
+                        onClick={hasProfile ? (e) => {
+                          e.stopPropagation();
+                          const params = new URLSearchParams({
+                            type: info.profileType!,
+                            name: trimmed,
+                          });
+                          if (entry.year_completed) params.set('fromYear', String(entry.year_completed));
+                          if (entry.id) params.set('fromEntry', String(entry.id));
+                          if (entry.entry_type) params.set('fromType', entry.entry_type);
+                          navigate(`/profiles?${params.toString()}`);
+                        } : undefined}
+                        className={cn(
+                          "px-2 py-0.5 rounded-lg text-[11px] bg-white/5 text-gray-300",
+                          hasProfile && "hover:bg-primary/20 hover:text-primary cursor-pointer transition-colors"
+                        )}
+                      >
+                        {trimmed}
+                      </span>
+                    );
+                  })}
                 </div>
               ))}
             </div>

@@ -63,7 +63,16 @@ export const collectionsLogic = {
     );
   },
 
-  // 4. Delete Collection
+  // 4. Update Collection
+  async updateCollection(id: number, name: string, description: string) {
+    const db = await dbService.connect();
+    await db.execute(
+      "UPDATE collections SET name = $1, description = $2 WHERE id = $3",
+      [name, description, id]
+    );
+  },
+
+  // 5. Delete Collection
   async deleteCollection(id: number) {
     const db = await dbService.connect();
     await db.execute("DELETE FROM collection_items WHERE collection_id = $1", [id]);

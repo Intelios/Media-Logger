@@ -1,38 +1,46 @@
 import { useState, useEffect } from "react";
-import { X, Save, Layers, Sparkles } from "lucide-react";
+import { X, Save, Layers, Sparkles, Pencil } from "lucide-react";
 
 interface CollectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (name: string, desc: string) => void;
+  initialName?: string;
+  initialDesc?: string;
+  mode?: "create" | "edit";
 }
 
-export function CollectionModal({ isOpen, onClose, onSubmit }: CollectionModalProps) {
+export function CollectionModal({ isOpen, onClose, onSubmit, initialName, initialDesc, mode = "create" }: CollectionModalProps) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
 
   useEffect(() => {
     if (isOpen) {
-      setName("");
-      setDesc("");
+      setName(initialName ?? "");
+      setDesc(initialDesc ?? "");
     }
-  }, [isOpen]);
+  }, [isOpen, initialName, initialDesc]);
 
   if (!isOpen) return null;
 
+  const isEdit = mode === "edit";
+  const Icon = isEdit ? Pencil : Layers;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-      <div className="collection-modal-glass border border-white/10 w-full max-w-lg rounded-2xl shadow-2xl shadow-blue-500/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="collection-modal-glass border border-white/10 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Enhanced Header with gradient */}
-        <div className="flex items-center gap-3 p-5 border-b border-white/5 bg-gradient-to-r from-blue-500/10 via-purple-500/5 to-transparent">
-          <div className="p-2.5 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl">
-            <Layers size={20} className="text-blue-400" />
+        <div className="flex items-center gap-3 p-5 border-b border-white/5" style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent)` }}>
+          <div className="p-2.5 rounded-xl" style={{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 20%, transparent))` }}>
+            <Icon size={20} style={{ color: 'var(--color-primary)' }} />
           </div>
           <div className="flex-1">
-            <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
-              New Collection
+            <h3 className="text-xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}>
+              {isEdit ? "Edit Collection" : "New Collection"}
             </h3>
-            <p className="text-xs text-gray-400">Create a new collection to organize your media</p>
+            <p className="text-xs text-gray-400">
+              {isEdit ? "Update your collection's name and description" : "Create a new collection to organize your media"}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -50,7 +58,8 @@ export function CollectionModal({ isOpen, onClose, onSubmit }: CollectionModalPr
               <input
                 autoFocus
                 required
-                className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder-gray-500 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder-gray-500 outline-none transition-all focus:ring-2"
+                style={{ '--tw-ring-color': 'color-mix(in srgb, var(--color-primary) 20%, transparent)' } as React.CSSProperties}
                 placeholder="e.g. Top 10 Movies of 2024"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -64,20 +73,23 @@ export function CollectionModal({ isOpen, onClose, onSubmit }: CollectionModalPr
                 <span className="text-gray-600 font-normal ml-1">(Optional)</span>
               </label>
               <textarea
-                className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder-gray-500 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 outline-none h-28 resize-none transition-all"
+                className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder-gray-500 outline-none h-28 resize-none transition-all focus:ring-2"
+                style={{ '--tw-ring-color': 'color-mix(in srgb, var(--color-primary) 20%, transparent)' } as React.CSSProperties}
                 placeholder="What makes this collection special?"
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
               />
             </div>
 
-            {/* Tip */}
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-gradient-to-r from-blue-500/5 to-purple-500/5 border border-white/5">
-              <Sparkles size={16} className="text-blue-400 mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-gray-400">
-                Collections help you organize media into themed groups. Add items after creating.
-              </p>
-            </div>
+            {/* Tip - only show for create */}
+            {!isEdit && (
+              <div className="flex items-start gap-3 p-3 rounded-xl border border-white/5" style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 5%, transparent), color-mix(in srgb, var(--color-secondary) 5%, transparent))` }}>
+                <Sparkles size={16} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-primary)' }} />
+                <p className="text-xs text-gray-400">
+                  Collections help you organize media into themed groups. Add items after creating.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Actions */}
@@ -92,10 +104,11 @@ export function CollectionModal({ isOpen, onClose, onSubmit }: CollectionModalPr
             <button
               type="submit"
               disabled={!name.trim()}
-              className="flex-1 px-4 py-3 rounded-xl font-bold bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 text-white flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-blue-500/30"
+              className="flex-1 px-4 py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-110"
+              style={{ background: `linear-gradient(to right, var(--color-primary), var(--color-secondary))`, boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)` }}
             >
               <Save size={18} />
-              Create Collection
+              {isEdit ? "Save Changes" : "Create Collection"}
             </button>
           </div>
         </form>

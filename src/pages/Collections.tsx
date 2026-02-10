@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image } from "lucide-react";
+import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image, Pencil } from "lucide-react";
 import { collectionsLogic, type Collection } from "../lib/collections-logic";
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
@@ -64,6 +64,7 @@ export default function CollectionsPage() {
   const [reorderOpen, setReorderOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
+  const [editCollectionOpen, setEditCollectionOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [collectionToDelete, setCollectionToDelete] = useState<Collection | null>(null);
 
@@ -91,6 +92,14 @@ export default function CollectionsPage() {
   const handleCreate = async (name: string, desc: string) => {
     await collectionsLogic.createCollection(name, desc);
     loadCollections();
+  };
+
+  const handleEditCollection = async (name: string, desc: string) => {
+    if (selectedCollection) {
+      await collectionsLogic.updateCollection(selectedCollection.id, name, desc);
+      setSelectedCollection({ ...selectedCollection, name, description: desc || null });
+      loadCollections();
+    }
   };
 
   const handleDeleteCollection = (e: React.MouseEvent, col: Collection) => {
@@ -174,10 +183,10 @@ export default function CollectionsPage() {
     return (
       <div className="space-y-6">
         {/* Enhanced Header with gradient background */}
-        <header className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-500/10 via-purple-500/5 to-pink-500/10 border border-white/10 p-6">
+        <header className="relative overflow-hidden rounded-2xl border border-white/10 p-6 collection-header-enter" style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 10%, transparent), color-mix(in srgb, var(--color-secondary) 5%, transparent))` }}>
           {/* Decorative background elements */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/10 to-transparent rounded-full blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-purple-500/10 to-transparent rounded-full blur-3xl" />
+          <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl" style={{ background: `color-mix(in srgb, var(--color-primary) 10%, transparent)` }} />
+          <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full blur-3xl" style={{ background: `color-mix(in srgb, var(--color-secondary) 10%, transparent)` }} />
 
           <div className="relative z-10 flex flex-col gap-4">
             <div className="flex items-center gap-4">
@@ -188,7 +197,7 @@ export default function CollectionsPage() {
                 <ChevronLeft size={22} />
               </button>
               <div className="flex-1">
-                <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
+                <h2 className="text-3xl font-bold bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}>
                   {selectedCollection.name}
                 </h2>
                 <p className="text-gray-400 mt-1">{selectedCollection.description || "Your curated collection"}</p>
@@ -197,7 +206,7 @@ export default function CollectionsPage() {
               {/* Stats badges */}
               <div className="flex items-center gap-3">
                 <div className="collection-stat-badge px-4 py-2 rounded-xl flex items-center gap-2">
-                  <FolderOpen size={16} className="text-blue-400" />
+                  <FolderOpen size={16} style={{ color: 'var(--color-primary)' }} />
                   <span className="font-bold text-white">{items.length}</span>
                   <span className="text-gray-400 text-sm">items</span>
                 </div>
@@ -205,6 +214,15 @@ export default function CollectionsPage() {
             </div>
 
             <div className="flex gap-2 justify-end">
+              {/* Edit Button */}
+              <button
+                onClick={() => setEditCollectionOpen(true)}
+                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 px-4 py-2.5 rounded-xl font-semibold transition-all"
+              >
+                <Pencil size={18} />
+                Edit
+              </button>
+
               {/* Reorder Button */}
               <button
                 onClick={() => setReorderOpen(true)}
@@ -217,7 +235,8 @@ export default function CollectionsPage() {
 
               <button
                 onClick={() => setPickerOpen(true)}
-                className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 px-5 py-2.5 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02]"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all hover:scale-[1.02] hover:brightness-110 text-white"
+                style={{ background: `linear-gradient(to right, var(--color-primary), var(--color-secondary))`, boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)` }}
               >
                 <Plus size={18} />
                 Add Items
@@ -229,18 +248,19 @@ export default function CollectionsPage() {
         {items.length === 0 ? (
           <div className="relative flex flex-col items-center justify-center py-24 border-2 border-dashed border-white/10 rounded-2xl bg-gradient-to-br from-white/[0.02] to-transparent overflow-hidden">
             {/* Floating decorations */}
-            <div className="absolute top-10 left-10 w-20 h-20 bg-blue-500/10 rounded-full blur-2xl animate-float-decoration" />
-            <div className="absolute bottom-10 right-10 w-16 h-16 bg-purple-500/10 rounded-full blur-2xl animate-float-decoration" style={{ animationDelay: '-2s' }} />
+            <div className="absolute top-10 left-10 w-20 h-20 rounded-full blur-2xl animate-float-decoration" style={{ background: `color-mix(in srgb, var(--color-primary) 10%, transparent)` }} />
+            <div className="absolute bottom-10 right-10 w-16 h-16 rounded-full blur-2xl animate-float-decoration" style={{ background: `color-mix(in srgb, var(--color-secondary) 10%, transparent)`, animationDelay: '-2s' }} />
 
             <div className="relative z-10 flex flex-col items-center">
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 mb-4">
-                <Layers size={40} className="text-blue-400" />
+              <div className="p-4 rounded-2xl mb-4" style={{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 20%, transparent))` }}>
+                <Layers size={40} style={{ color: 'var(--color-primary)' }} />
               </div>
               <p className="text-lg text-gray-400 mb-2">This collection is empty</p>
               <p className="text-sm text-gray-500 mb-6">Start building your collection by adding items</p>
               <button
                 onClick={() => setPickerOpen(true)}
-                className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20"
+                className="flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all hover:brightness-110 text-white"
+                style={{ background: `linear-gradient(to right, var(--color-primary), var(--color-secondary))`, boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)` }}
               >
                 <Plus size={18} />
                 Add your first item
@@ -252,8 +272,8 @@ export default function CollectionsPage() {
             {items.map((entry, index) => (
               <div
                 key={entry.id}
-                className="relative group collection-card-enter"
-                style={{ animationDelay: `${index * 50}ms` }}
+                className="relative group collection-item-enter"
+                style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
               >
                 <MediaCard
                   entry={entry}
@@ -288,6 +308,16 @@ export default function CollectionsPage() {
           title="Reorder Collection"
         />
 
+        {/* Edit Collection Modal */}
+        <CollectionModal
+          isOpen={editCollectionOpen}
+          onClose={() => setEditCollectionOpen(false)}
+          onSubmit={handleEditCollection}
+          initialName={selectedCollection.name}
+          initialDesc={selectedCollection.description ?? ""}
+          mode="edit"
+        />
+
         {/* Edit Entry Modal */}
         <EntryForm
           isOpen={editModalOpen}
@@ -303,11 +333,11 @@ export default function CollectionsPage() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       {/* Enhanced Header */}
-      <header className="flex items-center justify-between">
+      <header className="flex items-center justify-between collection-header-enter">
         <div>
-          <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 inline-flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20">
-              <Layers className="text-blue-400" size={24} />
+          <h2 className="text-3xl font-bold bg-clip-text text-transparent inline-flex items-center gap-3" style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}>
+            <div className="p-2 rounded-xl" style={{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 20%, transparent))` }}>
+              <Layers style={{ color: 'var(--color-primary)' }} size={24} />
             </div>
             Collections
           </h2>
@@ -315,7 +345,8 @@ export default function CollectionsPage() {
         </div>
         <button
           onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 px-5 py-2.5 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02]"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all hover:scale-[1.02] hover:brightness-110 text-white"
+                style={{ background: `linear-gradient(to right, var(--color-primary), var(--color-secondary))`, boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)` }}
         >
           <Plus size={18} />
           New Collection
@@ -325,18 +356,19 @@ export default function CollectionsPage() {
       {collections.length === 0 ? (
         <div className="relative text-center py-24 border-2 border-dashed border-white/10 rounded-2xl bg-gradient-to-br from-white/[0.02] to-transparent overflow-hidden">
           {/* Floating decorations */}
-          <div className="absolute top-10 left-1/4 w-24 h-24 bg-blue-500/10 rounded-full blur-3xl animate-float" />
-          <div className="absolute bottom-10 right-1/4 w-20 h-20 bg-purple-500/10 rounded-full blur-3xl animate-float-delayed" />
+          <div className="absolute top-10 left-1/4 w-24 h-24 rounded-full blur-3xl animate-float" style={{ background: `color-mix(in srgb, var(--color-primary) 10%, transparent)` }} />
+          <div className="absolute bottom-10 right-1/4 w-20 h-20 rounded-full blur-3xl animate-float-delayed" style={{ background: `color-mix(in srgb, var(--color-secondary) 10%, transparent)` }} />
 
           <div className="relative z-10">
-            <div className="inline-block p-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 mb-4">
-              <Sparkles size={40} className="text-blue-400" />
+            <div className="inline-block p-4 rounded-2xl mb-4" style={{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 20%, transparent))` }}>
+              <Sparkles size={40} style={{ color: 'var(--color-primary)' }} />
             </div>
             <p className="text-lg text-gray-400 mb-2">No collections yet</p>
             <p className="text-sm text-gray-500 mb-6">Create your first collection to start organizing</p>
             <button
               onClick={() => setCreateOpen(true)}
-              className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/20"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all hover:brightness-110 text-white"
+              style={{ background: `linear-gradient(to right, var(--color-primary), var(--color-secondary))`, boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)` }}
             >
               <Plus size={18} />
               Create your first collection
@@ -349,8 +381,8 @@ export default function CollectionsPage() {
             <div
               key={col.id}
               onClick={() => handleSelectCollection(col)}
-              className="relative collection-card-gradient border border-white/10 rounded-2xl overflow-hidden hover:border-blue-500/50 transition-all duration-300 cursor-pointer group hover:shadow-2xl hover:shadow-blue-500/10 card-shine collection-card-enter"
-              style={{ animationDelay: `${index * 80}ms` }}
+              className="relative collection-card-gradient border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer group hover:shadow-2xl card-shine collection-card-enter"
+              style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
             >
               {/* Watermark number */}
               <div className="collection-watermark -top-4 -right-2 group-hover:text-white/[0.04] transition-all">
@@ -358,7 +390,7 @@ export default function CollectionsPage() {
               </div>
 
               {/* Glow effect on hover */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-purple-500/0 group-hover:from-blue-500/10 group-hover:to-purple-500/5 transition-all duration-500 z-0" />
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-500 z-0" style={{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--color-primary) 10%, transparent), color-mix(in srgb, var(--color-secondary) 5%, transparent))` }} />
 
               {/* Thumbnail Grid */}
               <div className="aspect-video w-full border-b border-white/5 collection-thumbnails relative z-10">
@@ -371,12 +403,12 @@ export default function CollectionsPage() {
               <div className="relative z-10 p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-lg text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-blue-400 group-hover:to-purple-400 transition-all truncate">
+                    <h3 className="font-bold text-lg text-white transition-all truncate">
                       {col.name}
                     </h3>
                     <div className="flex items-center gap-2 mt-2">
                       <div className="collection-stat-badge px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-                        <FolderOpen size={12} className="text-blue-400" />
+                        <FolderOpen size={12} style={{ color: 'var(--color-primary)' }} />
                         <span className="text-sm font-semibold text-white">{col.item_count}</span>
                         <span className="text-xs text-gray-400">items</span>
                       </div>
@@ -416,7 +448,7 @@ export default function CollectionsPage() {
           }}
         >
           <div
-            className="collection-modal-glass border border-white/10 w-full max-w-md rounded-2xl shadow-2xl shadow-red-500/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            className="collection-modal-glass border border-white/10 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
