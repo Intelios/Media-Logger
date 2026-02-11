@@ -303,7 +303,7 @@ export default function StatsPage() {
               <BarChart data={[...data.ratings].reverse()} layout="vertical" margin={{ left: 0, right: 30 }}>
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" width={30} tick={{ fill: '#9CA3AF' }} />
-                <Tooltip contentStyle={{ backgroundColor: '#1f1f1f', borderColor: '#333' }} itemStyle={{ color: '#fff' }} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                <Tooltip content={<RatingTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
                 <Bar dataKey="count" fill="#fbbf24" radius={[0, 4, 4, 0]} barSize={20} />
               </BarChart>
             </ResponsiveContainer>
@@ -334,11 +334,7 @@ export default function StatsPage() {
                   <Pie data={data.genres.slice(0, 10)} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={4} dataKey="value">
                     {data.genres.slice(0, 10).map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />)}
                   </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1f1f1f', borderColor: '#333' }}
-                    itemStyle={{ color: '#fff' }}
-                    labelStyle={{ color: '#fff' }}
-                  />
+                  <Tooltip content={<GenreTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -439,6 +435,53 @@ export default function StatsPage() {
         entries={modalEntries}
         onEntriesChange={handleModalEntriesChange}
       />
+    </div>
+  );
+}
+
+// Custom Tooltip for Rating Distribution
+function RatingTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const { name, count } = payload[0].payload;
+  return (
+    <div className="bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3 shadow-2xl">
+      <div className="flex items-center gap-2 mb-1">
+        <Star size={14} className="text-amber-400" />
+        <span className="text-white font-semibold">{name}/10</span>
+      </div>
+      <p className="text-gray-300 text-sm">
+        <span className="text-amber-300 font-bold">{count}</span> {count === 1 ? 'entry' : 'entries'}
+      </p>
+    </div>
+  );
+}
+
+// Custom Tooltip for Genre Pie Chart
+function GenreTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const { name, count, avgScore, perfectCount } = payload[0].payload;
+  return (
+    <div className="bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-3 shadow-2xl min-w-[140px]">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: payload[0].payload.fill || payload[0].color }} />
+        <span className="text-white font-semibold">{name}</span>
+      </div>
+      <div className="space-y-1 text-sm">
+        <p className="text-gray-300">
+          <span className="text-purple-300 font-bold">{count}</span> {count === 1 ? 'entry' : 'entries'}
+        </p>
+        {avgScore !== undefined && (
+          <p className="text-gray-400 flex items-center gap-1">
+            <Star size={12} className="text-amber-400" />
+            <span className="text-amber-300 font-medium">{avgScore.toFixed(1)}</span> avg
+          </p>
+        )}
+        {(perfectCount ?? 0) > 0 && (
+          <p className="text-gray-400">
+            <span className="text-pink-300 font-medium">💎 {perfectCount}</span> perfect
+          </p>
+        )}
+      </div>
     </div>
   );
 }
