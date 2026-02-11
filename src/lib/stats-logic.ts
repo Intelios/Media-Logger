@@ -81,7 +81,7 @@ export const statsLogic = {
     const db = await dbService.connect();
 
     // Base Query Construction
-    let query = "SELECT * FROM javs WHERE 1=1";
+    let query = "SELECT * FROM entries WHERE 1=1";
     const params: any[] = [];
 
     // 1. Year Filter
@@ -183,7 +183,7 @@ export const statsLogic = {
   async getPerfect10Entries(yearFilter?: string, typeFilter: string[] = []): Promise<any[]> {
     const db = await dbService.connect();
 
-    let query = "SELECT * FROM javs WHERE review_score = 10";
+    let query = "SELECT * FROM entries WHERE review_score = 10";
     const params: any[] = [];
 
     if (yearFilter && yearFilter !== "All Time") {
@@ -215,7 +215,7 @@ export const statsLogic = {
     // First day of next month
     const endDate = new Date(currentYear, currentMonth + 1, 1).toISOString().split('T')[0];
 
-    let query = "SELECT * FROM javs WHERE completion_date >= $1 AND completion_date < $2";
+    let query = "SELECT * FROM entries WHERE completion_date >= $1 AND completion_date < $2";
     const params: any[] = [startDate, endDate];
 
     if (yearFilter && yearFilter !== "All Time") {

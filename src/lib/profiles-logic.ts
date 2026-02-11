@@ -15,7 +15,7 @@ export const profilesLogic = {
   // Get list of all profiles (for the main Profiles grid)
   async getAllProfiles(): Promise<ProfileSummary[]> {
     const db = await dbService.connect();
-    const entries = await db.select<MediaEntry[]>("SELECT * FROM javs");
+    const entries = await db.select<MediaEntry[]>("SELECT * FROM entries");
 
     // Fetch custom profile images
     // We assume the table exists from your python migration
@@ -94,7 +94,7 @@ export const profilesLogic = {
     const db = await dbService.connect();
     // We fetch all and filter in JS because SQLite LIKE '%name%' can be inaccurate with similar names
     // given the multi-value field nature.
-    const allEntries = await db.select<MediaEntry[]>("SELECT * FROM javs");
+    const allEntries = await db.select<MediaEntry[]>("SELECT * FROM entries");
 
     const filtered = allEntries.filter(e => {
       // Map the type to the DB column

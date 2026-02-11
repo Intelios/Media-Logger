@@ -75,7 +75,7 @@ export const awardsLogic = {
     const winnersRaw = await db.select<(AwardWinner & MediaEntry)[]>(
       `SELECT w.category_id, w.media_id, m.* 
          FROM award_winners w 
-         JOIN javs m ON w.media_id = m.id 
+         JOIN entries m ON w.media_id = m.id 
          WHERE w.category_id IN (SELECT id FROM award_categories WHERE year = $1)`,
       [year]
     );
@@ -231,7 +231,7 @@ export const awardsLogic = {
     const winners = await db.select<(AwardWinner & MediaEntry)[]>(
       `SELECT w.category_id, w.media_id, m.* 
        FROM award_winners w 
-       JOIN javs m ON w.media_id = m.id 
+       JOIN entries m ON w.media_id = m.id 
        WHERE w.category_id IN (${placeholders})`,
       categoryIds
     );

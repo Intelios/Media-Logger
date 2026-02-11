@@ -164,7 +164,7 @@ export async function exportAllData(): Promise<ExportData> {
 
     // Export media entries
     const mediaEntries = await db.select<MediaEntry[]>(
-        "SELECT * FROM javs ORDER BY id ASC"
+        "SELECT * FROM entries ORDER BY id ASC"
     );
 
     // Export collections
@@ -233,9 +233,9 @@ export interface ImportResult {
 async function ensureTablesExist(): Promise<void> {
     const db = await dbService.connect();
 
-    // Create javs (media entries) table
+    // Create entries (media entries) table
     await db.execute(`
-        CREATE TABLE IF NOT EXISTS javs (
+        CREATE TABLE IF NOT EXISTS entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             genre TEXT,
@@ -275,7 +275,7 @@ async function ensureTablesExist(): Promise<void> {
             media_id INTEGER NOT NULL,
             sort_order INTEGER DEFAULT 0,
             FOREIGN KEY (collection_id) REFERENCES collections(id),
-            FOREIGN KEY (media_id) REFERENCES javs(id)
+            FOREIGN KEY (media_id) REFERENCES entries(id)
         )
     `);
 
@@ -308,7 +308,7 @@ async function ensureTablesExist(): Promise<void> {
             media_id INTEGER NOT NULL,
             selected_date TEXT,
             FOREIGN KEY (category_id) REFERENCES award_categories(id),
-            FOREIGN KEY (media_id) REFERENCES javs(id)
+            FOREIGN KEY (media_id) REFERENCES entries(id)
         )
     `);
 
@@ -362,7 +362,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
 
                 // Check for duplicate by name + completion_date
                 const existing = await db.select<{ id: number }[]>(
-                    "SELECT id FROM javs WHERE name = $1 AND completion_date = $2",
+                    "SELECT id FROM entries WHERE name = $1 AND completion_date = $2",
                     [entry.name, entry.completion_date]
                 );
 
@@ -389,7 +389,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
 
                 try {
                     const insertResult: any = await db.execute(
-                        `INSERT INTO javs (${keys.join(",")}) VALUES (${placeholders})`,
+                        `INSERT INTO entries (${keys.join(",")}) VALUES (${placeholders})`,
                         values
                     );
 
@@ -583,7 +583,7 @@ export async function getDataStats(): Promise<{
     const db = await dbService.connect();
 
     const [mediaResult, collectionResult, awardResult] = await Promise.all([
-        db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM javs"),
+        db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM entries"),
         db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM collections"),
         db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM award_categories"),
     ]);
