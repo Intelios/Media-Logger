@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { statsLogic, type FullStats } from "../lib/stats-logic";
 import { type MediaEntry } from "../lib/db";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, AreaChart, Area } from "recharts";
-import { Filter, Star, RefreshCw, Hash, Play, PieChart as PieIcon, Heart, Building2, User, Sparkles, Calendar, Trophy, Gamepad2, Film } from "lucide-react";
+import { Filter, Star, RefreshCw, Hash, Play, PieChart as PieIcon, Heart, Building2, User, Sparkles, Calendar, Trophy, Gamepad2, Film, ChevronRight } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { CollapsibleStatSection } from "../components/CollapsibleStatSection";
 import { StatsEntriesModal } from "../components/StatsEntriesModal";
+import { GenreBreakdownModal } from "../components/GenreBreakdownModal";
 
 const YEARS = ["All Time", "2023", "2024", "2025", "2026"];
 const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"];
@@ -94,6 +95,9 @@ export default function StatsPage() {
   const [modalTitle, setModalTitle] = useState("");
   const [modalEntries, setModalEntries] = useState<MediaEntry[]>([]);
 
+  // Genre breakdown modal state
+  const [genreModalOpen, setGenreModalOpen] = useState(false);
+
   // Handle preset button click
   const handlePresetClick = (presetKey: Exclude<PresetKey, null>) => {
     if (activePreset === presetKey) {
@@ -138,6 +142,14 @@ export default function StatsPage() {
     setModalOpen(true);
   };
 
+  const handleGenreClick = async (genreName: string) => {
+    const entries = await statsLogic.getEntriesByGenre(genreName, activeYear, selectedTypes);
+    setModalTitle(`Genre: ${genreName}`);
+    setModalEntries(entries);
+    setGenreModalOpen(false);
+    setModalOpen(true);
+  };
+
   const handleModalEntriesChange = () => {
     // Refresh both the stats and the modal entries
     statsLogic.getStats(activeYear, selectedTypes).then(setData);
@@ -145,6 +157,9 @@ export default function StatsPage() {
       statsLogic.getPerfect10Entries(activeYear, selectedTypes).then(setModalEntries);
     } else if (modalTitle === "This Month") {
       statsLogic.getThisMonthEntries(activeYear, selectedTypes).then(setModalEntries);
+    } else if (modalTitle.startsWith("Genre: ")) {
+      const genreName = modalTitle.replace("Genre: ", "");
+      statsLogic.getEntriesByGenre(genreName, activeYear, selectedTypes).then(setModalEntries);
     }
   };
 
@@ -297,16 +312,27 @@ export default function StatsPage() {
 
         {/* Genre Chart */}
         <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
-          <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-            <Filter className="text-purple-400" size={20} />
-            Top Genres
-          </h3>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold flex items-center gap-2">
+              <Filter className="text-purple-400" size={20} />
+              Top Genres
+            </h3>
+            {data.genres.length > 10 && (
+              <button
+                onClick={() => setGenreModalOpen(true)}
+                className="flex items-center gap-1 text-sm text-purple-400 hover:text-purple-300 transition-colors font-medium"
+              >
+                View all {data.genres.length} genres
+                <ChevronRight size={16} />
+              </button>
+            )}
+          </div>
           <div className="flex flex-col md:flex-row items-center gap-8">
             <div className="h-64 w-full md:w-1/2">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
-                  <Pie data={data.genres.slice(0, 7)} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                    {data.genres.slice(0, 7).map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />)}
+                  <Pie data={data.genres.slice(0, 10)} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={4} dataKey="value">
+                    {data.genres.slice(0, 10).map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />)}
                   </Pie>
                   <Tooltip
                     contentStyle={{ backgroundColor: '#1f1f1f', borderColor: '#333' }}
@@ -317,17 +343,22 @@ export default function StatsPage() {
               </ResponsiveContainer>
             </div>
             <div className="w-full md:w-1/2 space-y-2">
-              {data.genres.slice(0, 7).map((g, i) => (
-                <div key={g.name} className="flex items-center justify-between text-sm">
+              {data.genres.slice(0, 10).map((g, i) => (
+                <button
+                  key={g.name}
+                  onClick={() => handleGenreClick(g.name)}
+                  className="w-full flex items-center justify-between text-sm group rounded-lg px-2 py-1.5 hover:bg-white/5 transition-colors"
+                >
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-gray-300">{g.name}</span>
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                    <span className="text-gray-300 group-hover:text-white transition-colors">{g.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
+                    {(g.perfectCount ?? 0) > 0 && <span className="text-xs text-pink-400">💎{g.perfectCount}</span>}
                     {g.avgScore && <span className="text-xs text-amber-400">⭐{g.avgScore.toFixed(1)}</span>}
                     <span className="font-bold text-white">{g.count}</span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -390,6 +421,15 @@ export default function StatsPage() {
           storageKey="actresses"
         />
       </div>
+
+      {/* Genre Breakdown Modal */}
+      <GenreBreakdownModal
+        isOpen={genreModalOpen}
+        onClose={() => setGenreModalOpen(false)}
+        genres={data.genres}
+        totalEntries={data.total}
+        onGenreClick={handleGenreClick}
+      />
 
       {/* Stats Entries Modal */}
       <StatsEntriesModal

@@ -202,6 +202,35 @@ export const statsLogic = {
     return db.select<any[]>(query, params);
   },
 
+  // Get entries for a specific genre
+  async getEntriesByGenre(genre: string, yearFilter?: string, typeFilter: string[] = []): Promise<any[]> {
+    const db = await dbService.connect();
+
+    let query = "SELECT * FROM entries WHERE genre LIKE $1";
+    const params: any[] = [`%${genre}%`];
+
+    if (yearFilter && yearFilter !== "All Time") {
+      params.push(yearFilter);
+      query += ` AND year_completed = $${params.length}`;
+    }
+
+    if (typeFilter.length > 0) {
+      const placeholders = typeFilter.map((_, i) => `$${params.length + i + 1}`).join(", ");
+      query += ` AND entry_type IN (${placeholders})`;
+      params.push(...typeFilter);
+    }
+
+    query += " ORDER BY review_score DESC, completion_date DESC";
+
+    // Filter in JS to handle comma-separated genres accurately
+    const entries = await db.select<any[]>(query, params);
+    return entries.filter(e => {
+      if (!e.genre) return false;
+      const genres = e.genre.split(',').map((g: string) => g.trim());
+      return genres.includes(genre);
+    });
+  },
+
   // Get entries completed this month
   async getThisMonthEntries(yearFilter?: string, typeFilter: string[] = []): Promise<any[]> {
     const db = await dbService.connect();
