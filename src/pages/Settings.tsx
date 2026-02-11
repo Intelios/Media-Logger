@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { appLocalDataDir } from '@tauri-apps/api/path';
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import {
     FolderOpen,
     RotateCcw,
@@ -15,7 +16,8 @@ import {
     Download,
     Upload,
     AlertCircle,
-    Loader2
+    Loader2,
+    ExternalLink
 } from 'lucide-react';
 import { exportToFile, importFromFile, getDataStats, type ImportResult } from '../lib/csv-logic';
 import {
@@ -341,6 +343,15 @@ export default function Settings() {
                                         <FolderOpen size={14} />
                                         Browse...
                                     </button>
+                                    {currentPath && (
+                                        <button
+                                            onClick={() => revealItemInDir(currentPath)}
+                                            className="settings-btn settings-btn-secondary"
+                                        >
+                                            <ExternalLink size={14} />
+                                            Open Directory
+                                        </button>
+                                    )}
                                     {isCustom && (
                                         <button
                                             onClick={handleReset}

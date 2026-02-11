@@ -169,7 +169,7 @@ export default function AwardsPage() {
   if (view === "main") {
     return (
       <div className="space-y-10 max-w-6xl mx-auto">
-        <header>
+        <header className="award-header-enter">
           <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-amber-600 inline-flex items-center gap-3">
             <Trophy className="text-yellow-500" />
             Awards
@@ -196,11 +196,12 @@ export default function AwardsPage() {
             </button>
 
             {/* Year Cards */}
-            {years.map(y => (
+            {years.map((y, index) => (
               <button
                 key={y.year}
                 onClick={() => handleYearSelect(y.year)}
-                className="relative bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl p-5 text-left hover:border-amber-500/50 transition-all hover:shadow-xl hover:shadow-amber-500/10 group overflow-hidden min-h-[140px]"
+                className="relative bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl p-5 text-left hover:border-amber-500/50 transition-all hover:shadow-xl hover:shadow-amber-500/10 group overflow-hidden min-h-[140px] award-card-enter"
+                style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-amber-500/0 to-yellow-500/0 group-hover:from-amber-500/5 group-hover:to-yellow-500/10 transition-all duration-500" />
                 <div className="relative z-10">
@@ -243,11 +244,12 @@ export default function AwardsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {templates.map(template => (
+              {templates.map((template, index) => (
                 <button
                   key={template.id}
                   onClick={() => handleTemplateSelect(template.id)}
-                  className="relative bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl p-5 text-left hover:border-amber-500/40 transition-all group overflow-hidden"
+                  className="relative bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl p-5 text-left hover:border-amber-500/40 transition-all group overflow-hidden award-card-enter"
+                  style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
                 >
                   <div className="absolute -top-10 -right-10 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-all" />
                   <div className="relative z-10 flex items-start gap-3">
@@ -289,7 +291,7 @@ export default function AwardsPage() {
 
     return (
       <div className="space-y-8 max-w-5xl mx-auto pb-20">
-        <header className="flex items-center gap-4">
+        <header className="flex items-center gap-4 award-header-enter">
           <button
             onClick={goBackToMain}
             className="p-2.5 hover:bg-white/10 rounded-full transition-colors border border-white/10 hover:border-white/20"
@@ -309,7 +311,7 @@ export default function AwardsPage() {
 
         {/* Most Recent Winner */}
         {mostRecent && (
-          <section className="bg-gradient-to-br from-amber-500/10 via-white/5 to-yellow-500/5 border border-amber-500/20 rounded-2xl p-6">
+          <section className="bg-gradient-to-br from-amber-500/10 via-white/5 to-yellow-500/5 border border-amber-500/20 rounded-2xl p-6 award-card-enter" style={{ animationDelay: '80ms' }}>
             <div className="flex items-center gap-2 mb-4">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-500/20 to-yellow-600/20 text-amber-300 rounded-full text-xs font-bold uppercase tracking-wider border border-amber-500/20">
                 <Sparkles size={12} />
@@ -349,10 +351,12 @@ export default function AwardsPage() {
               Past Winners
             </h3>
             <div className="space-y-3">
-              {pastWinners.map((entry) => (
+              {pastWinners.map((entry, index) => (
                 <div
                   key={entry.category_id}
+                  style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
                   className={cn(
+                    "award-item-enter",
                     "flex items-center gap-4 p-4 rounded-xl border transition-all",
                     entry.winner
                       ? "bg-white/5 border-white/10 hover:border-white/20"
@@ -393,7 +397,7 @@ export default function AwardsPage() {
   // --- VIEW 2: YEAR DETAIL (Category Editor) ---
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-20">
-      <header className="flex items-center gap-4">
+      <header className="flex items-center gap-4 award-header-enter">
         <button
           onClick={goBackToMain}
           className="p-2.5 hover:bg-white/10 rounded-full transition-colors border border-white/10 hover:border-white/20"
@@ -441,8 +445,9 @@ export default function AwardsPage() {
         {categories.map((cat, index) => (
           <div
             key={cat.id}
+            style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
             className={cn(
-              "relative rounded-2xl p-6 transition-all border overflow-hidden group",
+              "relative rounded-2xl p-6 transition-all border overflow-hidden group award-item-enter",
               cat.winner
                 ? "bg-gradient-to-br from-amber-500/10 via-white/5 to-yellow-500/5 border-amber-500/20 hover:border-amber-400/40"
                 : "bg-white/5 border-white/10 hover:border-white/20"

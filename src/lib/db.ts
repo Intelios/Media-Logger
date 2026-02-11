@@ -67,20 +67,30 @@ class DBService {
   private async runMigrations() {
     if (!this.db) return;
 
-    // First, ensure base tables exist
+    // Rename legacy 'javs' table to 'entries' (for existing databases)
+    const javsTable = await this.db.select<{ name: string }[]>(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='javs'"
+    );
+    if (javsTable.length > 0) {
+      console.log('[DB] Renaming javs table to entries...');
+      await this.db.execute("ALTER TABLE javs RENAME TO entries");
+      console.log('[DB] Table renamed successfully');
+    }
+
+    // Ensure base tables exist (creates 'entries' for new users)
     await this.createTables();
 
     // Check if franchise column exists by querying table info
     try {
       const columns = await this.db.select<{ name: string }[]>(
-        "PRAGMA table_info(javs)"
+        "PRAGMA table_info(entries)"
       );
       const columnNames = columns.map(c => c.name);
 
       // Add franchise column if it doesn't exist
       if (!columnNames.includes('franchise')) {
         console.log('[DB] Adding franchise column...');
-        await this.db.execute("ALTER TABLE javs ADD COLUMN franchise TEXT");
+        await this.db.execute("ALTER TABLE entries ADD COLUMN franchise TEXT");
         console.log('[DB] Franchise column added successfully');
       }
     } catch (error) {
@@ -100,7 +110,7 @@ class DBService {
     try {
       // Create main entries table
       await this.db.execute(`
-        CREATE TABLE IF NOT EXISTS javs (
+        CREATE TABLE IF NOT EXISTS entries (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT NOT NULL,
           genre TEXT,
@@ -141,7 +151,7 @@ class DBService {
           added_date TEXT NOT NULL,
           sort_order INTEGER DEFAULT 0,
           FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
-          FOREIGN KEY (entry_id) REFERENCES javs(id) ON DELETE CASCADE
+          FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE
         )
       `);
 
@@ -163,7 +173,7 @@ class DBService {
           category_id INTEGER NOT NULL,
           entry_id INTEGER NOT NULL,
           FOREIGN KEY (category_id) REFERENCES award_categories(id) ON DELETE CASCADE,
-          FOREIGN KEY (entry_id) REFERENCES javs(id) ON DELETE CASCADE
+          FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE
         )
       `);
 
@@ -260,30 +270,27 @@ class DBService {
     return this.connect();
   }
 
-  // Equivalent to `get_all_javs_db`
   async getAllEntries(): Promise<MediaEntry[]> {
     const db = await this.connect();
     return await db.select<MediaEntry[]>(
-      "SELECT * FROM javs ORDER BY completion_date DESC, id DESC"
+      "SELECT * FROM entries ORDER BY completion_date DESC, id DESC"
     );
   }
 
-  // Equivalent to `get_javs_by_year_db`
   async getEntriesByYear(year: string): Promise<MediaEntry[]> {
     const db = await this.connect();
     return await db.select<MediaEntry[]>(
-      "SELECT * FROM javs WHERE year_completed = $1 ORDER BY completion_date ASC",
+      "SELECT * FROM entries WHERE year_completed = $1 ORDER BY completion_date ASC",
       [year]
     );
   }
 
-  // Equivalent to `get_collection_stats_db`
   async getStats() {
     const db = await this.connect();
     // We can run multiple queries in parallel for speed
     const [totalResult, avgResult] = await Promise.all([
-      db.select<{ total: number }[]>("SELECT COUNT(*) as total FROM javs"),
-      db.select<{ avg_rating: number }[]>("SELECT AVG(review_score) as avg_rating FROM javs WHERE review_score IS NOT NULL")
+      db.select<{ total: number }[]>("SELECT COUNT(*) as total FROM entries"),
+      db.select<{ avg_rating: number }[]>("SELECT AVG(review_score) as avg_rating FROM entries WHERE review_score IS NOT NULL")
     ]);
 
     return {
@@ -300,7 +307,7 @@ class DBService {
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(",");
 
     const result: any = await db.execute(
-      `INSERT INTO javs (${keys.join(",")}) VALUES (${placeholders})`,
+      `INSERT INTO entries (${keys.join(",")}) VALUES (${placeholders})`,
       values
     );
     return result.lastInsertId;
@@ -317,14 +324,14 @@ class DBService {
     const setString = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
 
     await db.execute(
-      `UPDATE javs SET ${setString} WHERE id = $${values.length + 1}`,
+      `UPDATE entries SET ${setString} WHERE id = $${values.length + 1}`,
       [...values, id]
     );
   }
 
   async deleteEntry(id: number): Promise<void> {
     const db = await this.connect();
-    await db.execute("DELETE FROM javs WHERE id = $1", [id]);
+    await db.execute("DELETE FROM entries WHERE id = $1", [id]);
   }
 
   /**
@@ -333,7 +340,7 @@ class DBService {
   async getEntriesByName(name: string): Promise<MediaEntry[]> {
     const db = await this.connect();
     return await db.select<MediaEntry[]>(
-      "SELECT * FROM javs WHERE name = $1 ORDER BY completion_date ASC",
+      "SELECT * FROM entries WHERE name = $1 ORDER BY completion_date ASC",
       [name]
     );
   }

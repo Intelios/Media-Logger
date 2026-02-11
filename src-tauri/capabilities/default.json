@@ -35,6 +35,7 @@
         }
       ]
     },
+    "opener:allow-reveal-item-in-dir",
     "sql:allow-load",
     "sql:allow-execute",
     "sql:allow-select",

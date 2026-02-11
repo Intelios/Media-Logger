@@ -81,7 +81,7 @@ export const statsLogic = {
     const db = await dbService.connect();
 
     // Base Query Construction
-    let query = "SELECT * FROM javs WHERE 1=1";
+    let query = "SELECT * FROM entries WHERE 1=1";
     const params: any[] = [];
 
     // 1. Year Filter
@@ -183,7 +183,7 @@ export const statsLogic = {
   async getPerfect10Entries(yearFilter?: string, typeFilter: string[] = []): Promise<any[]> {
     const db = await dbService.connect();
 
-    let query = "SELECT * FROM javs WHERE review_score = 10";
+    let query = "SELECT * FROM entries WHERE review_score = 10";
     const params: any[] = [];
 
     if (yearFilter && yearFilter !== "All Time") {
@@ -202,6 +202,35 @@ export const statsLogic = {
     return db.select<any[]>(query, params);
   },
 
+  // Get entries for a specific genre
+  async getEntriesByGenre(genre: string, yearFilter?: string, typeFilter: string[] = []): Promise<any[]> {
+    const db = await dbService.connect();
+
+    let query = "SELECT * FROM entries WHERE genre LIKE $1";
+    const params: any[] = [`%${genre}%`];
+
+    if (yearFilter && yearFilter !== "All Time") {
+      params.push(yearFilter);
+      query += ` AND year_completed = $${params.length}`;
+    }
+
+    if (typeFilter.length > 0) {
+      const placeholders = typeFilter.map((_, i) => `$${params.length + i + 1}`).join(", ");
+      query += ` AND entry_type IN (${placeholders})`;
+      params.push(...typeFilter);
+    }
+
+    query += " ORDER BY review_score DESC, completion_date DESC";
+
+    // Filter in JS to handle comma-separated genres accurately
+    const entries = await db.select<any[]>(query, params);
+    return entries.filter(e => {
+      if (!e.genre) return false;
+      const genres = e.genre.split(',').map((g: string) => g.trim());
+      return genres.includes(genre);
+    });
+  },
+
   // Get entries completed this month
   async getThisMonthEntries(yearFilter?: string, typeFilter: string[] = []): Promise<any[]> {
     const db = await dbService.connect();
@@ -215,7 +244,7 @@ export const statsLogic = {
     // First day of next month
     const endDate = new Date(currentYear, currentMonth + 1, 1).toISOString().split('T')[0];
 
-    let query = "SELECT * FROM javs WHERE completion_date >= $1 AND completion_date < $2";
+    let query = "SELECT * FROM entries WHERE completion_date >= $1 AND completion_date < $2";
     const params: any[] = [startDate, endDate];
 
     if (yearFilter && yearFilter !== "All Time") {

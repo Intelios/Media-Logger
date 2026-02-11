@@ -30,7 +30,7 @@ export const collectionsLogic = {
         const thumbs = await db.select<{image_url: string}[]>(
             `SELECT m.image_url 
              FROM collection_items ci 
-             JOIN javs m ON ci.media_id = m.id 
+             JOIN entries m ON ci.media_id = m.id 
              WHERE ci.collection_id = $1 
              ORDER BY ci.sort_order ASC LIMIT 4`,
             [col.id]
@@ -47,7 +47,7 @@ export const collectionsLogic = {
     return await db.select<MediaEntry[]>(
         `SELECT m.* 
          FROM collection_items ci 
-         JOIN javs m ON ci.media_id = m.id 
+         JOIN entries m ON ci.media_id = m.id 
          WHERE ci.collection_id = $1 
          ORDER BY ci.sort_order ASC`,
         [collectionId]
