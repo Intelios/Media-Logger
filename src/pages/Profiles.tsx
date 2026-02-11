@@ -296,7 +296,7 @@ function ProfileCard({ profile, onClick }: { profile: ProfileSummary, onClick: (
   return (
     <button
       onClick={() => onClick(profile)}
-      className="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden hover:border-white/25 transition-all duration-300 text-left h-28 flex items-center p-4 gap-4 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/40"
+      className="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden hover:border-white/25 transition-all duration-300 text-left h-full min-h-[7rem] w-full flex items-center p-4 gap-4 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/40"
     >
       {/* Gradient accent bar */}
       <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${typeConfig.gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
@@ -757,7 +757,7 @@ export default function ProfilesPage() {
   return (
     <div className="space-y-6">
       {/* Header with gradient background effect */}
-      <header className="relative">
+      <header className="relative profile-header-enter">
         <div className="absolute inset-0 bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-blue-500/10 blur-3xl -z-10 opacity-50" />
 
         <div className="flex flex-col gap-6">
@@ -840,11 +840,16 @@ export default function ProfilesPage() {
       {filteredProfiles.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-10">
           {filteredProfiles.map((profile, idx) => (
-            <ProfileCard
+            <div
               key={`${profile.type}-${profile.name}-${idx}`}
-              profile={profile}
-              onClick={handleProfileClick}
-            />
+              className="profile-card-enter h-full"
+              style={{ animationDelay: `${Math.min(idx * 50, 500)}ms` }}
+            >
+              <ProfileCard
+                profile={profile}
+                onClick={handleProfileClick}
+              />
+            </div>
           ))}
         </div>
       ) : (

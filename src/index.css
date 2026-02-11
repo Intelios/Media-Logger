@@ -827,6 +827,82 @@ body {
   animation: collection-item-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Award card entrance animation */
+@keyframes award-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.award-card-enter {
+  opacity: 0;
+  animation: award-card-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Award section header entrance */
+@keyframes award-header-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.award-header-enter {
+  animation: award-header-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Award category/item entrance (for year detail & past winners) */
+@keyframes award-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.award-item-enter {
+  opacity: 0;
+  animation: award-item-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Profile card entrance animation */
+@keyframes profile-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.profile-card-enter {
+  opacity: 0;
+  animation: profile-card-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Profile header entrance */
+.profile-header-enter {
+  animation: award-header-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* Item count ring indicator */
 .collection-ring-indicator {
   position: relative;
