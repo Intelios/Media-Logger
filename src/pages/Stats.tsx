@@ -254,7 +254,7 @@ export default function StatsPage() {
             Monthly Activity
           </h3>
           <div className="h-32 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={data.monthlyCompletions} margin={{ left: 0, right: 0, top: 10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorActivity" x1="0" y1="0" x2="0" y2="1">
@@ -284,7 +284,7 @@ export default function StatsPage() {
             Rating Distribution
           </h3>
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={[...data.ratings].reverse()} layout="vertical" margin={{ left: 0, right: 30 }}>
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" width={30} tick={{ fill: '#9CA3AF' }} />
@@ -303,7 +303,7 @@ export default function StatsPage() {
           </h3>
           <div className="flex flex-col md:flex-row items-center gap-8">
             <div className="h-64 w-full md:w-1/2">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie data={data.genres.slice(0, 7)} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                     {data.genres.slice(0, 7).map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />)}
