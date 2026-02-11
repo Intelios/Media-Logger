@@ -293,12 +293,12 @@ export default function StatsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Rating Chart */}
-        <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
+        <div className="bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col">
           <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
             <Star className="text-amber-400" size={20} />
             Rating Distribution
           </h3>
-          <div className="h-64 w-full">
+          <div className="flex-1 min-h-64 w-full">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={[...data.ratings].reverse()} layout="vertical" margin={{ left: 0, right: 30 }}>
                 <XAxis type="number" hide />
