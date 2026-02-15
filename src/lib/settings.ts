@@ -2,9 +2,21 @@ import { appLocalDataDir } from '@tauri-apps/api/path';
 
 const STORAGE_KEY = 'media-logger-data-directory';
 const DISPLAY_NAME_KEY = 'media-logger-display-name';
+const NAVIGATION_YEARS_KEY = 'media-logger-navigation-years';
 
 // Default display name for the dashboard greeting
 const DEFAULT_DISPLAY_NAME = 'Collector';
+const LEGACY_NAVIGATION_YEARS = ['2023', '2024', '2025', '2026'];
+
+function normalizeNavigationYears(values: unknown): string[] {
+    if (!Array.isArray(values)) return [];
+
+    const normalized = values
+        .map(v => String(v).trim())
+        .filter(v => /^\d{4}$/.test(v));
+
+    return Array.from(new Set(normalized)).sort((a, b) => Number(a) - Number(b));
+}
 
 /**
  * Get the configured display name, or fall back to the default.
@@ -76,4 +88,37 @@ export function hasCustomDataDirectory(): boolean {
  */
 export function getCustomDataDirectory(): string | null {
     return localStorage.getItem(STORAGE_KEY);
+}
+
+/**
+ * Get user-configured navigation/filter years.
+ * Falls back to the legacy hard-coded years for backward compatibility.
+ */
+export function getNavigationYears(): string[] {
+    const raw = localStorage.getItem(NAVIGATION_YEARS_KEY);
+    if (!raw) return [...LEGACY_NAVIGATION_YEARS];
+
+    try {
+        const parsed = JSON.parse(raw);
+        const years = normalizeNavigationYears(parsed);
+        return years.length > 0 ? years : [...LEGACY_NAVIGATION_YEARS];
+    } catch {
+        return [...LEGACY_NAVIGATION_YEARS];
+    }
+}
+
+/**
+ * Persist user-configured navigation/filter years.
+ * If an empty list is passed, we clear custom config and fall back to legacy defaults.
+ */
+export function setNavigationYears(years: string[]): string[] {
+    const normalized = normalizeNavigationYears(years);
+
+    if (normalized.length === 0) {
+        localStorage.removeItem(NAVIGATION_YEARS_KEY);
+        return [...LEGACY_NAVIGATION_YEARS];
+    }
+
+    localStorage.setItem(NAVIGATION_YEARS_KEY, JSON.stringify(normalized));
+    return normalized;
 }

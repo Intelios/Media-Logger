@@ -37,28 +37,15 @@ export const awardsLogic = {
   // 1. Get list of years that have awards
   async getAwardYears(): Promise<AwardYearSummary[]> {
     const db = await dbService.connect();
-    // Get unique years from categories
-    const yearsResult = await db.select<{ year: number }[]>("SELECT DISTINCT year FROM award_categories ORDER BY year DESC");
-
-    // Calculate stats for each year (categories vs winners)
-    const summaries: AwardYearSummary[] = [];
-
-    for (const y of yearsResult) {
-      const cats = await db.select<{ count: number }[]>("SELECT COUNT(*) as count FROM award_categories WHERE year = $1", [y.year]);
-      // Join winners -> categories to count winners for this year
-      const wins = await db.select<{ count: number }[]>(
-        "SELECT COUNT(*) as count FROM award_winners w JOIN award_categories c ON w.category_id = c.id WHERE c.year = $1",
-        [y.year]
-      );
-
-      summaries.push({
-        year: y.year,
-        categories: cats[0].count,
-        winners: wins[0].count
-      });
-    }
-
-    return summaries;
+    return await db.select<AwardYearSummary[]>(
+      `SELECT c.year as year,
+              COUNT(DISTINCT c.id) as categories,
+              COUNT(DISTINCT w.category_id) as winners
+       FROM award_categories c
+       LEFT JOIN award_winners w ON w.category_id = c.id
+       GROUP BY c.year
+       ORDER BY c.year DESC`
+    );
   },
 
   // 2. Get full data for a specific year

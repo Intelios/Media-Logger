@@ -52,9 +52,17 @@ export const dashboardLogic = {
 
   async getFeaturedEntry(): Promise<MediaEntry | null> {
     const db = await dbService.connect();
-    // Logic from python: Rating >= 8 OR recent, random 1
+    // Pick from all entries so every item can be featured.
+    const totalCountResult = await db.select<{ count: number }[]>(
+      "SELECT COUNT(*) as count FROM entries"
+    );
+    const totalCount = totalCountResult[0]?.count || 0;
+    if (totalCount === 0) return null;
+
+    const randomOffset = Math.floor(Math.random() * totalCount);
     const result = await db.select<MediaEntry[]>(
-      "SELECT * FROM entries WHERE review_score >= 8 OR completion_date >= date('now', '-30 days') ORDER BY RANDOM() LIMIT 1"
+      "SELECT * FROM entries ORDER BY id ASC LIMIT 1 OFFSET $1",
+      [randomOffset]
     );
     return result[0] || null;
   },

@@ -6,6 +6,7 @@ import { MediaCard } from "../components/MediaCard";
 import type { MediaEntry } from "../lib/db";
 import { getImageUrl } from "../lib/utils";
 import { getDisplayName } from "../lib/settings";
+import { getAvailableNavigationYears, getCurrentYearString } from "../lib/navigation-years";
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -13,6 +14,8 @@ export default function Dashboard() {
   const [featured, setFeatured] = useState<{ entry: MediaEntry; imageUrl: string } | null>(null);
   const [greeting, setGreeting] = useState("Hello");
   const [displayName, setDisplayName] = useState("Collector");
+  const [browseYear, setBrowseYear] = useState(getCurrentYearString());
+  const [recentYear, setRecentYear] = useState(getCurrentYearString());
 
   // Track the current load operation to prevent stale updates
   const loadIdRef = useRef(0);
@@ -32,10 +35,23 @@ export default function Dashboard() {
 
     // Load Data
     const load = async () => {
-      setStats(await dashboardLogic.getStats());
-      setRecent(await dashboardLogic.getRecentEntries());
+      const [statsData, recentEntries, feat, availableYears] = await Promise.all([
+        dashboardLogic.getStats(),
+        dashboardLogic.getRecentEntries(),
+        dashboardLogic.getFeaturedEntry(),
+        getAvailableNavigationYears(),
+      ]);
 
-      const feat = await dashboardLogic.getFeaturedEntry();
+      const fallbackYear = availableYears[availableYears.length - 1] || getCurrentYearString();
+      const recentWithYear = recentEntries.find(entry => entry.year_completed);
+
+      if (loadIdRef.current === currentLoadId) {
+        setStats(statsData);
+        setRecent(recentEntries);
+        setBrowseYear(fallbackYear);
+        setRecentYear(recentWithYear?.year_completed ? String(recentWithYear.year_completed) : fallbackYear);
+      }
+
       if (feat) {
         const imageUrl = await getImageUrl(feat.image_url);
         // Only update state if this is still the current load operation
@@ -105,7 +121,7 @@ export default function Dashboard() {
 
           {/* Quick Actions Row */}
           <div className="dashboard-actions">
-            <Link to="/year/2025" className="dashboard-action dashboard-action-purple">
+            <Link to={`/year/${browseYear}`} className="dashboard-action dashboard-action-purple">
               <div className="dashboard-action-icon">
                 <CalendarDays size={20} />
               </div>
@@ -191,7 +207,7 @@ export default function Dashboard() {
             <span className="dashboard-section-icon">📅</span>
             Recent Completions
           </h3>
-          <Link to="/year/2025" className="dashboard-view-all">
+          <Link to={`/year/${recentYear}`} className="dashboard-view-all">
             View All
             <ArrowRight size={14} />
           </Link>

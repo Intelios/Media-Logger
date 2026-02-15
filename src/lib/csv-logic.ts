@@ -21,29 +21,31 @@ function escapeCSV(value: unknown): string {
  * Parse a CSV string into array of objects
  */
 function parseCSV<T>(csvContent: string): T[] {
-    const lines = csvContent.split("\n");
-    if (lines.length < 2) return [];
+    const rows = parseCSVRows(csvContent);
+    if (rows.length < 2) return [];
 
     // Parse header row
-    const headers = parseCSVLine(lines[0]);
+    const headers = rows[0];
     const results: T[] = [];
 
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
+    for (let i = 1; i < rows.length; i++) {
+        const values = rows[i];
+        if (values.every(v => v.trim() === "")) continue;
 
-        const values = parseCSVLine(line);
         const obj: Record<string, unknown> = {};
 
         headers.forEach((header, idx) => {
-            let value: unknown = values[idx] || "";
+            const rawValue = values[idx] ?? "";
+            const normalizedValue = rawValue.trim();
+            let value: unknown = rawValue;
+
             // Convert numeric strings to numbers where appropriate
-            if (value === "") {
+            if (normalizedValue === "") {
                 value = null;
-            } else if (/^\d+$/.test(value as string)) {
-                value = parseInt(value as string, 10);
-            } else if (/^\d+\.\d+$/.test(value as string)) {
-                value = parseFloat(value as string);
+            } else if (/^\d+$/.test(normalizedValue)) {
+                value = parseInt(normalizedValue, 10);
+            } else if (/^\d+\.\d+$/.test(normalizedValue)) {
+                value = parseFloat(normalizedValue);
             }
             obj[header] = value;
         });
@@ -55,49 +57,57 @@ function parseCSV<T>(csvContent: string): T[] {
 }
 
 /**
- * Parse a single CSV line, handling quoted values
+ * Parse CSV into rows, handling quoted multiline values
  */
-function parseCSVLine(line: string): string[] {
-    const result: string[] = [];
-    let current = "";
+function parseCSVRows(csvContent: string): string[][] {
+    const normalizedContent = csvContent.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let currentCell = "";
     let inQuotes = false;
     let i = 0;
 
-    while (i < line.length) {
-        const char = line[i];
+    while (i < normalizedContent.length) {
+        const char = normalizedContent[i];
 
-        if (inQuotes) {
-            if (char === '"') {
-                if (line[i + 1] === '"') {
-                    // Escaped quote
-                    current += '"';
-                    i += 2;
-                } else {
-                    // End of quoted value
-                    inQuotes = false;
-                    i++;
-                }
+        if (char === '"') {
+            if (inQuotes && normalizedContent[i + 1] === '"') {
+                currentCell += '"';
+                i += 2;
             } else {
-                current += char;
+                inQuotes = !inQuotes;
                 i++;
             }
-        } else {
-            if (char === '"') {
-                inQuotes = true;
-                i++;
-            } else if (char === ",") {
-                result.push(current);
-                current = "";
-                i++;
-            } else {
-                current += char;
-                i++;
-            }
+            continue;
         }
+
+        if (char === "," && !inQuotes) {
+            currentRow.push(currentCell);
+            currentCell = "";
+            i++;
+            continue;
+        }
+
+        if (char === "\n" && !inQuotes) {
+            currentRow.push(currentCell);
+            rows.push(currentRow);
+            currentRow = [];
+            currentCell = "";
+            i++;
+            continue;
+        }
+
+        currentCell += char;
+        i++;
     }
 
-    result.push(current);
-    return result;
+    // Handle last row if file doesn't end with newline
+    if (currentCell.length > 0 || currentRow.length > 0) {
+        currentRow.push(currentCell);
+        rows.push(currentRow);
+    }
+
+    return rows;
 }
 
 /**
@@ -125,6 +135,7 @@ export interface ExportData {
     award_templates: string;
     award_categories: string;
     award_winners: string;
+    profiles?: string;
     export_date: string;
     version: string;
 }
@@ -155,6 +166,7 @@ const COLLECTION_ITEM_COLUMNS = ["collection_id", "media_id", "sort_order"];
 const AWARD_TEMPLATE_COLUMNS = ["id", "name", "created_date"];
 const AWARD_CATEGORY_COLUMNS = ["id", "name", "year", "sort_order", "template_id"];
 const AWARD_WINNER_COLUMNS = ["category_id", "media_id", "selected_date"];
+const PROFILE_COLUMNS = ["type", "name", "image_url"];
 
 /**
  * Export all data from the database as CSV strings
@@ -192,6 +204,11 @@ export async function exportAllData(): Promise<ExportData> {
         { category_id: number; media_id: number; selected_date: string }[]
     >("SELECT * FROM award_winners ORDER BY category_id ASC");
 
+    // Export profile image mappings
+    const profiles = await db.select<
+        { type: string; name: string; image_url: string }[]
+    >("SELECT * FROM profiles ORDER BY type ASC, name ASC");
+
     return {
         media_entries: toCSV(mediaEntries as unknown as Record<string, unknown>[], MEDIA_COLUMNS),
         collections: toCSV(collections, COLLECTION_COLUMNS),
@@ -199,8 +216,9 @@ export async function exportAllData(): Promise<ExportData> {
         award_templates: toCSV(awardTemplates, AWARD_TEMPLATE_COLUMNS),
         award_categories: toCSV(awardCategories, AWARD_CATEGORY_COLUMNS),
         award_winners: toCSV(awardWinners, AWARD_WINNER_COLUMNS),
+        profiles: toCSV(profiles, PROFILE_COLUMNS),
         export_date: new Date().toISOString(),
-        version: "1.0",
+        version: "1.1",
     };
 }
 
@@ -223,6 +241,7 @@ export interface ImportResult {
     awardTemplatesImported: number;
     awardCategoriesImported: number;
     awardWinnersImported: number;
+    profilesImported: number;
     errors: string[];
 }
 
@@ -312,6 +331,16 @@ async function ensureTablesExist(): Promise<void> {
         )
     `);
 
+    // Create profiles table
+    await db.execute(`
+        CREATE TABLE IF NOT EXISTS profiles (
+            type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            image_url TEXT NOT NULL,
+            PRIMARY KEY (type, name)
+        )
+    `);
+
     console.log('[CSV] All tables ensured to exist');
 }
 
@@ -329,6 +358,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
         awardTemplatesImported: 0,
         awardCategoriesImported: 0,
         awardWinnersImported: 0,
+        profilesImported: 0,
         errors: [],
     };
 
@@ -562,6 +592,41 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                 );
 
                 result.awardWinnersImported++;
+            }
+        }
+
+        // 7. Import profile image mappings
+        if (data.profiles) {
+            const profiles = parseCSV<{
+                type: string;
+                name: string;
+                image_url: string;
+            }>(data.profiles);
+
+            for (const profile of profiles) {
+                if (!profile.type || !profile.name || !profile.image_url) continue;
+
+                const existing = await db.select<{ image_url: string }[]>(
+                    "SELECT image_url FROM profiles WHERE type = $1 AND name = $2",
+                    [profile.type, profile.name]
+                );
+
+                if (existing.length === 0) {
+                    await db.execute(
+                        "INSERT INTO profiles (type, name, image_url) VALUES ($1, $2, $3)",
+                        [profile.type, profile.name, profile.image_url]
+                    );
+                    result.profilesImported++;
+                    continue;
+                }
+
+                if (existing[0].image_url !== profile.image_url) {
+                    await db.execute(
+                        "UPDATE profiles SET image_url = $1 WHERE type = $2 AND name = $3",
+                        [profile.image_url, profile.type, profile.name]
+                    );
+                    result.profilesImported++;
+                }
             }
         }
     } catch (error) {
