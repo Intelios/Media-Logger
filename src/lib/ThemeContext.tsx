@@ -44,6 +44,7 @@ function applyTheme(colorTheme: ColorTheme, mode: ThemeMode): void {
 
     // Set color scheme for native elements
     root.style.setProperty('color-scheme', mode);
+    root.setAttribute('data-theme-mode', mode);
 
     // Toggle light mode class for any CSS that needs it
     if (mode === 'light') {
@@ -53,6 +54,13 @@ function applyTheme(colorTheme: ColorTheme, mode: ThemeMode): void {
         root.classList.add('dark-mode');
         root.classList.remove('light-mode');
     }
+}
+
+function getSystemThemeMode(): ThemeMode {
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: light)').matches) {
+        return 'light';
+    }
+    return getDefaultThemeMode();
 }
 
 // Load persisted theme from localStorage
@@ -67,13 +75,13 @@ function loadPersistedTheme(): { colorTheme: ColorTheme; themeMode: ThemeMode } 
 
         const themeMode = savedMode && (savedMode === 'dark' || savedMode === 'light')
             ? savedMode
-            : getDefaultThemeMode();
+            : getSystemThemeMode();
 
         return { colorTheme, themeMode };
     } catch {
         return {
             colorTheme: getDefaultColorTheme(),
-            themeMode: getDefaultThemeMode(),
+            themeMode: getSystemThemeMode(),
         };
     }
 }

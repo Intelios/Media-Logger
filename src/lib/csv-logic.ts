@@ -135,6 +135,7 @@ export interface ExportData {
     award_templates: string;
     award_categories: string;
     award_winners: string;
+    profiles?: string;
     export_date: string;
     version: string;
 }
@@ -165,6 +166,7 @@ const COLLECTION_ITEM_COLUMNS = ["collection_id", "media_id", "sort_order"];
 const AWARD_TEMPLATE_COLUMNS = ["id", "name", "created_date"];
 const AWARD_CATEGORY_COLUMNS = ["id", "name", "year", "sort_order", "template_id"];
 const AWARD_WINNER_COLUMNS = ["category_id", "media_id", "selected_date"];
+const PROFILE_COLUMNS = ["type", "name", "image_url"];
 
 /**
  * Export all data from the database as CSV strings
@@ -202,6 +204,11 @@ export async function exportAllData(): Promise<ExportData> {
         { category_id: number; media_id: number; selected_date: string }[]
     >("SELECT * FROM award_winners ORDER BY category_id ASC");
 
+    // Export profile image mappings
+    const profiles = await db.select<
+        { type: string; name: string; image_url: string }[]
+    >("SELECT * FROM profiles ORDER BY type ASC, name ASC");
+
     return {
         media_entries: toCSV(mediaEntries as unknown as Record<string, unknown>[], MEDIA_COLUMNS),
         collections: toCSV(collections, COLLECTION_COLUMNS),
@@ -209,8 +216,9 @@ export async function exportAllData(): Promise<ExportData> {
         award_templates: toCSV(awardTemplates, AWARD_TEMPLATE_COLUMNS),
         award_categories: toCSV(awardCategories, AWARD_CATEGORY_COLUMNS),
         award_winners: toCSV(awardWinners, AWARD_WINNER_COLUMNS),
+        profiles: toCSV(profiles, PROFILE_COLUMNS),
         export_date: new Date().toISOString(),
-        version: "1.0",
+        version: "1.1",
     };
 }
 
@@ -233,6 +241,7 @@ export interface ImportResult {
     awardTemplatesImported: number;
     awardCategoriesImported: number;
     awardWinnersImported: number;
+    profilesImported: number;
     errors: string[];
 }
 
@@ -322,6 +331,16 @@ async function ensureTablesExist(): Promise<void> {
         )
     `);
 
+    // Create profiles table
+    await db.execute(`
+        CREATE TABLE IF NOT EXISTS profiles (
+            type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            image_url TEXT NOT NULL,
+            PRIMARY KEY (type, name)
+        )
+    `);
+
     console.log('[CSV] All tables ensured to exist');
 }
 
@@ -339,6 +358,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
         awardTemplatesImported: 0,
         awardCategoriesImported: 0,
         awardWinnersImported: 0,
+        profilesImported: 0,
         errors: [],
     };
 
@@ -572,6 +592,41 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                 );
 
                 result.awardWinnersImported++;
+            }
+        }
+
+        // 7. Import profile image mappings
+        if (data.profiles) {
+            const profiles = parseCSV<{
+                type: string;
+                name: string;
+                image_url: string;
+            }>(data.profiles);
+
+            for (const profile of profiles) {
+                if (!profile.type || !profile.name || !profile.image_url) continue;
+
+                const existing = await db.select<{ image_url: string }[]>(
+                    "SELECT image_url FROM profiles WHERE type = $1 AND name = $2",
+                    [profile.type, profile.name]
+                );
+
+                if (existing.length === 0) {
+                    await db.execute(
+                        "INSERT INTO profiles (type, name, image_url) VALUES ($1, $2, $3)",
+                        [profile.type, profile.name, profile.image_url]
+                    );
+                    result.profilesImported++;
+                    continue;
+                }
+
+                if (existing[0].image_url !== profile.image_url) {
+                    await db.execute(
+                        "UPDATE profiles SET image_url = $1 WHERE type = $2 AND name = $3",
+                        [profile.image_url, profile.type, profile.name]
+                    );
+                    result.profilesImported++;
+                }
             }
         }
     } catch (error) {

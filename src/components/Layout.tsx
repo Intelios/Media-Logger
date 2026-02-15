@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Home, Calendar, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Sparkles, Settings } from "lucide-react";
 import { cn } from "../lib/utils_ui";
@@ -7,13 +7,12 @@ import { WelcomeScreen } from "./WelcomeScreen";
 import { dbService, type MediaEntry } from "../lib/db";
 import { listen } from "@tauri-apps/api/event";
 import { shouldShowWelcome } from "../lib/onboarding-logic";
-
-// Configurable Years matching your python config
-const YEARS = ["2023", "2024", "2025", "2026"];
-const CURRENT_YEAR = "2026";
+import { getNavigationYears } from "../lib/settings";
+import { getAvailableNavigationYears, getCurrentYearString, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
 
 export function Layout() {
   const [isYearsCollapsed, setIsYearsCollapsed] = useState(false);
+  const [years, setYears] = useState<string[]>(() => getNavigationYears());
   const [isCompact, setIsCompact] = useState(() => {
     const saved = localStorage.getItem("sidebar-compact");
     return saved === "true";
@@ -21,11 +20,33 @@ export function Layout() {
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const navigate = useNavigate();
+  const currentYear = getCurrentYearString();
 
   // Persist compact mode
   useEffect(() => {
     localStorage.setItem("sidebar-compact", String(isCompact));
   }, [isCompact]);
+
+  const refreshYears = useCallback(async () => {
+    const availableYears = await getAvailableNavigationYears();
+    setYears(availableYears);
+  }, []);
+
+  useEffect(() => {
+    void refreshYears();
+
+    const handleYearsChanged = () => {
+      void refreshYears();
+    };
+
+    window.addEventListener(NAVIGATION_YEARS_UPDATED_EVENT, handleYearsChanged);
+    window.addEventListener("entry-added", handleYearsChanged as EventListener);
+
+    return () => {
+      window.removeEventListener(NAVIGATION_YEARS_UPDATED_EVENT, handleYearsChanged);
+      window.removeEventListener("entry-added", handleYearsChanged as EventListener);
+    };
+  }, [refreshYears]);
 
   // Listen for menu events from Tauri backend
   useEffect(() => {
@@ -81,13 +102,15 @@ export function Layout() {
   };
 
   return (
-    <div className="flex h-screen text-white overflow-hidden">
+    <div className="flex h-screen overflow-hidden" style={{ color: "var(--color-text)" }}>
 
       {/* Sidebar - transparent to show native macOS vibrancy */}
       <aside className={cn(
-        "bg-transparent border-r border-white/10 flex flex-col transition-all duration-300 ease-out",
+        "bg-transparent border-r flex flex-col transition-all duration-300 ease-out",
         isCompact ? "w-[72px] p-3" : "w-64 p-4"
-      )}>
+      )}
+        style={{ borderColor: "var(--color-border)" }}
+      >
         {/* Logo */}
         <div className={cn("mb-6", isCompact ? "px-0 text-center" : "px-2")}>
           {isCompact ? (
@@ -118,7 +141,7 @@ export function Layout() {
             {!isCompact && (
               <button
                 onClick={() => setIsYearsCollapsed(!isYearsCollapsed)}
-                className="w-full flex items-center justify-between px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 hover:text-gray-400 transition-colors"
+                className="w-full flex items-center justify-between px-2 text-xs font-semibold uppercase tracking-wider mb-2 transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
               >
                 <span>Years</span>
                 {isYearsCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
@@ -129,14 +152,14 @@ export function Layout() {
               "space-y-1 overflow-hidden transition-all duration-200",
               isYearsCollapsed && !isCompact ? "max-h-0 opacity-0" : "max-h-[500px] opacity-100"
             )}>
-              {YEARS.map(year => (
+              {years.map(year => (
                 <NavItem
                   key={year}
                   to={`/year/${year}`}
                   icon={<Calendar size={18} />}
                   label={year}
                   isCompact={isCompact}
-                  badge={year === CURRENT_YEAR ? "NOW" : undefined}
+                  badge={year === currentYear ? "NOW" : undefined}
                 />
               ))}
             </div>
@@ -156,7 +179,7 @@ export function Layout() {
         </nav>
 
         {/* Bottom Actions */}
-        <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
+        <div className="mt-4 pt-4 border-t space-y-2" style={{ borderColor: "var(--color-border-subtle)" }}>
           {/* Add Entry Button */}
           <button
             onClick={() => setShowEntryForm(true)}
@@ -174,7 +197,7 @@ export function Layout() {
           <button
             onClick={() => setIsCompact(!isCompact)}
             className={cn(
-              "w-full flex items-center gap-2 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-all",
+              "w-full flex items-center gap-2 py-2 rounded-lg text-sm transition-all text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-black/5",
               isCompact ? "justify-center px-2" : "px-3"
             )}
             title={isCompact ? "Expand sidebar" : "Collapse sidebar"}
@@ -210,8 +233,8 @@ export function Layout() {
 function SectionLabel({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2 px-2 py-3">
-      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{label}</span>
-      <div className="flex-1 h-px bg-white/5" />
+      <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)]">{label}</span>
+      <div className="flex-1 h-px" style={{ backgroundColor: "var(--color-border-subtle)" }} />
     </div>
   );
 }
@@ -240,8 +263,8 @@ function NavItem({
           "group relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200",
           isCompact ? "justify-center px-2 py-2.5" : "px-3 py-2",
           isActive
-            ? "bg-primary/15 text-white"
-            : "text-gray-400 hover:bg-white/5 hover:text-white"
+            ? "bg-primary/15 text-[var(--color-text)]"
+            : "text-[var(--color-text-muted)] hover:bg-black/5 hover:text-[var(--color-text)]"
         )
       }
       title={isCompact ? label : undefined}
@@ -276,7 +299,7 @@ function NavItem({
 
               {/* Keyboard shortcut (shown on hover) */}
               {shortcut && !badge && (
-                <span className="text-[10px] text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-[10px] text-[var(--color-text-subtle)] opacity-0 group-hover:opacity-100 transition-opacity">
                   {shortcut}
                 </span>
               )}

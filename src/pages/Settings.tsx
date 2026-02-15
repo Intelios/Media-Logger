@@ -17,7 +17,9 @@ import {
     Upload,
     AlertCircle,
     Loader2,
-    ExternalLink
+    ExternalLink,
+    Plus,
+    X
 } from 'lucide-react';
 import { exportToFile, importFromFile, getDataStats, type ImportResult } from '../lib/csv-logic';
 import {
@@ -28,10 +30,12 @@ import {
     getDisplayName,
     setDisplayName,
     clearDisplayName,
-    hasCustomDisplayName
+    hasCustomDisplayName,
+    getNavigationYears
 } from '../lib/settings';
 import { useTheme } from '../lib/ThemeContext';
 import type { ColorTheme, ThemeMode } from '../lib/themes';
+import { getCurrentYearString, updateNavigationYears } from '../lib/navigation-years';
 
 type SettingsSection = 'general' | 'appearance' | 'data';
 
@@ -46,6 +50,9 @@ export default function Settings() {
     // Display name state
     const [displayName, setDisplayNameState] = useState<string>('');
     const [isCustomName, setIsCustomName] = useState(false);
+    const [navigationYears, setNavigationYearsState] = useState<string[]>(() => getNavigationYears());
+    const [yearInput, setYearInput] = useState('');
+    const [yearError, setYearError] = useState('');
 
     const { colorTheme, themeMode, setColorTheme, setThemeMode, colorThemes } = useTheme();
 
@@ -68,6 +75,7 @@ export default function Settings() {
 
         setDisplayNameState(getDisplayName());
         setIsCustomName(hasCustomDisplayName());
+        setNavigationYearsState(getNavigationYears());
 
         // Load data stats
         getDataStats().then(setDataStats).catch(console.error);
@@ -117,6 +125,47 @@ export default function Settings() {
         setDisplayNameState('Collector');
         setIsCustomName(false);
         showToast('Display name reset');
+    };
+
+    const saveNavigationYears = (years: string[]) => {
+        const saved = updateNavigationYears(years);
+        setNavigationYearsState(saved);
+    };
+
+    const handleAddYear = () => {
+        const trimmed = yearInput.trim();
+        if (!/^\d{4}$/.test(trimmed)) {
+            setYearError('Enter a 4-digit year (e.g. 2027)');
+            return;
+        }
+        if (navigationYears.includes(trimmed)) {
+            setYearError('That year is already in your list');
+            return;
+        }
+
+        saveNavigationYears([...navigationYears, trimmed]);
+        setYearInput('');
+        setYearError('');
+        showToast(`Added ${trimmed} to navigation years`);
+    };
+
+    const handleRemoveYear = (year: string) => {
+        const next = navigationYears.filter(y => y !== year);
+        if (next.length === 0) {
+            setYearError('Keep at least one year configured');
+            return;
+        }
+
+        saveNavigationYears(next);
+        setYearError('');
+        showToast(`Removed ${year} from navigation years`);
+    };
+
+    const handleResetYears = () => {
+        const currentYear = getCurrentYearString();
+        saveNavigationYears([currentYear]);
+        setYearError('');
+        showToast('Year list reset to current year');
     };
 
     const handleColorThemeChange = (theme: ColorTheme) => {
@@ -248,6 +297,92 @@ export default function Settings() {
                                             Reset
                                         </button>
                                     )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Year Navigation</div>
+                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+                                <div>
+                                    <div className="settings-row-label">Available Years</div>
+                                    <div className="settings-row-description">
+                                        Used by the sidebar and stats filters. Years found in your entries are added automatically.
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <input
+                                        type="text"
+                                        value={yearInput}
+                                        onChange={(e) => {
+                                            setYearInput(e.target.value);
+                                            if (yearError) setYearError('');
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleAddYear();
+                                            }
+                                        }}
+                                        placeholder="e.g. 2027"
+                                        className="settings-input"
+                                        style={{ width: 160 }}
+                                    />
+                                    <button
+                                        onClick={handleAddYear}
+                                        className="settings-btn settings-btn-primary"
+                                    >
+                                        <Plus size={14} />
+                                        Add Year
+                                    </button>
+                                    <button
+                                        onClick={handleResetYears}
+                                        className="settings-btn settings-btn-secondary"
+                                    >
+                                        <RotateCcw size={14} />
+                                        Reset
+                                    </button>
+                                </div>
+
+                                {yearError && (
+                                    <div style={{ color: '#EF4444', fontSize: 12 }}>{yearError}</div>
+                                )}
+
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                    {navigationYears.map((year) => (
+                                        <span
+                                            key={year}
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 6,
+                                                borderRadius: 999,
+                                                padding: '6px 10px',
+                                                background: 'var(--color-surface)',
+                                                border: '1px solid var(--color-border)',
+                                                fontSize: 12,
+                                                color: 'var(--color-text)'
+                                            }}
+                                        >
+                                            {year}
+                                            <button
+                                                onClick={() => handleRemoveYear(year)}
+                                                style={{
+                                                    border: 'none',
+                                                    background: 'transparent',
+                                                    color: 'var(--color-text-muted)',
+                                                    cursor: 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    padding: 0
+                                                }}
+                                                aria-label={`Remove ${year}`}
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </span>
+                                    ))}
                                 </div>
                             </div>
                         </div>
@@ -471,7 +606,7 @@ export default function Settings() {
                                 <div>
                                     <div className="settings-row-label">Export All Data</div>
                                     <div className="settings-row-description">
-                                        Save all your entries, collections, and awards to a backup file
+                                        Save all your entries, collections, awards, and profile image mappings to a backup file
                                     </div>
                                 </div>
                                 <button
@@ -525,7 +660,7 @@ export default function Settings() {
                             color: 'var(--color-text-muted)'
                         }}>
                             <AlertCircle size={16} style={{ color: '#3B82F6', flexShrink: 0, marginTop: 2 }} />
-                            <span>Export files include all your data in JSON format with embedded CSVs. Images are not included in exports—only references to image paths.</span>
+                            <span>Export files include all your data in JSON format with embedded CSVs. Images are not included in exports, but profile-image mappings are included as path references.</span>
                         </div>
                     </div>
                 )}
@@ -566,6 +701,10 @@ export default function Settings() {
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                         <span>Award winners imported:</span>
                                         <strong>{importResult.awardWinnersImported}</strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Profile mappings imported:</span>
+                                        <strong>{importResult.profilesImported}</strong>
                                     </div>
                                 </div>
                             ) : (

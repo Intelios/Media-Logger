@@ -8,8 +8,9 @@ import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { CollapsibleStatSection } from "../components/CollapsibleStatSection";
 import { StatsEntriesModal } from "../components/StatsEntriesModal";
 import { GenreBreakdownModal } from "../components/GenreBreakdownModal";
+import { getNavigationYears } from "../lib/settings";
+import { getAvailableNavigationYears, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
 
-const YEARS = ["All Time", "2023", "2024", "2025", "2026"];
 const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"];
 const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1"];
 
@@ -59,7 +60,7 @@ const loadPersistedPreset = (): PresetKey => {
 const loadPersistedYear = (): string => {
   try {
     const stored = localStorage.getItem(STATS_YEAR_KEY);
-    if (stored && YEARS.includes(stored)) {
+    if (stored) {
       return stored;
     }
   } catch {
@@ -85,6 +86,7 @@ const loadPersistedTypes = (): string[] => {
 };
 
 export default function StatsPage() {
+  const [years, setYears] = useState<string[]>(() => getNavigationYears());
   const [activeYear, setActiveYear] = useState(loadPersistedYear);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedTypes);
   const [activePreset, setActivePreset] = useState<PresetKey>(loadPersistedPreset);
@@ -122,6 +124,33 @@ export default function StatsPage() {
   useEffect(() => {
     localStorage.setItem(STATS_TYPES_KEY, JSON.stringify(selectedTypes));
   }, [selectedTypes]);
+
+  useEffect(() => {
+    const refreshYears = async () => {
+      const availableYears = await getAvailableNavigationYears();
+      setYears(availableYears);
+    };
+
+    void refreshYears();
+
+    const handleYearsChanged = () => {
+      void refreshYears();
+    };
+
+    window.addEventListener(NAVIGATION_YEARS_UPDATED_EVENT, handleYearsChanged);
+    window.addEventListener("entry-added", handleYearsChanged as EventListener);
+
+    return () => {
+      window.removeEventListener(NAVIGATION_YEARS_UPDATED_EVENT, handleYearsChanged);
+      window.removeEventListener("entry-added", handleYearsChanged as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeYear !== "All Time" && !years.includes(activeYear)) {
+      setActiveYear("All Time");
+    }
+  }, [activeYear, years]);
 
   useEffect(() => {
     statsLogic.getStats(activeYear, selectedTypes).then(setData);
@@ -164,6 +193,8 @@ export default function StatsPage() {
   };
 
   if (!data) return <div className="p-10 text-gray-400">Calculating analytics...</div>;
+
+  const yearOptions = ["All Time", ...years];
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-20">
@@ -234,7 +265,7 @@ export default function StatsPage() {
 
         {/* Year Filter Pills */}
         <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 overflow-x-auto w-fit">
-          {YEARS.map(year => (
+          {yearOptions.map(year => (
             <button
               key={year}
               onClick={() => setActiveYear(year)}
