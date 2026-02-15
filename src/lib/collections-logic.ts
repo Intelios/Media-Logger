@@ -13,31 +13,40 @@ export const collectionsLogic = {
   // 1. Get All Collections with stats
   async getAllCollections(): Promise<Collection[]> {
     const db = await dbService.connect();
-    
-    // Get basic info
-    const cols = await db.select<Collection[]>("SELECT * FROM collections ORDER BY name ASC");
-    
-    // Enrich with counts and thumbnails
-    for (const col of cols) {
-        // Count items
-        const countRes = await db.select<{c: number}[]>(
-            "SELECT COUNT(*) as c FROM collection_items WHERE collection_id = $1", 
-            [col.id]
-        );
-        col.item_count = countRes[0].c;
 
-        // Get first 4 images for thumbnail grid
-        const thumbs = await db.select<{image_url: string}[]>(
-            `SELECT m.image_url 
-             FROM collection_items ci 
-             JOIN entries m ON ci.media_id = m.id 
-             WHERE ci.collection_id = $1 
-             ORDER BY ci.sort_order ASC LIMIT 4`,
-            [col.id]
-        );
-        col.thumbnails = thumbs.map(t => t.image_url);
+    // Fetch collections with item counts in one query (avoids per-collection COUNT queries)
+    const cols = await db.select<(Collection & { item_count: number })[]>(
+      `SELECT c.id, c.name, c.description, c.created_date, COUNT(ci.media_id) as item_count
+       FROM collections c
+       LEFT JOIN collection_items ci ON ci.collection_id = c.id
+       GROUP BY c.id, c.name, c.description, c.created_date
+       ORDER BY c.name ASC`
+    );
+
+    // Fetch all thumbnail candidates once; keep first 4 per collection in JS
+    const thumbnailRows = await db.select<{ collection_id: number; image_url: string | null }[]>(
+      `SELECT ci.collection_id, m.image_url
+       FROM collection_items ci
+       JOIN entries m ON ci.media_id = m.id
+       WHERE m.image_url IS NOT NULL AND m.image_url <> ''
+       ORDER BY ci.collection_id ASC, ci.sort_order ASC, ci.id ASC`
+    );
+
+    const thumbnailsByCollection = new Map<number, string[]>();
+    for (const row of thumbnailRows) {
+      if (!row.image_url) continue;
+
+      const existing = thumbnailsByCollection.get(row.collection_id) || [];
+      if (existing.length < 4) {
+        existing.push(row.image_url);
+        thumbnailsByCollection.set(row.collection_id, existing);
+      }
     }
-    
+
+    for (const col of cols) {
+      col.thumbnails = thumbnailsByCollection.get(col.id) || [];
+    }
+
     return cols;
   },
 
