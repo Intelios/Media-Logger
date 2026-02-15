@@ -17,8 +17,7 @@ export const profilesLogic = {
     const db = await dbService.connect();
     const entries = await db.select<MediaEntry[]>("SELECT * FROM entries");
 
-    // Fetch custom profile images
-    // We assume the table exists from your python migration
+    // Fetch custom profile images (table is ensured by DB migrations)
     const customImages = await db.select<{ type: string, name: string, image_url: string }[]>(
       "SELECT * FROM profiles"
     );

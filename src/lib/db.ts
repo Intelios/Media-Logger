@@ -80,6 +80,9 @@ class DBService {
     // Ensure base tables exist (creates 'entries' for new users)
     await this.createTables();
 
+    // Repair schema drift from older builds
+    await this.runSchemaCompatibilityMigrations();
+
     // Check if franchise column exists by querying table info
     try {
       const columns = await this.db.select<{ name: string }[]>(
@@ -99,6 +102,138 @@ class DBService {
 
     // Award templates migration
     await this.runAwardTemplatesMigration();
+  }
+
+  private async getTableInfo(tableName: string): Promise<{ name: string; pk: number }[]> {
+    if (!this.db) return [];
+    return await this.db.select<{ name: string; pk: number }[]>(
+      `PRAGMA table_info(${tableName})`
+    );
+  }
+
+  private async runSchemaCompatibilityMigrations() {
+    if (!this.db) return;
+
+    try {
+      await this.migrateCollectionItemsTable();
+      await this.migrateAwardCategoriesTable();
+      await this.migrateAwardWinnersTable();
+    } catch (error) {
+      console.error('[DB] Compatibility migration error:', error);
+    }
+  }
+
+  private async migrateCollectionItemsTable() {
+    if (!this.db) return;
+
+    const columns = await this.getTableInfo('collection_items');
+    if (columns.length === 0) return;
+
+    const columnNames = columns.map(c => c.name);
+    const hasMediaId = columnNames.includes('media_id');
+    const hasEntryId = columnNames.includes('entry_id');
+    const needsRebuild = !hasMediaId || hasEntryId || columnNames.includes('added_date');
+
+    if (!needsRebuild) return;
+
+    console.log('[DB] Migrating collection_items schema...');
+    await this.db.execute("ALTER TABLE collection_items RENAME TO collection_items_old");
+    await this.db.execute(`
+      CREATE TABLE collection_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        collection_id INTEGER NOT NULL,
+        media_id INTEGER NOT NULL,
+        sort_order INTEGER DEFAULT 0,
+        FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+        FOREIGN KEY (media_id) REFERENCES entries(id) ON DELETE CASCADE
+      )
+    `);
+
+    const sourceMediaColumn = hasMediaId ? 'media_id' : 'entry_id';
+    if (columnNames.includes(sourceMediaColumn)) {
+      const idExpr = columnNames.includes('id') ? 'id' : 'NULL';
+      const sortOrderExpr = columnNames.includes('sort_order') ? 'COALESCE(sort_order, 0)' : '0';
+
+      await this.db.execute(`
+        INSERT INTO collection_items (id, collection_id, media_id, sort_order)
+        SELECT ${idExpr}, collection_id, ${sourceMediaColumn}, ${sortOrderExpr}
+        FROM collection_items_old
+      `);
+    }
+
+    await this.db.execute("DROP TABLE collection_items_old");
+    console.log('[DB] collection_items schema migration complete');
+  }
+
+  private async migrateAwardCategoriesTable() {
+    if (!this.db) return;
+
+    const columns = await this.getTableInfo('award_categories');
+    if (columns.length === 0) return;
+
+    const columnNames = columns.map(c => c.name);
+
+    if (!columnNames.includes('created_date')) {
+      console.log('[DB] Adding created_date to award_categories...');
+      await this.db.execute("ALTER TABLE award_categories ADD COLUMN created_date TEXT");
+    }
+
+    await this.db.execute(
+      "UPDATE award_categories SET created_date = datetime('now') WHERE created_date IS NULL OR created_date = ''"
+    );
+  }
+
+  private async migrateAwardWinnersTable() {
+    if (!this.db) return;
+
+    const columns = await this.getTableInfo('award_winners');
+    if (columns.length === 0) return;
+
+    const columnNames = columns.map(c => c.name);
+    const categoryIdInfo = columns.find(c => c.name === 'category_id');
+    const categoryIdIsPrimaryKey = categoryIdInfo?.pk === 1;
+    const hasMediaId = columnNames.includes('media_id');
+    const hasEntryId = columnNames.includes('entry_id');
+    const hasSelectedDate = columnNames.includes('selected_date');
+    const needsRebuild = !hasMediaId || hasEntryId || !hasSelectedDate || !categoryIdIsPrimaryKey;
+
+    if (!needsRebuild) return;
+
+    console.log('[DB] Migrating award_winners schema...');
+    await this.db.execute("ALTER TABLE award_winners RENAME TO award_winners_old");
+    await this.db.execute(`
+      CREATE TABLE award_winners (
+        category_id INTEGER PRIMARY KEY,
+        media_id INTEGER NOT NULL,
+        selected_date TEXT,
+        FOREIGN KEY (category_id) REFERENCES award_categories(id) ON DELETE CASCADE,
+        FOREIGN KEY (media_id) REFERENCES entries(id) ON DELETE CASCADE
+      )
+    `);
+
+    const sourceMediaColumn = hasMediaId ? 'media_id' : 'entry_id';
+    if (columnNames.includes('category_id') && columnNames.includes(sourceMediaColumn)) {
+      const selectedDateExpr = hasSelectedDate
+        ? "COALESCE(ow.selected_date, datetime('now'))"
+        : "datetime('now')";
+
+      await this.db.execute(`
+        INSERT OR REPLACE INTO award_winners (category_id, media_id, selected_date)
+        SELECT ow.category_id, ow.${sourceMediaColumn}, ${selectedDateExpr}
+        FROM award_winners_old ow
+        JOIN (
+          SELECT category_id, MAX(rowid) as latest_rowid
+          FROM award_winners_old
+          WHERE category_id IS NOT NULL
+          GROUP BY category_id
+        ) latest
+          ON latest.category_id = ow.category_id AND latest.latest_rowid = ow.rowid
+        WHERE ow.${sourceMediaColumn} IS NOT NULL
+      `);
+    }
+
+    await this.db.execute("DROP TABLE award_winners_old");
+    console.log('[DB] award_winners schema migration complete');
   }
 
   /**
@@ -147,11 +282,10 @@ class DBService {
         CREATE TABLE IF NOT EXISTS collection_items (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           collection_id INTEGER NOT NULL,
-          entry_id INTEGER NOT NULL,
-          added_date TEXT NOT NULL,
+          media_id INTEGER NOT NULL,
           sort_order INTEGER DEFAULT 0,
           FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
-          FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE
+          FOREIGN KEY (media_id) REFERENCES entries(id) ON DELETE CASCADE
         )
       `);
 
@@ -161,6 +295,7 @@ class DBService {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           year INTEGER NOT NULL,
           name TEXT NOT NULL,
+          created_date TEXT NOT NULL,
           sort_order INTEGER DEFAULT 0,
           template_id INTEGER REFERENCES award_templates(id)
         )
@@ -169,11 +304,21 @@ class DBService {
       // Create award winners table
       await this.db.execute(`
         CREATE TABLE IF NOT EXISTS award_winners (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          category_id INTEGER NOT NULL,
-          entry_id INTEGER NOT NULL,
+          category_id INTEGER PRIMARY KEY,
+          media_id INTEGER NOT NULL,
+          selected_date TEXT,
           FOREIGN KEY (category_id) REFERENCES award_categories(id) ON DELETE CASCADE,
-          FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE
+          FOREIGN KEY (media_id) REFERENCES entries(id) ON DELETE CASCADE
+        )
+      `);
+
+      // Create profile images table
+      await this.db.execute(`
+        CREATE TABLE IF NOT EXISTS profiles (
+          type TEXT NOT NULL,
+          name TEXT NOT NULL,
+          image_url TEXT NOT NULL,
+          PRIMARY KEY (type, name)
         )
       `);
 
