@@ -457,7 +457,7 @@ export default function Settings() {
                                 <div>
                                     <div className="settings-row-label">Glass Style</div>
                                     <div className="settings-row-description">
-                                        Default keeps your current look. Clear uses a stronger liquid glass style with automatic fallback on older macOS.
+                                        Default keeps a solid background. Clear enables a liquid glass effect that shows colors and shapes from your desktop behind the app window.
                                     </div>
                                 </div>
                                 <div className="segmented-control">
