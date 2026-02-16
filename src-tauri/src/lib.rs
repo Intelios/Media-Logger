@@ -1,6 +1,6 @@
+use tauri::Emitter;
 use tauri::Manager;
 use tauri::menu::{Menu, MenuItemBuilder, PredefinedMenuItem, Submenu};
-use tauri::Emitter;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -13,19 +13,19 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_dialog::init()) 
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![greet])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
-            
+
             // Create native macOS menu bar
             #[cfg(target_os = "macos")]
             {
-                use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+                use window_vibrancy::{NSVisualEffectMaterial, apply_vibrancy};
                 apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None)
                     .expect("Failed to apply vibrancy");
-                
+
                 // App menu (appears as "Media Logger" in menu bar)
                 let app_menu = Submenu::with_items(
                     app,
@@ -49,7 +49,7 @@ pub fn run() {
                     .id("new_entry")
                     .accelerator("CmdOrCtrl+N")
                     .build(app)?;
-                
+
                 let file_menu = Submenu::with_items(
                     app,
                     "File",
@@ -82,9 +82,10 @@ pub fn run() {
                     app,
                     "View",
                     true,
-                    &[
-                        &PredefinedMenuItem::fullscreen(app, Some("Toggle Full Screen"))?,
-                    ],
+                    &[&PredefinedMenuItem::fullscreen(
+                        app,
+                        Some("Toggle Full Screen"),
+                    )?],
                 )?;
 
                 // Go menu for quick navigation
@@ -153,12 +154,19 @@ pub fn run() {
                 // Build the menu bar
                 let menu = Menu::with_items(
                     app,
-                    &[&app_menu, &file_menu, &edit_menu, &view_menu, &go_menu, &window_menu],
+                    &[
+                        &app_menu,
+                        &file_menu,
+                        &edit_menu,
+                        &view_menu,
+                        &go_menu,
+                        &window_menu,
+                    ],
                 )?;
 
                 app.set_menu(menu)?;
             }
-            
+
             Ok(())
         })
         .on_menu_event(|app, event| {
