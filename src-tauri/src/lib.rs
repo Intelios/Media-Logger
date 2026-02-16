@@ -8,6 +8,51 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+#[tauri::command]
+fn apply_glass_style(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    style: String,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_plugin_liquid_glass::{GlassMaterialVariant, LiquidGlassConfig, LiquidGlassExt};
+        use window_vibrancy::{NSVisualEffectMaterial, apply_vibrancy};
+
+        let normalized = style.trim().to_ascii_lowercase();
+
+        // macOS 26+ can switch between native liquid glass variants.
+        if app.liquid_glass().is_supported() {
+            let variant = if normalized == "clear" {
+                GlassMaterialVariant::Clear
+            } else {
+                GlassMaterialVariant::Sidebar
+            };
+
+            app.liquid_glass()
+                .set_effect(
+                    &window,
+                    LiquidGlassConfig {
+                        variant,
+                        ..Default::default()
+                    },
+                )
+                .map_err(|e| e.to_string())?;
+        } else {
+            // Older macOS keeps the same vibrancy fallback regardless of selected style.
+            apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, window, style);
+    }
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -16,7 +61,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_liquid_glass::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![greet, apply_glass_style])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
 

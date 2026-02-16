@@ -34,7 +34,7 @@ import {
     getNavigationYears
 } from '../lib/settings';
 import { useTheme } from '../lib/ThemeContext';
-import type { ColorTheme, ThemeMode } from '../lib/themes';
+import type { ColorTheme, GlassStyle, ThemeMode } from '../lib/themes';
 import { getCurrentYearString, updateNavigationYears } from '../lib/navigation-years';
 
 type SettingsSection = 'general' | 'appearance' | 'data';
@@ -54,7 +54,7 @@ export default function Settings() {
     const [yearInput, setYearInput] = useState('');
     const [yearError, setYearError] = useState('');
 
-    const { colorTheme, themeMode, setColorTheme, setThemeMode, colorThemes } = useTheme();
+    const { colorTheme, themeMode, glassStyle, setColorTheme, setThemeMode, setGlassStyle, colorThemes } = useTheme();
 
     // Data export/import state
     const [dataStats, setDataStats] = useState<{ mediaCount: number; collectionCount: number; awardCount: number } | null>(null);
@@ -174,6 +174,12 @@ export default function Settings() {
 
     const handleThemeModeChange = (mode: ThemeMode) => {
         setThemeMode(mode);
+    };
+
+    const handleGlassStyleChange = (style: GlassStyle) => {
+        if (style === glassStyle) return;
+        setGlassStyle(style);
+        showToast(style === 'clear' ? 'Glass style set to Clear' : 'Glass style set to Default');
     };
 
     const handleExport = async () => {
@@ -441,6 +447,32 @@ export default function Settings() {
                                 </div>
                                 <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
                                     Selected: <strong style={{ color: 'var(--color-text)' }}>{colorTheme.name}</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Window Glass</div>
+                            <div className="settings-row">
+                                <div>
+                                    <div className="settings-row-label">Glass Style</div>
+                                    <div className="settings-row-description">
+                                        Default keeps your current look. Clear uses a stronger liquid glass style with automatic fallback on older macOS.
+                                    </div>
+                                </div>
+                                <div className="segmented-control">
+                                    <button
+                                        onClick={() => handleGlassStyleChange('default')}
+                                        className={`segmented-control-item ${glassStyle === 'default' ? 'active' : ''}`}
+                                    >
+                                        Default
+                                    </button>
+                                    <button
+                                        onClick={() => handleGlassStyleChange('clear')}
+                                        className={`segmented-control-item ${glassStyle === 'clear' ? 'active' : ''}`}
+                                    >
+                                        Clear
+                                    </button>
                                 </div>
                             </div>
                         </div>
