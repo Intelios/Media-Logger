@@ -15,6 +15,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_liquid_glass::init())
         .invoke_handler(tauri::generate_handler![greet])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
@@ -22,9 +23,26 @@ pub fn run() {
             // Create native macOS menu bar
             #[cfg(target_os = "macos")]
             {
+                use tauri_plugin_liquid_glass::{
+                    GlassMaterialVariant, LiquidGlassConfig, LiquidGlassExt,
+                };
                 use window_vibrancy::{NSVisualEffectMaterial, apply_vibrancy};
-                apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None)
-                    .expect("Failed to apply vibrancy");
+
+                // macOS 26+ gets Liquid Glass; older macOS keeps the existing vibrancy effect.
+                if app.liquid_glass().is_supported() {
+                    app.liquid_glass()
+                        .set_effect(
+                            &window,
+                            LiquidGlassConfig {
+                                variant: GlassMaterialVariant::Sidebar,
+                                ..Default::default()
+                            },
+                        )
+                        .expect("Failed to apply liquid glass");
+                } else {
+                    apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None)
+                        .expect("Failed to apply vibrancy");
+                }
 
                 // App menu (appears as "Media Logger" in menu bar)
                 let app_menu = Submenu::with_items(
