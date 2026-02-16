@@ -1,6 +1,7 @@
 // Theme definitions for Media Logger
 
 export type ThemeMode = 'dark' | 'light';
+export type GlassStyle = 'default' | 'clear';
 
 export interface ColorTheme {
     id: string;
@@ -162,6 +163,7 @@ export const MODE_THEMES: Record<ThemeMode, ModeTheme> = {
 export const STORAGE_KEYS = {
     colorTheme: 'media-logger-color-theme',
     themeMode: 'media-logger-theme-mode',
+    glassStyle: 'media-logger-glass-style',
 } as const;
 
 // Get default theme
@@ -171,6 +173,10 @@ export function getDefaultColorTheme(): ColorTheme {
 
 export function getDefaultThemeMode(): ThemeMode {
     return 'dark';
+}
+
+export function getDefaultGlassStyle(): GlassStyle {
+    return 'default';
 }
 
 // Find theme by ID

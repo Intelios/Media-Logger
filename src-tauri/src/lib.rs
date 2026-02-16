@@ -1,6 +1,6 @@
+use tauri::Emitter;
 use tauri::Manager;
 use tauri::menu::{Menu, MenuItemBuilder, PredefinedMenuItem, Submenu};
-use tauri::Emitter;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -8,24 +8,87 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+#[tauri::command]
+fn apply_glass_style(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    style: String,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_plugin_liquid_glass::{GlassMaterialVariant, LiquidGlassConfig, LiquidGlassExt};
+        use window_vibrancy::{NSVisualEffectMaterial, apply_vibrancy};
+
+        let normalized = style.trim().to_ascii_lowercase();
+
+        // macOS 26+ can switch between native liquid glass variants.
+        if app.liquid_glass().is_supported() {
+            let variant = if normalized == "clear" {
+                GlassMaterialVariant::Clear
+            } else {
+                GlassMaterialVariant::Sidebar
+            };
+
+            app.liquid_glass()
+                .set_effect(
+                    &window,
+                    LiquidGlassConfig {
+                        variant,
+                        ..Default::default()
+                    },
+                )
+                .map_err(|e| e.to_string())?;
+        } else {
+            // Older macOS keeps the same vibrancy fallback regardless of selected style.
+            apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, window, style);
+    }
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_dialog::init()) 
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .plugin(tauri_plugin_liquid_glass::init())
+        .invoke_handler(tauri::generate_handler![greet, apply_glass_style])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
-            
+
             // Create native macOS menu bar
             #[cfg(target_os = "macos")]
             {
-                use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-                apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None)
-                    .expect("Failed to apply vibrancy");
-                
+                use tauri_plugin_liquid_glass::{
+                    GlassMaterialVariant, LiquidGlassConfig, LiquidGlassExt,
+                };
+                use window_vibrancy::{NSVisualEffectMaterial, apply_vibrancy};
+
+                // macOS 26+ gets Liquid Glass; older macOS keeps the existing vibrancy effect.
+                if app.liquid_glass().is_supported() {
+                    app.liquid_glass()
+                        .set_effect(
+                            &window,
+                            LiquidGlassConfig {
+                                variant: GlassMaterialVariant::Sidebar,
+                                ..Default::default()
+                            },
+                        )
+                        .expect("Failed to apply liquid glass");
+                } else {
+                    apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None)
+                        .expect("Failed to apply vibrancy");
+                }
+
                 // App menu (appears as "Media Logger" in menu bar)
                 let app_menu = Submenu::with_items(
                     app,
@@ -49,7 +112,7 @@ pub fn run() {
                     .id("new_entry")
                     .accelerator("CmdOrCtrl+N")
                     .build(app)?;
-                
+
                 let file_menu = Submenu::with_items(
                     app,
                     "File",
@@ -82,9 +145,10 @@ pub fn run() {
                     app,
                     "View",
                     true,
-                    &[
-                        &PredefinedMenuItem::fullscreen(app, Some("Toggle Full Screen"))?,
-                    ],
+                    &[&PredefinedMenuItem::fullscreen(
+                        app,
+                        Some("Toggle Full Screen"),
+                    )?],
                 )?;
 
                 // Go menu for quick navigation
@@ -153,12 +217,19 @@ pub fn run() {
                 // Build the menu bar
                 let menu = Menu::with_items(
                     app,
-                    &[&app_menu, &file_menu, &edit_menu, &view_menu, &go_menu, &window_menu],
+                    &[
+                        &app_menu,
+                        &file_menu,
+                        &edit_menu,
+                        &view_menu,
+                        &go_menu,
+                        &window_menu,
+                    ],
                 )?;
 
                 app.set_menu(menu)?;
             }
-            
+
             Ok(())
         })
         .on_menu_event(|app, event| {

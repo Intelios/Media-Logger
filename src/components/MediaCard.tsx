@@ -291,8 +291,14 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
         {menuOpen && createPortal(
           <div
             ref={menuRef}
-            className="fixed w-44 bg-surface/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[200]"
-            style={{ top: menuPosition.top, right: menuPosition.right }}
+            className="fixed w-44 rounded-xl border border-white/20 bg-transparent backdrop-blur-2xl shadow-2xl shadow-black/45 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[200]"
+            style={{
+              top: menuPosition.top,
+              right: menuPosition.right,
+              background: "color-mix(in srgb, var(--color-surface) 42%, transparent)",
+              backdropFilter: "blur(24px) saturate(170%)",
+              WebkitBackdropFilter: "blur(24px) saturate(170%)",
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <button
