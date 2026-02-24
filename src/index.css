@@ -139,6 +139,23 @@ body {
   animation: perfect-glow 3s ease-in-out infinite;
 }
 
+/* Platinum/100% glow animation */
+@keyframes platinum-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 22px rgba(34, 211, 238, 0.35), 0 0 44px rgba(245, 158, 11, 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 30px rgba(34, 211, 238, 0.45), 0 0 60px rgba(245, 158, 11, 0.28);
+  }
+}
+
+.animate-platinum-glow {
+  animation: platinum-glow 3s ease-in-out infinite;
+}
+
 /* Subtle pulse for sidebar logo in compact mode */
 @keyframes pulse-subtle {
 

@@ -129,6 +129,8 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
   const perfectTen = isPerfectTen(entry.review_score);
   const hasAwards = awards.length > 0;
   const genres = parseGenres(entry.genre);
+  const isGameEntry = (entry.entry_type || "").toLowerCase().includes("game");
+  const hasPlatinum = isGameEntry && entry.is_platinum === 1;
 
   // Check boolean flags (stored as 0/1 in SQLite)
   const isRewatch = entry.is_rewatch === 1;
@@ -214,7 +216,9 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
     <>
       <div className={cn(
         "group relative bg-surface/80 backdrop-blur-md rounded-2xl hover:scale-[1.03] transition-all duration-300 cursor-pointer",
-        perfectTen
+        hasPlatinum
+          ? "border-2 border-cyan-300 shadow-[0_0_22px_rgba(34,211,238,0.35),0_0_44px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(34,211,238,0.45),0_0_60px_rgba(245,158,11,0.3)] hover:border-cyan-200 animate-platinum-glow"
+          : perfectTen
           ? "border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4),0_0_40px_rgba(52,211,153,0.2)] hover:shadow-[0_0_25px_rgba(52,211,153,0.5),0_0_50px_rgba(52,211,153,0.3)] hover:border-emerald-300 animate-perfect-glow"
           : "border border-white/10 hover:shadow-2xl hover:shadow-primary/20 hover:border-primary/40"
       )}>
@@ -230,6 +234,21 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
 
           {/* Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+          {/* Platinum Badge */}
+          {hasPlatinum && (
+            <div className="absolute top-2 left-2 group/platinum z-20">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-amber-400/95 via-yellow-300/95 to-cyan-300/95 rounded-full shadow-lg shadow-cyan-500/25 border border-white/30">
+                <Trophy size={12} className="text-slate-900" />
+                <span className="text-[10px] font-black tracking-wide text-slate-900">PLATINUM 100%</span>
+              </div>
+              <div className="absolute bottom-full left-0 mb-2 opacity-0 invisible group-hover/platinum:opacity-100 group-hover/platinum:visible transition-all duration-200 z-30">
+                <div className="bg-surface/95 backdrop-blur-xl border border-cyan-300/40 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
+                  <span className="text-xs font-medium text-cyan-200">Platinum / 100% Completed</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Top Right: Action Menu */}
           <div className="absolute top-2 right-2 z-20" ref={menuRef}>
@@ -450,7 +469,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
           )}
 
           {/* Rewatch / Local Copy Badges */}
-          {(isRewatch || hasLocalCopy) && (
+          {(isRewatch || hasLocalCopy || hasPlatinum) && (
             <div className="flex items-center gap-1.5">
               {isRewatch && (
                 <div className="relative group/rewatch">
@@ -474,6 +493,18 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/local:opacity-100 group-hover/local:visible transition-all duration-200 z-[100]">
                     <div className="bg-surface/95 backdrop-blur-xl border border-emerald-500/30 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
                       <span className="text-xs font-medium text-emerald-400">Own Local Copy</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {hasPlatinum && (
+                <div className="relative group/platinum-status">
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-400/30 to-cyan-400/30 border border-cyan-300 flex items-center justify-center cursor-pointer">
+                    <Trophy size={12} className="text-cyan-100" />
+                  </div>
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/platinum-status:opacity-100 group-hover/platinum-status:visible transition-all duration-200 z-[100]">
+                    <div className="bg-surface/95 backdrop-blur-xl border border-cyan-300/40 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
+                      <span className="text-xs font-medium text-cyan-200">Platinum / 100%</span>
                     </div>
                   </div>
                 </div>
@@ -751,6 +782,11 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
 
                         {/* Status Badges */}
                         <div className="flex items-center gap-2 shrink-0">
+                          {dup.entry_type?.toLowerCase().includes("game") && dup.is_platinum === 1 && (
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-400/30 to-cyan-400/30 border border-cyan-300 flex items-center justify-center" title="Platinum / 100%">
+                              <Trophy size={12} className="text-cyan-100" />
+                            </div>
+                          )}
                           {dup.is_rewatch === 1 && (
                             <div className="w-7 h-7 rounded-full bg-amber-500/20 border border-amber-500 flex items-center justify-center" title="Rewatch/Replay">
                               <RotateCcw size={12} className="text-amber-500" />

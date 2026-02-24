@@ -13,6 +13,7 @@ export interface MediaEntry {
   year_completed: number | null;
   is_rewatch: number; // SQLite stores booleans as 0/1
   own_local_copy: number;
+  is_platinum: number;
   image_url: string | null;
   entry_type: string | null;
   platform: string | null;
@@ -83,7 +84,7 @@ class DBService {
     // Repair schema drift from older builds
     await this.runSchemaCompatibilityMigrations();
 
-    // Check if franchise column exists by querying table info
+    // Check if newer entry columns exist by querying table info
     try {
       const columns = await this.db.select<{ name: string }[]>(
         "PRAGMA table_info(entries)"
@@ -96,6 +97,16 @@ class DBService {
         await this.db.execute("ALTER TABLE entries ADD COLUMN franchise TEXT");
         console.log('[DB] Franchise column added successfully');
       }
+
+      // Add is_platinum column if it doesn't exist
+      if (!columnNames.includes('is_platinum')) {
+        console.log('[DB] Adding is_platinum column...');
+        await this.db.execute("ALTER TABLE entries ADD COLUMN is_platinum INTEGER DEFAULT 0");
+        console.log('[DB] is_platinum column added successfully');
+      }
+
+      // Normalize nullable legacy rows
+      await this.db.execute("UPDATE entries SET is_platinum = 0 WHERE is_platinum IS NULL");
     } catch (error) {
       console.error('[DB] Migration error:', error);
     }
@@ -255,6 +266,7 @@ class DBService {
           year_completed INTEGER,
           is_rewatch INTEGER DEFAULT 0,
           own_local_copy INTEGER DEFAULT 0,
+          is_platinum INTEGER DEFAULT 0,
           image_url TEXT,
           entry_type TEXT,
           platform TEXT,

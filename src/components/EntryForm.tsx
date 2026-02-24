@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film, FileText } from "lucide-react";
+import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film, FileText, Trophy } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { saveImage, getImageUrl } from "../lib/utils";
@@ -48,7 +48,12 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
       setActiveTab("basic");
 
       if (initialData) {
-        setFormData(initialData);
+        setFormData({
+          ...initialData,
+          is_rewatch: initialData.is_rewatch ?? 0,
+          own_local_copy: initialData.own_local_copy ?? 0,
+          is_platinum: initialData.is_platinum ?? 0,
+        });
         if (initialData.image_url) {
           getImageUrl(initialData.image_url).then(setPreviewImage);
         } else {
@@ -60,6 +65,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
           review_score: null,
           is_rewatch: 0,
           own_local_copy: 0,
+          is_platinum: 0,
           completion_date: new Date().toISOString().split('T')[0]
         });
         setPreviewImage("");
@@ -118,7 +124,16 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
   };
 
   const updateField = (key: keyof MediaEntry, value: unknown) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [key]: value } as Partial<MediaEntry>;
+
+      // Platinum applies only to games.
+      if (key === "entry_type" && value !== "Game") {
+        next.is_platinum = 0;
+      }
+
+      return next;
+    });
   };
 
   if (!isOpen) return null;
@@ -243,6 +258,26 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               placeholder="Zelda, Mario, Final Fantasy..."
             />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+              <Trophy size={14} className="text-amber-400" />
+              Completion Badge
+            </label>
+            <button
+              type="button"
+              onClick={() => updateField("is_platinum", formData.is_platinum === 1 ? 0 : 1)}
+              className={cn(
+                "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all border",
+                formData.is_platinum === 1
+                  ? "bg-gradient-to-r from-amber-500/25 to-cyan-500/25 border-amber-400/80 text-amber-300 shadow-lg shadow-amber-500/20"
+                  : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
+              )}
+            >
+              <Trophy size={16} />
+              <span>{formData.is_platinum === 1 ? "Platinum / 100% Complete" : "Mark as Platinum / 100%"}</span>
+            </button>
+            <p className="text-xs text-gray-500">Use this for games you fully completed (Platinum / 100%).</p>
           </div>
         </>
       )}
