@@ -17,6 +17,7 @@ export interface FullStats {
   ratings: StatItem[];
   genres: StatItem[];
   platforms: StatItem[];
+  franchises: StatItem[];
   studios: StatItem[];
   authors: StatItem[];
   actresses: StatItem[];
@@ -156,7 +157,11 @@ export const statsLogic = {
 
     // 5. Enhanced category aggregations with scores
     const genres = countWithScores(entries, 'genre').slice(0, 25);
-    const platforms = countWithScores(entries, 'platform').slice(0, 25);
+    const gameEntries = entries.filter(
+      (entry) => typeof entry.entry_type === "string" && entry.entry_type.toLowerCase() === "game"
+    );
+    const platforms = countWithScores(gameEntries, 'platform').slice(0, 25);
+    const franchises = countWithScores(gameEntries, 'franchise').slice(0, 25);
     const studios = countWithScores(entries, 'director').slice(0, 25); // director = studio
     const authors = countWithScores(entries, 'author').slice(0, 25);
     const actresses = countWithScores(entries, 'actress').slice(0, 25);
@@ -169,6 +174,7 @@ export const statsLogic = {
       ratings,
       genres,
       platforms,
+      franchises,
       studios,
       authors,
       actresses,

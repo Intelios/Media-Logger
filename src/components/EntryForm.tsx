@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film, FileText, Trophy } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { saveImage, getImageUrl } from "../lib/utils";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
+import { useEscapeToClose } from "../lib/useEscapeToClose";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 interface EntryFormProps {
   initialData?: MediaEntry | null;
@@ -41,6 +43,10 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
   const [rawImagePath, setRawImagePath] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("basic");
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEscapeToClose(isOpen, onClose);
+  useFocusTrap(isOpen, modalRef);
 
   useEffect(() => {
     if (isOpen) {
@@ -456,7 +462,10 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       {/* Modal Container */}
-      <div className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-2xl rounded-3xl shadow-2xl shadow-primary/10 overflow-hidden max-h-[90vh] flex flex-col">
+      <div
+        ref={modalRef}
+        className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-2xl rounded-3xl shadow-2xl shadow-primary/10 overflow-hidden max-h-[90vh] flex flex-col"
+      >
 
         {/* Header with Preview */}
         <div className="relative bg-gradient-to-r from-primary/20 via-purple-500/10 to-transparent p-6 border-b border-white/5">
