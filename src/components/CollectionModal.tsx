@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { X, Save, Layers, Sparkles, Pencil } from "lucide-react";
+import { useEscapeToClose } from "../lib/useEscapeToClose";
 
 interface CollectionModalProps {
   isOpen: boolean;
@@ -13,6 +14,8 @@ interface CollectionModalProps {
 export function CollectionModal({ isOpen, onClose, onSubmit, initialName, initialDesc, mode = "create" }: CollectionModalProps) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
+
+  useEscapeToClose(isOpen, onClose);
 
   useEffect(() => {
     if (isOpen) {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
+import { useEscapeToClose } from "../lib/useEscapeToClose";
 
 interface InputModalProps {
   isOpen: boolean;
@@ -12,6 +13,8 @@ interface InputModalProps {
 
 export function InputModal({ isOpen, onClose, onSubmit, title, placeholder, defaultValue }: InputModalProps) {
   const [value, setValue] = useState("");
+
+  useEscapeToClose(isOpen, onClose);
 
   useEffect(() => {
     if (isOpen) {

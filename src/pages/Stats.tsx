@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { statsLogic, type FullStats } from "../lib/stats-logic";
 import { type MediaEntry } from "../lib/db";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, AreaChart, Area } from "recharts";
-import { Filter, Star, RefreshCw, Hash, Play, PieChart as PieIcon, Heart, Building2, User, Sparkles, Calendar, Trophy, Gamepad2, Film, ChevronRight } from "lucide-react";
+import { Filter, Star, RefreshCw, Hash, PieChart as PieIcon, Heart, Building2, User, Sparkles, Calendar, Trophy, Gamepad2, Film, ChevronRight } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { CollapsibleStatSection } from "../components/CollapsibleStatSection";
@@ -421,10 +421,17 @@ export default function StatsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <CollapsibleStatSection
           title="Platforms"
-          icon={<Play size={18} />}
+          icon={<Gamepad2 size={18} />}
           items={data.platforms.filter(item => item.count >= 3)}
           accentColor="blue"
           storageKey="platforms"
+        />
+        <CollapsibleStatSection
+          title="Franchises"
+          icon={<Sparkles size={18} />}
+          items={data.franchises.filter(item => item.count >= 3)}
+          accentColor="cyan"
+          storageKey="franchises"
         />
         <CollapsibleStatSection
           title="Studios"

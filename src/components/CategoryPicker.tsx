@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Search, X, Plus, Trophy, Check } from "lucide-react";
 import { awardsLogic, type AwardTemplate } from "../lib/awards-logic";
 import { cn } from "../lib/utils_ui";
+import { useEscapeToClose } from "../lib/useEscapeToClose";
 
 interface CategoryPickerProps {
     isOpen: boolean;
@@ -23,6 +24,8 @@ export function CategoryPicker({
     const [filteredTemplates, setFilteredTemplates] = useState<AwardTemplate[]>([]);
     const [showNewInput, setShowNewInput] = useState(false);
     const [newName, setNewName] = useState("");
+
+    useEscapeToClose(isOpen, onClose);
 
     useEffect(() => {
         if (isOpen) {

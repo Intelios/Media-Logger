@@ -3,6 +3,7 @@ import { X, Save, GripVertical } from "lucide-react";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useEscapeToClose } from "../lib/useEscapeToClose";
 
 // Generic item type - works with MediaEntry, AwardCategory, or any object with id and name
 export interface ReorderItem {
@@ -51,6 +52,8 @@ function SortableItem({ id, item }: { id: number, item: ReorderItem }) {
 
 export function ReorderModal<T extends ReorderItem>({ isOpen, onClose, items, onSave, title = "Reorder Items" }: ReorderModalProps<T>) {
   const [orderedItems, setOrderedItems] = useState<T[]>([]);
+
+  useEscapeToClose(isOpen, onClose);
 
   useEffect(() => {
     if (isOpen) setOrderedItems(items);

@@ -4,6 +4,7 @@ import { type MediaEntry } from "../lib/db";
 import { MediaCard } from "./MediaCard";
 import { EntryForm } from "./EntryForm";
 import { dbService } from "../lib/db";
+import { useEscapeToClose } from "../lib/useEscapeToClose";
 
 interface StatsEntriesModalProps {
     isOpen: boolean;
@@ -16,6 +17,8 @@ interface StatsEntriesModalProps {
 export function StatsEntriesModal({ isOpen, onClose, title, entries, onEntriesChange }: StatsEntriesModalProps) {
     const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
+
+    useEscapeToClose(isOpen, onClose);
 
     if (!isOpen) return null;
 

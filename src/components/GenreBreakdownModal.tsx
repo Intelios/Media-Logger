@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X, Star, Gem, ChevronRight, BarChart3 } from "lucide-react";
 import { type StatItem } from "../lib/stats-logic";
 import { cn } from "../lib/utils_ui";
+import { useEscapeToClose } from "../lib/useEscapeToClose";
 
 const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1"];
 
@@ -15,6 +16,8 @@ interface GenreBreakdownModalProps {
 
 export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onGenreClick }: GenreBreakdownModalProps) {
     const [sortBy, setSortBy] = useState<"count" | "avgScore" | "perfect">("count");
+
+    useEscapeToClose(isOpen, onClose);
 
     if (!isOpen) return null;
 

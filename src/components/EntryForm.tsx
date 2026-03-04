@@ -5,6 +5,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { saveImage, getImageUrl } from "../lib/utils";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
+import { useEscapeToClose } from "../lib/useEscapeToClose";
 
 interface EntryFormProps {
   initialData?: MediaEntry | null;
@@ -41,6 +42,8 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
   const [rawImagePath, setRawImagePath] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("basic");
+
+  useEscapeToClose(isOpen, onClose);
 
   useEffect(() => {
     if (isOpen) {

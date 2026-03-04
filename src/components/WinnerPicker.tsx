@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Search, X } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { MediaCard } from "./MediaCard"; // Reuse the card!
+import { useEscapeToClose } from "../lib/useEscapeToClose";
 
 interface WinnerPickerProps {
   isOpen: boolean;
@@ -14,6 +15,8 @@ export function WinnerPicker({ isOpen, onClose, onSelect, year }: WinnerPickerPr
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MediaEntry[]>([]);
   const [allEntries, setAllEntries] = useState<MediaEntry[]>([]);
+
+  useEscapeToClose(isOpen, onClose);
 
   useEffect(() => {
     if (isOpen) {
