@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, X } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { MediaCard } from "./MediaCard"; // Reuse the card!
 import { useEscapeToClose } from "../lib/useEscapeToClose";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 interface WinnerPickerProps {
   isOpen: boolean;
@@ -15,8 +16,10 @@ export function WinnerPicker({ isOpen, onClose, onSelect, year }: WinnerPickerPr
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MediaEntry[]>([]);
   const [allEntries, setAllEntries] = useState<MediaEntry[]>([]);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEscapeToClose(isOpen, onClose);
+  useFocusTrap(isOpen, modalRef);
 
   useEffect(() => {
     if (isOpen) {
@@ -47,7 +50,7 @@ export function WinnerPicker({ isOpen, onClose, onSelect, year }: WinnerPickerPr
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-[#1a1a1a] border border-white/10 w-full max-w-4xl h-[80vh] rounded-2xl shadow-2xl flex flex-col">
+      <div ref={modalRef} className="bg-[#1a1a1a] border border-white/10 w-full max-w-4xl h-[80vh] rounded-2xl shadow-2xl flex flex-col">
         
         {/* Header */}
         <div className="p-4 border-b border-white/5 flex items-center gap-3">

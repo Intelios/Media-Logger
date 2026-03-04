@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { X, Star, Gem, ChevronRight, BarChart3 } from "lucide-react";
 import { type StatItem } from "../lib/stats-logic";
 import { cn } from "../lib/utils_ui";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1"];
 
@@ -16,8 +17,10 @@ interface GenreBreakdownModalProps {
 
 export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onGenreClick }: GenreBreakdownModalProps) {
     const [sortBy, setSortBy] = useState<"count" | "avgScore" | "perfect">("count");
+    const modalRef = useRef<HTMLDivElement>(null);
 
     useEscapeToClose(isOpen, onClose);
+    useFocusTrap(isOpen, modalRef);
 
     if (!isOpen) return null;
 
@@ -38,7 +41,7 @@ export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onG
             />
 
             {/* Modal */}
-            <div className="fixed inset-4 md:inset-10 lg:inset-16 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-3xl z-50 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            <div ref={modalRef} className="fixed inset-4 md:inset-10 lg:inset-16 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-3xl z-50 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-200">
                 {/* Header */}
                 <header className="flex items-center justify-between p-6 border-b border-white/10 shrink-0">
                     <div>

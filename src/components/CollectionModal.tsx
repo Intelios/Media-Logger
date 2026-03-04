@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Save, Layers, Sparkles, Pencil } from "lucide-react";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 interface CollectionModalProps {
   isOpen: boolean;
@@ -14,8 +15,10 @@ interface CollectionModalProps {
 export function CollectionModal({ isOpen, onClose, onSubmit, initialName, initialDesc, mode = "create" }: CollectionModalProps) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEscapeToClose(isOpen, onClose);
+  useFocusTrap(isOpen, modalRef);
 
   useEffect(() => {
     if (isOpen) {
@@ -31,7 +34,10 @@ export function CollectionModal({ isOpen, onClose, onSubmit, initialName, initia
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-      <div className="collection-modal-glass border border-white/10 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div
+        ref={modalRef}
+        className="collection-modal-glass border border-white/10 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+      >
         {/* Enhanced Header with gradient */}
         <div className="flex items-center gap-3 p-5 border-b border-white/5" style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent)` }}>
           <div className="p-2.5 rounded-xl" style={{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 20%, transparent))` }}>

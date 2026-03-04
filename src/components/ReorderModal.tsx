@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Save, GripVertical } from "lucide-react";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useEscapeToClose } from "../lib/useEscapeToClose";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 // Generic item type - works with MediaEntry, AwardCategory, or any object with id and name
 export interface ReorderItem {
@@ -52,8 +53,10 @@ function SortableItem({ id, item }: { id: number, item: ReorderItem }) {
 
 export function ReorderModal<T extends ReorderItem>({ isOpen, onClose, items, onSave, title = "Reorder Items" }: ReorderModalProps<T>) {
   const [orderedItems, setOrderedItems] = useState<T[]>([]);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEscapeToClose(isOpen, onClose);
+  useFocusTrap(isOpen, modalRef);
 
   useEffect(() => {
     if (isOpen) setOrderedItems(items);
@@ -79,7 +82,7 @@ export function ReorderModal<T extends ReorderItem>({ isOpen, onClose, items, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-[#1a1a1a] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
+      <div ref={modalRef} className="bg-[#1a1a1a] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
         <div className="p-4 border-b border-white/5 flex justify-between items-center">
           <h3 className="text-xl font-bold">{title}</h3>
           <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full"><X size={20} /></button>

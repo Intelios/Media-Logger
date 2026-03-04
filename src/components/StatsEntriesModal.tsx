@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { X } from "lucide-react";
 import { type MediaEntry } from "../lib/db";
 import { MediaCard } from "./MediaCard";
 import { EntryForm } from "./EntryForm";
 import { dbService } from "../lib/db";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 interface StatsEntriesModalProps {
     isOpen: boolean;
@@ -17,8 +18,10 @@ interface StatsEntriesModalProps {
 export function StatsEntriesModal({ isOpen, onClose, title, entries, onEntriesChange }: StatsEntriesModalProps) {
     const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const modalRef = useRef<HTMLDivElement>(null);
 
     useEscapeToClose(isOpen, onClose);
+    useFocusTrap(isOpen, modalRef);
 
     if (!isOpen) return null;
 
@@ -50,7 +53,7 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, onEntriesCh
             />
 
             {/* Modal */}
-            <div className="fixed inset-4 md:inset-10 lg:inset-16 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-3xl z-50 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            <div ref={modalRef} className="fixed inset-4 md:inset-10 lg:inset-16 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-3xl z-50 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-200">
                 {/* Header */}
                 <header className="flex items-center justify-between p-6 border-b border-white/10 shrink-0">
                     <div>

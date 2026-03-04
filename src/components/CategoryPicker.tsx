@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, X, Plus, Trophy, Check } from "lucide-react";
 import { awardsLogic, type AwardTemplate } from "../lib/awards-logic";
 import { cn } from "../lib/utils_ui";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 interface CategoryPickerProps {
     isOpen: boolean;
@@ -24,8 +25,10 @@ export function CategoryPicker({
     const [filteredTemplates, setFilteredTemplates] = useState<AwardTemplate[]>([]);
     const [showNewInput, setShowNewInput] = useState(false);
     const [newName, setNewName] = useState("");
+    const modalRef = useRef<HTMLDivElement>(null);
 
     useEscapeToClose(isOpen, onClose);
+    useFocusTrap(isOpen, modalRef);
 
     useEffect(() => {
         if (isOpen) {
@@ -57,7 +60,7 @@ export function CategoryPicker({
 
     return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <div className="bg-[#1a1a1a] border border-white/10 w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[70vh]">
+            <div ref={modalRef} className="bg-[#1a1a1a] border border-white/10 w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[70vh]">
 
                 {/* Header */}
                 <div className="p-4 border-b border-white/5 flex items-center gap-3">

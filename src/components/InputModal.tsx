@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 interface InputModalProps {
   isOpen: boolean;
@@ -13,8 +14,10 @@ interface InputModalProps {
 
 export function InputModal({ isOpen, onClose, onSubmit, title, placeholder, defaultValue }: InputModalProps) {
   const [value, setValue] = useState("");
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEscapeToClose(isOpen, onClose);
+  useFocusTrap(isOpen, modalRef);
 
   useEffect(() => {
     if (isOpen) {
@@ -26,7 +29,7 @@ export function InputModal({ isOpen, onClose, onSubmit, title, placeholder, defa
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-[#1a1a1a] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl p-6">
+      <div ref={modalRef} className="bg-[#1a1a1a] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl p-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-bold">{title}</h3>
           <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full">
