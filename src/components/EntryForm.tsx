@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film, FileText, Trophy } from "lucide-react";
+import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film, FileText, Trophy, Check } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { saveImage, getImageUrl } from "../lib/utils";
@@ -59,6 +59,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
           is_rewatch: initialData.is_rewatch ?? 0,
           own_local_copy: initialData.own_local_copy ?? 0,
           is_platinum: initialData.is_platinum ?? 0,
+          is_completed: initialData.is_completed ?? 0,
         });
         if (initialData.image_url) {
           getImageUrl(initialData.image_url).then(setPreviewImage);
@@ -72,6 +73,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
           is_rewatch: 0,
           own_local_copy: 0,
           is_platinum: 0,
+          is_completed: 0,
           completion_date: new Date().toISOString().split('T')[0]
         });
         setPreviewImage("");
@@ -136,6 +138,11 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
       // Platinum applies only to games.
       if (key === "entry_type" && value !== "Game") {
         next.is_platinum = 0;
+      }
+
+      // Completed applies only to Adult Visual Novels.
+      if (key === "entry_type" && value !== "Adult Visual Novel") {
+        next.is_completed = 0;
       }
 
       return next;
@@ -346,15 +353,37 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
       )}
 
       {formData.entry_type === 'Adult Visual Novel' && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">Version / Update</label>
-          <input
-            type="text"
-            value={formData.update_version || ""}
-            onChange={e => updateField("update_version", e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-            placeholder="v1.0, Update 5..."
-          />
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">Version / Update</label>
+            <input
+              type="text"
+              value={formData.update_version || ""}
+              onChange={e => updateField("update_version", e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              placeholder="v1.0, Update 5..."
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+              <Check size={14} className="text-emerald-400" />
+              Completion Status
+            </label>
+            <button
+              type="button"
+              onClick={() => updateField("is_completed", formData.is_completed === 1 ? 0 : 1)}
+              className={cn(
+                "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all border",
+                formData.is_completed === 1
+                  ? "bg-gradient-to-r from-emerald-500/25 to-teal-500/25 border-emerald-400/80 text-emerald-300 shadow-lg shadow-emerald-500/20"
+                  : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
+              )}
+            >
+              <Check size={16} />
+              <span>{formData.is_completed === 1 ? "Completed" : "Mark as Completed"}</span>
+            </button>
+            <p className="text-xs text-gray-500">Signifies the visual novel is fully complete and not a work in progress.</p>
+          </div>
         </div>
       )}
 

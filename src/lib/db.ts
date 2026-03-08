@@ -14,6 +14,7 @@ export interface MediaEntry {
   is_rewatch: number; // SQLite stores booleans as 0/1
   own_local_copy: number;
   is_platinum: number;
+  is_completed: number;
   image_url: string | null;
   entry_type: string | null;
   platform: string | null;
@@ -105,8 +106,16 @@ class DBService {
         console.log('[DB] is_platinum column added successfully');
       }
 
+      // Add is_completed column if it doesn't exist
+      if (!columnNames.includes('is_completed')) {
+        console.log('[DB] Adding is_completed column...');
+        await this.db.execute("ALTER TABLE entries ADD COLUMN is_completed INTEGER DEFAULT 0");
+        console.log('[DB] is_completed column added successfully');
+      }
+
       // Normalize nullable legacy rows
       await this.db.execute("UPDATE entries SET is_platinum = 0 WHERE is_platinum IS NULL");
+      await this.db.execute("UPDATE entries SET is_completed = 0 WHERE is_completed IS NULL");
     } catch (error) {
       console.error('[DB] Migration error:', error);
     }
@@ -267,6 +276,7 @@ class DBService {
           is_rewatch INTEGER DEFAULT 0,
           own_local_copy INTEGER DEFAULT 0,
           is_platinum INTEGER DEFAULT 0,
+          is_completed INTEGER DEFAULT 0,
           image_url TEXT,
           entry_type TEXT,
           platform TEXT,
