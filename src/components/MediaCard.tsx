@@ -58,9 +58,9 @@ const formatDate = (dateString: string | null): string => {
 
 // Get context info based on entry type - returns an array for entries with multiple fields
 // profileType maps to the profile system's type key (null means no profile possible)
-const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon: React.ReactNode; profileType: string | null }[] => {
+const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon: React.ReactNode; profileType: string | null; badgeClass?: string }[] => {
   const type = (entry.entry_type || "").toLowerCase();
-  const items: { label: string; value: string; icon: React.ReactNode; profileType: string | null }[] = [];
+  const items: { label: string; value: string; icon: React.ReactNode; profileType: string | null; badgeClass?: string }[] = [];
 
   if (type.includes("album") && entry.artist) {
     items.push({ label: "Artist", value: entry.artist, icon: <Disc3 size={12} />, profileType: "artist" });
@@ -79,8 +79,12 @@ const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon
       items.push({ label: "Director/Studio", value: entry.director, icon: <Film size={12} />, profileType: "director" });
     }
   }
-  if (type.includes("visual novel") && entry.update_version) {
-    items.push({ label: "Version", value: entry.update_version, icon: <Monitor size={12} />, profileType: null });
+  if (type.includes("visual novel")) {
+    if (entry.is_completed === 1) {
+      items.push({ label: "Status", value: "Completed", icon: <Check size={12} className="text-emerald-400" />, profileType: null, badgeClass: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" });
+    } else if (entry.update_version) {
+      items.push({ label: "Version", value: entry.update_version, icon: <Monitor size={12} />, profileType: null });
+    }
   }
   return items;
 };
@@ -219,8 +223,8 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
         hasPlatinum
           ? "border-2 border-cyan-300 shadow-[0_0_22px_rgba(34,211,238,0.35),0_0_44px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(34,211,238,0.45),0_0_60px_rgba(245,158,11,0.3)] hover:border-cyan-200 animate-platinum-glow"
           : perfectTen
-          ? "border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4),0_0_40px_rgba(52,211,153,0.2)] hover:shadow-[0_0_25px_rgba(52,211,153,0.5),0_0_50px_rgba(52,211,153,0.3)] hover:border-emerald-300 animate-perfect-glow"
-          : "border border-white/10 hover:shadow-2xl hover:shadow-primary/20 hover:border-primary/40"
+            ? "border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4),0_0_40px_rgba(52,211,153,0.2)] hover:shadow-[0_0_25px_rgba(52,211,153,0.5),0_0_50px_rgba(52,211,153,0.3)] hover:border-emerald-300 animate-perfect-glow"
+            : "border border-white/10 hover:shadow-2xl hover:shadow-primary/20 hover:border-primary/40"
       )}>
 
         {/* Image Container */}
@@ -418,8 +422,11 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
                           navigate(`/profiles?${params.toString()}`);
                         } : undefined}
                         className={cn(
-                          "px-2 py-0.5 rounded-lg text-[11px] bg-white/5 text-gray-300",
-                          hasProfile && "hover:bg-primary/20 hover:text-primary cursor-pointer transition-colors"
+                          "px-2 py-0.5 rounded-lg text-[11px]",
+                          info.badgeClass || (hasProfile
+                            ? "bg-white/5 text-gray-300 hover:bg-primary/20 hover:text-primary cursor-pointer transition-colors"
+                            : "bg-white/5 text-gray-300"
+                          )
                         )}
                       >
                         {trimmed}
