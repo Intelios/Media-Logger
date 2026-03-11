@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, X, Image as ImageIcon, Copy, CopyPlus } from "lucide-react";
+import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus } from "lucide-react";
 import { getImageUrl } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
@@ -329,7 +329,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
               className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-purple-500/20 hover:text-purple-400 transition-colors"
             >
               <FileText size={14} />
-              <span>View Description</span>
+              <span>View Details</span>
             </button>
             <div className="h-px bg-white/10" />
             <button
@@ -528,7 +528,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
           )}
         </div>
 
-        {/* Description Modal - rendered via Portal */}
+        {/* Details Modal - rendered via Portal */}
         {descriptionOpen && createPortal(
           <div
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
@@ -548,7 +548,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
                     <FileText size={18} className="text-purple-400" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-white">Description</h3>
+                    <h3 className="font-bold text-white">Details</h3>
                     <p className="text-xs text-gray-400 line-clamp-1">{entry.name}</p>
                   </div>
                 </div>
@@ -564,17 +564,49 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
               </div>
 
               {/* Content */}
-              <div className="p-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                {entry.description ? (
-                  <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">
-                    {entry.description}
-                  </p>
-                ) : (
+              <div className="p-5 max-h-[60vh] overflow-y-auto custom-scrollbar space-y-4">
+                {!entry.description && !entry.notes ? (
                   <div className="text-center py-8">
                     <FileText size={40} className="mx-auto text-gray-600 mb-3" />
-                    <p className="text-gray-500 text-sm">No description available</p>
-                    <p className="text-gray-600 text-xs mt-1">Edit the entry to add one</p>
+                    <p className="text-gray-500 text-sm">No details available</p>
+                    <p className="text-gray-600 text-xs mt-1">Edit the entry to add a description or notes</p>
                   </div>
+                ) : (
+                  <>
+                    {/* Description Section */}
+                    <div className="rounded-xl border border-white/5 overflow-hidden">
+                      <div className="flex items-center gap-2 px-3.5 py-2.5 bg-purple-500/10 border-b border-white/5">
+                        <FileText size={14} className="text-purple-400" />
+                        <span className="text-xs font-semibold text-purple-300 uppercase tracking-wider">Description</span>
+                      </div>
+                      <div className="px-3.5 py-3">
+                        {entry.description ? (
+                          <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">
+                            {entry.description}
+                          </p>
+                        ) : (
+                          <p className="text-gray-600 text-xs italic">No description</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Notes Section */}
+                    <div className="rounded-xl border border-white/5 overflow-hidden">
+                      <div className="flex items-center gap-2 px-3.5 py-2.5 bg-amber-500/10 border-b border-white/5">
+                        <StickyNote size={14} className="text-amber-400" />
+                        <span className="text-xs font-semibold text-amber-300 uppercase tracking-wider">Notes</span>
+                      </div>
+                      <div className="px-3.5 py-3">
+                        {entry.notes ? (
+                          <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">
+                            {entry.notes}
+                          </p>
+                        ) : (
+                          <p className="text-gray-600 text-xs italic">No notes</p>
+                        )}
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film, FileText, Trophy, Check } from "lucide-react";
+import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film, FileText, StickyNote, Trophy, Check } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { saveImage, getImageUrl } from "../lib/utils";
@@ -412,9 +412,24 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
         <textarea
           value={formData.description || ""}
           onChange={e => updateField("description", e.target.value)}
-          rows={4}
+          rows={3}
           className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all resize-none"
-          placeholder="Add notes or thoughts about this entry..."
+          placeholder="Summary or details about this entry..."
+        />
+      </div>
+
+      {/* Notes */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+          <StickyNote size={14} className="text-amber-400" />
+          Notes
+        </label>
+        <textarea
+          value={formData.notes || ""}
+          onChange={e => updateField("notes", e.target.value)}
+          rows={3}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 outline-none transition-all resize-none"
+          placeholder="Your personal thoughts or notes..."
         />
       </div>
 

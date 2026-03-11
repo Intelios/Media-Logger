@@ -10,6 +10,7 @@ export interface MediaEntry {
   completion_date: string | null;
   review_score: number | null;
   description: string | null;
+  notes: string | null;
   year_completed: number | null;
   is_rewatch: number; // SQLite stores booleans as 0/1
   own_local_copy: number;
@@ -111,6 +112,13 @@ class DBService {
         console.log('[DB] Adding is_completed column...');
         await this.db.execute("ALTER TABLE entries ADD COLUMN is_completed INTEGER DEFAULT 0");
         console.log('[DB] is_completed column added successfully');
+      }
+
+      // Add notes column if it doesn't exist
+      if (!columnNames.includes('notes')) {
+        console.log('[DB] Adding notes column...');
+        await this.db.execute("ALTER TABLE entries ADD COLUMN notes TEXT");
+        console.log('[DB] notes column added successfully');
       }
 
       // Normalize nullable legacy rows
