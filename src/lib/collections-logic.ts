@@ -91,24 +91,28 @@ export const collectionsLogic = {
   // 5. Add Items to Collection
   async addItems(collectionId: number, mediaIds: number[]) {
     const db = await dbService.connect();
+    if (mediaIds.length === 0) return;
     
     // Get current max sort order
     const maxSort = await db.select<{m: number}[]>("SELECT MAX(sort_order) as m FROM collection_items WHERE collection_id = $1", [collectionId]);
     let currentSort = (maxSort[0].m || 0) + 1;
 
+    const placeholders = mediaIds.map((_, index) => `$${index + 2}`).join(", ");
+    const existingRows = await db.select<{ media_id: number }[]>(
+      `SELECT media_id
+       FROM collection_items
+       WHERE collection_id = $1 AND media_id IN (${placeholders})`,
+      [collectionId, ...mediaIds]
+    );
+    const existingIds = new Set(existingRows.map((row) => row.media_id));
+
     for (const mid of mediaIds) {
-        // Check if exists first to avoid duplicates (optional, based on your schema)
-        const exists = await db.select<{c: number}[]>(
-            "SELECT COUNT(*) as c FROM collection_items WHERE collection_id = $1 AND media_id = $2",
-            [collectionId, mid]
+      if (!existingIds.has(mid)) {
+        await db.execute(
+          "INSERT INTO collection_items (collection_id, media_id, sort_order) VALUES ($1, $2, $3)",
+          [collectionId, mid, currentSort++]
         );
-        
-        if (exists[0].c === 0) {
-            await db.execute(
-                "INSERT INTO collection_items (collection_id, media_id, sort_order) VALUES ($1, $2, $3)",
-                [collectionId, mid, currentSort++]
-            );
-        }
+      }
     }
   },
 

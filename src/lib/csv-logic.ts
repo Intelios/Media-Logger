@@ -132,6 +132,7 @@ export interface ExportData {
     media_entries: string;
     collections: string;
     collection_items: string;
+    award_years?: string;
     award_templates: string;
     award_categories: string;
     award_winners: string;
@@ -147,10 +148,12 @@ const MEDIA_COLUMNS = [
     "completion_date",
     "review_score",
     "description",
+    "notes",
     "year_completed",
     "is_rewatch",
     "own_local_copy",
     "is_platinum",
+    "is_completed",
     "image_url",
     "entry_type",
     "platform",
@@ -164,6 +167,7 @@ const MEDIA_COLUMNS = [
 
 const COLLECTION_COLUMNS = ["id", "name", "description", "created_date"];
 const COLLECTION_ITEM_COLUMNS = ["collection_id", "media_id", "sort_order"];
+const AWARD_YEAR_COLUMNS = ["year", "created_date"];
 const AWARD_TEMPLATE_COLUMNS = ["id", "name", "created_date"];
 const AWARD_CATEGORY_COLUMNS = ["id", "name", "year", "sort_order", "template_id"];
 const AWARD_WINNER_COLUMNS = ["category_id", "media_id", "selected_date"];
@@ -191,6 +195,11 @@ export async function exportAllData(): Promise<ExportData> {
     >("SELECT * FROM collection_items ORDER BY collection_id ASC, sort_order ASC");
 
     // Export award templates
+    const awardYears = await db.select<
+        { year: number; created_date: string }[]
+    >("SELECT * FROM award_years ORDER BY year ASC");
+
+    // Export award templates
     const awardTemplates = await db.select<
         { id: number; name: string; created_date: string }[]
     >("SELECT * FROM award_templates ORDER BY id ASC");
@@ -214,12 +223,13 @@ export async function exportAllData(): Promise<ExportData> {
         media_entries: toCSV(mediaEntries as unknown as Record<string, unknown>[], MEDIA_COLUMNS),
         collections: toCSV(collections, COLLECTION_COLUMNS),
         collection_items: toCSV(collectionItems, COLLECTION_ITEM_COLUMNS),
+        award_years: toCSV(awardYears, AWARD_YEAR_COLUMNS),
         award_templates: toCSV(awardTemplates, AWARD_TEMPLATE_COLUMNS),
         award_categories: toCSV(awardCategories, AWARD_CATEGORY_COLUMNS),
         award_winners: toCSV(awardWinners, AWARD_WINNER_COLUMNS),
         profiles: toCSV(profiles, PROFILE_COLUMNS),
         export_date: new Date().toISOString(),
-        version: "1.1",
+        version: "1.3",
     };
 }
 
@@ -243,6 +253,7 @@ export interface ImportResult {
     awardCategoriesImported: number;
     awardWinnersImported: number;
     profilesImported: number;
+    assetsRestored: number;
     errors: string[];
 }
 
@@ -262,10 +273,12 @@ async function ensureTablesExist(): Promise<void> {
             completion_date TEXT,
             review_score REAL,
             description TEXT,
+            notes TEXT,
             year_completed INTEGER,
             is_rewatch INTEGER DEFAULT 0,
             own_local_copy INTEGER DEFAULT 0,
             is_platinum INTEGER DEFAULT 0,
+            is_completed INTEGER DEFAULT 0,
             image_url TEXT,
             entry_type TEXT,
             platform TEXT,
@@ -297,6 +310,14 @@ async function ensureTablesExist(): Promise<void> {
             sort_order INTEGER DEFAULT 0,
             FOREIGN KEY (collection_id) REFERENCES collections(id),
             FOREIGN KEY (media_id) REFERENCES entries(id)
+        )
+    `);
+
+    // Create award_templates table
+    await db.execute(`
+        CREATE TABLE IF NOT EXISTS award_years (
+            year INTEGER PRIMARY KEY,
+            created_date TEXT NOT NULL
         )
     `);
 
@@ -361,6 +382,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
         awardCategoriesImported: 0,
         awardWinnersImported: 0,
         profilesImported: 0,
+        assetsRestored: 0,
         errors: [],
     };
 
@@ -498,7 +520,24 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
             }
         }
 
-        // 4. Import award templates
+        // 4. Import award years
+        if (data.award_years) {
+            const awardYears = parseCSV<{
+                year: number;
+                created_date: string | null;
+            }>(data.award_years);
+
+            for (const awardYear of awardYears) {
+                if (awardYear.year === null || awardYear.year === undefined) continue;
+
+                await db.execute(
+                    "INSERT OR IGNORE INTO award_years (year, created_date) VALUES ($1, $2)",
+                    [awardYear.year, awardYear.created_date || new Date().toISOString()]
+                );
+            }
+        }
+
+        // 5. Import award templates
         if (data.award_templates) {
             const templates = parseCSV<{
                 id: number;
@@ -530,7 +569,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
             }
         }
 
-        // 5. Import award categories
+        // 6. Import award categories
         if (data.award_categories) {
             const categories = parseCSV<{
                 id: number;
@@ -542,6 +581,11 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
 
             for (const cat of categories) {
                 const oldId = cat.id;
+
+                await db.execute(
+                    "INSERT OR IGNORE INTO award_years (year, created_date) VALUES ($1, datetime('now'))",
+                    [cat.year]
+                );
 
                 // Check for duplicate by name + year
                 const existing = await db.select<{ id: number }[]>(
@@ -566,7 +610,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
             }
         }
 
-        // 6. Import award winners
+        // 7. Import award winners
         if (data.award_winners) {
             const winners = parseCSV<{
                 category_id: number;
@@ -597,7 +641,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
             }
         }
 
-        // 7. Import profile image mappings
+        // 8. Import profile image mappings
         if (data.profiles) {
             const profiles = parseCSV<{
                 type: string;

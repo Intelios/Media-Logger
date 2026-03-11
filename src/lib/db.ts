@@ -10,6 +10,7 @@ export interface MediaEntry {
   completion_date: string | null;
   review_score: number | null;
   description: string | null;
+  notes: string | null;
   year_completed: number | null;
   is_rewatch: number; // SQLite stores booleans as 0/1
   own_local_copy: number;
@@ -24,6 +25,24 @@ export interface MediaEntry {
   actress: string | null;
   update_version: string | null;
   franchise: string | null;
+}
+
+export interface EntrySearchFilters {
+  query?: string;
+  entryTypes: string[];
+  platforms: string[];
+  actresses: string[];
+  directors: string[];
+  authors: string[];
+  franchises: string[];
+}
+
+export interface SearchFilterOptions {
+  platforms: string[];
+  actresses: string[];
+  directors: string[];
+  authors: string[];
+  franchises: string[];
 }
 
 // 2. Database Service
@@ -113,6 +132,13 @@ class DBService {
         console.log('[DB] is_completed column added successfully');
       }
 
+      // Add notes column if it doesn't exist
+      if (!columnNames.includes('notes')) {
+        console.log('[DB] Adding notes column...');
+        await this.db.execute("ALTER TABLE entries ADD COLUMN notes TEXT");
+        console.log('[DB] notes column added successfully');
+      }
+
       // Normalize nullable legacy rows
       await this.db.execute("UPDATE entries SET is_platinum = 0 WHERE is_platinum IS NULL");
       await this.db.execute("UPDATE entries SET is_completed = 0 WHERE is_completed IS NULL");
@@ -135,6 +161,7 @@ class DBService {
     if (!this.db) return;
 
     try {
+      await this.migrateAwardYearsTable();
       await this.migrateCollectionItemsTable();
       await this.migrateAwardCategoriesTable();
       await this.migrateAwardWinnersTable();
@@ -183,6 +210,25 @@ class DBService {
 
     await this.db.execute("DROP TABLE collection_items_old");
     console.log('[DB] collection_items schema migration complete');
+  }
+
+  private async migrateAwardYearsTable() {
+    if (!this.db) return;
+
+    await this.db.execute(`
+      CREATE TABLE IF NOT EXISTS award_years (
+        year INTEGER PRIMARY KEY,
+        created_date TEXT NOT NULL
+      )
+    `);
+
+    await this.db.execute(`
+      INSERT OR IGNORE INTO award_years (year, created_date)
+      SELECT year, COALESCE(MIN(created_date), datetime('now'))
+      FROM award_categories
+      WHERE year IS NOT NULL
+      GROUP BY year
+    `);
   }
 
   private async migrateAwardCategoriesTable() {
@@ -272,6 +318,7 @@ class DBService {
           completion_date TEXT,
           review_score REAL,
           description TEXT,
+          notes TEXT,
           year_completed INTEGER,
           is_rewatch INTEGER DEFAULT 0,
           own_local_copy INTEGER DEFAULT 0,
@@ -312,6 +359,13 @@ class DBService {
       `);
 
       // Create award categories table
+      await this.db.execute(`
+        CREATE TABLE IF NOT EXISTS award_years (
+          year INTEGER PRIMARY KEY,
+          created_date TEXT NOT NULL
+        )
+      `);
+
       await this.db.execute(`
         CREATE TABLE IF NOT EXISTS award_categories (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -441,6 +495,121 @@ class DBService {
     const db = await this.connect();
     return await db.select<MediaEntry[]>(
       "SELECT * FROM entries ORDER BY completion_date DESC, id DESC"
+    );
+  }
+
+  private escapeLike(value: string): string {
+    return value.replace(/[\\%_]/g, "\\$&");
+  }
+
+  private async getDistinctColumnValues(
+    db: Database,
+    column: 'platform' | 'director' | 'author' | 'franchise'
+  ): Promise<string[]> {
+    const results = await db.select<{ value: string }[]>(
+      `SELECT DISTINCT TRIM(${column}) as value
+       FROM entries
+       WHERE ${column} IS NOT NULL AND TRIM(${column}) <> ''
+       ORDER BY value COLLATE NOCASE ASC`
+    );
+
+    return results.map(({ value }) => value);
+  }
+
+  async getSearchFilterOptions(): Promise<SearchFilterOptions> {
+    const db = await this.connect();
+
+    const [platforms, directors, authors, franchises, actresses] = await Promise.all([
+      this.getDistinctColumnValues(db, 'platform'),
+      this.getDistinctColumnValues(db, 'director'),
+      this.getDistinctColumnValues(db, 'author'),
+      this.getDistinctColumnValues(db, 'franchise'),
+      db.select<{ value: string }[]>(
+        `WITH RECURSIVE split(value, rest) AS (
+           SELECT '', TRIM(actress) || ','
+           FROM entries
+           WHERE actress IS NOT NULL AND TRIM(actress) <> ''
+           UNION ALL
+           SELECT
+             TRIM(SUBSTR(rest, 0, INSTR(rest, ','))),
+             LTRIM(SUBSTR(rest, INSTR(rest, ',') + 1))
+           FROM split
+           WHERE rest <> ''
+         )
+         SELECT DISTINCT value
+         FROM split
+         WHERE value <> ''
+         ORDER BY value COLLATE NOCASE ASC`
+      ),
+    ]);
+
+    return {
+      platforms,
+      actresses: actresses.map(({ value }) => value),
+      directors,
+      authors,
+      franchises,
+    };
+  }
+
+  async searchEntries(filters: EntrySearchFilters): Promise<MediaEntry[]> {
+    const db = await this.connect();
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    const query = filters.query?.trim().toLowerCase();
+    if (query) {
+      const searchableColumns = [
+        'name',
+        'author',
+        'artist',
+        'genre',
+        'director',
+        'actress',
+        'platform',
+      ];
+
+      const likeValue = `%${this.escapeLike(query)}%`;
+      const searchClauses = searchableColumns.map((column) => {
+        params.push(likeValue);
+        return `LOWER(COALESCE(${column}, '')) LIKE $${params.length} ESCAPE '\\'`;
+      });
+
+      conditions.push(`(${searchClauses.join(' OR ')})`);
+    }
+
+    const addInFilter = (column: string, values: string[]) => {
+      if (values.length === 0) return;
+      const placeholders = values.map((value) => {
+        params.push(value);
+        return `$${params.length}`;
+      });
+      conditions.push(`${column} IN (${placeholders.join(', ')})`);
+    };
+
+    addInFilter('entry_type', filters.entryTypes);
+    addInFilter('platform', filters.platforms);
+    addInFilter('director', filters.directors);
+    addInFilter('author', filters.authors);
+    addInFilter('franchise', filters.franchises);
+
+    if (filters.actresses.length > 0) {
+      const normalizedActressColumn = `(',' || REPLACE(REPLACE(COALESCE(actress, ''), ', ', ','), ' ,', ',') || ',')`;
+      const actressClauses = filters.actresses.map((actress) => {
+        params.push(actress);
+        return `INSTR(${normalizedActressColumn}, ',' || $${params.length} || ',') > 0`;
+      });
+      conditions.push(`(${actressClauses.join(' OR ')})`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    return await db.select<MediaEntry[]>(
+      `SELECT *
+       FROM entries
+       ${whereClause}
+       ORDER BY completion_date DESC, id DESC`,
+      params
     );
   }
 

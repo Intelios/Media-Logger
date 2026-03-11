@@ -550,6 +550,7 @@ export default function YearView() {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
         initialData={editingEntry}
+        allEntries={entries}
       />
     </div>
   );

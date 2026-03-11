@@ -74,19 +74,22 @@ export default function CollectionsPage() {
 
   const loadCollections = () => collectionsLogic.getAllCollections().then(setCollections);
 
-  const handleSelectCollection = async (col: Collection) => {
-    const items = await collectionsLogic.getCollectionItems(col.id);
-    setItems(items);
-    setSelectedCollection(col);
+  const refreshSelectedCollection = async (collection: Collection) => {
+    const collectionItems = await collectionsLogic.getCollectionItems(collection.id);
+    setItems(collectionItems);
+    setSelectedCollection(collection);
 
-    // Fetch awards for all items in the collection
-    const mediaIds = items.map(e => e.id).filter((id): id is number => id !== undefined);
+    const mediaIds = collectionItems.map(e => e.id).filter((id): id is number => id !== undefined);
     if (mediaIds.length > 0) {
       const awards = await awardsLogic.getAwardsForMediaBatch(mediaIds);
       setAwardsMap(awards);
     } else {
       setAwardsMap(new Map());
     }
+  };
+
+  const handleSelectCollection = async (col: Collection) => {
+    await refreshSelectedCollection(col);
   };
 
   const handleCreate = async (name: string, desc: string) => {
@@ -118,23 +121,19 @@ export default function CollectionsPage() {
     setCollectionToDelete(null);
   };
 
-  const handleAddItems = async (mediaId: number) => {
+  const handleAddItems = async (mediaIds: number[]) => {
     if (selectedCollection) {
-      await collectionsLogic.addItems(selectedCollection.id, [mediaId]);
-      // Refresh items
-      const newItems = await collectionsLogic.getCollectionItems(selectedCollection.id);
-      setItems(newItems);
-      // Picker stays open to add more? Or close. Let's keep open for bulk add feel.
-      // Actually, for simplicity, close it.
-      setPickerOpen(false);
+      await collectionsLogic.addItems(selectedCollection.id, mediaIds);
+      await refreshSelectedCollection(selectedCollection);
+      await loadCollections();
     }
   };
 
   const handleRemoveItem = async (mediaId: number) => {
     if (selectedCollection && confirm("Remove from collection?")) {
       await collectionsLogic.removeItem(selectedCollection.id, mediaId);
-      const newItems = await collectionsLogic.getCollectionItems(selectedCollection.id);
-      setItems(newItems);
+      await refreshSelectedCollection(selectedCollection);
+      await loadCollections();
     }
   };
 
@@ -158,10 +157,8 @@ export default function CollectionsPage() {
   const handleEditSave = async (data: Partial<MediaEntry>) => {
     if (editingEntry) {
       await dbService.updateEntry({ ...editingEntry, ...data } as MediaEntry);
-      // Refresh items in collection
       if (selectedCollection) {
-        const newItems = await collectionsLogic.getCollectionItems(selectedCollection.id);
-        setItems(newItems);
+        await refreshSelectedCollection(selectedCollection);
       }
       setEditModalOpen(false);
       setEditingEntry(null);
@@ -171,10 +168,9 @@ export default function CollectionsPage() {
   // Handle delete from MediaCard dropdown
   const handleDeleteFromCard = async (id: number) => {
     await dbService.deleteEntry(id);
-    // Refresh items in collection
     if (selectedCollection) {
-      const newItems = await collectionsLogic.getCollectionItems(selectedCollection.id);
-      setItems(newItems);
+      await refreshSelectedCollection(selectedCollection);
+      await loadCollections();
     }
   };
 
@@ -297,7 +293,12 @@ export default function CollectionsPage() {
         <WinnerPicker
           isOpen={pickerOpen}
           onClose={() => setPickerOpen(false)}
-          onSelect={handleAddItems}
+          mode="multiple"
+          title="Add Collection Items"
+          searchPlaceholder="Search your library to add multiple items..."
+          confirmLabel="Add Items"
+          excludedIds={items.map((entry) => entry.id)}
+          onSubmitSelection={handleAddItems}
         />
 
         <ReorderModal
@@ -324,6 +325,7 @@ export default function CollectionsPage() {
           onClose={() => { setEditModalOpen(false); setEditingEntry(null); }}
           onSave={handleEditSave}
           initialData={editingEntry}
+          allEntries={items}
         />
       </div>
     );

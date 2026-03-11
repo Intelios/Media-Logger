@@ -1,14 +1,14 @@
 import { join } from '@tauri-apps/api/path';
 import { readFile, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs';
 import { getDataDirectory } from './settings';
+import defaultCoverImage from '../assets/cover-fallback.svg';
 
 // Helper to cache Object URLs so we don't leak memory creating duplicates
 const urlCache = new Map<string, string>();
+export const DEFAULT_COVER_IMAGE = defaultCoverImage;
 
 export async function getImageUrl(dbPath: string | null): Promise<string> {
-  const DEFAULT_IMAGE = "https://via.placeholder.com/300x150.png?text=No+Image";
-
-  if (!dbPath) return DEFAULT_IMAGE;
+  if (!dbPath) return DEFAULT_COVER_IMAGE;
   if (dbPath.startsWith('http')) return dbPath;
 
   // Return cached URL if we already loaded this image
@@ -44,7 +44,7 @@ export async function getImageUrl(dbPath: string | null): Promise<string> {
 
   } catch (e) {
     console.error(`[Image Failed] Could not read file: ${dbPath}`, e);
-    return DEFAULT_IMAGE;
+    return DEFAULT_COVER_IMAGE;
   }
 }
 
