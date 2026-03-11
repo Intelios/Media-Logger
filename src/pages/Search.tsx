@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Search as SearchIcon, X, Filter, ChevronDown, ChevronUp, Sparkles, RotateCcw } from "lucide-react";
 import { dbService, type MediaEntry, type SearchFilterOptions } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
@@ -51,7 +51,7 @@ const loadPersistedFilters = (): SearchFilters => {
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
-  const deferredQuery = useDeferredValue(query);
+  const debouncedQuery = useDebouncedValue(query, 220);
   const [results, setResults] = useState<MediaEntry[]>([]);
   const [filters, setFilters] = useState<SearchFilters>(loadPersistedFilters);
   const [filterOptions, setFilterOptions] = useState<SearchFilterOptions>(emptyFilterOptions);
@@ -98,7 +98,7 @@ export default function SearchPage() {
 
   useEffect(() => {
     let isActive = true;
-    const hasCriteria = deferredQuery.trim().length > 0 || hasActiveFilters(filters);
+    const hasCriteria = debouncedQuery.trim().length > 0 || hasActiveFilters(filters);
 
     if (!hasCriteria) {
       setResults([]);
@@ -112,7 +112,7 @@ export default function SearchPage() {
     setIsLoadingResults(true);
 
     dbService.searchEntries({
-      query: deferredQuery,
+      query: debouncedQuery,
       ...filters,
     })
       .then((entries) => {
@@ -136,7 +136,7 @@ export default function SearchPage() {
     return () => {
       isActive = false;
     };
-  }, [deferredQuery, filters, refreshToken]);
+  }, [debouncedQuery, filters, refreshToken]);
 
   useEffect(() => {
     let isActive = true;
@@ -360,7 +360,12 @@ export default function SearchPage() {
             <Sparkles className="text-cyan-400" size={16} />
             <span className="text-gray-400">
               {isLoadingResults ? (
-                <>Searching your library...</>
+                <>
+                  Updating results...
+                  {results.length > 0 && (
+                    <span className="text-gray-500"> keeping {results.length} current match{results.length !== 1 ? "es" : ""} visible</span>
+                  )}
+                </>
               ) : (
                 <>
                   Found <span className="text-white font-semibold">{results.length}</span> result{results.length !== 1 ? "s" : ""}
@@ -375,14 +380,11 @@ export default function SearchPage() {
         )}
       </header>
 
-      {isLoadingResults && hasActiveSearch ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {Array.from({ length: 10 }, (_, index) => (
-            <div key={index} className="h-[360px] rounded-2xl border border-white/10 bg-white/5 animate-pulse" />
-          ))}
-        </div>
-      ) : results.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+      {results.length > 0 ? (
+        <div className={cn(
+          "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 transition-opacity duration-150",
+          isLoadingResults && "opacity-80"
+        )}>
           {results.map((entry) => (
             <div key={entry.id}>
               <MediaCard
@@ -393,6 +395,16 @@ export default function SearchPage() {
               />
             </div>
           ))}
+        </div>
+      ) : isLoadingResults && hasActiveSearch ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 animate-pulse">
+            <SearchIcon className="text-cyan-400/60" size={32} />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-300 mb-2">Searching your collection</h3>
+          <p className="text-gray-500 max-w-md">
+            Updating results for "{query}".
+          </p>
         </div>
       ) : hasActiveSearch ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -442,4 +454,20 @@ function hasActiveFilters(filters: SearchFilters): boolean {
     filters.authors.length > 0 ||
     filters.franchises.length > 0
   );
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedValue(value);
+    }, delayMs);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [value, delayMs]);
+
+  return debouncedValue;
 }
