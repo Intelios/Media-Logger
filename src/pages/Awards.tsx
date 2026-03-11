@@ -82,6 +82,7 @@ export default function AwardsPage() {
 
   const handleYearSelect = (year: number) => {
     setSelectedYear(year);
+    setCategories([]);
     loadCategories(year);
     setView("year");
   };
@@ -98,6 +99,8 @@ export default function AwardsPage() {
   const handleYearInputSubmit = async (value: string) => {
     const y = parseInt(value);
     if (!isNaN(y)) {
+      await awardsLogic.createYear(y);
+      await loadYears();
       handleYearSelect(y);
     }
   };

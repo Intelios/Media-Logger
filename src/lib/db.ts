@@ -161,6 +161,7 @@ class DBService {
     if (!this.db) return;
 
     try {
+      await this.migrateAwardYearsTable();
       await this.migrateCollectionItemsTable();
       await this.migrateAwardCategoriesTable();
       await this.migrateAwardWinnersTable();
@@ -209,6 +210,25 @@ class DBService {
 
     await this.db.execute("DROP TABLE collection_items_old");
     console.log('[DB] collection_items schema migration complete');
+  }
+
+  private async migrateAwardYearsTable() {
+    if (!this.db) return;
+
+    await this.db.execute(`
+      CREATE TABLE IF NOT EXISTS award_years (
+        year INTEGER PRIMARY KEY,
+        created_date TEXT NOT NULL
+      )
+    `);
+
+    await this.db.execute(`
+      INSERT OR IGNORE INTO award_years (year, created_date)
+      SELECT year, COALESCE(MIN(created_date), datetime('now'))
+      FROM award_categories
+      WHERE year IS NOT NULL
+      GROUP BY year
+    `);
   }
 
   private async migrateAwardCategoriesTable() {
@@ -339,6 +359,13 @@ class DBService {
       `);
 
       // Create award categories table
+      await this.db.execute(`
+        CREATE TABLE IF NOT EXISTS award_years (
+          year INTEGER PRIMARY KEY,
+          created_date TEXT NOT NULL
+        )
+      `);
+
       await this.db.execute(`
         CREATE TABLE IF NOT EXISTS award_categories (
           id INTEGER PRIMARY KEY AUTOINCREMENT,

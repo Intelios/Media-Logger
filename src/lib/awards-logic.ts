@@ -38,13 +38,22 @@ export const awardsLogic = {
   async getAwardYears(): Promise<AwardYearSummary[]> {
     const db = await dbService.connect();
     return await db.select<AwardYearSummary[]>(
-      `SELECT c.year as year,
+      `SELECT y.year as year,
               COUNT(DISTINCT c.id) as categories,
               COUNT(DISTINCT w.category_id) as winners
-       FROM award_categories c
+       FROM award_years y
+       LEFT JOIN award_categories c ON c.year = y.year
        LEFT JOIN award_winners w ON w.category_id = c.id
-       GROUP BY c.year
-       ORDER BY c.year DESC`
+       GROUP BY y.year
+       ORDER BY y.year DESC`
+    );
+  },
+
+  async createYear(year: number): Promise<void> {
+    const db = await dbService.connect();
+    await db.execute(
+      "INSERT OR IGNORE INTO award_years (year, created_date) VALUES ($1, datetime('now'))",
+      [year]
     );
   },
 
@@ -84,6 +93,7 @@ export const awardsLogic = {
   // 3. Create Category (also creates template if it doesn't exist)
   async createCategory(name: string, year: number) {
     const db = await dbService.connect();
+    await this.createYear(year);
 
     // First, ensure template exists for this name
     await db.execute(
@@ -249,6 +259,7 @@ export const awardsLogic = {
   // 13. Create category from existing template
   async createCategoryFromTemplate(templateId: number, year: number): Promise<void> {
     const db = await dbService.connect();
+    await this.createYear(year);
 
     // Get template name
     const template = await db.select<{ name: string }[]>(
