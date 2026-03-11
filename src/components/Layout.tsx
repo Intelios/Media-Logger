@@ -19,6 +19,7 @@ export function Layout() {
   });
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [allEntries, setAllEntries] = useState<MediaEntry[]>([]);
   const navigate = useNavigate();
   const currentYear = getCurrentYearString();
 
@@ -63,6 +64,13 @@ export function Layout() {
       unlistenNewEntry.then((fn) => fn());
     };
   }, [navigate]);
+
+  // Fetch all entries for autocomplete when the entry form opens
+  useEffect(() => {
+    if (showEntryForm) {
+      dbService.getAllEntries().then(setAllEntries).catch(console.error);
+    }
+  }, [showEntryForm]);
 
   // Check if we should show welcome screen
   useEffect(() => {
@@ -218,6 +226,7 @@ export function Layout() {
           isOpen={showEntryForm}
           onClose={() => setShowEntryForm(false)}
           onSave={handleEntryCreated}
+          allEntries={allEntries}
         />
       )}
 

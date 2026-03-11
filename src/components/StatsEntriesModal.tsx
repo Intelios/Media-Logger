@@ -100,6 +100,7 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, onEntriesCh
                 }}
                 onSave={handleSave}
                 initialData={editingEntry}
+                allEntries={entries}
             />
         </>
     );

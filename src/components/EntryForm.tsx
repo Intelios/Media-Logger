@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film, FileText, StickyNote, Trophy, Check } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -7,12 +7,14 @@ import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
+import { AutocompleteInput } from "./AutocompleteInput";
 
 interface EntryFormProps {
   initialData?: MediaEntry | null;
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Partial<MediaEntry>) => void;
+  allEntries?: MediaEntry[];
 }
 
 const ENTRY_TYPES = [
@@ -37,7 +39,7 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "media", label: "Media", icon: <ImageIcon size={15} /> },
 ];
 
-export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormProps) {
+export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [] }: EntryFormProps) {
   const [formData, setFormData] = useState<Partial<MediaEntry>>({});
   const [previewImage, setPreviewImage] = useState<string>("");
   const [rawImagePath, setRawImagePath] = useState<string | null>(null);
@@ -47,6 +49,47 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
 
   useEscapeToClose(isOpen, onClose);
   useFocusTrap(isOpen, modalRef);
+
+  // Extract distinct values from existing entries for autocomplete suggestions
+  const suggestions = useMemo(() => {
+    const platforms = new Set<string>();
+    const franchises = new Set<string>();
+    const authors = new Set<string>();
+    const artists = new Set<string>();
+    const directors = new Set<string>();
+    const actresses = new Set<string>();
+    const genres = new Set<string>();
+
+    allEntries.forEach(e => {
+      if (e.platform) platforms.add(e.platform);
+      if (e.franchise) franchises.add(e.franchise);
+      if (e.author) authors.add(e.author);
+      if (e.artist) artists.add(e.artist);
+      if (e.director) directors.add(e.director);
+      if (e.actress) {
+        e.actress.split(',').forEach(a => {
+          const trimmed = a.trim();
+          if (trimmed) actresses.add(trimmed);
+        });
+      }
+      if (e.genre) {
+        e.genre.split(',').forEach(g => {
+          const trimmed = g.trim();
+          if (trimmed) genres.add(trimmed);
+        });
+      }
+    });
+
+    return {
+      platforms: Array.from(platforms).sort(),
+      franchises: Array.from(franchises).sort(),
+      authors: Array.from(authors).sort(),
+      artists: Array.from(artists).sort(),
+      directors: Array.from(directors).sort(),
+      actresses: Array.from(actresses).sort(),
+      genres: Array.from(genres).sort(),
+    };
+  }, [allEntries]);
 
   useEffect(() => {
     if (isOpen) {
@@ -251,10 +294,10 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
               <Gamepad size={14} className="text-purple-400" />
               Platform
             </label>
-            <input
-              type="text"
+            <AutocompleteInput
               value={formData.platform || ""}
-              onChange={e => updateField("platform", e.target.value)}
+              onChange={v => updateField("platform", v)}
+              suggestions={suggestions.platforms}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               placeholder="PC, PS5, Switch..."
             />
@@ -264,10 +307,10 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
               <Sparkles size={14} className="text-indigo-400" />
               Franchise
             </label>
-            <input
-              type="text"
+            <AutocompleteInput
               value={formData.franchise || ""}
-              onChange={e => updateField("franchise", e.target.value)}
+              onChange={v => updateField("franchise", v)}
+              suggestions={suggestions.franchises}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               placeholder="Zelda, Mario, Final Fantasy..."
             />
@@ -301,10 +344,10 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
             <Book size={14} className="text-amber-400" />
             Author
           </label>
-          <input
-            type="text"
+          <AutocompleteInput
             value={formData.author || ""}
-            onChange={e => updateField("author", e.target.value)}
+            onChange={v => updateField("author", v)}
+            suggestions={suggestions.authors}
             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
             placeholder="Author name..."
           />
@@ -317,10 +360,10 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
             <Music size={14} className="text-emerald-400" />
             Artist
           </label>
-          <input
-            type="text"
+          <AutocompleteInput
             value={formData.artist || ""}
-            onChange={e => updateField("artist", e.target.value)}
+            onChange={v => updateField("artist", v)}
+            suggestions={suggestions.artists}
             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
             placeholder="Artist name..."
           />
@@ -331,20 +374,21 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
         <>
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">Studio</label>
-            <input
-              type="text"
+            <AutocompleteInput
               value={formData.director || ""}
-              onChange={e => updateField("director", e.target.value)}
+              onChange={v => updateField("director", v)}
+              suggestions={suggestions.directors}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               placeholder="Studio name..."
             />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">Actress</label>
-            <input
-              type="text"
+            <AutocompleteInput
               value={formData.actress || ""}
-              onChange={e => updateField("actress", e.target.value)}
+              onChange={v => updateField("actress", v)}
+              suggestions={suggestions.actresses}
+              multiValue
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               placeholder="Actress name..."
             />
@@ -393,10 +437,11 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
           <Tag size={14} className="text-primary" />
           Genre
         </label>
-        <input
-          type="text"
+        <AutocompleteInput
           value={formData.genre || ""}
-          onChange={e => updateField("genre", e.target.value)}
+          onChange={v => updateField("genre", v)}
+          suggestions={suggestions.genres}
+          multiValue
           className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
           placeholder="Action, Sci-Fi, Drama..."
         />

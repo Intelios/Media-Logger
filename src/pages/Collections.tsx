@@ -324,6 +324,7 @@ export default function CollectionsPage() {
           onClose={() => { setEditModalOpen(false); setEditingEntry(null); }}
           onSave={handleEditSave}
           initialData={editingEntry}
+          allEntries={items}
         />
       </div>
     );

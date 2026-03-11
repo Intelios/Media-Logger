@@ -395,6 +395,7 @@ export default function SearchPage() {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
         initialData={editingEntry}
+        allEntries={allEntries}
       />
     </div>
   );
