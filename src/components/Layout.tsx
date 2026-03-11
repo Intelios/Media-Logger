@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Home, Calendar, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Sparkles, Settings } from "lucide-react";
+import { Home, Calendar, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Sparkles, Settings, PartyPopper } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
 import { WelcomeScreen } from "./WelcomeScreen";
@@ -180,6 +180,7 @@ export function Layout() {
           <NavItem to="/awards" icon={<Award size={18} />} label="Awards" isCompact={isCompact} />
           <NavItem to="/profiles" icon={<Users size={18} />} label="Profiles" isCompact={isCompact} />
           <NavItem to="/collections" icon={<Layers size={18} />} label="Collections" isCompact={isCompact} />
+          <NavItem to="/review" icon={<PartyPopper size={18} />} label="Review" isCompact={isCompact} />
 
           {/* System Section */}
           {!isCompact && <SectionLabel label="System" />}

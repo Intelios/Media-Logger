@@ -8,6 +8,7 @@ import ProfilesPage from "./pages/Profiles";
 import AwardsPage from "./pages/Awards";
 import CollectionsPage from "./pages/Collections";
 import SettingsPage from "./pages/Settings";
+import ReviewPage from "./pages/Review";
 import { ThemeProvider } from "./lib/ThemeContext";
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
             <Route path="profiles" element={<ProfilesPage />} />
             <Route path="awards" element={<AwardsPage />} />
             <Route path="collections" element={<CollectionsPage />} />
+            <Route path="review" element={<ReviewPage />} />
             <Route path="settings" element={<SettingsPage />} />
 
             {/* Fallback */}
