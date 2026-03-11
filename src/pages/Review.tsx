@@ -309,33 +309,6 @@ function TopFranchiseSlide({ slide }: { slide: ReviewSlide }) {
   );
 }
 
-function SingleEntrySlide({ slide }: { slide: ReviewSlide }) {
-  const entry = slide.entries?.[0];
-  if (!entry) return null;
-
-  return (
-    <div className="flex flex-col items-center justify-center gap-6 px-8">
-      <div className="review-fade-up" style={{ animationDelay: "300ms" }}>
-        <EntryThumb entry={entry} size="lg" delay={300} />
-      </div>
-      <div className="text-center review-fade-up" style={{ animationDelay: "500ms" }}>
-        <div className="text-3xl font-black text-white">{entry.name}</div>
-        <div className="flex items-center justify-center gap-3 mt-2 text-white/70">
-          {entry.entry_type && <span className="text-sm">{entry.entry_type}</span>}
-          {entry.review_score && (
-            <span className="flex items-center gap-1 text-sm">
-              <Star size={14} className="fill-current" /> {entry.review_score}/10
-            </span>
-          )}
-        </div>
-        {entry.genre && (
-          <p className="text-sm text-white/50 mt-1">{entry.genre}</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function RatingBreakdownSlide({ slide }: { slide: ReviewSlide }) {
   const { ratingBars, avgScore, totalRated, mostCommon } = slide.stats!;
   const maxCount = Math.max(...ratingBars.map((r: any) => r.count));
@@ -411,9 +384,9 @@ function FinaleSlide({ slide }: { slide: ReviewSlide }) {
   return (
     <div className="flex flex-col items-center justify-center gap-8 px-8">
       {entries.length > 0 && (
-        <div className="flex gap-4 review-fade-up" style={{ animationDelay: "300ms" }}>
+        <div className="flex flex-wrap justify-center gap-3 review-fade-up max-w-3xl" style={{ animationDelay: "300ms" }}>
           {entries.map((entry, i) => (
-            <EntryThumb key={entry.id} entry={entry} size="md" delay={300 + i * 150} />
+            <EntryThumb key={entry.id} entry={entry} size="sm" delay={300 + i * 60} />
           ))}
         </div>
       )}
@@ -450,8 +423,6 @@ function SlideContent({ slide }: { slide: ReviewSlide }) {
     case "perfect-tens": return <PerfectTensSlide slide={slide} />;
     case "top-genre": return <TopGenreSlide slide={slide} />;
     case "top-franchise": return <TopFranchiseSlide slide={slide} />;
-    case "surprise-favorite": return <SingleEntrySlide slide={slide} />;
-    case "hidden-gem": return <SingleEntrySlide slide={slide} />;
     case "rating-breakdown": return <RatingBreakdownSlide slide={slide} />;
     case "award-winners": return <AwardWinnersSlide slide={slide} />;
     case "finale": return <FinaleSlide slide={slide} />;

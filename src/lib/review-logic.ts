@@ -227,57 +227,7 @@ export async function generateReview(params: ReviewParams): Promise<ReviewData> 
     });
   }
 
-  // ── 7. Surprise Favorite ─────────────────────────────────────────────────
-  // Highest-rated entry in a genre you rarely watch (<=3 entries in that genre)
-  if (genreBreakdown.length > 0) {
-    const rareGenres = genreBreakdown.filter(g => g.count <= 3).map(g => g.name);
-    if (rareGenres.length > 0) {
-      const surpriseEntries = ratedEntries
-        .filter(e => {
-          if (!e.genre) return false;
-          const genres = e.genre.split(",").map(g => g.trim());
-          return genres.some(g => rareGenres.includes(g));
-        })
-        .sort((a, b) => (b.review_score || 0) - (a.review_score || 0));
-
-      if (surpriseEntries.length > 0 && (surpriseEntries[0].review_score || 0) >= 7) {
-        const surprise = surpriseEntries[0];
-        const surpriseGenre = surprise.genre!.split(",").map(g => g.trim()).find(g => rareGenres.includes(g)) || "an unexpected genre";
-        slides.push({
-          type: "surprise-favorite",
-          title: "Surprise Favorite",
-          subtitle: `${surprise.name} came out of nowhere — a ${surprise.review_score}/10 gem from ${surpriseGenre}.`,
-          entries: [surprise],
-          stats: { genre: surpriseGenre, score: surprise.review_score },
-        });
-      }
-    }
-  }
-
-  // ── 8. Hidden Gem ────────────────────────────────────────────────────────
-  // High-scored entry (8+) in a rare genre (<=2 entries), different from surprise favorite
-  const surpriseId = slides.find(s => s.type === "surprise-favorite")?.entries?.[0]?.id;
-  if (genreBreakdown.length > 0) {
-    const veryRareGenres = genreBreakdown.filter(g => g.count <= 2).map(g => g.name);
-    const gems = ratedEntries
-      .filter(e => {
-        if (!e.genre || (e.review_score || 0) < 8 || e.id === surpriseId) return false;
-        const genres = e.genre.split(",").map(g => g.trim());
-        return genres.some(g => veryRareGenres.includes(g));
-      })
-      .sort((a, b) => (b.review_score || 0) - (a.review_score || 0));
-
-    if (gems.length > 0) {
-      slides.push({
-        type: "hidden-gem",
-        title: "Hidden Gem",
-        subtitle: `${gems[0].name} scored ${gems[0].review_score}/10 — proof that stepping outside your comfort zone pays off.`,
-        entries: [gems[0]],
-      });
-    }
-  }
-
-  // ── 9. Rating Breakdown ──────────────────────────────────────────────────
+  // ── 7. Rating Breakdown ──────────────────────────────────────────────────
   const ratingDist: Record<number, number> = {};
   ratedEntries.forEach(e => {
     const score = Math.round(e.review_score || 0);
@@ -332,7 +282,7 @@ export async function generateReview(params: ReviewParams): Promise<ReviewData> 
   }
 
   // ── 11. Finale ───────────────────────────────────────────────────────────
-  const topRated = [...ratedEntries].sort((a, b) => (b.review_score || 0) - (a.review_score || 0)).slice(0, 3);
+  const topRated = [...ratedEntries].sort((a, b) => (b.review_score || 0) - (a.review_score || 0)).slice(0, 20);
   slides.push({
     type: "finale",
     title: `That Was ${periodLabel}`,
