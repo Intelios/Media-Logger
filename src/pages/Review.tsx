@@ -175,9 +175,10 @@ function TypeChampionSlide({ slide }: { slide: ReviewSlide }) {
 function BiggestMonthSlide({ slide }: { slide: ReviewSlide }) {
   const { biggestMonth, biggestCount, allMonths } = slide.stats!;
   const maxCount = Math.max(...allMonths.map((m: any) => m.count));
+  const entries = slide.entries || [];
 
   return (
-    <div className="flex flex-col items-center justify-center gap-8 px-8">
+    <div className="flex flex-col items-center justify-center gap-6 px-8">
       <div className="review-fade-up text-center" style={{ animationDelay: "200ms" }}>
         <div className="text-6xl font-black text-white drop-shadow-2xl">{biggestMonth}</div>
         <p className="text-2xl text-white/80 mt-2 font-semibold">
@@ -185,8 +186,17 @@ function BiggestMonthSlide({ slide }: { slide: ReviewSlide }) {
         </p>
       </div>
 
+      {/* Entries from that month */}
+      {entries.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-3 review-fade-up" style={{ animationDelay: "400ms" }}>
+          {entries.slice(0, 10).map((entry, i) => (
+            <EntryThumb key={entry.id} entry={entry} size="sm" delay={400 + i * 80} />
+          ))}
+        </div>
+      )}
+
       {/* Mini bar chart */}
-      <div className="flex items-end gap-1.5 h-32 review-fade-up" style={{ animationDelay: "600ms" }}>
+      <div className="flex items-end gap-1.5 h-24 review-fade-up" style={{ animationDelay: "700ms" }}>
         {allMonths.map((m: any, i: number) => {
           const height = maxCount > 0 ? (m.count / maxCount) * 100 : 0;
           const isBiggest = m.month === biggestMonth.slice(0, 3);

@@ -164,12 +164,20 @@ export async function generateReview(params: ReviewParams): Promise<ReviewData> 
         count: monthCounts[i] || 0,
       }));
 
+      // Get entries from the biggest month
+      const biggestMonthNum = Number(biggestMonthIdx);
+      const biggestMonthEntries = entries.filter(e => {
+        if (!e.completion_date) return false;
+        try { return new Date(e.completion_date).getMonth() === biggestMonthNum; } catch { return false; }
+      });
+
       slides.push({
         type: "biggest-month",
         title: "Your Biggest Month",
-        subtitle: `${MONTH_NAMES[Number(biggestMonthIdx)]} was on fire with ${biggestCount} ${biggestCount === 1 ? "completion" : "completions"}.`,
+        subtitle: `${MONTH_NAMES[biggestMonthNum]} was on fire with ${biggestCount} ${biggestCount === 1 ? "completion" : "completions"}.`,
+        entries: biggestMonthEntries,
         stats: {
-          biggestMonth: MONTH_NAMES[Number(biggestMonthIdx)],
+          biggestMonth: MONTH_NAMES[biggestMonthNum],
           biggestCount,
           allMonths,
         },
