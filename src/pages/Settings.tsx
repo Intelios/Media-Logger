@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { appLocalDataDir } from '@tauri-apps/api/path';
@@ -38,6 +39,31 @@ import type { ColorTheme, GlassStyle, ThemeMode } from '../lib/themes';
 import { getCurrentYearString, updateNavigationYears } from '../lib/navigation-years';
 
 type SettingsSection = 'general' | 'appearance' | 'data';
+type BackupFormat = 'json' | 'zip';
+
+type BackupZipReadResult = {
+    backupJson: string;
+};
+
+type ExtractBackupAssetsResult = {
+    assetsRestored: number;
+};
+
+function createFailedImportResult(error: unknown): ImportResult {
+    return {
+        success: false,
+        mediaEntriesImported: 0,
+        mediaEntriesSkipped: 0,
+        collectionsImported: 0,
+        collectionsSkipped: 0,
+        awardTemplatesImported: 0,
+        awardCategoriesImported: 0,
+        awardWinnersImported: 0,
+        profilesImported: 0,
+        assetsRestored: 0,
+        errors: [String(error)],
+    };
+}
 
 export default function Settings() {
     const [activeSection, setActiveSection] = useState<SettingsSection>('general');
@@ -62,6 +88,7 @@ export default function Settings() {
     const [isImporting, setIsImporting] = useState(false);
     const [importResult, setImportResult] = useState<ImportResult | null>(null);
     const [showImportModal, setShowImportModal] = useState(false);
+    const [showExportFormatModal, setShowExportFormatModal] = useState(false);
 
     useEffect(() => {
         const loadPaths = async () => {
@@ -182,17 +209,49 @@ export default function Settings() {
         showToast(style === 'clear' ? 'Glass style set to Clear' : 'Glass style set to Default');
     };
 
-    const handleExport = async () => {
+    const exportJsonBackup = async () => {
+        const content = await exportToFile();
+        const filePath = await save({
+            defaultPath: `media-logger-backup-${new Date().toISOString().split('T')[0]}.json`,
+            filters: [{ name: 'JSON', extensions: ['json'] }]
+        });
+
+        if (!filePath) {
+            return;
+        }
+
+        await writeTextFile(filePath, content);
+        showToast('JSON backup exported successfully!');
+    };
+
+    const exportZipBackup = async () => {
+        const content = await exportToFile();
+        const filePath = await save({
+            defaultPath: `media-logger-backup-${new Date().toISOString().split('T')[0]}.zip`,
+            filters: [{ name: 'ZIP', extensions: ['zip'] }]
+        });
+
+        if (!filePath) {
+            return;
+        }
+
+        const dataDir = await getDataDirectory();
+        await invoke('create_backup_zip', {
+            outputPath: filePath,
+            backupJson: content,
+            dataDir
+        });
+        showToast('ZIP backup exported successfully!');
+    };
+
+    const handleExportChoice = async (format: BackupFormat) => {
         setIsExporting(true);
+        setShowExportFormatModal(false);
         try {
-            const content = await exportToFile();
-            const filePath = await save({
-                defaultPath: `media-logger-backup-${new Date().toISOString().split('T')[0]}.json`,
-                filters: [{ name: 'JSON', extensions: ['json'] }]
-            });
-            if (filePath) {
-                await writeTextFile(filePath, content);
-                showToast('Data exported successfully!');
+            if (format === 'zip') {
+                await exportZipBackup();
+            } else {
+                await exportJsonBackup();
             }
         } catch (error) {
             console.error('Export error:', error);
@@ -202,25 +261,58 @@ export default function Settings() {
         }
     };
 
+    const handleExport = () => {
+        if (!isExporting) {
+            setShowExportFormatModal(true);
+        }
+    };
+
     const handleImport = async () => {
         try {
             const filePath = await open({
                 multiple: false,
-                filters: [{ name: 'JSON', extensions: ['json'] }]
+                filters: [{ name: 'Backup Files', extensions: ['json', 'zip'] }]
             });
             if (filePath && typeof filePath === 'string') {
                 setIsImporting(true);
-                const content = await readTextFile(filePath);
-                const result = await importFromFile(content);
+                let result: ImportResult;
+
+                if (filePath.toLowerCase().endsWith('.zip')) {
+                    const { backupJson } = await invoke<BackupZipReadResult>('read_backup_zip', { filePath });
+                    result = await importFromFile(backupJson);
+
+                    if (result.success) {
+                        try {
+                            const dataDir = await getDataDirectory();
+                            const { assetsRestored } = await invoke<ExtractBackupAssetsResult>('extract_backup_assets', {
+                                filePath,
+                                dataDir,
+                                overwrite: true
+                            });
+                            result = { ...result, assetsRestored };
+                        } catch (assetError) {
+                            result = {
+                                ...result,
+                                errors: [...result.errors, `Assets could not be fully restored: ${String(assetError)}`]
+                            };
+                        }
+                    }
+                } else {
+                    const content = await readTextFile(filePath);
+                    result = await importFromFile(content);
+                }
+
                 setImportResult(result);
                 setShowImportModal(true);
+
                 // Refresh stats after import
                 const newStats = await getDataStats();
                 setDataStats(newStats);
             }
         } catch (error) {
             console.error('Import error:', error);
-            showToast('Import failed: ' + String(error));
+            setImportResult(createFailedImportResult(error));
+            setShowImportModal(true);
         } finally {
             setIsImporting(false);
         }
@@ -638,7 +730,7 @@ export default function Settings() {
                                 <div>
                                     <div className="settings-row-label">Export All Data</div>
                                     <div className="settings-row-description">
-                                        Save all your entries, collections, awards, and profile image mappings to a backup file
+                                        Save all your entries, collections, awards, and profile image mappings as either a JSON backup or a ZIP backup with bundled local assets
                                     </div>
                                 </div>
                                 <button
@@ -662,7 +754,7 @@ export default function Settings() {
                                 <div>
                                     <div className="settings-row-label">Import Data</div>
                                     <div className="settings-row-description">
-                                        Restore data from a backup file. Duplicate entries will be skipped.
+                                        Restore data from a JSON or ZIP backup file. Duplicate entries will be skipped.
                                     </div>
                                 </div>
                                 <button
@@ -692,7 +784,53 @@ export default function Settings() {
                             color: 'var(--color-text-muted)'
                         }}>
                             <AlertCircle size={16} style={{ color: '#3B82F6', flexShrink: 0, marginTop: 2 }} />
-                            <span>Export files include all your data in JSON format with embedded CSVs. Images are not included in exports, but profile-image mappings are included as path references.</span>
+                            <span>JSON backups include all database data in JSON format with embedded CSVs but do not bundle local assets. ZIP backups include the same backup JSON plus the current <strong style={{ color: 'var(--color-text)' }}>assets/</strong> folder from your data directory.</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Export Format Modal */}
+                {showExportFormatModal && (
+                    <div className="modal-overlay" onClick={() => setShowExportFormatModal(false)}>
+                        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+                            <h2 style={{ marginBottom: 12 }}>Choose Export Format</h2>
+                            <p style={{ margin: 0, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                                JSON is smaller and faster to save. ZIP includes the same backup JSON plus your local assets folder so covers and profile art survive a restore on a fresh machine.
+                            </p>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 20 }}>
+                                <button
+                                    onClick={() => handleExportChoice('json')}
+                                    className="settings-btn settings-btn-secondary"
+                                    style={{ width: '100%', justifyContent: 'space-between' }}
+                                >
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <Download size={14} />
+                                        JSON only
+                                    </span>
+                                    <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Data only</span>
+                                </button>
+
+                                <button
+                                    onClick={() => handleExportChoice('zip')}
+                                    className="settings-btn settings-btn-primary"
+                                    style={{ width: '100%', justifyContent: 'space-between' }}
+                                >
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <Download size={14} />
+                                        ZIP with assets
+                                    </span>
+                                    <span style={{ color: 'inherit', fontSize: 12 }}>Data + local art</span>
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={() => setShowExportFormatModal(false)}
+                                className="settings-btn settings-btn-secondary"
+                                style={{ marginTop: 20, width: '100%' }}
+                            >
+                                Cancel
+                            </button>
                         </div>
                     </div>
                 )}
@@ -702,46 +840,79 @@ export default function Settings() {
                     <div className="modal-overlay" onClick={() => setShowImportModal(false)}>
                         <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 450 }}>
                             <h2 style={{ marginBottom: 16 }}>
-                                {importResult.success ? 'Import Complete' : 'Import Failed'}
+                                {importResult.success
+                                    ? importResult.errors.length > 0
+                                        ? 'Import Complete With Warnings'
+                                        : 'Import Complete'
+                                    : 'Import Failed'}
                             </h2>
                             {importResult.success ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>Media entries imported:</span>
-                                        <strong style={{ color: 'var(--color-primary)' }}>{importResult.mediaEntriesImported}</strong>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>Media entries imported:</span>
+                                            <strong style={{ color: 'var(--color-primary)' }}>{importResult.mediaEntriesImported}</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>Media entries skipped (duplicates):</span>
+                                            <strong>{importResult.mediaEntriesSkipped}</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>Collections imported:</span>
+                                            <strong style={{ color: 'var(--color-secondary)' }}>{importResult.collectionsImported}</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>Collections skipped:</span>
+                                            <strong>{importResult.collectionsSkipped}</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>Award templates imported:</span>
+                                            <strong>{importResult.awardTemplatesImported}</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>Award categories imported:</span>
+                                            <strong>{importResult.awardCategoriesImported}</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>Award winners imported:</span>
+                                            <strong>{importResult.awardWinnersImported}</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>Profile mappings imported:</span>
+                                            <strong>{importResult.profilesImported}</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>Assets restored:</span>
+                                            <strong>{importResult.assetsRestored}</strong>
+                                        </div>
                                     </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>Media entries skipped (duplicates):</span>
-                                        <strong>{importResult.mediaEntriesSkipped}</strong>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>Collections imported:</span>
-                                        <strong style={{ color: 'var(--color-secondary)' }}>{importResult.collectionsImported}</strong>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>Collections skipped:</span>
-                                        <strong>{importResult.collectionsSkipped}</strong>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>Award templates imported:</span>
-                                        <strong>{importResult.awardTemplatesImported}</strong>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>Award categories imported:</span>
-                                        <strong>{importResult.awardCategoriesImported}</strong>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>Award winners imported:</span>
-                                        <strong>{importResult.awardWinnersImported}</strong>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>Profile mappings imported:</span>
-                                        <strong>{importResult.profilesImported}</strong>
-                                    </div>
+
+                                    {importResult.errors.length > 0 && (
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: 8,
+                                                padding: '12px 14px',
+                                                borderRadius: 8,
+                                                background: 'rgba(245, 158, 11, 0.08)',
+                                                border: '1px solid rgba(245, 158, 11, 0.2)'
+                                            }}
+                                        >
+                                            <strong style={{ color: '#D97706' }}>Warnings</strong>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, color: 'var(--color-text-muted)', fontSize: 13 }}>
+                                                {importResult.errors.map((error, index) => (
+                                                    <span key={`${error}-${index}`}>{error}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
-                                <div style={{ color: '#EF4444' }}>
-                                    {importResult.errors.join(', ')}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, color: '#EF4444' }}>
+                                    {importResult.errors.map((error, index) => (
+                                        <span key={`${error}-${index}`}>{error}</span>
+                                    ))}
                                 </div>
                             )}
                             <button

@@ -253,6 +253,7 @@ export interface ImportResult {
     awardCategoriesImported: number;
     awardWinnersImported: number;
     profilesImported: number;
+    assetsRestored: number;
     errors: string[];
 }
 
@@ -381,6 +382,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
         awardCategoriesImported: 0,
         awardWinnersImported: 0,
         profilesImported: 0,
+        assetsRestored: 0,
         errors: [],
     };
 
