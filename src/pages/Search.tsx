@@ -1,16 +1,13 @@
-import { useState, useEffect, useMemo } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { Search as SearchIcon, X, Filter, ChevronDown, ChevronUp, Sparkles, RotateCcw } from "lucide-react";
-import { dbService, type MediaEntry } from "../lib/db";
+import { dbService, type MediaEntry, type SearchFilterOptions } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { cn } from "../lib/utils_ui";
 
-// Entry types matching the app config
 const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"];
-
-// LocalStorage keys
 const SEARCH_FILTERS_KEY = "search-filters";
 
 interface SearchFilters {
@@ -31,7 +28,14 @@ const defaultFilters: SearchFilters = {
   franchises: [],
 };
 
-// Load persisted filters
+const emptyFilterOptions: SearchFilterOptions = {
+  platforms: [],
+  actresses: [],
+  directors: [],
+  authors: [],
+  franchises: [],
+};
+
 const loadPersistedFilters = (): SearchFilters => {
   try {
     const stored = localStorage.getItem(SEARCH_FILTERS_KEY);
@@ -39,176 +43,194 @@ const loadPersistedFilters = (): SearchFilters => {
       return { ...defaultFilters, ...JSON.parse(stored) };
     }
   } catch {
-    // Fall back to default
+    // Fall back to defaults if local storage is unavailable or malformed.
   }
+
   return defaultFilters;
 };
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const [results, setResults] = useState<MediaEntry[]>([]);
-  const [allEntries, setAllEntries] = useState<MediaEntry[]>([]);
   const [filters, setFilters] = useState<SearchFilters>(loadPersistedFilters);
+  const [filterOptions, setFilterOptions] = useState<SearchFilterOptions>(emptyFilterOptions);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [isLoadingResults, setIsLoadingResults] = useState(false);
+  const [isLoadingFilters, setIsLoadingFilters] = useState(true);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
+  const [formEntries, setFormEntries] = useState<MediaEntry[]>([]);
   const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
 
-  // Load all entries
   useEffect(() => {
-    dbService.getAllEntries().then(setAllEntries);
-  }, []);
+    let isActive = true;
+    setIsLoadingFilters(true);
 
-  // Persist filters
+    dbService.getSearchFilterOptions()
+      .then((options) => {
+        if (isActive) {
+          setFilterOptions(options);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load search filter options:", error);
+        if (isActive) {
+          setFilterOptions(emptyFilterOptions);
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsLoadingFilters(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [refreshToken]);
+
   useEffect(() => {
     localStorage.setItem(SEARCH_FILTERS_KEY, JSON.stringify(filters));
   }, [filters]);
 
-  // Fetch awards for all entries
   useEffect(() => {
-    const fetchAwards = async () => {
-      const mediaIds = allEntries.map(e => e.id).filter((id): id is number => id !== undefined);
-      if (mediaIds.length > 0) {
-        const awards = await awardsLogic.getAwardsForMediaBatch(mediaIds);
-        setAwardsMap(awards);
-      } else {
-        setAwardsMap(new Map());
-      }
-    };
-    fetchAwards();
-  }, [allEntries]);
+    let isActive = true;
+    const hasCriteria = deferredQuery.trim().length > 0 || hasActiveFilters(filters);
 
-  // Extract unique values for filter dropdowns
-  const uniqueValues = useMemo(() => {
-    const platforms = new Set<string>();
-    const actresses = new Set<string>();
-    const directors = new Set<string>();
-    const authors = new Set<string>();
-    const franchises = new Set<string>();
-
-    allEntries.forEach(e => {
-      if (e.platform) platforms.add(e.platform);
-      if (e.actress) {
-        // Handle comma-separated actresses
-        e.actress.split(',').forEach(a => {
-          const trimmed = a.trim();
-          if (trimmed) actresses.add(trimmed);
-        });
-      }
-      if (e.director) directors.add(e.director);
-      if (e.author) authors.add(e.author);
-      if (e.franchise) franchises.add(e.franchise);
-    });
-
-    return {
-      platforms: Array.from(platforms).sort(),
-      actresses: Array.from(actresses).sort(),
-      directors: Array.from(directors).sort(),
-      authors: Array.from(authors).sort(),
-      franchises: Array.from(franchises).sort(),
-    };
-  }, [allEntries]);
-
-  // Count active filters
-  const activeFilterCount = useMemo(() => {
-    return (
-      filters.entryTypes.length +
-      filters.platforms.length +
-      filters.actresses.length +
-      filters.directors.length +
-      filters.authors.length +
-      filters.franchises.length
-    );
-  }, [filters]);
-
-  // Filter and search logic
-  useEffect(() => {
-    let filtered = [...allEntries];
-
-    // Apply text search
-    if (query.trim()) {
-      const lowerQuery = query.toLowerCase();
-      filtered = filtered.filter(e =>
-        e.name.toLowerCase().includes(lowerQuery) ||
-        (e.author && e.author.toLowerCase().includes(lowerQuery)) ||
-        (e.artist && e.artist.toLowerCase().includes(lowerQuery)) ||
-        (e.genre && e.genre.toLowerCase().includes(lowerQuery)) ||
-        (e.director && e.director.toLowerCase().includes(lowerQuery)) ||
-        (e.actress && e.actress.toLowerCase().includes(lowerQuery)) ||
-        (e.platform && e.platform.toLowerCase().includes(lowerQuery))
-      );
+    if (!hasCriteria) {
+      setResults([]);
+      setAwardsMap(new Map());
+      setIsLoadingResults(false);
+      return () => {
+        isActive = false;
+      };
     }
 
-    // Apply entry type filter
-    if (filters.entryTypes.length > 0) {
-      filtered = filtered.filter(e => e.entry_type && filters.entryTypes.includes(e.entry_type));
-    }
+    setIsLoadingResults(true);
 
-    // Apply platform filter
-    if (filters.platforms.length > 0) {
-      filtered = filtered.filter(e => e.platform && filters.platforms.includes(e.platform));
-    }
-
-    // Apply actress filter (check if any selected actress matches)
-    if (filters.actresses.length > 0) {
-      filtered = filtered.filter(e => {
-        if (!e.actress) return false;
-        const entryActresses = e.actress.split(',').map(a => a.trim());
-        return filters.actresses.some(fa => entryActresses.includes(fa));
+    dbService.searchEntries({
+      query: deferredQuery,
+      ...filters,
+    })
+      .then((entries) => {
+        if (isActive) {
+          setResults(entries);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to search entries:", error);
+        if (isActive) {
+          setResults([]);
+          setAwardsMap(new Map());
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsLoadingResults(false);
+        }
       });
+
+    return () => {
+      isActive = false;
+    };
+  }, [deferredQuery, filters, refreshToken]);
+
+  useEffect(() => {
+    let isActive = true;
+    const mediaIds = results
+      .map((entry) => entry.id)
+      .filter((id): id is number => typeof id === "number");
+
+    if (mediaIds.length === 0) {
+      setAwardsMap(new Map());
+      return () => {
+        isActive = false;
+      };
     }
 
-    // Apply director filter
-    if (filters.directors.length > 0) {
-      filtered = filtered.filter(e => e.director && filters.directors.includes(e.director));
+    awardsLogic.getAwardsForMediaBatch(mediaIds)
+      .then((awards) => {
+        if (isActive) {
+          setAwardsMap(awards);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load search awards:", error);
+        if (isActive) {
+          setAwardsMap(new Map());
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [results]);
+
+  useEffect(() => {
+    if (!isModalOpen) {
+      return;
     }
 
-    // Apply author filter
-    if (filters.authors.length > 0) {
-      filtered = filtered.filter(e => e.author && filters.authors.includes(e.author));
-    }
+    let isActive = true;
 
-    // Apply franchise filter
-    if (filters.franchises.length > 0) {
-      filtered = filtered.filter(e => e.franchise && filters.franchises.includes(e.franchise));
-    }
+    dbService.getAllEntries()
+      .then((entries) => {
+        if (isActive) {
+          setFormEntries(entries);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load entries for the editor:", error);
+      });
 
-    setResults(filtered);
-  }, [query, allEntries, filters]);
+    return () => {
+      isActive = false;
+    };
+  }, [isModalOpen, refreshToken]);
 
-  // Handlers
+  const activeFilterCount =
+    filters.entryTypes.length +
+    filters.platforms.length +
+    filters.actresses.length +
+    filters.directors.length +
+    filters.authors.length +
+    filters.franchises.length;
+
+  const hasActiveSearch = query.trim().length > 0 || activeFilterCount > 0;
+
   const handleEdit = (entry: MediaEntry) => {
     setEditingEntry(entry);
     setIsModalOpen(true);
   };
 
   const handleSave = async (data: Partial<MediaEntry>) => {
-    if (editingEntry) {
-      await dbService.updateEntry({ ...editingEntry, ...data } as MediaEntry);
-      dbService.getAllEntries().then(setAllEntries);
-    }
+    if (!editingEntry) return;
+
+    const updatedEntry = { ...editingEntry, ...data } as MediaEntry;
+    await dbService.updateEntry(updatedEntry);
+    setEditingEntry(updatedEntry);
+    setRefreshToken((current) => current + 1);
   };
 
   const handleDelete = async (id: number) => {
     await dbService.deleteEntry(id);
-    dbService.getAllEntries().then(setAllEntries);
+    setRefreshToken((current) => current + 1);
   };
 
   const updateFilter = <K extends keyof SearchFilters>(key: K, value: SearchFilters[K]) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters((current) => ({ ...current, [key]: value }));
   };
 
   const clearAllFilters = () => {
-    setFilters(defaultFilters);
+    setFilters({ ...defaultFilters });
     setQuery("");
   };
 
-  const hasActiveSearch = query.trim() || activeFilterCount > 0;
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20">
-      {/* Header */}
       <header className="space-y-6">
         <div>
           <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
@@ -217,7 +239,6 @@ export default function SearchPage() {
           <p className="text-gray-400 mt-1">Find entries across your entire collection</p>
         </div>
 
-        {/* Search Bar */}
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-2xl blur-xl opacity-50" />
           <div className="relative bg-white/5 border border-white/10 rounded-2xl p-1 backdrop-blur-sm">
@@ -226,7 +247,7 @@ export default function SearchPage() {
               <input
                 type="text"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search by title, author, artist, genre, director, actress, platform..."
                 className="w-full bg-transparent py-4 pl-12 pr-12 text-lg text-white placeholder:text-gray-500 focus:outline-none"
                 autoFocus
@@ -243,10 +264,9 @@ export default function SearchPage() {
           </div>
         </div>
 
-        {/* Advanced Filters Toggle */}
         <div className="space-y-4">
           <button
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            onClick={() => setShowAdvancedFilters((current) => !current)}
             className={cn(
               "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
               showAdvancedFilters || activeFilterCount > 0
@@ -264,7 +284,6 @@ export default function SearchPage() {
             {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
 
-          {/* Advanced Filters Panel */}
           {showAdvancedFilters && (
             <div className="relative z-50 bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-sm space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
               <div className="flex items-center justify-between">
@@ -284,73 +303,87 @@ export default function SearchPage() {
                 <MultiSelectFilter
                   options={ENTRY_TYPES}
                   selected={filters.entryTypes}
-                  onChange={(v) => updateFilter('entryTypes', v)}
+                  onChange={(value) => updateFilter("entryTypes", value)}
                   label="Type"
                 />
-                {uniqueValues.platforms.length > 0 && (
+                {filterOptions.platforms.length > 0 && (
                   <MultiSelectFilter
-                    options={uniqueValues.platforms}
+                    options={filterOptions.platforms}
                     selected={filters.platforms}
-                    onChange={(v) => updateFilter('platforms', v)}
+                    onChange={(value) => updateFilter("platforms", value)}
                     label="Platform"
                   />
                 )}
-                {uniqueValues.actresses.length > 0 && (
+                {filterOptions.actresses.length > 0 && (
                   <MultiSelectFilter
-                    options={uniqueValues.actresses}
+                    options={filterOptions.actresses}
                     selected={filters.actresses}
-                    onChange={(v) => updateFilter('actresses', v)}
+                    onChange={(value) => updateFilter("actresses", value)}
                     label="Actress"
                   />
                 )}
-                {uniqueValues.directors.length > 0 && (
+                {filterOptions.directors.length > 0 && (
                   <MultiSelectFilter
-                    options={uniqueValues.directors}
+                    options={filterOptions.directors}
                     selected={filters.directors}
-                    onChange={(v) => updateFilter('directors', v)}
+                    onChange={(value) => updateFilter("directors", value)}
                     label="Director"
                   />
                 )}
-                {uniqueValues.authors.length > 0 && (
+                {filterOptions.authors.length > 0 && (
                   <MultiSelectFilter
-                    options={uniqueValues.authors}
+                    options={filterOptions.authors}
                     selected={filters.authors}
-                    onChange={(v) => updateFilter('authors', v)}
+                    onChange={(value) => updateFilter("authors", value)}
                     label="Author"
                   />
                 )}
-                {uniqueValues.franchises.length > 0 && (
+                {filterOptions.franchises.length > 0 && (
                   <MultiSelectFilter
-                    options={uniqueValues.franchises}
+                    options={filterOptions.franchises}
                     selected={filters.franchises}
-                    onChange={(v) => updateFilter('franchises', v)}
+                    onChange={(value) => updateFilter("franchises", value)}
                     label="Franchise"
                   />
                 )}
               </div>
+
+              {isLoadingFilters && (
+                <p className="text-xs text-gray-500">Refreshing filter options...</p>
+              )}
             </div>
           )}
         </div>
 
-        {/* Results Summary */}
         {hasActiveSearch && (
           <div className="flex items-center gap-3 text-sm">
             <Sparkles className="text-cyan-400" size={16} />
             <span className="text-gray-400">
-              Found <span className="text-white font-semibold">{results.length}</span> result{results.length !== 1 ? 's' : ''}
-              {query && <span className="text-gray-500"> for "{query}"</span>}
-              {activeFilterCount > 0 && (
-                <span className="text-gray-500"> with {activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''} applied</span>
+              {isLoadingResults ? (
+                <>Searching your library...</>
+              ) : (
+                <>
+                  Found <span className="text-white font-semibold">{results.length}</span> result{results.length !== 1 ? "s" : ""}
+                  {query && <span className="text-gray-500"> for "{query}"</span>}
+                  {activeFilterCount > 0 && (
+                    <span className="text-gray-500"> with {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} applied</span>
+                  )}
+                </>
               )}
             </span>
           </div>
         )}
       </header>
 
-      {/* Results Grid */}
-      {results.length > 0 ? (
+      {isLoadingResults && hasActiveSearch ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {results.map(entry => (
+          {Array.from({ length: 10 }, (_, index) => (
+            <div key={index} className="h-[360px] rounded-2xl border border-white/10 bg-white/5 animate-pulse" />
+          ))}
+        </div>
+      ) : results.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          {results.map((entry) => (
             <div key={entry.id}>
               <MediaCard
                 entry={entry}
@@ -389,14 +422,24 @@ export default function SearchPage() {
         </div>
       )}
 
-      {/* Form Modal */}
       <EntryForm
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
         initialData={editingEntry}
-        allEntries={allEntries}
+        allEntries={formEntries}
       />
     </div>
+  );
+}
+
+function hasActiveFilters(filters: SearchFilters): boolean {
+  return (
+    filters.entryTypes.length > 0 ||
+    filters.platforms.length > 0 ||
+    filters.actresses.length > 0 ||
+    filters.directors.length > 0 ||
+    filters.authors.length > 0 ||
+    filters.franchises.length > 0
   );
 }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus } from "lucide-react";
-import { getImageUrl } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 
@@ -234,6 +234,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
             alt={entry.name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
             loading="lazy"
+            onError={() => setImgSrc(DEFAULT_COVER_IMAGE)}
           />
 
           {/* Gradient Overlay */}
@@ -643,6 +644,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
                 src={imgSrc}
                 alt={entry.name}
                 className="max-w-[90vw] max-h-[80vh] object-contain rounded-2xl shadow-2xl"
+                onError={() => setImgSrc(DEFAULT_COVER_IMAGE)}
               />
 
               {/* Title below image */}

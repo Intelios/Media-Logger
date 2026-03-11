@@ -27,6 +27,24 @@ export interface MediaEntry {
   franchise: string | null;
 }
 
+export interface EntrySearchFilters {
+  query?: string;
+  entryTypes: string[];
+  platforms: string[];
+  actresses: string[];
+  directors: string[];
+  authors: string[];
+  franchises: string[];
+}
+
+export interface SearchFilterOptions {
+  platforms: string[];
+  actresses: string[];
+  directors: string[];
+  authors: string[];
+  franchises: string[];
+}
+
 // 2. Database Service
 class DBService {
   private db: Database | null = null;
@@ -280,6 +298,7 @@ class DBService {
           completion_date TEXT,
           review_score REAL,
           description TEXT,
+          notes TEXT,
           year_completed INTEGER,
           is_rewatch INTEGER DEFAULT 0,
           own_local_copy INTEGER DEFAULT 0,
@@ -449,6 +468,121 @@ class DBService {
     const db = await this.connect();
     return await db.select<MediaEntry[]>(
       "SELECT * FROM entries ORDER BY completion_date DESC, id DESC"
+    );
+  }
+
+  private escapeLike(value: string): string {
+    return value.replace(/[\\%_]/g, "\\$&");
+  }
+
+  private async getDistinctColumnValues(
+    db: Database,
+    column: 'platform' | 'director' | 'author' | 'franchise'
+  ): Promise<string[]> {
+    const results = await db.select<{ value: string }[]>(
+      `SELECT DISTINCT TRIM(${column}) as value
+       FROM entries
+       WHERE ${column} IS NOT NULL AND TRIM(${column}) <> ''
+       ORDER BY value COLLATE NOCASE ASC`
+    );
+
+    return results.map(({ value }) => value);
+  }
+
+  async getSearchFilterOptions(): Promise<SearchFilterOptions> {
+    const db = await this.connect();
+
+    const [platforms, directors, authors, franchises, actresses] = await Promise.all([
+      this.getDistinctColumnValues(db, 'platform'),
+      this.getDistinctColumnValues(db, 'director'),
+      this.getDistinctColumnValues(db, 'author'),
+      this.getDistinctColumnValues(db, 'franchise'),
+      db.select<{ value: string }[]>(
+        `WITH RECURSIVE split(value, rest) AS (
+           SELECT '', TRIM(actress) || ','
+           FROM entries
+           WHERE actress IS NOT NULL AND TRIM(actress) <> ''
+           UNION ALL
+           SELECT
+             TRIM(SUBSTR(rest, 0, INSTR(rest, ','))),
+             LTRIM(SUBSTR(rest, INSTR(rest, ',') + 1))
+           FROM split
+           WHERE rest <> ''
+         )
+         SELECT DISTINCT value
+         FROM split
+         WHERE value <> ''
+         ORDER BY value COLLATE NOCASE ASC`
+      ),
+    ]);
+
+    return {
+      platforms,
+      actresses: actresses.map(({ value }) => value),
+      directors,
+      authors,
+      franchises,
+    };
+  }
+
+  async searchEntries(filters: EntrySearchFilters): Promise<MediaEntry[]> {
+    const db = await this.connect();
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    const query = filters.query?.trim().toLowerCase();
+    if (query) {
+      const searchableColumns = [
+        'name',
+        'author',
+        'artist',
+        'genre',
+        'director',
+        'actress',
+        'platform',
+      ];
+
+      const likeValue = `%${this.escapeLike(query)}%`;
+      const searchClauses = searchableColumns.map((column) => {
+        params.push(likeValue);
+        return `LOWER(COALESCE(${column}, '')) LIKE $${params.length} ESCAPE '\\'`;
+      });
+
+      conditions.push(`(${searchClauses.join(' OR ')})`);
+    }
+
+    const addInFilter = (column: string, values: string[]) => {
+      if (values.length === 0) return;
+      const placeholders = values.map((value) => {
+        params.push(value);
+        return `$${params.length}`;
+      });
+      conditions.push(`${column} IN (${placeholders.join(', ')})`);
+    };
+
+    addInFilter('entry_type', filters.entryTypes);
+    addInFilter('platform', filters.platforms);
+    addInFilter('director', filters.directors);
+    addInFilter('author', filters.authors);
+    addInFilter('franchise', filters.franchises);
+
+    if (filters.actresses.length > 0) {
+      const normalizedActressColumn = `(',' || REPLACE(REPLACE(COALESCE(actress, ''), ', ', ','), ' ,', ',') || ',')`;
+      const actressClauses = filters.actresses.map((actress) => {
+        params.push(actress);
+        return `INSTR(${normalizedActressColumn}, ',' || $${params.length} || ',') > 0`;
+      });
+      conditions.push(`(${actressClauses.join(' OR ')})`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    return await db.select<MediaEntry[]>(
+      `SELECT *
+       FROM entries
+       ${whereClause}
+       ORDER BY completion_date DESC, id DESC`,
+      params
     );
   }
 
