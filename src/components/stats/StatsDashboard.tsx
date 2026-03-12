@@ -1,25 +1,11 @@
-import {
-  Building2,
-  Calendar,
-  Gamepad2,
-  Hash,
-  Heart,
-  PieChart as PieIcon,
-  RefreshCw,
-  Sparkles,
-  Star,
-  Trophy,
-  User,
-} from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
 import type { FullStats } from "../../lib/stats-logic";
 import { StatsPageHeader } from "./StatsPageHeader";
-import { StatsSummaryRibbon, type StatsSummaryRibbonCard } from "./StatsSummaryRibbon";
-import type { StatsFilterPreset, StatsPresetKey } from "./stats-config";
-import { BreakdownListWidget } from "./widgets/BreakdownListWidget";
-import { ContentTypeBreakdownWidget } from "./widgets/ContentTypeBreakdownWidget";
-import { MonthlyActivityWidget } from "./widgets/MonthlyActivityWidget";
-import { RatingDistributionWidget } from "./widgets/RatingDistributionWidget";
-import { TopGenresWidget } from "./widgets/TopGenresWidget";
+import { StatsSummaryRibbon } from "./StatsSummaryRibbon";
+import { StatsWidgetGrid } from "./StatsWidgetGrid";
+import { loadStatsDashboardLayout, saveStatsDashboardLayout } from "./stats-layout";
+import { getVisibleStatsWidgetDefinitions, STATS_WIDGET_DEFINITIONS } from "./stats-registry";
+import type { MainWidgetId, StatsDashboardRenderContext, StatsFilterPreset, StatsPresetKey, StatsWidgetSize } from "./stats-config";
 
 interface StatsDashboardProps {
   activeYear: string;
@@ -56,46 +42,26 @@ export function StatsDashboard({
   onViewAllGenres,
   onGenreClick,
 }: StatsDashboardProps) {
-  const summaryCards: StatsSummaryRibbonCard[] = [
-    {
-      widgetId: "total-entries",
-      icon: <Hash />,
-      value: data.total,
-      color: "blue",
-    },
-    {
-      widgetId: "average-score",
-      icon: <Star />,
-      value: data.average_score.toFixed(1),
-      color: "amber",
-    },
-    {
-      widgetId: "rewatches",
-      icon: <RefreshCw />,
-      value: data.rewatch_count,
-      color: "green",
-    },
-    {
-      widgetId: "perfect-tens",
-      icon: <Trophy />,
-      value: data.perfectTenCount,
-      color: "pink",
-      onClick: onPerfect10Click,
-    },
-    {
-      widgetId: "this-month",
-      icon: <Calendar />,
-      value: data.entriesThisMonth,
-      color: "cyan",
-      onClick: onThisMonthClick,
-    },
-    {
-      widgetId: "genres-count",
-      icon: <PieIcon />,
-      value: data.genres.length,
-      color: "purple",
-    },
-  ];
+  const [layout] = useState(() => loadStatsDashboardLayout(STATS_WIDGET_DEFINITIONS));
+
+  useEffect(() => {
+    saveStatsDashboardLayout(layout);
+  }, [layout]);
+
+  const renderContext: StatsDashboardRenderContext = {
+    activeYear,
+    data,
+    onPerfect10Click,
+    onThisMonthClick,
+    onViewAllGenres,
+    onGenreClick,
+  };
+
+  const summaryWidgets = getVisibleStatsWidgetDefinitions("summary", layout.summaryOrder, renderContext);
+  const mainWidgets = getVisibleStatsWidgetDefinitions("main", layout.mainOrder, renderContext).filter(
+    (definition) => !layout.hidden.includes(definition.id)
+  );
+  const visibleSummaryWidgets = summaryWidgets.filter((definition) => !layout.hidden.includes(definition.id));
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 pb-20">
@@ -114,49 +80,19 @@ export function StatsDashboard({
         onResetPreset={onResetPreset}
       />
 
-      <StatsSummaryRibbon cards={summaryCards} />
+      <StatsSummaryRibbon>
+        {visibleSummaryWidgets.map((definition) => (
+          <Fragment key={definition.id}>{definition.render(renderContext)}</Fragment>
+        ))}
+      </StatsSummaryRibbon>
 
-      {activeYear !== "All Time" ? <MonthlyActivityWidget monthlyCompletions={data.monthlyCompletions} /> : null}
-
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <RatingDistributionWidget ratings={data.ratings} />
-        <TopGenresWidget genres={data.genres} onViewAllGenres={onViewAllGenres} onGenreClick={onGenreClick} />
-      </div>
-
-      <ContentTypeBreakdownWidget items={data.mediaTypeBreakdown} totalEntries={data.total} />
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <BreakdownListWidget
-          widgetId="platforms"
-          icon={<Gamepad2 size={18} />}
-          items={data.platforms.filter((item) => item.count >= 3)}
-          accentColor="blue"
-        />
-        <BreakdownListWidget
-          widgetId="franchises"
-          icon={<Sparkles size={18} />}
-          items={data.franchises.filter((item) => item.count >= 3)}
-          accentColor="cyan"
-        />
-        <BreakdownListWidget
-          widgetId="studios"
-          icon={<Building2 size={18} />}
-          items={data.studios.filter((item) => item.count >= 3)}
-          accentColor="purple"
-        />
-        <BreakdownListWidget
-          widgetId="authors"
-          icon={<User size={18} />}
-          items={data.authors.filter((item) => item.count >= 3)}
-          accentColor="green"
-        />
-        <BreakdownListWidget
-          widgetId="actresses"
-          icon={<Heart size={18} />}
-          items={data.actresses.filter((item) => item.count >= 3)}
-          accentColor="pink"
-        />
-      </div>
+      <StatsWidgetGrid
+        items={mainWidgets.map((definition) => ({
+          widgetId: definition.id as MainWidgetId,
+          size: definition.defaultSize as Exclude<StatsWidgetSize, "summary">,
+          content: definition.render(renderContext),
+        }))}
+      />
     </div>
   );
 }

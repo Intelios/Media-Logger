@@ -1,4 +1,6 @@
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
+import type { FullStats } from "../../lib/stats-logic";
 
 export const SUMMARY_WIDGET_IDS = [
   "total-entries",
@@ -27,6 +29,15 @@ export type StatsWidgetId = SummaryWidgetId | MainWidgetId;
 export type StatsWidgetZone = "summary" | "main";
 export type StatsWidgetSize = "summary" | "small" | "half" | "full";
 
+export interface StatsDashboardRenderContext {
+  activeYear: string;
+  data: FullStats;
+  onPerfect10Click: () => void;
+  onThisMonthClick: () => void;
+  onViewAllGenres: () => void;
+  onGenreClick: (genreName: string) => void;
+}
+
 export interface StatsWidgetMeta {
   id: StatsWidgetId;
   zone: StatsWidgetZone;
@@ -36,6 +47,11 @@ export interface StatsWidgetMeta {
   defaultVisible: boolean;
   defaultOrder: number;
   supportsEmptyState: boolean;
+}
+
+export interface StatsWidgetDefinition extends StatsWidgetMeta {
+  isAvailable?: (context: StatsDashboardRenderContext) => boolean;
+  render: (context: StatsDashboardRenderContext) => ReactNode;
 }
 
 export type StatsPresetKey = "gaming" | "media" | "adult" | null;
@@ -200,6 +216,3 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     supportsEmptyState: true,
   },
 };
-
-export const SUMMARY_WIDGET_ORDER: SummaryWidgetId[] = [...SUMMARY_WIDGET_IDS];
-export const MAIN_WIDGET_ORDER: MainWidgetId[] = [...MAIN_WIDGET_IDS];

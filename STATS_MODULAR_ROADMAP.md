@@ -86,7 +86,20 @@ Delivered in this phase:
 - Shared widget metadata and stable widget IDs were added
 - A reusable widget shell was introduced for chart and list widgets
 - The curated layout and existing behavior were preserved
-- Customize mode, registry-driven rendering, and layout persistence are still intentionally deferred
+- Visible Customize mode is still intentionally deferred
+
+## Phase 2 Status
+
+Phase 2 is complete.
+
+Delivered in this phase:
+
+- A typed widget registry now drives stats widget rendering
+- Summary and main widgets now render from registry definitions instead of manual page composition
+- Hidden dashboard layout state now exists with versioned `localStorage` persistence
+- Layout normalization now restores missing widgets, removes invalid IDs, and preserves hidden state
+- Widget availability rules are now encoded in the registry, including hiding Monthly Activity for `All Time`
+- The main canvas now renders through a shared size-aware grid instead of ad hoc section composition
 
 ## Phase 0 Decisions
 
@@ -378,6 +391,10 @@ Each widget definition should eventually support:
 - `defaultOrder`
 - `component`
 - `supportedFilters`
+
+Status:
+
+- Complete
 
 ### Phase 3: Build the Dashboard Layout System
 
