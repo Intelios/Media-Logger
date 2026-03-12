@@ -51,6 +51,7 @@ export interface StatsDashboardViewDefinition {
 export interface StatsDashboardRenderContext {
   activeYear: string;
   selectedTypes: string[];
+  profileKeys: Set<string>;
   displayModes: Partial<Record<DisplayModeWidgetId, StatsWidgetDisplayMode>>;
   data: FullStats;
   onPerfect10Click: () => void;

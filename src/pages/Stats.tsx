@@ -23,6 +23,7 @@ import {
 } from "../components/stats/stats-layout";
 import { getAvailableNavigationYears, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
 import { type MediaEntry } from "../lib/db";
+import { profilesLogic } from "../lib/profiles-logic";
 import { getNavigationYears } from "../lib/settings";
 import { statsLogic, type FullStats } from "../lib/stats-logic";
 
@@ -107,6 +108,7 @@ export default function StatsPage() {
   const [dashboardPreferences, setDashboardPreferences] = useState<StatsDashboardPreferences>(loadStatsDashboardPreferences);
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [data, setData] = useState<FullStats | null>(null);
+  const [profileKeys, setProfileKeys] = useState<Set<string>>(new Set());
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState("");
@@ -170,6 +172,25 @@ export default function StatsPage() {
   }, []);
 
   useEffect(() => {
+    const refreshProfileKeys = async () => {
+      const keys = await profilesLogic.getProfileKeys();
+      setProfileKeys(keys);
+    };
+
+    const handleEntryAdded = () => {
+      void refreshProfileKeys();
+    };
+
+    void refreshProfileKeys();
+
+    window.addEventListener("entry-added", handleEntryAdded as EventListener);
+
+    return () => {
+      window.removeEventListener("entry-added", handleEntryAdded as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
     if (activeYear !== "All Time" && !years.includes(activeYear)) {
       setActiveYear("All Time");
     }
@@ -203,6 +224,7 @@ export default function StatsPage() {
 
   const handleModalEntriesChange = () => {
     void statsLogic.getStats(activeYear, selectedTypes).then(setData);
+    void profilesLogic.getProfileKeys().then(setProfileKeys);
 
     if (modalTitle === "Perfect 10s") {
       void statsLogic.getPerfect10Entries(activeYear, selectedTypes).then(setModalEntries);
@@ -283,6 +305,7 @@ export default function StatsPage() {
         yearOptions={["All Time", ...years]}
         entryTypes={ENTRY_TYPES}
         selectedTypes={selectedTypes}
+        profileKeys={profileKeys}
         onSelectedTypesChange={handleTypesChange}
         presets={PRESET_KEYS.map((key) => FILTER_PRESETS[key])}
         activePreset={activePreset}

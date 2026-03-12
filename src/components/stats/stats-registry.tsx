@@ -36,6 +36,10 @@ function isRelevantToEntryTypes(selectedTypes: string[], relevantTypes: string[]
   return selectedTypes.some((entryType) => relevantTypes.includes(entryType));
 }
 
+function shouldIncludeProfileBackedItem(itemCount: number, itemName: string, profileType: string, profileKeys: Set<string>) {
+  return itemCount >= 3 || profileKeys.has(`${profileType}:${itemName}`);
+}
+
 const createStatsWidgetDefinition = (
   widgetId: StatsWidgetId,
   definition: Pick<StatsWidgetDefinition, "render" | "isAvailable">
@@ -151,7 +155,9 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
       <BreakdownListWidget
         widgetId="platforms"
         icon={<Gamepad2 size={18} />}
-        items={context.data.platforms.filter((item) => item.count >= 3)}
+        items={context.data.platforms.filter((item) =>
+          shouldIncludeProfileBackedItem(item.count, item.name, "platform", context.profileKeys)
+        )}
         accentColor="blue"
         displayMode={context.displayModes.platforms ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
       />
@@ -163,7 +169,9 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
       <BreakdownListWidget
         widgetId="franchises"
         icon={<Sparkles size={18} />}
-        items={context.data.franchises.filter((item) => item.count >= 3)}
+        items={context.data.franchises.filter((item) =>
+          shouldIncludeProfileBackedItem(item.count, item.name, "franchise", context.profileKeys)
+        )}
         accentColor="cyan"
         displayMode={context.displayModes.franchises ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
       />
@@ -175,7 +183,9 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
       <BreakdownListWidget
         widgetId="studios"
         icon={<Building2 size={18} />}
-        items={context.data.studios.filter((item) => item.count >= 3)}
+        items={context.data.studios.filter((item) =>
+          shouldIncludeProfileBackedItem(item.count, item.name, "director", context.profileKeys)
+        )}
         accentColor="purple"
         displayMode={context.displayModes.studios ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
       />
@@ -187,7 +197,9 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
       <BreakdownListWidget
         widgetId="authors"
         icon={<User size={18} />}
-        items={context.data.authors.filter((item) => item.count >= 3)}
+        items={context.data.authors.filter((item) =>
+          shouldIncludeProfileBackedItem(item.count, item.name, "author", context.profileKeys)
+        )}
         accentColor="green"
         displayMode={context.displayModes.authors ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
       />
@@ -199,7 +211,9 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
       <BreakdownListWidget
         widgetId="actresses"
         icon={<Heart size={18} />}
-        items={context.data.actresses.filter((item) => item.count >= 3)}
+        items={context.data.actresses.filter((item) =>
+          shouldIncludeProfileBackedItem(item.count, item.name, "actress", context.profileKeys)
+        )}
         accentColor="pink"
         displayMode={context.displayModes.actresses ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
       />

@@ -28,6 +28,7 @@ interface StatsDashboardProps {
   yearOptions: string[];
   entryTypes: string[];
   selectedTypes: string[];
+  profileKeys: Set<string>;
   onSelectedTypesChange: (types: string[]) => void;
   presets: StatsFilterPreset[];
   activePreset: StatsPresetKey;
@@ -72,6 +73,7 @@ export function StatsDashboard({
   yearOptions,
   entryTypes,
   selectedTypes,
+  profileKeys,
   onSelectedTypesChange,
   presets,
   activePreset,
@@ -98,6 +100,7 @@ export function StatsDashboard({
   const renderContext: StatsDashboardRenderContext = {
     activeYear,
     selectedTypes,
+    profileKeys,
     displayModes: layout.displayModes,
     data,
     onPerfect10Click,
