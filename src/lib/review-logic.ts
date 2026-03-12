@@ -8,6 +8,7 @@ export interface ReviewSlide {
   subtitle?: string;
   entries?: MediaEntry[];
   stats?: Record<string, any>;
+  backgroundImagePath?: string | null;
 }
 
 export interface ReviewData {
@@ -26,6 +27,32 @@ export interface ReviewParams {
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function hasImage(entry: MediaEntry): entry is MediaEntry & { image_url: string } {
+  return typeof entry.image_url === "string" && entry.image_url.trim().length > 0;
+}
+
+function pickRandomBackdrop(
+  primaryEntries: MediaEntry[] | undefined,
+  fallbackEntries: MediaEntry[],
+  usedPaths: Set<string>,
+): string | null {
+  const primaryPaths = [...new Set((primaryEntries ?? []).filter(hasImage).map(entry => entry.image_url.trim()))];
+  const fallbackPaths = [...new Set(fallbackEntries.filter(hasImage).map(entry => entry.image_url.trim()))];
+
+  const pool = [
+    primaryPaths.filter(path => !usedPaths.has(path)),
+    primaryPaths,
+    fallbackPaths.filter(path => !usedPaths.has(path)),
+    fallbackPaths,
+  ].find(paths => paths.length > 0);
+
+  if (!pool || pool.length === 0) return null;
+
+  const selectedPath = pool[Math.floor(Math.random() * pool.length)];
+  usedPaths.add(selectedPath);
+  return selectedPath;
+}
 
 function buildWhereClause(params: ReviewParams): { where: string; values: any[] } {
   const conditions: string[] = ["year_completed = $1"];
@@ -297,10 +324,17 @@ export async function generateReview(params: ReviewParams): Promise<ReviewData> 
     },
   });
 
+  const entriesWithImages = entries.filter(hasImage);
+  const usedBackdropPaths = new Set<string>();
+  const slidesWithBackdrops = slides.map((slide) => ({
+    ...slide,
+    backgroundImagePath: pickRandomBackdrop(slide.entries, entriesWithImages, usedBackdropPaths),
+  }));
+
   return {
     period: { year: params.year, month: params.month, label: periodLabel },
     typeFilter: params.typeFilter,
-    slides,
+    slides: slidesWithBackdrops,
   };
 }
 

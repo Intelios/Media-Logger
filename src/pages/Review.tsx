@@ -6,7 +6,7 @@ import {
   Gamepad2, Film, Eye,
 } from "lucide-react";
 import { cn } from "../lib/utils_ui";
-import { getImageUrl } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
 import { generateReview, getReviewYears, type ReviewData, type ReviewSlide } from "../lib/review-logic";
 import type { MediaEntry } from "../lib/db";
 
@@ -437,11 +437,51 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
   const [currentSlide, setCurrentSlide] = useState(0);
   const [, setDirection] = useState<"left" | "right">("right");
   const [slideKey, setSlideKey] = useState(0); // force re-mount for animations
+  const [backgroundUrls, setBackgroundUrls] = useState<Record<string, string>>({});
 
   const slides = data.slides;
   const slide = slides[currentSlide];
   const theme = SLIDE_THEMES[slide.type] || SLIDE_THEMES["overview"];
   const SlideIcon = SLIDE_ICONS[slide.type] || Sparkles;
+  const backgroundSrc = slide.backgroundImagePath ? backgroundUrls[slide.backgroundImagePath] : undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+    const backgroundPaths = [...new Set(
+      data.slides
+        .map(reviewSlide => reviewSlide.backgroundImagePath)
+        .filter((path): path is string => typeof path === "string" && path.trim().length > 0)
+    )];
+
+    if (backgroundPaths.length === 0) {
+      setBackgroundUrls({});
+      return;
+    }
+
+    setBackgroundUrls({});
+
+    Promise.all(
+      backgroundPaths.map(async (path) => {
+        const resolvedUrl = await getImageUrl(path);
+        return [path, resolvedUrl] as const;
+      })
+    ).then((results) => {
+      if (cancelled) return;
+
+      const nextBackgroundUrls: Record<string, string> = {};
+      results.forEach(([path, resolvedUrl]) => {
+        if (resolvedUrl && resolvedUrl !== DEFAULT_COVER_IMAGE) {
+          nextBackgroundUrls[path] = resolvedUrl;
+        }
+      });
+
+      setBackgroundUrls(nextBackgroundUrls);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data]);
 
   const goTo = useCallback((idx: number) => {
     if (idx < 0 || idx >= slides.length) return;
@@ -466,15 +506,29 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex flex-col">
-      {/* Animated gradient background */}
-      <div
-        key={slideKey}
-        className={cn(
-          "absolute inset-0 bg-gradient-to-br transition-all duration-700",
-          theme.gradient,
-          "review-gradient-bg"
+      <div className="absolute inset-0 overflow-hidden">
+        {backgroundSrc && (
+          <img
+            key={`bg-image-${slideKey}-${slide.backgroundImagePath}`}
+            src={backgroundSrc}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-[-5%] h-[110%] w-[110%] max-w-none object-cover scale-110 blur-xl saturate-125 transition-all duration-700"
+          />
         )}
-      />
+
+        <div
+          key={`bg-gradient-${slideKey}`}
+          className={cn(
+            "absolute inset-0 bg-gradient-to-br transition-all duration-700",
+            theme.gradient,
+            "review-gradient-bg",
+            backgroundSrc ? "opacity-45" : "opacity-100"
+          )}
+        />
+        <div className={cn("absolute inset-0", backgroundSrc ? "bg-black/28" : "bg-black/20")} />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),transparent_40%),linear-gradient(180deg,rgba(0,0,0,0.04),rgba(0,0,0,0.22))]" />
+      </div>
 
       {/* Floating orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
