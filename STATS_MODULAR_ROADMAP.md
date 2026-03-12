@@ -75,6 +75,19 @@ Phase 0 is now decision-complete.
 
 That means the baseline product and implementation rules for the modular dashboard are locked enough for us to begin Phase 1.
 
+## Phase 1 Status
+
+Phase 1 is complete.
+
+Delivered in this phase:
+
+- The Stats route now acts as the page controller instead of holding the full UI
+- A dedicated `src/components/stats/` component layer now exists
+- Shared widget metadata and stable widget IDs were added
+- A reusable widget shell was introduced for chart and list widgets
+- The curated layout and existing behavior were preserved
+- Customize mode, registry-driven rendering, and layout persistence are still intentionally deferred
+
 ## Phase 0 Decisions
 
 ### 1. Dashboard Structure
@@ -339,6 +352,10 @@ src/components/stats/
     AuthorsWidget.tsx
     ActressesWidget.tsx
 ```
+
+Status:
+
+- Complete
 
 ### Phase 2: Introduce a Widget Registry
 
