@@ -114,6 +114,18 @@ Delivered in this phase:
 - Chart, support, and list widgets now lean on shared height contracts instead of ad hoc sizing
 - The default Stats page now reads more like an intentional dashboard while preserving existing behavior
 
+## Phase 4 Status
+
+Phase 4 is complete.
+
+Delivered in this phase:
+
+- Every Phase 0 summary and main stat section is now rendered through the widget system
+- The Stats route remains the controller for filters, loading, and modal state while the dashboard owns presentation
+- Existing drilldowns for Perfect 10s, This Month, and genres were preserved during the migration
+- The five lower breakdown sections were consolidated into a reusable list-widget pattern without losing behavior
+- There are no remaining hardcoded Stats page sections acting as the old source of truth for the dashboard layout
+
 ## Phase 0 Decisions
 
 ### 1. Dashboard Structure
@@ -452,6 +464,10 @@ Widgets to migrate first:
 Migration rule:
 
 - Only migrate one widget at a time and verify it matches the old page behavior before moving to the next
+
+Status:
+
+- Complete
 
 ### Phase 5: Add Customization Mode
 
