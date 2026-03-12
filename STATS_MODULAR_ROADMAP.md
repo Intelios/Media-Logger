@@ -139,6 +139,18 @@ Delivered in this phase:
 - `Overview` now ships with a more curated default layout while `Dashboard` exposes the full widget set
 - Existing drilldowns still work outside customize mode and are intentionally suppressed while editing layout
 
+## Phase 6 Status
+
+Phase 6 is complete.
+
+Delivered in this phase:
+
+- The stats backend now builds dashboard data from a reusable filtered-entry dataset instead of one monolithic aggregation function
+- Focused selector functions now own each metric family, including ratings, monthly activity, category breakdowns, and summary counts
+- Shared aggregation helpers were preserved and reused for breakdown-style widgets
+- The public `statsLogic.getStats()` contract still exists, so the dashboard UI did not need to change
+- Drilldown queries remain separate and now reuse the same base filter-building path as the main stats fetch
+
 ## Phase 0 Decisions
 
 ### 1. Dashboard Structure
@@ -518,6 +530,10 @@ Tasks:
 - Reuse shared aggregation helpers where that still makes sense
 - Avoid unnecessary recalculation if multiple widgets depend on the same filtered dataset
 - Keep drilldown queries separate from summary queries where useful
+
+Status:
+
+- Complete
 
 Important note:
 
