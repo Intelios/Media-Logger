@@ -6,7 +6,7 @@ import {
   Gamepad2, Film, Eye,
 } from "lucide-react";
 import { cn } from "../lib/utils_ui";
-import { getImageUrl } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
 import { generateReview, getReviewYears, type ReviewData, type ReviewSlide } from "../lib/review-logic";
 import type { MediaEntry } from "../lib/db";
 
@@ -309,33 +309,6 @@ function TopFranchiseSlide({ slide }: { slide: ReviewSlide }) {
   );
 }
 
-function SingleEntrySlide({ slide }: { slide: ReviewSlide }) {
-  const entry = slide.entries?.[0];
-  if (!entry) return null;
-
-  return (
-    <div className="flex flex-col items-center justify-center gap-6 px-8">
-      <div className="review-fade-up" style={{ animationDelay: "300ms" }}>
-        <EntryThumb entry={entry} size="lg" delay={300} />
-      </div>
-      <div className="text-center review-fade-up" style={{ animationDelay: "500ms" }}>
-        <div className="text-3xl font-black text-white">{entry.name}</div>
-        <div className="flex items-center justify-center gap-3 mt-2 text-white/70">
-          {entry.entry_type && <span className="text-sm">{entry.entry_type}</span>}
-          {entry.review_score && (
-            <span className="flex items-center gap-1 text-sm">
-              <Star size={14} className="fill-current" /> {entry.review_score}/10
-            </span>
-          )}
-        </div>
-        {entry.genre && (
-          <p className="text-sm text-white/50 mt-1">{entry.genre}</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function RatingBreakdownSlide({ slide }: { slide: ReviewSlide }) {
   const { ratingBars, avgScore, totalRated, mostCommon } = slide.stats!;
   const maxCount = Math.max(...ratingBars.map((r: any) => r.count));
@@ -411,9 +384,9 @@ function FinaleSlide({ slide }: { slide: ReviewSlide }) {
   return (
     <div className="flex flex-col items-center justify-center gap-8 px-8">
       {entries.length > 0 && (
-        <div className="flex gap-4 review-fade-up" style={{ animationDelay: "300ms" }}>
+        <div className="flex flex-wrap justify-center gap-3 review-fade-up max-w-3xl" style={{ animationDelay: "300ms" }}>
           {entries.map((entry, i) => (
-            <EntryThumb key={entry.id} entry={entry} size="md" delay={300 + i * 150} />
+            <EntryThumb key={entry.id} entry={entry} size="sm" delay={300 + i * 60} />
           ))}
         </div>
       )}
@@ -450,8 +423,6 @@ function SlideContent({ slide }: { slide: ReviewSlide }) {
     case "perfect-tens": return <PerfectTensSlide slide={slide} />;
     case "top-genre": return <TopGenreSlide slide={slide} />;
     case "top-franchise": return <TopFranchiseSlide slide={slide} />;
-    case "surprise-favorite": return <SingleEntrySlide slide={slide} />;
-    case "hidden-gem": return <SingleEntrySlide slide={slide} />;
     case "rating-breakdown": return <RatingBreakdownSlide slide={slide} />;
     case "award-winners": return <AwardWinnersSlide slide={slide} />;
     case "finale": return <FinaleSlide slide={slide} />;
@@ -466,11 +437,51 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
   const [currentSlide, setCurrentSlide] = useState(0);
   const [, setDirection] = useState<"left" | "right">("right");
   const [slideKey, setSlideKey] = useState(0); // force re-mount for animations
+  const [backgroundUrls, setBackgroundUrls] = useState<Record<string, string>>({});
 
   const slides = data.slides;
   const slide = slides[currentSlide];
   const theme = SLIDE_THEMES[slide.type] || SLIDE_THEMES["overview"];
   const SlideIcon = SLIDE_ICONS[slide.type] || Sparkles;
+  const backgroundSrc = slide.backgroundImagePath ? backgroundUrls[slide.backgroundImagePath] : undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+    const backgroundPaths = [...new Set(
+      data.slides
+        .map(reviewSlide => reviewSlide.backgroundImagePath)
+        .filter((path): path is string => typeof path === "string" && path.trim().length > 0)
+    )];
+
+    if (backgroundPaths.length === 0) {
+      setBackgroundUrls({});
+      return;
+    }
+
+    setBackgroundUrls({});
+
+    Promise.all(
+      backgroundPaths.map(async (path) => {
+        const resolvedUrl = await getImageUrl(path);
+        return [path, resolvedUrl] as const;
+      })
+    ).then((results) => {
+      if (cancelled) return;
+
+      const nextBackgroundUrls: Record<string, string> = {};
+      results.forEach(([path, resolvedUrl]) => {
+        if (resolvedUrl && resolvedUrl !== DEFAULT_COVER_IMAGE) {
+          nextBackgroundUrls[path] = resolvedUrl;
+        }
+      });
+
+      setBackgroundUrls(nextBackgroundUrls);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data]);
 
   const goTo = useCallback((idx: number) => {
     if (idx < 0 || idx >= slides.length) return;
@@ -495,15 +506,29 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex flex-col">
-      {/* Animated gradient background */}
-      <div
-        key={slideKey}
-        className={cn(
-          "absolute inset-0 bg-gradient-to-br transition-all duration-700",
-          theme.gradient,
-          "review-gradient-bg"
+      <div className="absolute inset-0 overflow-hidden">
+        {backgroundSrc && (
+          <img
+            key={`bg-image-${slideKey}-${slide.backgroundImagePath}`}
+            src={backgroundSrc}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-[-5%] h-[110%] w-[110%] max-w-none object-cover scale-110 blur-xl saturate-125 transition-all duration-700"
+          />
         )}
-      />
+
+        <div
+          key={`bg-gradient-${slideKey}`}
+          className={cn(
+            "absolute inset-0 bg-gradient-to-br transition-all duration-700",
+            theme.gradient,
+            "review-gradient-bg",
+            backgroundSrc ? "opacity-45" : "opacity-100"
+          )}
+        />
+        <div className={cn("absolute inset-0", backgroundSrc ? "bg-black/28" : "bg-black/20")} />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),transparent_40%),linear-gradient(180deg,rgba(0,0,0,0.04),rgba(0,0,0,0.22))]" />
+      </div>
 
       {/* Floating orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">

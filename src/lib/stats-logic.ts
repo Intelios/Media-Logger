@@ -1,13 +1,19 @@
-import { dbService } from "./db";
+import { type MediaEntry, dbService } from "./db";
 
 export interface StatItem {
   name: string;
   count: number;
-  value?: number; // For charts
+  value?: number;
   color?: string;
-  avgScore?: number; // Average score for this category
-  perfectCount?: number; // Number of perfect 10s
-  [key: string]: string | number | undefined; // Index signature for Recharts compatibility
+  avgScore?: number;
+  perfectCount?: number;
+  [key: string]: string | number | undefined;
+}
+
+export interface ScoreTimelinePoint {
+  label: string;
+  averageScore: number | null;
+  count: number;
 }
 
 export interface FullStats {
@@ -21,39 +27,115 @@ export interface FullStats {
   studios: StatItem[];
   authors: StatItem[];
   actresses: StatItem[];
-  // NEW enhanced metrics
   perfectTenCount: number;
   entriesThisMonth: number;
   monthlyCompletions: { month: string; count: number }[];
   mediaTypeBreakdown: StatItem[];
+  scoreTimeline: ScoreTimelinePoint[];
+  scoreTimelineGranularity: "month" | "year";
+  averageScoreByType: StatItem[];
 }
 
-// Helper to count with average scores
-const countWithScores = (entries: any[], fieldName: string): StatItem[] => {
+export interface StatsFilters {
+  year?: string;
+  types?: string[];
+}
+
+export interface StatsDataset {
+  entries: MediaEntry[];
+  ratedEntries: Array<MediaEntry & { review_score: number }>;
+  gameEntries: MediaEntry[];
+  now: Date;
+}
+
+type CountableField =
+  | "genre"
+  | "platform"
+  | "franchise"
+  | "director"
+  | "author"
+  | "actress"
+  | "entry_type";
+
+const MONTH_KEYS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+function getTimelineGranularity(filters: StatsFilters): "month" | "year" {
+  return filters.year && filters.year !== "All Time" ? "month" : "year";
+}
+
+function appendStatsFilters(query: string, params: Array<string | number>, filters: StatsFilters) {
+  let nextQuery = query;
+
+  if (filters.year && filters.year !== "All Time") {
+    params.push(filters.year);
+    nextQuery += ` AND year_completed = $${params.length}`;
+  }
+
+  if ((filters.types ?? []).length > 0) {
+    const selectedTypes = filters.types ?? [];
+    const placeholders = selectedTypes.map((_, index) => `$${params.length + index + 1}`).join(", ");
+    nextQuery += ` AND entry_type IN (${placeholders})`;
+    params.push(...selectedTypes);
+  }
+
+  return nextQuery;
+}
+
+function hasReviewScore(entry: MediaEntry): entry is MediaEntry & { review_score: number } {
+  return typeof entry.review_score === "number" && Number.isFinite(entry.review_score);
+}
+
+function isGameEntry(entry: MediaEntry) {
+  return typeof entry.entry_type === "string" && entry.entry_type.trim().toLowerCase() === "game";
+}
+
+function getMonthFromDate(dateStr: string) {
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleString("default", { month: "short" });
+  } catch {
+    return "Unknown";
+  }
+}
+
+function getDelimitedValues(value: string | null | undefined) {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function countWithScores(entries: MediaEntry[], fieldName: CountableField): StatItem[] {
   const stats: Record<string, { count: number; totalScore: number; scoreCount: number; perfectCount: number }> = {};
 
-  entries.forEach(e => {
-    const value = e[fieldName];
-    if (!value) return;
+  for (const entry of entries) {
+    const rawValue = entry[fieldName];
+    if (typeof rawValue !== "string" || rawValue.trim() === "") {
+      continue;
+    }
 
-    // Handle comma-separated values (like genres)
-    const values = value.includes(',') ? value.split(',').map((v: string) => v.trim()) : [value.trim()];
-
-    values.forEach((v: string) => {
-      if (!v) return;
-      if (!stats[v]) {
-        stats[v] = { count: 0, totalScore: 0, scoreCount: 0, perfectCount: 0 };
+    const values = getDelimitedValues(rawValue);
+    for (const value of values) {
+      if (!stats[value]) {
+        stats[value] = { count: 0, totalScore: 0, scoreCount: 0, perfectCount: 0 };
       }
-      stats[v].count++;
-      if (e.review_score) {
-        stats[v].totalScore += e.review_score;
-        stats[v].scoreCount++;
-        if (e.review_score === 10) {
-          stats[v].perfectCount++;
+
+      stats[value].count += 1;
+
+      if (hasReviewScore(entry)) {
+        stats[value].totalScore += entry.review_score;
+        stats[value].scoreCount += 1;
+
+        if (entry.review_score === 10) {
+          stats[value].perfectCount += 1;
         }
       }
-    });
-  });
+    }
+  }
 
   return Object.entries(stats)
     .map(([name, data]) => ({
@@ -63,209 +145,290 @@ const countWithScores = (entries: any[], fieldName: string): StatItem[] => {
       avgScore: data.scoreCount > 0 ? data.totalScore / data.scoreCount : undefined,
       perfectCount: data.perfectCount,
     }))
-    .sort((a, b) => b.count - a.count);
-};
+    .sort((left, right) => right.count - left.count);
+}
 
-// Get month name from date string
-const getMonthFromDate = (dateStr: string): string => {
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleString('default', { month: 'short' });
-  } catch {
-    return 'Unknown';
+export function createStatsDataset(entries: MediaEntry[], now = new Date()): StatsDataset {
+  return {
+    entries,
+    ratedEntries: entries.filter(hasReviewScore),
+    gameEntries: entries.filter(isGameEntry),
+    now,
+  };
+}
+
+export function selectBasicStats(dataset: StatsDataset) {
+  const total = dataset.entries.length;
+  const rewatch_count = dataset.entries.filter((entry) => Boolean(entry.is_rewatch)).length;
+  const perfectTenCount = dataset.ratedEntries.filter((entry) => entry.review_score === 10).length;
+  const totalRatedScore = dataset.ratedEntries.reduce((sum, entry) => sum + entry.review_score, 0);
+  const average_score = dataset.ratedEntries.length > 0 ? totalRatedScore / dataset.ratedEntries.length : 0;
+  const currentMonth = dataset.now.getMonth();
+  const currentYear = dataset.now.getFullYear();
+  const entriesThisMonth = dataset.entries.filter((entry) => {
+    if (!entry.completion_date) {
+      return false;
+    }
+
+    try {
+      const completionDate = new Date(entry.completion_date);
+      return completionDate.getMonth() === currentMonth && completionDate.getFullYear() === currentYear;
+    } catch {
+      return false;
+    }
+  }).length;
+
+  return {
+    total,
+    rewatch_count,
+    perfectTenCount,
+    average_score,
+    entriesThisMonth,
+  };
+}
+
+export function selectRatingDistribution(dataset: StatsDataset): StatItem[] {
+  const ratingMap = new Array(11).fill(0);
+
+  for (const entry of dataset.ratedEntries) {
+    if (entry.review_score >= 1 && entry.review_score <= 10) {
+      ratingMap[entry.review_score] += 1;
+    }
   }
+
+  const ratings: StatItem[] = [];
+  for (let score = 10; score >= 1; score -= 1) {
+    ratings.push({
+      name: score.toString(),
+      count: ratingMap[score],
+      value: ratingMap[score],
+    });
+  }
+
+  return ratings;
+}
+
+export function selectMonthlyCompletions(dataset: StatsDataset) {
+  const monthlyMap = MONTH_KEYS.reduce<Record<(typeof MONTH_KEYS)[number], number>>((accumulator, month) => {
+    accumulator[month] = 0;
+    return accumulator;
+  }, {} as Record<(typeof MONTH_KEYS)[number], number>);
+
+  for (const entry of dataset.entries) {
+    if (!entry.completion_date) {
+      continue;
+    }
+
+    const month = getMonthFromDate(entry.completion_date);
+    if (month in monthlyMap) {
+      monthlyMap[month as keyof typeof monthlyMap] += 1;
+    }
+  }
+
+  return MONTH_KEYS.map((month) => ({
+    month,
+    count: monthlyMap[month],
+  }));
+}
+
+export function selectGenres(dataset: StatsDataset) {
+  return countWithScores(dataset.entries, "genre").slice(0, 25);
+}
+
+export function selectPlatforms(dataset: StatsDataset) {
+  return countWithScores(dataset.gameEntries, "platform").slice(0, 25);
+}
+
+export function selectFranchises(dataset: StatsDataset) {
+  return countWithScores(dataset.gameEntries, "franchise").slice(0, 25);
+}
+
+export function selectStudios(dataset: StatsDataset) {
+  return countWithScores(dataset.entries, "director").slice(0, 25);
+}
+
+export function selectAuthors(dataset: StatsDataset) {
+  return countWithScores(dataset.entries, "author").slice(0, 25);
+}
+
+export function selectActresses(dataset: StatsDataset) {
+  return countWithScores(dataset.entries, "actress").slice(0, 25);
+}
+
+export function selectMediaTypeBreakdown(dataset: StatsDataset) {
+  return countWithScores(dataset.entries, "entry_type").slice(0, 15);
+}
+
+export function selectScoreTimeline(dataset: StatsDataset, granularity: "month" | "year"): ScoreTimelinePoint[] {
+  if (granularity === "month") {
+    const monthlyScores = MONTH_KEYS.reduce<
+      Record<(typeof MONTH_KEYS)[number], { totalScore: number; count: number }>
+    >((accumulator, month) => {
+      accumulator[month] = { totalScore: 0, count: 0 };
+      return accumulator;
+    }, {} as Record<(typeof MONTH_KEYS)[number], { totalScore: number; count: number }>);
+
+    for (const entry of dataset.ratedEntries) {
+      if (!entry.completion_date) {
+        continue;
+      }
+
+      const month = getMonthFromDate(entry.completion_date);
+      if (month in monthlyScores) {
+        monthlyScores[month as keyof typeof monthlyScores].totalScore += entry.review_score;
+        monthlyScores[month as keyof typeof monthlyScores].count += 1;
+      }
+    }
+
+    return MONTH_KEYS.map((month) => ({
+      label: month,
+      averageScore: monthlyScores[month].count > 0 ? monthlyScores[month].totalScore / monthlyScores[month].count : null,
+      count: monthlyScores[month].count,
+    }));
+  }
+
+  const yearlyScores = new Map<string, { totalScore: number; count: number }>();
+
+  for (const entry of dataset.ratedEntries) {
+    if (!entry.completion_date) {
+      continue;
+    }
+
+    try {
+      const yearLabel = new Date(entry.completion_date).getFullYear().toString();
+      const current = yearlyScores.get(yearLabel) ?? { totalScore: 0, count: 0 };
+      current.totalScore += entry.review_score;
+      current.count += 1;
+      yearlyScores.set(yearLabel, current);
+    } catch {
+      // Ignore invalid dates.
+    }
+  }
+
+  return [...yearlyScores.entries()]
+    .sort(([leftYear], [rightYear]) => Number(leftYear) - Number(rightYear))
+    .map(([label, value]) => ({
+      label,
+      averageScore: value.count > 0 ? value.totalScore / value.count : null,
+      count: value.count,
+    }));
+}
+
+export function selectAverageScoreByType(dataset: StatsDataset) {
+  return countWithScores(dataset.entries, "entry_type")
+    .filter((item) => item.avgScore !== undefined)
+    .sort((left, right) => {
+      const avgDiff = (right.avgScore ?? 0) - (left.avgScore ?? 0);
+      return avgDiff !== 0 ? avgDiff : right.count - left.count;
+    })
+    .slice(0, 8);
+}
+
+export function buildFullStatsFromDataset(dataset: StatsDataset, filters: StatsFilters = {}): FullStats {
+  const basicStats = selectBasicStats(dataset);
+  const timelineGranularity = getTimelineGranularity(filters);
+
+  return {
+    ...basicStats,
+    ratings: selectRatingDistribution(dataset),
+    genres: selectGenres(dataset),
+    platforms: selectPlatforms(dataset),
+    franchises: selectFranchises(dataset),
+    studios: selectStudios(dataset),
+    authors: selectAuthors(dataset),
+    actresses: selectActresses(dataset),
+    monthlyCompletions: selectMonthlyCompletions(dataset),
+    mediaTypeBreakdown: selectMediaTypeBreakdown(dataset),
+    scoreTimeline: selectScoreTimeline(dataset, timelineGranularity),
+    scoreTimelineGranularity: timelineGranularity,
+    averageScoreByType: selectAverageScoreByType(dataset),
+  };
+}
+
+async function getFilteredEntries(filters: StatsFilters): Promise<MediaEntry[]> {
+  const db = await dbService.connect();
+  const params: Array<string | number> = [];
+  let query = "SELECT * FROM entries WHERE 1=1";
+
+  query = appendStatsFilters(query, params, filters);
+
+  return db.select<MediaEntry[]>(query, params);
+}
+
+async function getPerfect10Entries(filters: StatsFilters): Promise<MediaEntry[]> {
+  const db = await dbService.connect();
+  const params: Array<string | number> = [];
+  let query = "SELECT * FROM entries WHERE review_score = 10";
+
+  query = appendStatsFilters(query, params, filters);
+  query += " ORDER BY completion_date DESC";
+
+  return db.select<MediaEntry[]>(query, params);
+}
+
+async function getEntriesByGenre(genre: string, filters: StatsFilters): Promise<MediaEntry[]> {
+  const db = await dbService.connect();
+  const params: Array<string | number> = [`%${genre}%`];
+  let query = "SELECT * FROM entries WHERE genre LIKE $1";
+
+  query = appendStatsFilters(query, params, filters);
+  query += " ORDER BY review_score DESC, completion_date DESC";
+
+  const entries = await db.select<MediaEntry[]>(query, params);
+
+  return entries.filter((entry) => getDelimitedValues(entry.genre).includes(genre));
+}
+
+async function getThisMonthEntries(filters: StatsFilters): Promise<MediaEntry[]> {
+  const db = await dbService.connect();
+  const now = new Date();
+  const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+  const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().split("T")[0];
+  const params: Array<string | number> = [startDate, endDate];
+  let query = "SELECT * FROM entries WHERE completion_date >= $1 AND completion_date < $2";
+
+  query = appendStatsFilters(query, params, filters);
+  query += " ORDER BY completion_date DESC";
+
+  return db.select<MediaEntry[]>(query, params);
+}
+
+export const statsSelectors = {
+  createStatsDataset,
+  selectBasicStats,
+  selectRatingDistribution,
+  selectMonthlyCompletions,
+  selectGenres,
+  selectPlatforms,
+  selectFranchises,
+  selectStudios,
+  selectAuthors,
+  selectActresses,
+  selectMediaTypeBreakdown,
+  selectScoreTimeline,
+  selectAverageScoreByType,
+  buildFullStatsFromDataset,
 };
 
 export const statsLogic = {
-  // NEW: Accept typeFilter array
   async getStats(yearFilter?: string, typeFilter: string[] = []): Promise<FullStats> {
-    const db = await dbService.connect();
-
-    // Base Query Construction
-    let query = "SELECT * FROM entries WHERE 1=1";
-    const params: any[] = [];
-
-    // 1. Year Filter
-    if (yearFilter && yearFilter !== "All Time") {
-      params.push(yearFilter);
-      query += ` AND year_completed = $${params.length}`;
-    }
-
-    // 2. Type Filter (NEW)
-    if (typeFilter.length > 0) {
-      const placeholders = typeFilter.map((_, i) => `$${params.length + i + 1}`).join(", ");
-      query += ` AND entry_type IN (${placeholders})`;
-      params.push(...typeFilter);
-    }
-
-    const entries = await db.select<any[]>(query, params);
-
-    // 1. Basic Counts
-    const total = entries.length;
-    const rewatch_count = entries.filter(e => e.is_rewatch).length;
-    const perfectTenCount = entries.filter(e => e.review_score === 10).length;
-
-    // 2. Ratings (1-10)
-    const ratedEntries = entries.filter(e => e.review_score);
-    const sumScore = ratedEntries.reduce((acc, e) => acc + (e.review_score || 0), 0);
-    const average_score = ratedEntries.length ? sumScore / ratedEntries.length : 0;
-
-    // Prepare Rating Distribution (10 down to 1)
-    const ratingMap = new Array(11).fill(0);
-    ratedEntries.forEach(e => {
-      if (e.review_score) ratingMap[e.review_score]++;
-    });
-
-    const ratings: StatItem[] = [];
-    for (let i = 10; i >= 1; i--) {
-      ratings.push({ name: i.toString(), count: ratingMap[i], value: ratingMap[i] });
-    }
-
-    // 3. Monthly Completions (for current filter)
-    const monthlyMap: Record<string, number> = {
-      'Jan': 0, 'Feb': 0, 'Mar': 0, 'Apr': 0, 'May': 0, 'Jun': 0,
-      'Jul': 0, 'Aug': 0, 'Sep': 0, 'Oct': 0, 'Nov': 0, 'Dec': 0
-    };
-
-    entries.forEach(e => {
-      if (e.completion_date) {
-        const month = getMonthFromDate(e.completion_date);
-        if (monthlyMap[month] !== undefined) {
-          monthlyMap[month]++;
-        }
-      }
-    });
-
-    const monthlyCompletions = Object.entries(monthlyMap).map(([month, count]) => ({
-      month,
-      count
-    }));
-
-    // 4. Entries this month
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    const entriesThisMonth = entries.filter(e => {
-      if (!e.completion_date) return false;
-      try {
-        const date = new Date(e.completion_date);
-        return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-      } catch {
-        return false;
-      }
-    }).length;
-
-    // 5. Enhanced category aggregations with scores
-    const genres = countWithScores(entries, 'genre').slice(0, 25);
-    const gameEntries = entries.filter(
-      (entry) => typeof entry.entry_type === "string" && entry.entry_type.toLowerCase() === "game"
-    );
-    const platforms = countWithScores(gameEntries, 'platform').slice(0, 25);
-    const franchises = countWithScores(gameEntries, 'franchise').slice(0, 25);
-    const studios = countWithScores(entries, 'director').slice(0, 25); // director = studio
-    const authors = countWithScores(entries, 'author').slice(0, 25);
-    const actresses = countWithScores(entries, 'actress').slice(0, 25);
-    const mediaTypeBreakdown = countWithScores(entries, 'entry_type').slice(0, 15);
-
-    return {
-      total,
-      average_score,
-      rewatch_count,
-      ratings,
-      genres,
-      platforms,
-      franchises,
-      studios,
-      authors,
-      actresses,
-      perfectTenCount,
-      entriesThisMonth,
-      monthlyCompletions,
-      mediaTypeBreakdown,
-    };
+    const entries = await getFilteredEntries({ year: yearFilter, types: typeFilter });
+    return buildFullStatsFromDataset(createStatsDataset(entries), { year: yearFilter, types: typeFilter });
   },
 
-  // Get entries with a perfect 10 score
-  async getPerfect10Entries(yearFilter?: string, typeFilter: string[] = []): Promise<any[]> {
-    const db = await dbService.connect();
-
-    let query = "SELECT * FROM entries WHERE review_score = 10";
-    const params: any[] = [];
-
-    if (yearFilter && yearFilter !== "All Time") {
-      params.push(yearFilter);
-      query += ` AND year_completed = $${params.length}`;
-    }
-
-    if (typeFilter.length > 0) {
-      const placeholders = typeFilter.map((_, i) => `$${params.length + i + 1}`).join(", ");
-      query += ` AND entry_type IN (${placeholders})`;
-      params.push(...typeFilter);
-    }
-
-    query += " ORDER BY completion_date DESC";
-
-    return db.select<any[]>(query, params);
+  async getFilteredEntries(yearFilter?: string, typeFilter: string[] = []) {
+    return getFilteredEntries({ year: yearFilter, types: typeFilter });
   },
 
-  // Get entries for a specific genre
-  async getEntriesByGenre(genre: string, yearFilter?: string, typeFilter: string[] = []): Promise<any[]> {
-    const db = await dbService.connect();
-
-    let query = "SELECT * FROM entries WHERE genre LIKE $1";
-    const params: any[] = [`%${genre}%`];
-
-    if (yearFilter && yearFilter !== "All Time") {
-      params.push(yearFilter);
-      query += ` AND year_completed = $${params.length}`;
-    }
-
-    if (typeFilter.length > 0) {
-      const placeholders = typeFilter.map((_, i) => `$${params.length + i + 1}`).join(", ");
-      query += ` AND entry_type IN (${placeholders})`;
-      params.push(...typeFilter);
-    }
-
-    query += " ORDER BY review_score DESC, completion_date DESC";
-
-    // Filter in JS to handle comma-separated genres accurately
-    const entries = await db.select<any[]>(query, params);
-    return entries.filter(e => {
-      if (!e.genre) return false;
-      const genres = e.genre.split(',').map((g: string) => g.trim());
-      return genres.includes(genre);
-    });
+  async getPerfect10Entries(yearFilter?: string, typeFilter: string[] = []) {
+    return getPerfect10Entries({ year: yearFilter, types: typeFilter });
   },
 
-  // Get entries completed this month
-  async getThisMonthEntries(yearFilter?: string, typeFilter: string[] = []): Promise<any[]> {
-    const db = await dbService.connect();
+  async getEntriesByGenre(genre: string, yearFilter?: string, typeFilter: string[] = []) {
+    return getEntriesByGenre(genre, { year: yearFilter, types: typeFilter });
+  },
 
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    // First day of current month
-    const startDate = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
-    // First day of next month
-    const endDate = new Date(currentYear, currentMonth + 1, 1).toISOString().split('T')[0];
-
-    let query = "SELECT * FROM entries WHERE completion_date >= $1 AND completion_date < $2";
-    const params: any[] = [startDate, endDate];
-
-    if (yearFilter && yearFilter !== "All Time") {
-      params.push(yearFilter);
-      query += ` AND year_completed = $${params.length}`;
-    }
-
-    if (typeFilter.length > 0) {
-      const placeholders = typeFilter.map((_, i) => `$${params.length + i + 1}`).join(", ");
-      query += ` AND entry_type IN (${placeholders})`;
-      params.push(...typeFilter);
-    }
-
-    query += " ORDER BY completion_date DESC";
-
-    return db.select<any[]>(query, params);
-  }
+  async getThisMonthEntries(yearFilter?: string, typeFilter: string[] = []) {
+    return getThisMonthEntries({ year: yearFilter, types: typeFilter });
+  },
 };
