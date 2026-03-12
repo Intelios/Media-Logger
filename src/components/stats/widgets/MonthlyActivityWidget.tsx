@@ -16,14 +16,16 @@ export function MonthlyActivityWidget({ monthlyCompletions }: MonthlyActivityWid
       widgetId={meta.id}
       title={meta.title}
       icon={<Sparkles className="text-cyan-400" size={20} />}
+      heightPreset={meta.heightPreset}
+      fillBody
       isEmpty={totalCompletions === 0}
       emptyState={
-        <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10 px-6 text-center">
+        <div className="flex h-full min-h-[190px] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10 px-6 text-center">
           <p className="text-sm text-gray-400">No completed entries for the selected year and filters.</p>
         </div>
       }
     >
-      <div className="h-32 w-full">
+      <div className="h-full min-h-[190px] w-full">
         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <AreaChart data={monthlyCompletions} margin={{ left: 0, right: 0, top: 10, bottom: 0 }}>
             <defs>

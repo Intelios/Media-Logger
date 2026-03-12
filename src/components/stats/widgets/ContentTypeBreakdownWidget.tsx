@@ -16,21 +16,23 @@ export function ContentTypeBreakdownWidget({ items, totalEntries }: ContentTypeB
       widgetId={meta.id}
       title={meta.title}
       icon={<PieIcon className="text-green-400" size={20} />}
+      heightPreset={meta.heightPreset}
+      fillBody
       isEmpty={items.length === 0}
       emptyState={
-        <div className="flex min-h-40 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10 px-6 text-center">
+        <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10 px-6 text-center">
           <p className="text-sm text-gray-400">No content types available for the current filters.</p>
         </div>
       }
     >
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+      <div className="grid h-full grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
         {items.map((item) => {
           const percentage = totalEntries > 0 ? (item.count / totalEntries) * 100 : 0;
 
           return (
             <div
               key={item.name}
-              className="rounded-xl bg-white/5 p-4 text-center transition-colors hover:bg-white/10"
+              className="flex min-h-[132px] flex-col items-center justify-center rounded-2xl border border-white/5 bg-white/[0.06] px-4 py-5 text-center transition-colors hover:bg-white/10"
             >
               <div className="text-2xl font-bold text-white">{item.count}</div>
               <div className="truncate text-sm text-gray-400">{item.name}</div>

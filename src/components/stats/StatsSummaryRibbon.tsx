@@ -5,5 +5,5 @@ interface StatsSummaryRibbonProps {
 }
 
 export function StatsSummaryRibbon({ children }: StatsSummaryRibbonProps) {
-  return <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">{children}</div>;
+  return <div className="grid grid-cols-2 items-stretch gap-4 md:grid-cols-3 lg:grid-cols-6">{children}</div>;
 }

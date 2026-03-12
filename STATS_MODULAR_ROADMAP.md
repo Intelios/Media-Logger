@@ -101,6 +101,19 @@ Delivered in this phase:
 - Widget availability rules are now encoded in the registry, including hiding Monthly Activity for `All Time`
 - The main canvas now renders through a shared size-aware grid instead of ad hoc section composition
 
+## Phase 3 Status
+
+Phase 3 is complete.
+
+Delivered in this phase:
+
+- Widget presentation metadata now defines layout roles and height presets without changing the saved layout schema
+- The main canvas grid now applies both width and height rules from shared layout primitives
+- The shared widget shell now owns panel rhythm, fill behavior, and more stable empty-state spacing
+- Summary cards now share a more consistent height and internal alignment
+- Chart, support, and list widgets now lean on shared height contracts instead of ad hoc sizing
+- The default Stats page now reads more like an intentional dashboard while preserving existing behavior
+
 ## Phase 0 Decisions
 
 ### 1. Dashboard Structure
@@ -414,6 +427,10 @@ Rules for v1:
 - Limit widget size options to a small set
 - Keep large trend widgets near the top
 - Keep summary widgets grouped together
+
+Status:
+
+- Complete
 
 ### Phase 4: Migrate Existing Stats into Widgets
 

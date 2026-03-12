@@ -28,6 +28,8 @@ export type MainWidgetId = (typeof MAIN_WIDGET_IDS)[number];
 export type StatsWidgetId = SummaryWidgetId | MainWidgetId;
 export type StatsWidgetZone = "summary" | "main";
 export type StatsWidgetSize = "summary" | "small" | "half" | "full";
+export type StatsWidgetLayoutRole = "summary" | "hero" | "feature" | "supporting" | "list";
+export type StatsWidgetHeightPreset = "summary" | "compact" | "standard" | "tall" | "hero";
 
 export interface StatsDashboardRenderContext {
   activeYear: string;
@@ -44,6 +46,8 @@ export interface StatsWidgetMeta {
   title: string;
   description: string;
   defaultSize: StatsWidgetSize;
+  layoutRole: StatsWidgetLayoutRole;
+  heightPreset: StatsWidgetHeightPreset;
   defaultVisible: boolean;
   defaultOrder: number;
   supportsEmptyState: boolean;
@@ -71,6 +75,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Total Entries",
     description: "Total entries for the active filters.",
     defaultSize: "summary",
+    layoutRole: "summary",
+    heightPreset: "summary",
     defaultVisible: true,
     defaultOrder: 0,
     supportsEmptyState: false,
@@ -81,6 +87,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Avg Score",
     description: "Average review score for rated entries.",
     defaultSize: "summary",
+    layoutRole: "summary",
+    heightPreset: "summary",
     defaultVisible: true,
     defaultOrder: 1,
     supportsEmptyState: false,
@@ -91,6 +99,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Rewatches",
     description: "Entries marked as rewatches.",
     defaultSize: "summary",
+    layoutRole: "summary",
+    heightPreset: "summary",
     defaultVisible: true,
     defaultOrder: 2,
     supportsEmptyState: false,
@@ -101,6 +111,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Perfect 10s",
     description: "Entries with a perfect review score.",
     defaultSize: "summary",
+    layoutRole: "summary",
+    heightPreset: "summary",
     defaultVisible: true,
     defaultOrder: 3,
     supportsEmptyState: false,
@@ -111,6 +123,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "This Month",
     description: "Entries completed this month.",
     defaultSize: "summary",
+    layoutRole: "summary",
+    heightPreset: "summary",
     defaultVisible: true,
     defaultOrder: 4,
     supportsEmptyState: false,
@@ -121,6 +135,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Genres",
     description: "Unique genres in the current result set.",
     defaultSize: "summary",
+    layoutRole: "summary",
+    heightPreset: "summary",
     defaultVisible: true,
     defaultOrder: 5,
     supportsEmptyState: false,
@@ -131,6 +147,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Monthly Activity",
     description: "Completion activity across the selected year.",
     defaultSize: "full",
+    layoutRole: "hero",
+    heightPreset: "hero",
     defaultVisible: true,
     defaultOrder: 0,
     supportsEmptyState: true,
@@ -141,6 +159,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Rating Distribution",
     description: "Breakdown of review scores from 1 to 10.",
     defaultSize: "half",
+    layoutRole: "feature",
+    heightPreset: "tall",
     defaultVisible: true,
     defaultOrder: 1,
     supportsEmptyState: true,
@@ -151,6 +171,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Top Genres",
     description: "Most common genres for the current filters.",
     defaultSize: "half",
+    layoutRole: "feature",
+    heightPreset: "tall",
     defaultVisible: true,
     defaultOrder: 2,
     supportsEmptyState: true,
@@ -161,6 +183,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Content Type Breakdown",
     description: "Share of entries by content type.",
     defaultSize: "full",
+    layoutRole: "supporting",
+    heightPreset: "standard",
     defaultVisible: true,
     defaultOrder: 3,
     supportsEmptyState: true,
@@ -171,6 +195,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Platforms",
     description: "Most common platforms for the current filters.",
     defaultSize: "half",
+    layoutRole: "list",
+    heightPreset: "standard",
     defaultVisible: true,
     defaultOrder: 4,
     supportsEmptyState: true,
@@ -181,6 +207,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Franchises",
     description: "Most common franchises for the current filters.",
     defaultSize: "half",
+    layoutRole: "list",
+    heightPreset: "standard",
     defaultVisible: true,
     defaultOrder: 5,
     supportsEmptyState: true,
@@ -191,6 +219,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Studios",
     description: "Most common studios for the current filters.",
     defaultSize: "half",
+    layoutRole: "list",
+    heightPreset: "standard",
     defaultVisible: true,
     defaultOrder: 6,
     supportsEmptyState: true,
@@ -201,6 +231,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Authors",
     description: "Most common authors for the current filters.",
     defaultSize: "half",
+    layoutRole: "list",
+    heightPreset: "standard",
     defaultVisible: true,
     defaultOrder: 7,
     supportsEmptyState: true,
@@ -211,6 +243,8 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     title: "Actresses",
     description: "Most common actresses for the current filters.",
     defaultSize: "half",
+    layoutRole: "list",
+    heightPreset: "standard",
     defaultVisible: true,
     defaultOrder: 8,
     supportsEmptyState: true,

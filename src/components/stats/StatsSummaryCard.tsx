@@ -73,8 +73,9 @@ export function StatsSummaryCard({
   return (
     <div
       data-stats-widget={widgetId}
+      data-stats-layout-role="summary"
       className={cn(
-        "flex flex-col gap-2 rounded-2xl border p-4 transition-all duration-300 hover:scale-[1.02]",
+        "flex h-full min-h-[148px] flex-col justify-between gap-5 rounded-2xl border p-4 transition-all duration-300 hover:scale-[1.02]",
         palette.border,
         palette.background,
         onClick && "cursor-pointer hover:ring-2 hover:ring-white/20"
@@ -84,8 +85,10 @@ export function StatsSummaryCard({
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
     >
-      <div className={cn("w-fit rounded-xl bg-white/5 p-2", palette.text)}>{icon}</div>
-      <div className="text-2xl font-bold text-white">{value}</div>
+      <div className="space-y-5">
+        <div className={cn("w-fit rounded-xl bg-white/5 p-2", palette.text)}>{icon}</div>
+        <div className="text-3xl font-bold leading-none text-white">{value}</div>
+      </div>
       <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</div>
     </div>
   );

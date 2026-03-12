@@ -96,6 +96,8 @@ export function BreakdownListWidget({
       title={meta.title}
       icon={<span className={colors.text}>{icon}</span>}
       subtitle={`${items.length} unique ${meta.title.toLowerCase()}`}
+      heightPreset={meta.heightPreset}
+      fillBody
       badge={
         <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", colors.bg, colors.text)}>
           {totalCount}
@@ -106,19 +108,24 @@ export function BreakdownListWidget({
           {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </div>
       }
-      className={cn(colors.border, colors.bg, colors.glow, "rounded-2xl transition-all duration-300 hover:shadow-lg")}
+      className={cn(colors.border, colors.bg, colors.glow, "transition-all duration-300 hover:shadow-lg")}
       headerClassName="p-4"
-      bodyClassName="px-4 pb-4"
+      bodyClassName="flex min-h-0 flex-1 flex-col px-4 pb-4"
       headerAsButton
       onHeaderClick={() => setIsExpanded((current) => !current)}
       isEmpty={items.length === 0}
       emptyState={
-        <div className="rounded-xl border border-dashed border-white/10 bg-black/10 px-4 py-8 text-center">
+        <div className="flex h-full min-h-[220px] items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/10 px-4 py-8 text-center">
           <p className="text-sm text-gray-400">No {meta.title.toLowerCase()} matched the current filters.</p>
         </div>
       }
     >
-      <div className={cn("overflow-hidden transition-all duration-300 ease-out", isExpanded ? "max-h-[500px]" : "max-h-[180px]")}>
+      <div
+        className={cn(
+          "flex flex-1 min-h-0 flex-col overflow-hidden transition-all duration-300 ease-out",
+          isExpanded ? "max-h-[500px]" : "max-h-[180px]"
+        )}
+      >
         <div className={cn("space-y-2", isExpanded && "custom-scrollbar max-h-[460px] overflow-y-auto")}>
           {displayItems.map((item, index) => {
             const percentage = totalCount > 0 ? (item.count / totalCount) * 100 : 0;

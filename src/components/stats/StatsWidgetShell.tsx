@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { cn } from "../../lib/utils_ui";
-import type { StatsWidgetId } from "./stats-config";
+import type { StatsWidgetHeightPreset, StatsWidgetId } from "./stats-config";
 
 interface StatsWidgetShellProps {
   widgetId: StatsWidgetId;
@@ -17,6 +17,8 @@ interface StatsWidgetShellProps {
   emptyState?: ReactNode;
   headerAsButton?: boolean;
   onHeaderClick?: () => void;
+  heightPreset?: StatsWidgetHeightPreset;
+  fillBody?: boolean;
 }
 
 function DefaultEmptyState({ title }: { title: string }) {
@@ -42,6 +44,8 @@ export function StatsWidgetShell({
   emptyState,
   headerAsButton = false,
   onHeaderClick,
+  heightPreset = "standard",
+  fillBody = false,
 }: StatsWidgetShellProps) {
   const headerContent = (
     <>
@@ -62,21 +66,35 @@ export function StatsWidgetShell({
   return (
     <section
       data-stats-widget={widgetId}
-      className={cn("rounded-3xl border border-white/10 bg-white/5", className)}
+      data-stats-height-preset={heightPreset}
+      className={cn(
+        "flex h-full min-w-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/5",
+        className
+      )}
     >
       {headerAsButton ? (
         <button
           type="button"
           onClick={onHeaderClick}
-          className={cn("group flex w-full items-center justify-between gap-4 p-6 text-left", headerClassName)}
+          className={cn(
+            "group flex w-full shrink-0 items-start justify-between gap-4 px-6 pb-5 pt-6 text-left",
+            headerClassName
+          )}
         >
           {headerContent}
         </button>
       ) : (
-        <div className={cn("flex items-center justify-between gap-4 p-6", headerClassName)}>{headerContent}</div>
+        <div
+          className={cn(
+            "flex shrink-0 items-start justify-between gap-4 px-6 pb-5 pt-6",
+            headerClassName
+          )}
+        >
+          {headerContent}
+        </div>
       )}
 
-      <div className={cn("px-6 pb-6", bodyClassName)}>
+      <div className={cn("px-6 pb-6", fillBody && "flex min-h-0 flex-1 flex-col", bodyClassName)}>
         {isEmpty ? emptyState ?? <DefaultEmptyState title={title} /> : children}
       </div>
     </section>

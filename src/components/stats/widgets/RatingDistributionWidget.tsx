@@ -35,14 +35,16 @@ export function RatingDistributionWidget({ ratings }: RatingDistributionWidgetPr
       widgetId={meta.id}
       title={meta.title}
       icon={<Star className="text-amber-400" size={20} />}
+      heightPreset={meta.heightPreset}
+      fillBody
       isEmpty={ratingCount === 0}
       emptyState={
-        <div className="flex min-h-64 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10 px-6 text-center">
+        <div className="flex h-full min-h-[300px] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10 px-6 text-center">
           <p className="text-sm text-gray-400">No rated entries for the current filters.</p>
         </div>
       }
     >
-      <div className="h-72 w-full">
+      <div className="h-full min-h-[300px] w-full">
         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <BarChart data={[...ratings].reverse()} layout="vertical" margin={{ left: 0, right: 30 }}>
             <XAxis type="number" hide />

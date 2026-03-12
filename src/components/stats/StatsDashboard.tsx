@@ -5,7 +5,15 @@ import { StatsSummaryRibbon } from "./StatsSummaryRibbon";
 import { StatsWidgetGrid } from "./StatsWidgetGrid";
 import { loadStatsDashboardLayout, saveStatsDashboardLayout } from "./stats-layout";
 import { getVisibleStatsWidgetDefinitions, STATS_WIDGET_DEFINITIONS } from "./stats-registry";
-import type { MainWidgetId, StatsDashboardRenderContext, StatsFilterPreset, StatsPresetKey, StatsWidgetSize } from "./stats-config";
+import type {
+  MainWidgetId,
+  StatsDashboardRenderContext,
+  StatsFilterPreset,
+  StatsPresetKey,
+  StatsWidgetHeightPreset,
+  StatsWidgetLayoutRole,
+  StatsWidgetSize,
+} from "./stats-config";
 
 interface StatsDashboardProps {
   activeYear: string;
@@ -90,6 +98,8 @@ export function StatsDashboard({
         items={mainWidgets.map((definition) => ({
           widgetId: definition.id as MainWidgetId,
           size: definition.defaultSize as Exclude<StatsWidgetSize, "summary">,
+          heightPreset: definition.heightPreset as Exclude<StatsWidgetHeightPreset, "summary">,
+          layoutRole: definition.layoutRole as Exclude<StatsWidgetLayoutRole, "summary">,
           content: definition.render(renderContext),
         }))}
       />

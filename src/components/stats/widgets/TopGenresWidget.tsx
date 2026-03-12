@@ -55,6 +55,8 @@ export function TopGenresWidget({ genres, onViewAllGenres, onGenreClick }: TopGe
       widgetId={meta.id}
       title={meta.title}
       icon={<Filter className="text-purple-400" size={20} />}
+      heightPreset={meta.heightPreset}
+      fillBody
       action={
         genres.length > 10 ? (
           <button
@@ -69,13 +71,13 @@ export function TopGenresWidget({ genres, onViewAllGenres, onGenreClick }: TopGe
       }
       isEmpty={topGenres.length === 0}
       emptyState={
-        <div className="flex min-h-64 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10 px-6 text-center">
+        <div className="flex h-full min-h-[300px] items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10 px-6 text-center">
           <p className="text-sm text-gray-400">No genres available for the current filters.</p>
         </div>
       }
     >
-      <div className="flex flex-col items-center gap-8 md:flex-row">
-        <div className="h-64 w-full md:w-1/2">
+      <div className="flex h-full min-h-[300px] flex-col gap-6 md:flex-row md:items-stretch">
+        <div className="h-56 w-full md:h-full md:w-[45%] lg:w-1/2">
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <PieChart>
               <Pie data={topGenres} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={4} dataKey="value">
@@ -88,7 +90,7 @@ export function TopGenresWidget({ genres, onViewAllGenres, onGenreClick }: TopGe
           </ResponsiveContainer>
         </div>
 
-        <div className="w-full space-y-2 md:w-1/2">
+        <div className="w-full space-y-2 md:flex-1">
           {topGenres.map((genre, index) => (
             <button
               key={genre.name}
