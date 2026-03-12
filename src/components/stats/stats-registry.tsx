@@ -19,6 +19,14 @@ import { MonthlyActivityWidget } from "./widgets/MonthlyActivityWidget";
 import { RatingDistributionWidget } from "./widgets/RatingDistributionWidget";
 import { TopGenresWidget } from "./widgets/TopGenresWidget";
 
+function isRelevantToEntryTypes(selectedTypes: string[], relevantTypes: string[]) {
+  if (selectedTypes.length === 0) {
+    return true;
+  }
+
+  return selectedTypes.some((entryType) => relevantTypes.includes(entryType));
+}
+
 const createStatsWidgetDefinition = (
   widgetId: StatsWidgetId,
   definition: Pick<StatsWidgetDefinition, "render" | "isAvailable">
@@ -118,6 +126,7 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
     ),
   }),
   platforms: createStatsWidgetDefinition("platforms", {
+    isAvailable: (context) => isRelevantToEntryTypes(context.selectedTypes, ["Game"]),
     render: (context) => (
       <BreakdownListWidget
         widgetId="platforms"
@@ -128,6 +137,7 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
     ),
   }),
   franchises: createStatsWidgetDefinition("franchises", {
+    isAvailable: (context) => isRelevantToEntryTypes(context.selectedTypes, ["Game"]),
     render: (context) => (
       <BreakdownListWidget
         widgetId="franchises"
@@ -138,6 +148,7 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
     ),
   }),
   studios: createStatsWidgetDefinition("studios", {
+    isAvailable: (context) => isRelevantToEntryTypes(context.selectedTypes, ["JAV", "Hentai"]),
     render: (context) => (
       <BreakdownListWidget
         widgetId="studios"
@@ -148,6 +159,7 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
     ),
   }),
   authors: createStatsWidgetDefinition("authors", {
+    isAvailable: (context) => isRelevantToEntryTypes(context.selectedTypes, ["Book"]),
     render: (context) => (
       <BreakdownListWidget
         widgetId="authors"
@@ -158,6 +170,7 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
     ),
   }),
   actresses: createStatsWidgetDefinition("actresses", {
+    isAvailable: (context) => isRelevantToEntryTypes(context.selectedTypes, ["JAV", "Hentai"]),
     render: (context) => (
       <BreakdownListWidget
         widgetId="actresses"
@@ -173,6 +186,12 @@ export function getStatsWidgetDefinitionsForZone(zone: StatsWidgetZone) {
   return Object.values(STATS_WIDGET_DEFINITIONS)
     .filter((definition) => definition.zone === zone)
     .sort((left, right) => left.defaultOrder - right.defaultOrder);
+}
+
+export function getOrderedStatsWidgetDefinitions(zone: StatsWidgetZone, widgetIds: StatsWidgetId[]) {
+  return widgetIds
+    .map((widgetId) => STATS_WIDGET_DEFINITIONS[widgetId])
+    .filter((definition) => definition.zone === zone);
 }
 
 export function getVisibleStatsWidgetDefinitions(

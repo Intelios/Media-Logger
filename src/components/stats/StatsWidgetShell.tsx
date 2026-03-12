@@ -1,6 +1,8 @@
-import { type ReactNode } from "react";
+import { type MouseEvent, type ReactNode } from "react";
+import { EyeOff, GripVertical } from "lucide-react";
 import { cn } from "../../lib/utils_ui";
 import type { StatsWidgetHeightPreset, StatsWidgetId } from "./stats-config";
+import { useStatsWidgetEditContext } from "./StatsEditableWidgetFrame";
 
 interface StatsWidgetShellProps {
   widgetId: StatsWidgetId;
@@ -47,6 +49,38 @@ export function StatsWidgetShell({
   heightPreset = "standard",
   fillBody = false,
 }: StatsWidgetShellProps) {
+  const { dragHandle, isCustomizing, isDragging, onHide } = useStatsWidgetEditContext();
+  const isHeaderInteractive = headerAsButton && !isCustomizing && Boolean(onHeaderClick);
+
+  const handleHideClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    onHide?.();
+  };
+
+  const editControls = isCustomizing ? (
+    <div className="flex shrink-0 items-center gap-2">
+      <button
+        type="button"
+        ref={dragHandle?.ref}
+        {...(dragHandle?.attributes ?? {})}
+        {...(dragHandle?.listeners ?? {})}
+        className="rounded-xl border border-white/10 bg-white/5 p-2 text-gray-400 transition-colors hover:border-white/20 hover:bg-white/10 hover:text-white"
+        aria-label={`Drag ${title}`}
+      >
+        <GripVertical size={16} />
+      </button>
+
+      <button
+        type="button"
+        onClick={handleHideClick}
+        className="rounded-xl border border-white/10 bg-white/5 p-2 text-gray-400 transition-colors hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-200"
+        aria-label={`Hide ${title}`}
+      >
+        <EyeOff size={16} />
+      </button>
+    </div>
+  ) : null;
+
   const headerContent = (
     <>
       <div className="flex min-w-0 items-center gap-3">
@@ -59,7 +93,7 @@ export function StatsWidgetShell({
           {subtitle ? <div className="text-sm text-gray-400">{subtitle}</div> : null}
         </div>
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {isCustomizing ? editControls : action ? <div className="shrink-0">{action}</div> : null}
     </>
   );
 
@@ -67,12 +101,15 @@ export function StatsWidgetShell({
     <section
       data-stats-widget={widgetId}
       data-stats-height-preset={heightPreset}
+      data-stats-customizing={isCustomizing ? "true" : "false"}
       className={cn(
         "flex h-full min-w-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/5",
+        isCustomizing && "border-white/15 bg-white/[0.06] shadow-[0_18px_50px_rgba(0,0,0,0.2)]",
+        isDragging && "ring-2 ring-white/20",
         className
       )}
     >
-      {headerAsButton ? (
+      {isHeaderInteractive ? (
         <button
           type="button"
           onClick={onHeaderClick}

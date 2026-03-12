@@ -1,6 +1,8 @@
 import { ChevronRight, Filter, Star } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { StatItem } from "../../../lib/stats-logic";
+import { cn } from "../../../lib/utils_ui";
+import { useStatsWidgetEditContext } from "../StatsEditableWidgetFrame";
 import { StatsWidgetShell } from "../StatsWidgetShell";
 import { STATS_WIDGET_META } from "../stats-config";
 
@@ -49,6 +51,7 @@ function GenreTooltip({ active, payload }: any) {
 export function TopGenresWidget({ genres, onViewAllGenres, onGenreClick }: TopGenresWidgetProps) {
   const meta = STATS_WIDGET_META["top-genres"];
   const topGenres = genres.slice(0, 10);
+  const { isCustomizing } = useStatsWidgetEditContext();
 
   return (
     <StatsWidgetShell
@@ -95,8 +98,16 @@ export function TopGenresWidget({ genres, onViewAllGenres, onGenreClick }: TopGe
             <button
               key={genre.name}
               type="button"
-              onClick={() => onGenreClick(genre.name)}
-              className="group flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-white/5"
+              onClick={() => {
+                if (!isCustomizing) {
+                  onGenreClick(genre.name);
+                }
+              }}
+              disabled={isCustomizing}
+              className={cn(
+                "group flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-sm transition-colors",
+                isCustomizing ? "cursor-default opacity-75" : "hover:bg-white/5"
+              )}
             >
               <div className="flex items-center gap-2">
                 <div

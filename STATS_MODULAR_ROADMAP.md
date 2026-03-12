@@ -126,6 +126,19 @@ Delivered in this phase:
 - The five lower breakdown sections were consolidated into a reusable list-widget pattern without losing behavior
 - There are no remaining hardcoded Stats page sections acting as the old source of truth for the dashboard layout
 
+## Phase 5 Status
+
+Phase 5 is complete.
+
+Delivered in this phase:
+
+- The Stats page now has two user-facing views: `Overview` and `Dashboard`
+- Each view now keeps its own saved layout and active view selection persists separately from stats filters
+- Visible `Customize` mode now exists with direct drag-and-drop reordering and hide/restore controls
+- A right-side customize panel now manages visible, hidden, and currently unavailable widgets
+- `Overview` now ships with a more curated default layout while `Dashboard` exposes the full widget set
+- Existing drilldowns still work outside customize mode and are intentionally suppressed while editing layout
+
 ## Phase 0 Decisions
 
 ### 1. Dashboard Structure
@@ -489,6 +502,10 @@ V1 preference storage:
 Possible future upgrade:
 
 - Move layout preferences into app settings or DB-backed storage if needed
+
+Status:
+
+- Complete
 
 ### Phase 6: Refactor the Data Layer
 

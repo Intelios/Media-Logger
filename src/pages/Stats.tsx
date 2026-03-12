@@ -3,7 +3,23 @@ import { Film, Gamepad2, Heart } from "lucide-react";
 import { StatsEntriesModal } from "../components/StatsEntriesModal";
 import { GenreBreakdownModal } from "../components/GenreBreakdownModal";
 import { StatsDashboard } from "../components/stats/StatsDashboard";
-import type { StatsFilterPreset, StatsPresetKey } from "../components/stats/stats-config";
+import {
+  MAIN_WIDGET_IDS,
+  SUMMARY_WIDGET_IDS,
+  type StatsDashboardViewId,
+  type StatsFilterPreset,
+  type StatsPresetKey,
+  type StatsWidgetId,
+} from "../components/stats/stats-config";
+import {
+  applyVisibleWidgetOrder,
+  createDefaultStatsDashboardViewLayout,
+  hideStatsDashboardWidget,
+  loadStatsDashboardPreferences,
+  saveStatsDashboardPreferences,
+  showStatsDashboardWidget,
+  type StatsDashboardPreferencesV2,
+} from "../components/stats/stats-layout";
 import { getAvailableNavigationYears, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
 import { type MediaEntry } from "../lib/db";
 import { getNavigationYears } from "../lib/settings";
@@ -87,6 +103,8 @@ export default function StatsPage() {
   const [activeYear, setActiveYear] = useState(loadPersistedYear);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedTypes);
   const [activePreset, setActivePreset] = useState<StatsPresetKey>(loadPersistedPreset);
+  const [dashboardPreferences, setDashboardPreferences] = useState<StatsDashboardPreferencesV2>(loadStatsDashboardPreferences);
+  const [isCustomizing, setIsCustomizing] = useState(false);
   const [data, setData] = useState<FullStats | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -124,6 +142,10 @@ export default function StatsPage() {
   useEffect(() => {
     localStorage.setItem(STATS_TYPES_KEY, JSON.stringify(selectedTypes));
   }, [selectedTypes]);
+
+  useEffect(() => {
+    saveStatsDashboardPreferences(dashboardPreferences);
+  }, [dashboardPreferences]);
 
   useEffect(() => {
     const refreshYears = async () => {
@@ -191,6 +213,60 @@ export default function StatsPage() {
     }
   };
 
+  const activeView = dashboardPreferences.activeView;
+  const activeLayout = dashboardPreferences.views[activeView];
+
+  const updateActiveViewLayout = (
+    updater: (layout: StatsDashboardPreferencesV2["views"][StatsDashboardViewId]) => StatsDashboardPreferencesV2["views"][StatsDashboardViewId]
+  ) => {
+    setDashboardPreferences((currentPreferences) => ({
+      ...currentPreferences,
+      views: {
+        ...currentPreferences.views,
+        [currentPreferences.activeView]: updater(currentPreferences.views[currentPreferences.activeView]),
+      },
+    }));
+  };
+
+  const handleActiveViewChange = (viewId: StatsDashboardViewId) => {
+    setDashboardPreferences((currentPreferences) => ({
+      ...currentPreferences,
+      activeView: viewId,
+    }));
+  };
+
+  const handleSummaryOrderChange = (nextVisibleOrder: (typeof SUMMARY_WIDGET_IDS)[number][]) => {
+    updateActiveViewLayout((layout) => ({
+      ...layout,
+      summaryOrder: applyVisibleWidgetOrder(layout.summaryOrder, nextVisibleOrder),
+    }));
+  };
+
+  const handleMainOrderChange = (nextVisibleOrder: (typeof MAIN_WIDGET_IDS)[number][]) => {
+    updateActiveViewLayout((layout) => ({
+      ...layout,
+      mainOrder: applyVisibleWidgetOrder(layout.mainOrder, nextVisibleOrder),
+    }));
+  };
+
+  const handleHideWidget = (widgetId: StatsWidgetId) => {
+    updateActiveViewLayout((layout) => hideStatsDashboardWidget(layout, widgetId));
+  };
+
+  const handleShowWidget = (widgetId: StatsWidgetId) => {
+    updateActiveViewLayout((layout) => showStatsDashboardWidget(layout, widgetId));
+  };
+
+  const handleResetActiveView = () => {
+    setDashboardPreferences((currentPreferences) => ({
+      ...currentPreferences,
+      views: {
+        ...currentPreferences.views,
+        [currentPreferences.activeView]: createDefaultStatsDashboardViewLayout(currentPreferences.activeView),
+      },
+    }));
+  };
+
   if (!data) {
     return <div className="p-10 text-gray-400">Calculating analytics...</div>;
   }
@@ -208,6 +284,16 @@ export default function StatsPage() {
         onPresetClick={handlePresetClick}
         onResetPreset={handleResetPreset}
         onActiveYearChange={setActiveYear}
+        activeView={activeView}
+        onActiveViewChange={handleActiveViewChange}
+        isCustomizing={isCustomizing}
+        onToggleCustomize={() => setIsCustomizing((current) => !current)}
+        layout={activeLayout}
+        onSummaryOrderChange={handleSummaryOrderChange}
+        onMainOrderChange={handleMainOrderChange}
+        onHideWidget={handleHideWidget}
+        onShowWidget={handleShowWidget}
+        onResetActiveView={handleResetActiveView}
         data={data}
         onPerfect10Click={handlePerfect10Click}
         onThisMonthClick={handleThisMonthClick}

@@ -1,10 +1,21 @@
+import { Check, SlidersHorizontal } from "lucide-react";
 import { cn } from "../../lib/utils_ui";
 import { MultiSelectFilter } from "../MultiSelectFilter";
-import type { StatsFilterPreset, StatsPresetKey } from "./stats-config";
+import type {
+  StatsDashboardViewDefinition,
+  StatsDashboardViewId,
+  StatsFilterPreset,
+  StatsPresetKey,
+} from "./stats-config";
 
 interface StatsPageHeaderProps {
   title: string;
   subtitle: string;
+  views: StatsDashboardViewDefinition[];
+  activeView: StatsDashboardViewId;
+  onActiveViewChange: (viewId: StatsDashboardViewId) => void;
+  isCustomizing: boolean;
+  onToggleCustomize: () => void;
   entryTypes: string[];
   selectedTypes: string[];
   onSelectedTypesChange: (types: string[]) => void;
@@ -20,6 +31,11 @@ interface StatsPageHeaderProps {
 export function StatsPageHeader({
   title,
   subtitle,
+  views,
+  activeView,
+  onActiveViewChange,
+  isCustomizing,
+  onToggleCustomize,
   entryTypes,
   selectedTypes,
   onSelectedTypesChange,
@@ -33,7 +49,7 @@ export function StatsPageHeader({
 }: StatsPageHeaderProps) {
   return (
     <header className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <h2 className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-3xl font-bold text-transparent">
             {title}
@@ -41,7 +57,39 @@ export function StatsPageHeader({
           <p className="text-gray-400">{subtitle}</p>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3 xl:justify-end">
+          <div className="flex overflow-x-auto rounded-xl border border-white/10 bg-white/5 p-1">
+            {views.map((view) => (
+              <button
+                key={view.id}
+                type="button"
+                onClick={() => onActiveViewChange(view.id)}
+                className={cn(
+                  "whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-all",
+                  activeView === view.id
+                    ? "bg-white/12 text-white shadow-lg"
+                    : "text-gray-400 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                {view.label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={onToggleCustomize}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all",
+              isCustomizing
+                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15"
+                : "border-white/10 bg-white/5 text-gray-200 hover:bg-white/10 hover:text-white"
+            )}
+          >
+            {isCustomizing ? <Check size={16} /> : <SlidersHorizontal size={16} />}
+            <span>{isCustomizing ? "Done" : "Customize"}</span>
+          </button>
+
           <MultiSelectFilter
             options={entryTypes}
             selected={selectedTypes}

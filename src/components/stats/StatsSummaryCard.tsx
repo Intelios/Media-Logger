@@ -1,6 +1,8 @@
 import { type KeyboardEvent, type ReactNode } from "react";
+import { EyeOff, GripVertical } from "lucide-react";
 import { cn } from "../../lib/utils_ui";
 import type { SummaryWidgetId } from "./stats-config";
+import { useStatsWidgetEditContext } from "./StatsEditableWidgetFrame";
 
 export type SummaryCardColor = "blue" | "amber" | "green" | "purple" | "pink" | "cyan";
 
@@ -61,9 +63,11 @@ export function StatsSummaryCard({
   onClick,
 }: StatsSummaryCardProps) {
   const palette = COLOR_PALETTES[color];
+  const { dragHandle, isCustomizing, isDragging, onHide } = useStatsWidgetEditContext();
+  const isInteractive = Boolean(onClick) && !isCustomizing;
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!onClick) return;
+    if (!isInteractive || !onClick) return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       onClick();
@@ -74,17 +78,47 @@ export function StatsSummaryCard({
     <div
       data-stats-widget={widgetId}
       data-stats-layout-role="summary"
+      data-stats-customizing={isCustomizing ? "true" : "false"}
       className={cn(
-        "flex h-full min-h-[148px] flex-col justify-between gap-5 rounded-2xl border p-4 transition-all duration-300 hover:scale-[1.02]",
+        "relative flex h-full min-h-[148px] flex-col justify-between gap-5 rounded-2xl border p-4 transition-all duration-300",
         palette.border,
         palette.background,
-        onClick && "cursor-pointer hover:ring-2 hover:ring-white/20"
+        isInteractive && "cursor-pointer hover:scale-[1.02] hover:ring-2 hover:ring-white/20",
+        isCustomizing && "border-white/15 bg-white/[0.06] pr-20",
+        isDragging && "ring-2 ring-white/20"
       )}
-      onClick={onClick}
+      onClick={isInteractive ? onClick : undefined}
       onKeyDown={handleKeyDown}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
+      role={isInteractive ? "button" : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
     >
+      {isCustomizing ? (
+        <div className="absolute right-3 top-3 flex items-center gap-2">
+          <button
+            type="button"
+            ref={dragHandle?.ref}
+            {...(dragHandle?.attributes ?? {})}
+            {...(dragHandle?.listeners ?? {})}
+            className="rounded-xl border border-white/10 bg-white/5 p-2 text-gray-400 transition-colors hover:border-white/20 hover:bg-white/10 hover:text-white"
+            aria-label={`Drag ${label}`}
+          >
+            <GripVertical size={15} />
+          </button>
+
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onHide?.();
+            }}
+            className="rounded-xl border border-white/10 bg-white/5 p-2 text-gray-400 transition-colors hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-200"
+            aria-label={`Hide ${label}`}
+          >
+            <EyeOff size={15} />
+          </button>
+        </div>
+      ) : null}
+
       <div className="space-y-5">
         <div className={cn("w-fit rounded-xl bg-white/5 p-2", palette.text)}>{icon}</div>
         <div className="text-3xl font-bold leading-none text-white">{value}</div>

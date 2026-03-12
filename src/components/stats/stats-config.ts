@@ -23,6 +23,8 @@ export const MAIN_WIDGET_IDS = [
   "actresses",
 ] as const;
 
+export const STATS_DASHBOARD_VIEW_IDS = ["overview", "dashboard"] as const;
+
 export type SummaryWidgetId = (typeof SUMMARY_WIDGET_IDS)[number];
 export type MainWidgetId = (typeof MAIN_WIDGET_IDS)[number];
 export type StatsWidgetId = SummaryWidgetId | MainWidgetId;
@@ -30,9 +32,18 @@ export type StatsWidgetZone = "summary" | "main";
 export type StatsWidgetSize = "summary" | "small" | "half" | "full";
 export type StatsWidgetLayoutRole = "summary" | "hero" | "feature" | "supporting" | "list";
 export type StatsWidgetHeightPreset = "summary" | "compact" | "standard" | "tall" | "hero";
+export type StatsDashboardViewId = (typeof STATS_DASHBOARD_VIEW_IDS)[number];
+
+export interface StatsDashboardViewDefinition {
+  id: StatsDashboardViewId;
+  label: string;
+  containerClassName: string;
+  defaultHidden: StatsWidgetId[];
+}
 
 export interface StatsDashboardRenderContext {
   activeYear: string;
+  selectedTypes: string[];
   data: FullStats;
   onPerfect10Click: () => void;
   onThisMonthClick: () => void;
@@ -67,6 +78,23 @@ export interface StatsFilterPreset {
   types: string[];
   gradient: string;
 }
+
+export const STATS_DASHBOARD_VIEW_DEFINITIONS: Record<StatsDashboardViewId, StatsDashboardViewDefinition> = {
+  overview: {
+    id: "overview",
+    label: "Overview",
+    containerClassName: "max-w-7xl",
+    defaultHidden: ["studios", "authors", "actresses"],
+  },
+  dashboard: {
+    id: "dashboard",
+    label: "Dashboard",
+    containerClassName: "max-w-[1600px]",
+    defaultHidden: [],
+  },
+};
+
+export const STATS_CUSTOMIZE_WORKSPACE_CLASSNAME = "max-w-[1680px]";
 
 export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
   "total-entries": {
