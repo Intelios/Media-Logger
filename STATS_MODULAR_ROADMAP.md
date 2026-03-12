@@ -27,6 +27,13 @@ In scope:
 - Refactoring the current Stats page into reusable parts
 - Adding a cleaner data layer for future stats growth
 
+Out of scope for the first pass:
+
+- Mobile layouts
+- Full database redesign
+- Cross-device sync for widget layout preferences
+- Rebuilding unrelated areas of the app
+
 ## Current State Summary
 
 Right now the Stats page works, but it is still mostly a single composed screen with hardcoded sections.
@@ -62,6 +69,220 @@ The redesign is successful when:
 - Avoid mixing layout refactor and database overhaul in the same step
 - Make future widgets cheap to add
 
+## Phase 0 Status
+
+Phase 0 is now decision-complete.
+
+That means the baseline product and implementation rules for the modular dashboard are locked enough for us to begin Phase 1.
+
+## Phase 0 Decisions
+
+### 1. Dashboard Structure
+
+The Stats page will be split into two layout zones:
+
+- `Summary ribbon`: compact top-row stat widgets
+- `Main canvas`: chart and list widgets in a structured dashboard grid
+
+This is an intentional design choice.
+
+It keeps the page feeling curated and premium instead of turning everything into one uniform pile of draggable cards.
+
+### 2. Global Controls
+
+The following controls remain fixed at the top of the page and are not treated as widgets:
+
+- Page title and subtitle
+- Content type filter
+- Preset chips
+- Year filter
+- Customize mode toggle
+
+These are page controls, not dashboard content.
+
+### 3. Layout Model
+
+The dashboard will use a structured 12-column desktop grid for the main canvas.
+
+Widget sizing for v1:
+
+- `summary`: top ribbon stat tile
+- `small`: 4-column widget
+- `half`: 6-column widget
+- `full`: 12-column widget
+
+Important v1 rule:
+
+- Users can reorder and hide widgets in v1
+- Users cannot freely resize widgets in v1
+- Widget sizes are defined by the registry in v1
+
+This keeps the first modular version focused, polished, and much easier to ship safely.
+
+### 4. Customization Model
+
+Customization will be a dedicated mode, not always-on chrome.
+
+Normal mode:
+
+- Clean dashboard view
+- No visible drag handles
+- Widget menus stay subtle
+- Drilldowns and chart interactions work normally
+
+Customize mode:
+
+- Drag handles become visible
+- Hide and restore controls become visible
+- Reordering becomes active
+- Widget interactions that conflict with layout editing should be suppressed
+- A widget library panel or picker is available for hidden widgets
+- Reset-to-default is available
+
+### 5. Widget Empty State Rule
+
+Visible widgets should not disappear just because the current filters return no data.
+
+Instead, they should render a graceful empty state.
+
+This keeps the dashboard layout stable and prevents the page from jumping around when filters change.
+
+### 6. Persistence Model
+
+V1 persistence decisions:
+
+- Keep the existing stats filter persistence behavior
+- Store modular dashboard layout preferences in `localStorage`
+- Use a versioned dashboard layout payload so we can migrate later if needed
+
+Proposed storage shape for v1:
+
+```json
+{
+  "version": 1,
+  "summaryOrder": [
+    "total-entries",
+    "average-score",
+    "rewatches",
+    "perfect-tens",
+    "this-month",
+    "genres-count"
+  ],
+  "mainOrder": [
+    "monthly-activity",
+    "rating-distribution",
+    "top-genres",
+    "content-type-breakdown",
+    "platforms",
+    "franchises",
+    "studios",
+    "authors",
+    "actresses"
+  ],
+  "hidden": []
+}
+```
+
+Suggested key:
+
+- `stats-dashboard-layout-v1`
+
+### 7. Registry Model
+
+The modular page will be driven by a widget registry.
+
+Each widget definition should include:
+
+- `id`
+- `zone`
+- `title`
+- `description`
+- `defaultSize`
+- `defaultVisible`
+- `defaultOrder`
+- `component`
+- `supportsEmptyState`
+
+For v1, we will keep the registry simple and deterministic.
+
+We are not doing freeform x/y placement in the first version.
+
+### 8. V1 Scope Boundary
+
+The first modular release will support:
+
+- Strong default dashboard layout
+- Widget-based architecture
+- Hide/show widgets
+- Reorder widgets
+- Persisted layout preferences
+- Existing stats migrated into the new system
+
+The first modular release will not support:
+
+- Arbitrary widget resizing
+- Freeform drag placement
+- Per-widget filter controls
+- Database-backed layout sync
+
+## Phase 0 Widget Inventory
+
+### Summary Ribbon Widgets
+
+- `total-entries`
+- `average-score`
+- `rewatches`
+- `perfect-tens`
+- `this-month`
+- `genres-count`
+
+### Main Canvas Widgets
+
+- `monthly-activity`
+- `rating-distribution`
+- `top-genres`
+- `content-type-breakdown`
+- `platforms`
+- `franchises`
+- `studios`
+- `authors`
+- `actresses`
+
+## Phase 0 Default Layout
+
+### Summary Ribbon Default Order
+
+1. `total-entries`
+2. `average-score`
+3. `rewatches`
+4. `perfect-tens`
+5. `this-month`
+6. `genres-count`
+
+### Main Canvas Default Order
+
+1. `monthly-activity` as `full`
+2. `rating-distribution` as `half`
+3. `top-genres` as `half`
+4. `content-type-breakdown` as `full`
+5. `platforms` as `half`
+6. `franchises` as `half`
+7. `studios` as `half`
+8. `authors` as `half`
+9. `actresses` as `half`
+
+## Phase 0 Delivery Checklist
+
+- [x] Chosen a desktop-only dashboard structure
+- [x] Chosen fixed page controls
+- [x] Chosen widget zones
+- [x] Chosen the v1 layout model
+- [x] Chosen the v1 customization model
+- [x] Chosen the persistence model
+- [x] Chosen the widget inventory for migration
+- [x] Chosen the default widget order
+- [x] Chosen the v1 scope boundary
+
 ## Implementation Phases
 
 ### Phase 0: Baseline and Design Rules
@@ -82,6 +303,10 @@ Deliverables:
 - Widget inventory
 - Layout rules
 - Dashboard interaction rules
+
+Status:
+
+- Complete
 
 ### Phase 1: Extract the Stats UI Foundation
 
