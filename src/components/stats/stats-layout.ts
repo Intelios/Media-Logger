@@ -1,8 +1,13 @@
 import {
+  DEFAULT_STATS_WIDGET_DISPLAY_MODE,
+  DISPLAY_MODE_WIDGET_IDS,
   STATS_DASHBOARD_VIEW_DEFINITIONS,
+  supportsStatsWidgetDisplayMode,
+  type DisplayModeWidgetId,
   type MainWidgetId,
   type StatsDashboardViewId,
   type StatsWidgetDefinition,
+  type StatsWidgetDisplayMode,
   type StatsWidgetId,
   type SummaryWidgetId,
 } from "./stats-config";
@@ -10,8 +15,10 @@ import { getStatsWidgetDefinitionsForZone, STATS_WIDGET_DEFINITIONS } from "./st
 
 export const LEGACY_STATS_DASHBOARD_LAYOUT_KEY = "stats-dashboard-layout-v1";
 export const LEGACY_STATS_DASHBOARD_LAYOUT_VERSION = 1 as const;
-export const STATS_DASHBOARD_PREFERENCES_KEY = "stats-dashboard-preferences-v2";
-export const STATS_DASHBOARD_PREFERENCES_VERSION = 2 as const;
+export const LEGACY_STATS_DASHBOARD_PREFERENCES_KEY = "stats-dashboard-preferences-v2";
+export const LEGACY_STATS_DASHBOARD_PREFERENCES_VERSION = 2 as const;
+export const STATS_DASHBOARD_PREFERENCES_KEY = "stats-dashboard-preferences-v3";
+export const STATS_DASHBOARD_PREFERENCES_VERSION = 3 as const;
 
 export interface LegacyStatsDashboardLayoutV1 {
   version: typeof LEGACY_STATS_DASHBOARD_LAYOUT_VERSION;
@@ -20,17 +27,34 @@ export interface LegacyStatsDashboardLayoutV1 {
   hidden: StatsWidgetId[];
 }
 
-export interface StatsDashboardViewLayout {
+export interface LegacyStatsDashboardViewLayoutV2 {
   summaryOrder: SummaryWidgetId[];
   mainOrder: MainWidgetId[];
   hidden: StatsWidgetId[];
 }
 
-export interface StatsDashboardPreferencesV2 {
+export interface LegacyStatsDashboardPreferencesV2 {
+  version: typeof LEGACY_STATS_DASHBOARD_PREFERENCES_VERSION;
+  activeView: StatsDashboardViewId;
+  views: Record<StatsDashboardViewId, LegacyStatsDashboardViewLayoutV2>;
+}
+
+export interface StatsDashboardViewPreferences {
+  summaryOrder: SummaryWidgetId[];
+  mainOrder: MainWidgetId[];
+  hidden: StatsWidgetId[];
+  displayModes: Partial<Record<DisplayModeWidgetId, StatsWidgetDisplayMode>>;
+}
+
+export type StatsDashboardViewLayout = StatsDashboardViewPreferences;
+
+export interface StatsDashboardPreferencesV3 {
   version: typeof STATS_DASHBOARD_PREFERENCES_VERSION;
   activeView: StatsDashboardViewId;
-  views: Record<StatsDashboardViewId, StatsDashboardViewLayout>;
+  views: Record<StatsDashboardViewId, StatsDashboardViewPreferences>;
 }
+
+export type StatsDashboardPreferences = StatsDashboardPreferencesV3;
 
 function getDefaultOrderForZone<T extends SummaryWidgetId | MainWidgetId>(
   definitions: Record<StatsWidgetId, StatsWidgetDefinition>,
@@ -42,7 +66,7 @@ function getDefaultOrderForZone<T extends SummaryWidgetId | MainWidgetId>(
     .map((definition) => definition.id) as T[];
 }
 
-function dedupeWidgetIds(widgetIds: StatsWidgetId[]) {
+function dedupeWidgetIds<T extends StatsWidgetId>(widgetIds: T[]) {
   return [...new Set(widgetIds)];
 }
 
@@ -75,6 +99,40 @@ function getHiddenIdsForView(
   return dedupeWidgetIds([...defaultHidden, ...STATS_DASHBOARD_VIEW_DEFINITIONS[viewId].defaultHidden]);
 }
 
+function getDefaultDisplayModes(): Partial<Record<DisplayModeWidgetId, StatsWidgetDisplayMode>> {
+  const displayModes: Partial<Record<DisplayModeWidgetId, StatsWidgetDisplayMode>> = {};
+
+  for (const widgetId of DISPLAY_MODE_WIDGET_IDS) {
+    displayModes[widgetId] = DEFAULT_STATS_WIDGET_DISPLAY_MODE;
+  }
+
+  return displayModes;
+}
+
+function normalizeDisplayModes(value: unknown) {
+  const defaultDisplayModes = getDefaultDisplayModes();
+
+  if (!value || typeof value !== "object") {
+    return defaultDisplayModes;
+  }
+
+  const normalizedDisplayModes: Partial<Record<DisplayModeWidgetId, StatsWidgetDisplayMode>> = {
+    ...defaultDisplayModes,
+  };
+
+  for (const [widgetId, displayMode] of Object.entries(value)) {
+    if (!supportsStatsWidgetDisplayMode(widgetId as StatsWidgetId)) {
+      continue;
+    }
+
+    if (displayMode === "bars" || displayMode === "donut") {
+      normalizedDisplayModes[widgetId as DisplayModeWidgetId] = displayMode;
+    }
+  }
+
+  return normalizedDisplayModes;
+}
+
 function getZoneIdSets() {
   const summaryIds = new Set(getStatsWidgetDefinitionsForZone("summary").map((definition) => definition.id));
   const mainIds = new Set(getStatsWidgetDefinitionsForZone("main").map((definition) => definition.id));
@@ -86,17 +144,18 @@ function getZoneIdSets() {
 export function createDefaultStatsDashboardViewLayout(
   viewId: StatsDashboardViewId,
   definitions: Record<StatsWidgetId, StatsWidgetDefinition> = STATS_WIDGET_DEFINITIONS
-): StatsDashboardViewLayout {
+): StatsDashboardViewPreferences {
   return {
     summaryOrder: getDefaultOrderForZone<SummaryWidgetId>(definitions, "summary"),
     mainOrder: getDefaultOrderForZone<MainWidgetId>(definitions, "main"),
     hidden: getHiddenIdsForView(viewId, definitions),
+    displayModes: getDefaultDisplayModes(),
   };
 }
 
 export function createDefaultStatsDashboardPreferences(
   definitions: Record<StatsWidgetId, StatsWidgetDefinition> = STATS_WIDGET_DEFINITIONS
-): StatsDashboardPreferencesV2 {
+): StatsDashboardPreferencesV3 {
   return {
     version: STATS_DASHBOARD_PREFERENCES_VERSION,
     activeView: "overview",
@@ -111,14 +170,14 @@ export function normalizeStatsDashboardViewLayout(
   value: unknown,
   viewId: StatsDashboardViewId,
   definitions: Record<StatsWidgetId, StatsWidgetDefinition> = STATS_WIDGET_DEFINITIONS
-): StatsDashboardViewLayout {
+): StatsDashboardViewPreferences {
   const defaultLayout = createDefaultStatsDashboardViewLayout(viewId, definitions);
 
   if (!value || typeof value !== "object") {
     return defaultLayout;
   }
 
-  const candidate = value as Partial<Record<keyof StatsDashboardViewLayout, unknown>>;
+  const candidate = value as Partial<Record<keyof StatsDashboardViewPreferences, unknown>>;
   const { summaryIds, mainIds, allIds } = getZoneIdSets();
 
   const providedHidden = Array.isArray(candidate.hidden)
@@ -135,21 +194,60 @@ export function normalizeStatsDashboardViewLayout(
     summaryOrder: normalizeZoneOrder<SummaryWidgetId>(candidate.summaryOrder, summaryIds, defaultLayout.summaryOrder),
     mainOrder: normalizeZoneOrder<MainWidgetId>(candidate.mainOrder, mainIds, defaultLayout.mainOrder),
     hidden: [...defaultHidden, ...providedHidden],
+    displayModes: normalizeDisplayModes(candidate.displayModes),
   };
 }
 
 export function normalizeStatsDashboardPreferences(
   value: unknown,
   definitions: Record<StatsWidgetId, StatsWidgetDefinition> = STATS_WIDGET_DEFINITIONS
-): StatsDashboardPreferencesV2 {
+): StatsDashboardPreferencesV3 {
   const defaults = createDefaultStatsDashboardPreferences(definitions);
 
   if (!value || typeof value !== "object") {
     return defaults;
   }
 
-  const candidate = value as Partial<Record<keyof StatsDashboardPreferencesV2, unknown>>;
+  const candidate = value as Partial<Record<keyof StatsDashboardPreferencesV3, unknown>>;
   if (candidate.version !== STATS_DASHBOARD_PREFERENCES_VERSION) {
+    return defaults;
+  }
+
+  const activeView =
+    candidate.activeView === "overview" || candidate.activeView === "dashboard" ? candidate.activeView : defaults.activeView;
+
+  const views = candidate.views && typeof candidate.views === "object" ? candidate.views : {};
+
+  return {
+    version: STATS_DASHBOARD_PREFERENCES_VERSION,
+    activeView,
+    views: {
+      overview: normalizeStatsDashboardViewLayout(
+        (views as Partial<Record<StatsDashboardViewId, unknown>>).overview,
+        "overview",
+        definitions
+      ),
+      dashboard: normalizeStatsDashboardViewLayout(
+        (views as Partial<Record<StatsDashboardViewId, unknown>>).dashboard,
+        "dashboard",
+        definitions
+      ),
+    },
+  };
+}
+
+function normalizeLegacyStatsDashboardPreferencesV2(
+  value: unknown,
+  definitions: Record<StatsWidgetId, StatsWidgetDefinition> = STATS_WIDGET_DEFINITIONS
+): StatsDashboardPreferencesV3 {
+  const defaults = createDefaultStatsDashboardPreferences(definitions);
+
+  if (!value || typeof value !== "object") {
+    return defaults;
+  }
+
+  const candidate = value as Partial<Record<keyof LegacyStatsDashboardPreferencesV2, unknown>>;
+  if (candidate.version !== LEGACY_STATS_DASHBOARD_PREFERENCES_VERSION) {
     return defaults;
   }
 
@@ -185,7 +283,9 @@ export function normalizeLegacyStatsDashboardLayout(
   if (!value || typeof value !== "object") {
     return {
       version: LEGACY_STATS_DASHBOARD_LAYOUT_VERSION,
-      ...defaultLayout,
+      summaryOrder: defaultLayout.summaryOrder,
+      mainOrder: defaultLayout.mainOrder,
+      hidden: defaultLayout.hidden,
     };
   }
 
@@ -193,7 +293,9 @@ export function normalizeLegacyStatsDashboardLayout(
   if (candidate.version !== LEGACY_STATS_DASHBOARD_LAYOUT_VERSION) {
     return {
       version: LEGACY_STATS_DASHBOARD_LAYOUT_VERSION,
-      ...defaultLayout,
+      summaryOrder: defaultLayout.summaryOrder,
+      mainOrder: defaultLayout.mainOrder,
+      hidden: defaultLayout.hidden,
     };
   }
 
@@ -201,7 +303,9 @@ export function normalizeLegacyStatsDashboardLayout(
 
   return {
     version: LEGACY_STATS_DASHBOARD_LAYOUT_VERSION,
-    ...normalized,
+    summaryOrder: normalized.summaryOrder,
+    mainOrder: normalized.mainOrder,
+    hidden: normalized.hidden,
   };
 }
 
@@ -214,6 +318,11 @@ export function loadStatsDashboardPreferences(
       return normalizeStatsDashboardPreferences(JSON.parse(rawValue), definitions);
     }
 
+    const legacyPreferencesValue = localStorage.getItem(LEGACY_STATS_DASHBOARD_PREFERENCES_KEY);
+    if (legacyPreferencesValue) {
+      return normalizeLegacyStatsDashboardPreferencesV2(JSON.parse(legacyPreferencesValue), definitions);
+    }
+
     const legacyRawValue = localStorage.getItem(LEGACY_STATS_DASHBOARD_LAYOUT_KEY);
     if (legacyRawValue) {
       const legacyLayout = normalizeLegacyStatsDashboardLayout(JSON.parse(legacyRawValue), definitions);
@@ -223,7 +332,10 @@ export function loadStatsDashboardPreferences(
           version: STATS_DASHBOARD_PREFERENCES_VERSION,
           activeView: "overview",
           views: {
-            overview: legacyLayout,
+            overview: {
+              ...legacyLayout,
+              displayModes: getDefaultDisplayModes(),
+            },
             dashboard: createDefaultStatsDashboardViewLayout("dashboard", definitions),
           },
         },
@@ -237,7 +349,7 @@ export function loadStatsDashboardPreferences(
   }
 }
 
-export function saveStatsDashboardPreferences(preferences: StatsDashboardPreferencesV2) {
+export function saveStatsDashboardPreferences(preferences: StatsDashboardPreferencesV3) {
   localStorage.setItem(STATS_DASHBOARD_PREFERENCES_KEY, JSON.stringify(preferences));
 }
 
@@ -267,7 +379,39 @@ export function applyVisibleWidgetOrder<T extends SummaryWidgetId | MainWidgetId
   );
 }
 
-export function hideStatsDashboardWidget(layout: StatsDashboardViewLayout, widgetId: StatsWidgetId): StatsDashboardViewLayout {
+export function getStatsDashboardWidgetDisplayMode(
+  displayModes: Partial<Record<DisplayModeWidgetId, StatsWidgetDisplayMode>>,
+  widgetId: StatsWidgetId
+) {
+  if (!supportsStatsWidgetDisplayMode(widgetId)) {
+    return undefined;
+  }
+
+  return displayModes[widgetId] ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE;
+}
+
+export function setStatsDashboardWidgetDisplayMode(
+  layout: StatsDashboardViewPreferences,
+  widgetId: StatsWidgetId,
+  displayMode: StatsWidgetDisplayMode
+): StatsDashboardViewPreferences {
+  if (!supportsStatsWidgetDisplayMode(widgetId)) {
+    return layout;
+  }
+
+  return {
+    ...layout,
+    displayModes: {
+      ...layout.displayModes,
+      [widgetId]: displayMode,
+    },
+  };
+}
+
+export function hideStatsDashboardWidget(
+  layout: StatsDashboardViewPreferences,
+  widgetId: StatsWidgetId
+): StatsDashboardViewPreferences {
   if (layout.hidden.includes(widgetId)) {
     return layout;
   }
@@ -278,7 +422,10 @@ export function hideStatsDashboardWidget(layout: StatsDashboardViewLayout, widge
   };
 }
 
-export function showStatsDashboardWidget(layout: StatsDashboardViewLayout, widgetId: StatsWidgetId): StatsDashboardViewLayout {
+export function showStatsDashboardWidget(
+  layout: StatsDashboardViewPreferences,
+  widgetId: StatsWidgetId
+): StatsDashboardViewPreferences {
   return {
     ...layout,
     hidden: layout.hidden.filter((hiddenWidgetId) => hiddenWidgetId !== widgetId),

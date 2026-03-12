@@ -26,6 +26,7 @@ export const MAIN_WIDGET_IDS = [
 ] as const;
 
 export const STATS_DASHBOARD_VIEW_IDS = ["overview", "dashboard"] as const;
+export const DISPLAY_MODE_WIDGET_IDS = ["platforms", "franchises", "studios", "authors", "actresses"] as const;
 
 export type SummaryWidgetId = (typeof SUMMARY_WIDGET_IDS)[number];
 export type MainWidgetId = (typeof MAIN_WIDGET_IDS)[number];
@@ -35,6 +36,10 @@ export type StatsWidgetSize = "summary" | "small" | "half" | "full";
 export type StatsWidgetLayoutRole = "summary" | "hero" | "feature" | "supporting" | "list";
 export type StatsWidgetHeightPreset = "summary" | "compact" | "standard" | "tall" | "hero";
 export type StatsDashboardViewId = (typeof STATS_DASHBOARD_VIEW_IDS)[number];
+export type DisplayModeWidgetId = (typeof DISPLAY_MODE_WIDGET_IDS)[number];
+export type StatsWidgetDisplayMode = "bars" | "donut";
+
+export const DEFAULT_STATS_WIDGET_DISPLAY_MODE: StatsWidgetDisplayMode = "bars";
 
 export interface StatsDashboardViewDefinition {
   id: StatsDashboardViewId;
@@ -46,6 +51,7 @@ export interface StatsDashboardViewDefinition {
 export interface StatsDashboardRenderContext {
   activeYear: string;
   selectedTypes: string[];
+  displayModes: Partial<Record<DisplayModeWidgetId, StatsWidgetDisplayMode>>;
   data: FullStats;
   onPerfect10Click: () => void;
   onThisMonthClick: () => void;
@@ -64,6 +70,7 @@ export interface StatsWidgetMeta {
   defaultVisible: boolean;
   defaultOrder: number;
   supportsEmptyState: boolean;
+  displayModeOptions?: readonly StatsWidgetDisplayMode[];
 }
 
 export interface StatsWidgetDefinition extends StatsWidgetMeta {
@@ -97,6 +104,12 @@ export const STATS_DASHBOARD_VIEW_DEFINITIONS: Record<StatsDashboardViewId, Stat
 };
 
 export const STATS_CUSTOMIZE_WORKSPACE_CLASSNAME = "max-w-[1680px]";
+
+const DISPLAY_MODE_WIDGET_ID_SET = new Set<StatsWidgetId>(DISPLAY_MODE_WIDGET_IDS);
+
+export function supportsStatsWidgetDisplayMode(widgetId: StatsWidgetId): widgetId is DisplayModeWidgetId {
+  return DISPLAY_MODE_WIDGET_ID_SET.has(widgetId);
+}
 
 export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
   "total-entries": {
@@ -254,6 +267,7 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     defaultVisible: true,
     defaultOrder: 6,
     supportsEmptyState: true,
+    displayModeOptions: ["bars", "donut"],
   },
   franchises: {
     id: "franchises",
@@ -266,6 +280,7 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     defaultVisible: true,
     defaultOrder: 7,
     supportsEmptyState: true,
+    displayModeOptions: ["bars", "donut"],
   },
   studios: {
     id: "studios",
@@ -278,6 +293,7 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     defaultVisible: true,
     defaultOrder: 8,
     supportsEmptyState: true,
+    displayModeOptions: ["bars", "donut"],
   },
   authors: {
     id: "authors",
@@ -290,6 +306,7 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     defaultVisible: true,
     defaultOrder: 9,
     supportsEmptyState: true,
+    displayModeOptions: ["bars", "donut"],
   },
   actresses: {
     id: "actresses",
@@ -302,5 +319,6 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     defaultVisible: true,
     defaultOrder: 10,
     supportsEmptyState: true,
+    displayModeOptions: ["bars", "donut"],
   },
 };

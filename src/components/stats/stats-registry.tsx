@@ -12,7 +12,14 @@ import {
   User,
 } from "lucide-react";
 import { StatsSummaryCard } from "./StatsSummaryCard";
-import { STATS_WIDGET_META, type StatsDashboardRenderContext, type StatsWidgetDefinition, type StatsWidgetId, type StatsWidgetZone } from "./stats-config";
+import {
+  DEFAULT_STATS_WIDGET_DISPLAY_MODE,
+  STATS_WIDGET_META,
+  type StatsDashboardRenderContext,
+  type StatsWidgetDefinition,
+  type StatsWidgetId,
+  type StatsWidgetZone,
+} from "./stats-config";
 import { AverageScoreByTypeWidget } from "./widgets/AverageScoreByTypeWidget";
 import { BreakdownListWidget } from "./widgets/BreakdownListWidget";
 import { ContentTypeBreakdownWidget } from "./widgets/ContentTypeBreakdownWidget";
@@ -146,6 +153,7 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
         icon={<Gamepad2 size={18} />}
         items={context.data.platforms.filter((item) => item.count >= 3)}
         accentColor="blue"
+        displayMode={context.displayModes.platforms ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
       />
     ),
   }),
@@ -157,6 +165,7 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
         icon={<Sparkles size={18} />}
         items={context.data.franchises.filter((item) => item.count >= 3)}
         accentColor="cyan"
+        displayMode={context.displayModes.franchises ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
       />
     ),
   }),
@@ -168,6 +177,7 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
         icon={<Building2 size={18} />}
         items={context.data.studios.filter((item) => item.count >= 3)}
         accentColor="purple"
+        displayMode={context.displayModes.studios ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
       />
     ),
   }),
@@ -179,6 +189,7 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
         icon={<User size={18} />}
         items={context.data.authors.filter((item) => item.count >= 3)}
         accentColor="green"
+        displayMode={context.displayModes.authors ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
       />
     ),
   }),
@@ -190,6 +201,7 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
         icon={<Heart size={18} />}
         items={context.data.actresses.filter((item) => item.count >= 3)}
         accentColor="pink"
+        displayMode={context.displayModes.actresses ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
       />
     ),
   }),

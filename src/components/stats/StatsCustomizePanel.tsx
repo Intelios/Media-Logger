@@ -1,12 +1,19 @@
 import { Eye, EyeOff, RotateCcw } from "lucide-react";
 import { cn } from "../../lib/utils_ui";
-import type { StatsDashboardViewDefinition, StatsWidgetZone, StatsWidgetId } from "./stats-config";
+import type {
+  StatsDashboardViewDefinition,
+  StatsWidgetDisplayMode,
+  StatsWidgetId,
+  StatsWidgetZone,
+} from "./stats-config";
 
 interface StatsCustomizePanelWidget {
   id: StatsWidgetId;
   title: string;
   description: string;
   zone: StatsWidgetZone;
+  displayModeOptions?: readonly StatsWidgetDisplayMode[];
+  displayMode?: StatsWidgetDisplayMode;
 }
 
 interface StatsCustomizePanelProps {
@@ -16,6 +23,7 @@ interface StatsCustomizePanelProps {
   unavailableWidgets: StatsCustomizePanelWidget[];
   onHideWidget: (widgetId: StatsWidgetId) => void;
   onShowWidget: (widgetId: StatsWidgetId) => void;
+  onDisplayModeChange: (widgetId: StatsWidgetId, displayMode: StatsWidgetDisplayMode) => void;
   onResetView: () => void;
 }
 
@@ -27,6 +35,7 @@ interface StatsCustomizeSectionProps {
   actionLabel?: string;
   onAction?: (widgetId: StatsWidgetId) => void;
   actionIcon?: "show" | "hide";
+  onDisplayModeChange: (widgetId: StatsWidgetId, displayMode: StatsWidgetDisplayMode) => void;
 }
 
 function ZoneBadge({ zone }: { zone: StatsWidgetZone }) {
@@ -50,6 +59,7 @@ function StatsCustomizeSection({
   actionLabel,
   onAction,
   actionIcon,
+  onDisplayModeChange,
 }: StatsCustomizeSectionProps) {
   return (
     <section className="space-y-3">
@@ -94,6 +104,33 @@ function StatsCustomizeSection({
                   </button>
                 ) : null}
               </div>
+
+              {item.displayModeOptions && item.displayMode ? (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-black/10 px-3 py-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Display</p>
+                  <div className="inline-flex rounded-xl border border-white/10 bg-white/5 p-1">
+                    {item.displayModeOptions.map((mode) => {
+                      const isActive = item.displayMode === mode;
+
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => onDisplayModeChange(item.id, mode)}
+                          className={cn(
+                            "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                            isActive
+                              ? "bg-white/12 text-white"
+                              : "text-gray-400 hover:bg-white/6 hover:text-gray-200"
+                          )}
+                        >
+                          {mode === "bars" ? "Bars" : "Donut"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
@@ -109,6 +146,7 @@ export function StatsCustomizePanel({
   unavailableWidgets,
   onHideWidget,
   onShowWidget,
+  onDisplayModeChange,
   onResetView,
 }: StatsCustomizePanelProps) {
   return (
@@ -140,6 +178,7 @@ export function StatsCustomizePanel({
             actionLabel="Hide"
             actionIcon="hide"
             onAction={onHideWidget}
+            onDisplayModeChange={onDisplayModeChange}
           />
 
           <StatsCustomizeSection
@@ -150,6 +189,7 @@ export function StatsCustomizePanel({
             actionLabel="Show"
             actionIcon="show"
             onAction={onShowWidget}
+            onDisplayModeChange={onDisplayModeChange}
           />
 
           <StatsCustomizeSection
@@ -157,6 +197,7 @@ export function StatsCustomizePanel({
             description="These widgets are excluded by the current filters and will return automatically when available."
             items={unavailableWidgets}
             emptyMessage="All registered widgets are currently available."
+            onDisplayModeChange={onDisplayModeChange}
           />
         </div>
       </div>

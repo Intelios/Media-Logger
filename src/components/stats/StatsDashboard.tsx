@@ -13,13 +13,14 @@ import {
   type StatsFilterPreset,
   type StatsPresetKey,
   type StatsWidgetDefinition,
+  type StatsWidgetDisplayMode,
   type StatsWidgetHeightPreset,
   type StatsWidgetId,
   type StatsWidgetLayoutRole,
   type StatsWidgetSize,
   type SummaryWidgetId,
 } from "./stats-config";
-import type { StatsDashboardViewLayout } from "./stats-layout";
+import { getStatsDashboardWidgetDisplayMode, type StatsDashboardViewLayout } from "./stats-layout";
 import { getOrderedStatsWidgetDefinitions } from "./stats-registry";
 
 interface StatsDashboardProps {
@@ -42,6 +43,7 @@ interface StatsDashboardProps {
   onMainOrderChange: (nextVisibleOrder: MainWidgetId[]) => void;
   onHideWidget: (widgetId: StatsWidgetId) => void;
   onShowWidget: (widgetId: StatsWidgetId) => void;
+  onDisplayModeChange: (widgetId: StatsWidgetId, displayMode: StatsWidgetDisplayMode) => void;
   onResetActiveView: () => void;
   data: FullStats;
   onPerfect10Click: () => void;
@@ -54,12 +56,14 @@ function isWidgetAvailable(definition: StatsWidgetDefinition, context: StatsDash
   return definition.isAvailable?.(context) ?? true;
 }
 
-function toCustomizePanelItem(definition: StatsWidgetDefinition) {
+function toCustomizePanelItem(definition: StatsWidgetDefinition, layout: StatsDashboardViewLayout) {
   return {
     id: definition.id,
     title: definition.title,
     description: definition.description,
     zone: definition.zone,
+    displayModeOptions: definition.displayModeOptions,
+    displayMode: getStatsDashboardWidgetDisplayMode(layout.displayModes, definition.id),
   };
 }
 
@@ -83,6 +87,7 @@ export function StatsDashboard({
   onMainOrderChange,
   onHideWidget,
   onShowWidget,
+  onDisplayModeChange,
   onResetActiveView,
   data,
   onPerfect10Click,
@@ -93,6 +98,7 @@ export function StatsDashboard({
   const renderContext: StatsDashboardRenderContext = {
     activeYear,
     selectedTypes,
+    displayModes: layout.displayModes,
     data,
     onPerfect10Click,
     onThisMonthClick,
@@ -114,9 +120,15 @@ export function StatsDashboard({
   const visibleMainWidgets = availableMainWidgets.filter((definition) => !hiddenSet.has(definition.id));
   const hiddenMainWidgets = availableMainWidgets.filter((definition) => hiddenSet.has(definition.id));
 
-  const visiblePanelItems = [...visibleSummaryWidgets, ...visibleMainWidgets].map(toCustomizePanelItem);
-  const hiddenPanelItems = [...hiddenSummaryWidgets, ...hiddenMainWidgets].map(toCustomizePanelItem);
-  const unavailablePanelItems = [...unavailableSummaryWidgets, ...unavailableMainWidgets].map(toCustomizePanelItem);
+  const visiblePanelItems = [...visibleSummaryWidgets, ...visibleMainWidgets].map((definition) =>
+    toCustomizePanelItem(definition, layout)
+  );
+  const hiddenPanelItems = [...hiddenSummaryWidgets, ...hiddenMainWidgets].map((definition) =>
+    toCustomizePanelItem(definition, layout)
+  );
+  const unavailablePanelItems = [...unavailableSummaryWidgets, ...unavailableMainWidgets].map((definition) =>
+    toCustomizePanelItem(definition, layout)
+  );
 
   const containerClassName = isCustomizing
     ? STATS_CUSTOMIZE_WORKSPACE_CLASSNAME
@@ -178,6 +190,7 @@ export function StatsDashboard({
             unavailableWidgets={unavailablePanelItems}
             onHideWidget={onHideWidget}
             onShowWidget={onShowWidget}
+            onDisplayModeChange={onDisplayModeChange}
             onResetView={onResetActiveView}
           />
         ) : null}

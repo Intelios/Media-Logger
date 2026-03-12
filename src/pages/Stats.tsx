@@ -17,8 +17,9 @@ import {
   hideStatsDashboardWidget,
   loadStatsDashboardPreferences,
   saveStatsDashboardPreferences,
+  setStatsDashboardWidgetDisplayMode,
   showStatsDashboardWidget,
-  type StatsDashboardPreferencesV2,
+  type StatsDashboardPreferences,
 } from "../components/stats/stats-layout";
 import { getAvailableNavigationYears, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
 import { type MediaEntry } from "../lib/db";
@@ -103,7 +104,7 @@ export default function StatsPage() {
   const [activeYear, setActiveYear] = useState(loadPersistedYear);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedTypes);
   const [activePreset, setActivePreset] = useState<StatsPresetKey>(loadPersistedPreset);
-  const [dashboardPreferences, setDashboardPreferences] = useState<StatsDashboardPreferencesV2>(loadStatsDashboardPreferences);
+  const [dashboardPreferences, setDashboardPreferences] = useState<StatsDashboardPreferences>(loadStatsDashboardPreferences);
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [data, setData] = useState<FullStats | null>(null);
 
@@ -217,7 +218,7 @@ export default function StatsPage() {
   const activeLayout = dashboardPreferences.views[activeView];
 
   const updateActiveViewLayout = (
-    updater: (layout: StatsDashboardPreferencesV2["views"][StatsDashboardViewId]) => StatsDashboardPreferencesV2["views"][StatsDashboardViewId]
+    updater: (layout: StatsDashboardPreferences["views"][StatsDashboardViewId]) => StatsDashboardPreferences["views"][StatsDashboardViewId]
   ) => {
     setDashboardPreferences((currentPreferences) => ({
       ...currentPreferences,
@@ -257,6 +258,10 @@ export default function StatsPage() {
     updateActiveViewLayout((layout) => showStatsDashboardWidget(layout, widgetId));
   };
 
+  const handleDisplayModeChange = (widgetId: StatsWidgetId, displayMode: "bars" | "donut") => {
+    updateActiveViewLayout((layout) => setStatsDashboardWidgetDisplayMode(layout, widgetId, displayMode));
+  };
+
   const handleResetActiveView = () => {
     setDashboardPreferences((currentPreferences) => ({
       ...currentPreferences,
@@ -293,6 +298,7 @@ export default function StatsPage() {
         onMainOrderChange={handleMainOrderChange}
         onHideWidget={handleHideWidget}
         onShowWidget={handleShowWidget}
+        onDisplayModeChange={handleDisplayModeChange}
         onResetActiveView={handleResetActiveView}
         data={data}
         onPerfect10Click={handlePerfect10Click}
