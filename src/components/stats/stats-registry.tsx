@@ -13,10 +13,12 @@ import {
 } from "lucide-react";
 import { StatsSummaryCard } from "./StatsSummaryCard";
 import { STATS_WIDGET_META, type StatsDashboardRenderContext, type StatsWidgetDefinition, type StatsWidgetId, type StatsWidgetZone } from "./stats-config";
+import { AverageScoreByTypeWidget } from "./widgets/AverageScoreByTypeWidget";
 import { BreakdownListWidget } from "./widgets/BreakdownListWidget";
 import { ContentTypeBreakdownWidget } from "./widgets/ContentTypeBreakdownWidget";
 import { MonthlyActivityWidget } from "./widgets/MonthlyActivityWidget";
 import { RatingDistributionWidget } from "./widgets/RatingDistributionWidget";
+import { ScoreTrendWidget } from "./widgets/ScoreTrendWidget";
 import { TopGenresWidget } from "./widgets/TopGenresWidget";
 
 function isRelevantToEntryTypes(selectedTypes: string[], relevantTypes: string[]) {
@@ -124,6 +126,17 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
     render: (context) => (
       <ContentTypeBreakdownWidget items={context.data.mediaTypeBreakdown} totalEntries={context.data.total} />
     ),
+  }),
+  "score-trend": createStatsWidgetDefinition("score-trend", {
+    render: (context) => (
+      <ScoreTrendWidget
+        timeline={context.data.scoreTimeline}
+        granularity={context.data.scoreTimelineGranularity}
+      />
+    ),
+  }),
+  "average-score-by-type": createStatsWidgetDefinition("average-score-by-type", {
+    render: (context) => <AverageScoreByTypeWidget items={context.data.averageScoreByType} />,
   }),
   platforms: createStatsWidgetDefinition("platforms", {
     isAvailable: (context) => isRelevantToEntryTypes(context.selectedTypes, ["Game"]),

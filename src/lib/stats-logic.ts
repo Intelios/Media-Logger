@@ -10,6 +10,12 @@ export interface StatItem {
   [key: string]: string | number | undefined;
 }
 
+export interface ScoreTimelinePoint {
+  label: string;
+  averageScore: number | null;
+  count: number;
+}
+
 export interface FullStats {
   total: number;
   average_score: number;
@@ -25,6 +31,9 @@ export interface FullStats {
   entriesThisMonth: number;
   monthlyCompletions: { month: string; count: number }[];
   mediaTypeBreakdown: StatItem[];
+  scoreTimeline: ScoreTimelinePoint[];
+  scoreTimelineGranularity: "month" | "year";
+  averageScoreByType: StatItem[];
 }
 
 export interface StatsFilters {
@@ -49,6 +58,10 @@ type CountableField =
   | "entry_type";
 
 const MONTH_KEYS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+function getTimelineGranularity(filters: StatsFilters): "month" | "year" {
+  return filters.year && filters.year !== "All Time" ? "month" : "year";
+}
 
 function appendStatsFilters(query: string, params: Array<string | number>, filters: StatsFilters) {
   let nextQuery = query;
@@ -246,8 +259,74 @@ export function selectMediaTypeBreakdown(dataset: StatsDataset) {
   return countWithScores(dataset.entries, "entry_type").slice(0, 15);
 }
 
-export function buildFullStatsFromDataset(dataset: StatsDataset): FullStats {
+export function selectScoreTimeline(dataset: StatsDataset, granularity: "month" | "year"): ScoreTimelinePoint[] {
+  if (granularity === "month") {
+    const monthlyScores = MONTH_KEYS.reduce<
+      Record<(typeof MONTH_KEYS)[number], { totalScore: number; count: number }>
+    >((accumulator, month) => {
+      accumulator[month] = { totalScore: 0, count: 0 };
+      return accumulator;
+    }, {} as Record<(typeof MONTH_KEYS)[number], { totalScore: number; count: number }>);
+
+    for (const entry of dataset.ratedEntries) {
+      if (!entry.completion_date) {
+        continue;
+      }
+
+      const month = getMonthFromDate(entry.completion_date);
+      if (month in monthlyScores) {
+        monthlyScores[month as keyof typeof monthlyScores].totalScore += entry.review_score;
+        monthlyScores[month as keyof typeof monthlyScores].count += 1;
+      }
+    }
+
+    return MONTH_KEYS.map((month) => ({
+      label: month,
+      averageScore: monthlyScores[month].count > 0 ? monthlyScores[month].totalScore / monthlyScores[month].count : null,
+      count: monthlyScores[month].count,
+    }));
+  }
+
+  const yearlyScores = new Map<string, { totalScore: number; count: number }>();
+
+  for (const entry of dataset.ratedEntries) {
+    if (!entry.completion_date) {
+      continue;
+    }
+
+    try {
+      const yearLabel = new Date(entry.completion_date).getFullYear().toString();
+      const current = yearlyScores.get(yearLabel) ?? { totalScore: 0, count: 0 };
+      current.totalScore += entry.review_score;
+      current.count += 1;
+      yearlyScores.set(yearLabel, current);
+    } catch {
+      // Ignore invalid dates.
+    }
+  }
+
+  return [...yearlyScores.entries()]
+    .sort(([leftYear], [rightYear]) => Number(leftYear) - Number(rightYear))
+    .map(([label, value]) => ({
+      label,
+      averageScore: value.count > 0 ? value.totalScore / value.count : null,
+      count: value.count,
+    }));
+}
+
+export function selectAverageScoreByType(dataset: StatsDataset) {
+  return countWithScores(dataset.entries, "entry_type")
+    .filter((item) => item.avgScore !== undefined)
+    .sort((left, right) => {
+      const avgDiff = (right.avgScore ?? 0) - (left.avgScore ?? 0);
+      return avgDiff !== 0 ? avgDiff : right.count - left.count;
+    })
+    .slice(0, 8);
+}
+
+export function buildFullStatsFromDataset(dataset: StatsDataset, filters: StatsFilters = {}): FullStats {
   const basicStats = selectBasicStats(dataset);
+  const timelineGranularity = getTimelineGranularity(filters);
 
   return {
     ...basicStats,
@@ -260,6 +339,9 @@ export function buildFullStatsFromDataset(dataset: StatsDataset): FullStats {
     actresses: selectActresses(dataset),
     monthlyCompletions: selectMonthlyCompletions(dataset),
     mediaTypeBreakdown: selectMediaTypeBreakdown(dataset),
+    scoreTimeline: selectScoreTimeline(dataset, timelineGranularity),
+    scoreTimelineGranularity: timelineGranularity,
+    averageScoreByType: selectAverageScoreByType(dataset),
   };
 }
 
@@ -323,13 +405,15 @@ export const statsSelectors = {
   selectAuthors,
   selectActresses,
   selectMediaTypeBreakdown,
+  selectScoreTimeline,
+  selectAverageScoreByType,
   buildFullStatsFromDataset,
 };
 
 export const statsLogic = {
   async getStats(yearFilter?: string, typeFilter: string[] = []): Promise<FullStats> {
     const entries = await getFilteredEntries({ year: yearFilter, types: typeFilter });
-    return buildFullStatsFromDataset(createStatsDataset(entries));
+    return buildFullStatsFromDataset(createStatsDataset(entries), { year: yearFilter, types: typeFilter });
   },
 
   async getFilteredEntries(yearFilter?: string, typeFilter: string[] = []) {

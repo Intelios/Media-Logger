@@ -151,6 +151,18 @@ Delivered in this phase:
 - The public `statsLogic.getStats()` contract still exists, so the dashboard UI did not need to change
 - Drilldown queries remain separate and now reuse the same base filter-building path as the main stats fetch
 
+## Phase 7 Status
+
+Phase 7 is complete.
+
+Delivered in this phase:
+
+- Two new widgets were added: `Score Trend` and `Average Score by Type`
+- The data layer now exposes focused stats for score timelines and type-level averages
+- New widgets were added carefully to the registry and layout system without changing customization behavior
+- `Dashboard` now shows the new widgets by default, while `Overview` keeps them hidden by default to stay calmer
+- Existing layout normalization continues to append the new widgets safely for current users
+
 ## Phase 0 Decisions
 
 ### 1. Dashboard Structure
@@ -552,7 +564,6 @@ Possible future widgets:
 - Average Score by Type
 - Top Platforms by Score
 - Genre Trend Over Time
-- Completion Pace
 - Milestones and records
 - Personalized highlight widgets
 - And anything else that makes sense to add
@@ -560,6 +571,10 @@ Possible future widgets:
 Rule:
 
 - New widgets should only be added if they are clearly useful or visually distinct
+
+Status:
+
+- Complete
 
 ### Phase 8: Polish, QA, and Hardening
 
