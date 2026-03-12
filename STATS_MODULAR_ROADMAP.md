@@ -539,6 +539,7 @@ Possible future widgets:
 - Completion Pace
 - Milestones and records
 - Personalized highlight widgets
+- And anything else that makes sense to add
 
 Rule:
 
