@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw } from "lucide-react";
+import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw, Trophy } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
 import { awardsLogic } from "../lib/awards-logic";
@@ -8,7 +8,7 @@ import type { MediaEntry } from "../lib/db";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { getImageUrl } from "../lib/utils";
 
-type ViewMode = 'collection' | 'timeline';
+type ViewMode = 'collection' | 'timeline' | 'awards';
 
 // Filter Options with visual config - each type has its own color palette
 const PROFILE_TYPES = [
@@ -280,6 +280,73 @@ function TimelineCard({
   );
 }
 
+// --- SUB-COMPONENT: Award Entry Card ---
+function AwardCard({
+  entry,
+  categoryName,
+  profileConfig,
+  index
+}: {
+  entry: MediaEntry;
+  categoryName: string;
+  profileConfig: typeof PROFILE_TYPES[number];
+  index: number;
+}) {
+  const [imgSrc, setImgSrc] = useState('');
+
+  useEffect(() => {
+    if (entry.image_url) {
+      getImageUrl(entry.image_url).then(setImgSrc);
+    }
+  }, [entry.image_url]);
+
+  return (
+    <div
+      className="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden hover:border-white/25 transition-all duration-300 hover:scale-[1.01] hover:shadow-2xl hover:shadow-black/40"
+      style={{
+        animationDelay: `${index * 80}ms`,
+        animation: 'fadeInUp 0.5s ease-out forwards',
+        opacity: 0
+      }}
+    >
+      <div className="flex gap-4 p-4 items-center">
+        {/* Entry Thumbnail */}
+        <div className="w-14 h-20 rounded-lg overflow-hidden bg-black/40 flex-shrink-0 border border-white/10">
+          {imgSrc ? (
+            <img src={imgSrc} className="w-full h-full object-cover" alt={entry.name} />
+          ) : (
+            <div className={`w-full h-full bg-gradient-to-br ${profileConfig.placeholderGradient} opacity-30`} />
+          )}
+        </div>
+
+        {/* Entry Info */}
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-medium text-sm truncate">{entry.name}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-gray-400 capitalize bg-white/5 px-2 py-0.5 rounded">
+              {entry.entry_type || 'Entry'}
+            </span>
+            {entry.review_score && (
+              <div className="flex items-center gap-1 text-yellow-500">
+                <Star size={10} fill="currentColor" />
+                <span className="text-xs font-medium">{entry.review_score}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Award Badge */}
+        <div className="flex-shrink-0">
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r ${profileConfig.badgeGradient} shadow-lg ${profileConfig.badgeShadow}`}>
+            <Trophy size={14} className="text-white" />
+            <span className="text-white text-xs font-bold whitespace-nowrap">{categoryName}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- SUB-COMPONENT: Individual Profile Card for the Grid ---
 function ProfileCard({ profile, onClick }: { profile: ProfileSummary, onClick: (p: ProfileSummary) => void }) {
   const [imgSrc, setImgSrc] = useState("");
@@ -352,6 +419,28 @@ export default function ProfilesPage() {
 
   // View Mode State
   const [viewMode, setViewMode] = useState<ViewMode>('collection');
+
+  // Derived: awards grouped by year for the Awards tab
+  const awardsByYear = useMemo(() => {
+    const items: { entry: MediaEntry; categoryName: string; year: number }[] = [];
+    awardsMap.forEach((awards, entryId) => {
+      const entry = profileEntries.find(e => e.id === entryId);
+      if (entry) {
+        awards.forEach(a => items.push({ entry, categoryName: a.categoryName, year: a.year }));
+      }
+    });
+
+    const byYear = new Map<number, typeof items>();
+    items.forEach(item => {
+      const group = byYear.get(item.year) || [];
+      group.push(item);
+      byYear.set(item.year, group);
+    });
+
+    return [...byYear.entries()]
+      .sort(([a], [b]) => b - a)
+      .map(([year, awards]) => ({ year, awards }));
+  }, [awardsMap, profileEntries]);
 
   // Detail View Image State
   const [headerImgSrc, setHeaderImgSrc] = useState("");
@@ -666,6 +755,16 @@ export default function ProfilesPage() {
                 <Clock size={16} />
                 <span>Timeline</span>
               </button>
+              <button
+                onClick={() => setViewMode('awards')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'awards'
+                  ? `bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
+              >
+                <Trophy size={16} />
+                <span>Awards</span>
+              </button>
             </div>
 
             <div className={`h-px flex-1 bg-gradient-to-l from-transparent ${selectedProfileConfig.dividerGradient}`} />
@@ -692,7 +791,7 @@ export default function ProfilesPage() {
               ))}
             </div>
           </div>
-        ) : (
+        ) : viewMode === 'timeline' ? (
           /* Timeline View */
           <div className="px-6 pb-10">
             {/* Timeline Header */}
@@ -731,6 +830,53 @@ export default function ProfilesPage() {
                   <span className="text-gray-500 mx-2">|</span>
                   <span className="text-gray-400 text-xs">{timelineEntries.length} entries total</span>
                 </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Awards View */
+          <div className="px-6 pb-10">
+            {awardsByYear.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <Trophy size={48} className="text-gray-600 mb-4" />
+                <p className="text-gray-400 text-lg font-medium">No Awards Yet</p>
+                <p className="text-gray-500 text-sm mt-1">
+                  Entries from <span className={`${selectedProfileConfig.color} font-medium`}>{selectedProfile.name}</span> haven't received any awards
+                </p>
+              </div>
+            ) : (
+              <div className="max-w-3xl mx-auto space-y-8">
+                <div className="text-center mb-8">
+                  <p className="text-gray-400 text-sm">
+                    <span className={`${selectedProfileConfig.color} font-medium`}>{selectedProfile.name}</span>'s award-winning entries
+                  </p>
+                </div>
+
+                {awardsByYear.map(({ year, awards }) => (
+                  <div key={year}>
+                    {/* Year Header */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className={`h-px flex-1 bg-gradient-to-r from-transparent ${selectedProfileConfig.dividerGradient}`} />
+                      <span className={`text-sm font-bold bg-gradient-to-r ${selectedProfileConfig.badgeGradient} bg-clip-text text-transparent`}>
+                        {year}
+                      </span>
+                      <div className={`h-px flex-1 bg-gradient-to-l from-transparent ${selectedProfileConfig.dividerGradient}`} />
+                    </div>
+
+                    {/* Award Cards */}
+                    <div className="space-y-3">
+                      {awards.map((item, idx) => (
+                        <AwardCard
+                          key={`${item.entry.id}-${item.categoryName}-${idx}`}
+                          entry={item.entry}
+                          categoryName={item.categoryName}
+                          profileConfig={selectedProfileConfig}
+                          index={idx}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
