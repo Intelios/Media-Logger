@@ -23,6 +23,7 @@ import {
 import { AverageScoreByTypeWidget } from "./widgets/AverageScoreByTypeWidget";
 import { BreakdownListWidget } from "./widgets/BreakdownListWidget";
 import { ContentTypeBreakdownWidget } from "./widgets/ContentTypeBreakdownWidget";
+import { MultiLogDaysWidget } from "./widgets/MultiLogDaysWidget";
 import { MonthlyActivityWidget } from "./widgets/MonthlyActivityWidget";
 import { RatingDistributionWidget } from "./widgets/RatingDistributionWidget";
 import { ScoreTrendWidget } from "./widgets/ScoreTrendWidget";
@@ -137,6 +138,9 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
     render: (context) => (
       <ContentTypeBreakdownWidget items={context.data.mediaTypeBreakdown} totalEntries={context.data.total} />
     ),
+  }),
+  "multi-log-days": createStatsWidgetDefinition("multi-log-days", {
+    render: (context) => <MultiLogDaysWidget multiLogDays={context.data.multiLogDays} />,
   }),
   "score-trend": createStatsWidgetDefinition("score-trend", {
     render: (context) => (
