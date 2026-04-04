@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Calendar } from "lucide-react";
 import type { MultiLogDay } from "../../../lib/stats-logic";
+import { useStatsWidgetEditContext } from "../StatsEditableWidgetFrame";
 import { StatsWidgetShell } from "../StatsWidgetShell";
 import { STATS_WIDGET_META } from "../stats-config";
 
 interface MultiLogDaysWidgetProps {
   multiLogDays: MultiLogDay[];
+  onDayClick: (date: string) => void;
 }
 
 const STORAGE_KEY = "stats-section-multi-log-days";
@@ -33,9 +35,10 @@ function formatMultiLogDate(dateString: string) {
   }).format(date);
 }
 
-export function MultiLogDaysWidget({ multiLogDays }: MultiLogDaysWidgetProps) {
+export function MultiLogDaysWidget({ multiLogDays, onDayClick }: MultiLogDaysWidgetProps) {
   const meta = STATS_WIDGET_META["multi-log-days"];
   const [isExpanded, setIsExpanded] = useState(() => localStorage.getItem(STORAGE_KEY) === "true");
+  const { isCustomizing } = useStatsWidgetEditContext();
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, String(isExpanded));
@@ -83,9 +86,23 @@ export function MultiLogDaysWidget({ multiLogDays }: MultiLogDaysWidgetProps) {
             className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <time dateTime={day.date} className="text-base font-semibold text-white">
-                {formatMultiLogDate(day.date)}
-              </time>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isCustomizing) {
+                    onDayClick(day.date);
+                  }
+                }}
+                disabled={isCustomizing}
+                className="group text-left"
+              >
+                <time
+                  dateTime={day.date}
+                  className="text-base font-semibold text-white transition-colors group-hover:text-sky-300"
+                >
+                  {formatMultiLogDate(day.date)}
+                </time>
+              </button>
               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-gray-300">
                 {day.entries.length} {day.entries.length === 1 ? "log" : "logs"}
               </span>

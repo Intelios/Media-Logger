@@ -59,6 +59,7 @@ export interface StatsDashboardRenderContext {
   onThisMonthClick: () => void;
   onViewAllGenres: () => void;
   onGenreClick: (genreName: string) => void;
+  onMultiLogDayClick: (date: string) => void;
 }
 
 export interface StatsWidgetMeta {

@@ -140,7 +140,12 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
     ),
   }),
   "multi-log-days": createStatsWidgetDefinition("multi-log-days", {
-    render: (context) => <MultiLogDaysWidget multiLogDays={context.data.multiLogDays} />,
+    render: (context) => (
+      <MultiLogDaysWidget
+        multiLogDays={context.data.multiLogDays}
+        onDayClick={context.onMultiLogDayClick}
+      />
+    ),
   }),
   "score-trend": createStatsWidgetDefinition("score-trend", {
     render: (context) => (
