@@ -424,6 +424,17 @@ async function getEntriesByGenre(genre: string, filters: StatsFilters): Promise<
   return entries.filter((entry) => getDelimitedValues(entry.genre).includes(genre));
 }
 
+async function getEntriesByCompletionDate(date: string, filters: StatsFilters): Promise<MediaEntry[]> {
+  const db = await dbService.connect();
+  const params: Array<string | number> = [date];
+  let query = "SELECT * FROM entries WHERE completion_date = $1";
+
+  query = appendStatsFilters(query, params, filters);
+  query += " ORDER BY id DESC";
+
+  return db.select<MediaEntry[]>(query, params);
+}
+
 async function getThisMonthEntries(filters: StatsFilters): Promise<MediaEntry[]> {
   const db = await dbService.connect();
   const now = new Date();
@@ -472,6 +483,10 @@ export const statsLogic = {
 
   async getEntriesByGenre(genre: string, yearFilter?: string, typeFilter: string[] = []) {
     return getEntriesByGenre(genre, { year: yearFilter, types: typeFilter });
+  },
+
+  async getEntriesByCompletionDate(date: string, yearFilter?: string, typeFilter: string[] = []) {
+    return getEntriesByCompletionDate(date, { year: yearFilter, types: typeFilter });
   },
 
   async getThisMonthEntries(yearFilter?: string, typeFilter: string[] = []) {

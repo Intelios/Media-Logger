@@ -222,6 +222,13 @@ export default function StatsPage() {
     setModalOpen(true);
   };
 
+  const handleMultiLogDayClick = async (date: string) => {
+    const entries = await statsLogic.getEntriesByCompletionDate(date, activeYear, selectedTypes);
+    setModalTitle(`Logged on: ${date}`);
+    setModalEntries(entries);
+    setModalOpen(true);
+  };
+
   const handleModalEntriesChange = () => {
     void statsLogic.getStats(activeYear, selectedTypes).then(setData);
     void profilesLogic.getProfileKeys().then(setProfileKeys);
@@ -233,6 +240,9 @@ export default function StatsPage() {
     } else if (modalTitle.startsWith("Genre: ")) {
       const genreName = modalTitle.replace("Genre: ", "");
       void statsLogic.getEntriesByGenre(genreName, activeYear, selectedTypes).then(setModalEntries);
+    } else if (modalTitle.startsWith("Logged on: ")) {
+      const date = modalTitle.replace("Logged on: ", "");
+      void statsLogic.getEntriesByCompletionDate(date, activeYear, selectedTypes).then(setModalEntries);
     }
   };
 
@@ -328,6 +338,7 @@ export default function StatsPage() {
         onThisMonthClick={handleThisMonthClick}
         onViewAllGenres={() => setGenreModalOpen(true)}
         onGenreClick={handleGenreClick}
+        onMultiLogDayClick={handleMultiLogDayClick}
       />
 
       <GenreBreakdownModal
