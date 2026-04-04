@@ -16,6 +16,18 @@ export interface ScoreTimelinePoint {
   count: number;
 }
 
+export interface MultiLogDayEntry {
+  id: number;
+  name: string;
+  entry_type: string | null;
+  review_score: number | null;
+}
+
+export interface MultiLogDay {
+  date: string;
+  entries: MultiLogDayEntry[];
+}
+
 export interface FullStats {
   total: number;
   average_score: number;
@@ -31,6 +43,7 @@ export interface FullStats {
   entriesThisMonth: number;
   monthlyCompletions: { month: string; count: number }[];
   mediaTypeBreakdown: StatItem[];
+  multiLogDays: MultiLogDay[];
   scoreTimeline: ScoreTimelinePoint[];
   scoreTimelineGranularity: "month" | "year";
   averageScoreByType: StatItem[];
@@ -259,6 +272,37 @@ export function selectMediaTypeBreakdown(dataset: StatsDataset) {
   return countWithScores(dataset.entries, "entry_type").slice(0, 15);
 }
 
+export function selectMultiLogDays(dataset: StatsDataset): MultiLogDay[] {
+  const days = new Map<string, MultiLogDayEntry[]>();
+
+  for (const entry of dataset.entries) {
+    const date = entry.completion_date?.trim();
+    if (!date) {
+      continue;
+    }
+
+    const entriesForDay = days.get(date) ?? [];
+    entriesForDay.push({
+      id: entry.id,
+      name: entry.name,
+      entry_type: entry.entry_type,
+      review_score: entry.review_score,
+    });
+    days.set(date, entriesForDay);
+  }
+
+  return [...days.entries()]
+    .filter(([, entries]) => entries.length > 1)
+    .sort(([leftDate], [rightDate]) => rightDate.localeCompare(leftDate))
+    .map(([date, entries]) => ({
+      date,
+      entries: [...entries].sort((left, right) => {
+        const idDiff = right.id - left.id;
+        return idDiff !== 0 ? idDiff : left.name.localeCompare(right.name);
+      }),
+    }));
+}
+
 export function selectScoreTimeline(dataset: StatsDataset, granularity: "month" | "year"): ScoreTimelinePoint[] {
   if (granularity === "month") {
     const monthlyScores = MONTH_KEYS.reduce<
@@ -339,6 +383,7 @@ export function buildFullStatsFromDataset(dataset: StatsDataset, filters: StatsF
     actresses: selectActresses(dataset),
     monthlyCompletions: selectMonthlyCompletions(dataset),
     mediaTypeBreakdown: selectMediaTypeBreakdown(dataset),
+    multiLogDays: selectMultiLogDays(dataset),
     scoreTimeline: selectScoreTimeline(dataset, timelineGranularity),
     scoreTimelineGranularity: timelineGranularity,
     averageScoreByType: selectAverageScoreByType(dataset),
@@ -405,6 +450,7 @@ export const statsSelectors = {
   selectAuthors,
   selectActresses,
   selectMediaTypeBreakdown,
+  selectMultiLogDays,
   selectScoreTimeline,
   selectAverageScoreByType,
   buildFullStatsFromDataset,
