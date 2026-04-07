@@ -54,6 +54,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
   const suggestions = useMemo(() => {
     const platforms = new Set<string>();
     const franchises = new Set<string>();
+    const series = new Set<string>();
     const authors = new Set<string>();
     const artists = new Set<string>();
     const directors = new Set<string>();
@@ -63,6 +64,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
     allEntries.forEach(e => {
       if (e.platform) platforms.add(e.platform);
       if (e.franchise) franchises.add(e.franchise);
+      if (e.series) series.add(e.series);
       if (e.author) authors.add(e.author);
       if (e.artist) artists.add(e.artist);
       if (e.director) directors.add(e.director);
@@ -83,6 +85,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
     return {
       platforms: Array.from(platforms).sort(),
       franchises: Array.from(franchises).sort(),
+      series: Array.from(series).sort(),
       authors: Array.from(authors).sort(),
       artists: Array.from(artists).sort(),
       directors: Array.from(directors).sort(),
@@ -186,6 +189,11 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
       // Completed applies only to Adult Visual Novels.
       if (key === "entry_type" && value !== "Adult Visual Novel") {
         next.is_completed = 0;
+      }
+
+      // Series applies only to Show, K-Drama, and Anime.
+      if (key === "entry_type" && !["Show", "K-Drama", "Anime"].includes(value as string)) {
+        next.series = null;
       }
 
       return next;
@@ -350,6 +358,22 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
             suggestions={suggestions.authors}
             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
             placeholder="Author name..."
+          />
+        </div>
+      )}
+
+      {["Show", "K-Drama", "Anime"].includes(formData.entry_type || "") && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+            <Sparkles size={14} className="text-teal-400" />
+            Series
+          </label>
+          <AutocompleteInput
+            value={formData.series || ""}
+            onChange={v => updateField("series", v)}
+            suggestions={suggestions.series}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+            placeholder="Breaking Bad, Stranger Things, One Piece..."
           />
         </div>
       )}

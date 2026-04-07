@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw, Trophy } from "lucide-react";
+import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw, Trophy, Tv } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
 import { awardsLogic } from "../lib/awards-logic";
@@ -113,6 +113,23 @@ const PROFILE_TYPES = [
     barGradient: "from-indigo-500 to-purple-500",
     dividerGradient: "to-indigo-500/20",
     accentColor: "text-indigo-400/60"
+  },
+  {
+    key: "series", label: "Series", icon: Tv,
+    gradient: "from-teal-500 to-cyan-600", color: "text-teal-400",
+    bgGradient: "from-teal-600/30 via-cyan-600/20 to-teal-600/30",
+    overlayGradient: "from-teal-500/10 to-cyan-500/10",
+    placeholderGradient: "from-teal-600 to-cyan-600",
+    badgeGradient: "from-teal-500 to-cyan-600",
+    badgeShadow: "shadow-teal-500/25",
+    borderColor: "border-teal-500/30",
+    ringColor: "ring-teal-500/10",
+    shadowColor: "shadow-teal-500/20",
+    bgIconColor: "bg-teal-500/10",
+    iconColor: "text-teal-400",
+    barGradient: "from-teal-500 to-cyan-500",
+    dividerGradient: "to-teal-500/20",
+    accentColor: "text-teal-400/60"
   },
 ];
 

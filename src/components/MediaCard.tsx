@@ -71,6 +71,9 @@ const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon
   if (type.includes("game") && entry.platform) {
     items.push({ label: "Platform", value: entry.platform, icon: <Gamepad2 size={12} />, profileType: "platform" });
   }
+  if ((type.includes("show") || type.includes("k-drama") || type.includes("anime")) && entry.series) {
+    items.push({ label: "Series", value: entry.series, icon: <Tv size={12} />, profileType: "series" });
+  }
   if (type.includes("jav") || type.includes("hentai")) {
     if (entry.actress) {
       items.push({ label: "Actress", value: entry.actress, icon: <Heart size={12} />, profileType: "actress" });

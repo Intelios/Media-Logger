@@ -17,6 +17,7 @@ interface SearchFilters {
   directors: string[];
   authors: string[];
   franchises: string[];
+  series: string[];
 }
 
 const defaultFilters: SearchFilters = {
@@ -26,6 +27,7 @@ const defaultFilters: SearchFilters = {
   directors: [],
   authors: [],
   franchises: [],
+  series: [],
 };
 
 const emptyFilterOptions: SearchFilterOptions = {
@@ -34,6 +36,7 @@ const emptyFilterOptions: SearchFilterOptions = {
   directors: [],
   authors: [],
   franchises: [],
+  series: [],
 };
 
 const loadPersistedFilters = (): SearchFilters => {
@@ -197,7 +200,9 @@ export default function SearchPage() {
     filters.actresses.length +
     filters.directors.length +
     filters.authors.length +
-    filters.franchises.length;
+    filters.franchises.length +
+    filters.series.length;
+    filters.series.length;
 
   const hasActiveSearch = query.trim().length > 0 || activeFilterCount > 0;
 
@@ -344,6 +349,14 @@ export default function SearchPage() {
                     selected={filters.franchises}
                     onChange={(value) => updateFilter("franchises", value)}
                     label="Franchise"
+                  />
+                )}
+                {filterOptions.series.length > 0 && (
+                  <MultiSelectFilter
+                    options={filterOptions.series}
+                    selected={filters.series}
+                    onChange={(value) => updateFilter("series", value)}
+                    label="Series"
                   />
                 )}
               </div>

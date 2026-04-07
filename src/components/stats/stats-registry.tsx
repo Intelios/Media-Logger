@@ -22,6 +22,7 @@ import {
 } from "./stats-config";
 import { AverageScoreByTypeWidget } from "./widgets/AverageScoreByTypeWidget";
 import { BreakdownListWidget } from "./widgets/BreakdownListWidget";
+import { CompletionHeatmapWidget } from "./widgets/CompletionHeatmapWidget";
 import { ContentTypeBreakdownWidget } from "./widgets/ContentTypeBreakdownWidget";
 import { MultiLogDaysWidget } from "./widgets/MultiLogDaysWidget";
 import { MonthlyActivityWidget } from "./widgets/MonthlyActivityWidget";
@@ -225,6 +226,14 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
         )}
         accentColor="pink"
         displayMode={context.displayModes.actresses ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
+      />
+    ),
+  }),
+  "completion-heatmap": createStatsWidgetDefinition("completion-heatmap", {
+    render: (context) => (
+      <CompletionHeatmapWidget
+        dailyCompletions={context.data.dailyCompletions}
+        activeYear={context.activeYear}
       />
     ),
   }),

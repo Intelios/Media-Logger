@@ -25,6 +25,7 @@ export interface MediaEntry {
   actress: string | null;
   update_version: string | null;
   franchise: string | null;
+  series: string | null;
 }
 
 export interface EntrySearchFilters {
@@ -35,6 +36,7 @@ export interface EntrySearchFilters {
   directors: string[];
   authors: string[];
   franchises: string[];
+  series: string[];
 }
 
 export interface SearchFilterOptions {
@@ -43,6 +45,7 @@ export interface SearchFilterOptions {
   directors: string[];
   authors: string[];
   franchises: string[];
+  series: string[];
 }
 
 // 2. Database Service
@@ -116,6 +119,13 @@ class DBService {
         console.log('[DB] Adding franchise column...');
         await this.db.execute("ALTER TABLE entries ADD COLUMN franchise TEXT");
         console.log('[DB] Franchise column added successfully');
+      }
+
+      // Add series column if it doesn't exist
+      if (!columnNames.includes('series')) {
+        console.log('[DB] Adding series column...');
+        await this.db.execute("ALTER TABLE entries ADD COLUMN series TEXT");
+        console.log('[DB] Series column added successfully');
       }
 
       // Add is_platinum column if it doesn't exist
@@ -332,7 +342,8 @@ class DBService {
           director TEXT,
           actress TEXT,
           update_version TEXT,
-          franchise TEXT
+          franchise TEXT,
+          series TEXT
         )
       `);
 
@@ -504,7 +515,7 @@ class DBService {
 
   private async getDistinctColumnValues(
     db: Database,
-    column: 'platform' | 'director' | 'author' | 'franchise'
+    column: 'platform' | 'director' | 'author' | 'franchise' | 'series'
   ): Promise<string[]> {
     const results = await db.select<{ value: string }[]>(
       `SELECT DISTINCT TRIM(${column}) as value
@@ -519,11 +530,12 @@ class DBService {
   async getSearchFilterOptions(): Promise<SearchFilterOptions> {
     const db = await this.connect();
 
-    const [platforms, directors, authors, franchises, actresses] = await Promise.all([
+    const [platforms, directors, authors, franchises, series, actresses] = await Promise.all([
       this.getDistinctColumnValues(db, 'platform'),
       this.getDistinctColumnValues(db, 'director'),
       this.getDistinctColumnValues(db, 'author'),
       this.getDistinctColumnValues(db, 'franchise'),
+      this.getDistinctColumnValues(db, 'series'),
       db.select<{ value: string }[]>(
         `WITH RECURSIVE split(value, rest) AS (
            SELECT '', TRIM(actress) || ','
@@ -549,6 +561,7 @@ class DBService {
       directors,
       authors,
       franchises,
+      series,
     };
   }
 
@@ -567,6 +580,7 @@ class DBService {
         'director',
         'actress',
         'platform',
+        'series',
       ];
 
       const likeValue = `%${this.escapeLike(query)}%`;
@@ -592,6 +606,7 @@ class DBService {
     addInFilter('director', filters.directors);
     addInFilter('author', filters.authors);
     addInFilter('franchise', filters.franchises);
+    addInFilter('series', filters.series);
 
     if (filters.actresses.length > 0) {
       const normalizedActressColumn = `(',' || REPLACE(REPLACE(COALESCE(actress, ''), ', ', ','), ' ,', ',') || ',')`;

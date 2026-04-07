@@ -9,7 +9,7 @@ export interface ProfileSummary {
   image_url?: string; // If you implement custom profile images later
 }
 
-export const PROFILE_TYPES = ["director", "actress", "artist", "author", "franchise"];
+export const PROFILE_TYPES = ["director", "actress", "artist", "author", "franchise", "series"];
 
 export const profilesLogic = {
   // Get list of all profiles (for the main Profiles grid)
@@ -64,6 +64,11 @@ export const profilesLogic = {
         }
         if (entry.franchise) {
           processField(entry, "franchise", "franchise");
+        }
+      }
+      if (["Show", "K-Drama", "Anime"].includes(entry.entry_type || "")) {
+        if (entry.series) {
+          processField(entry, "series", "series");
         }
       }
     });
