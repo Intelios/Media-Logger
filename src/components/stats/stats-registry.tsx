@@ -234,6 +234,7 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
       <CompletionHeatmapWidget
         dailyCompletions={context.data.dailyCompletions}
         activeYear={context.activeYear}
+        onDateClick={context.onHeatmapDateClick}
       />
     ),
   }),

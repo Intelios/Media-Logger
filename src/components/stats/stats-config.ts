@@ -61,6 +61,7 @@ export interface StatsDashboardRenderContext {
   onViewAllGenres: () => void;
   onGenreClick: (genreName: string) => void;
   onMultiLogDayClick: (date: string) => void;
+  onHeatmapDateClick: (date: string) => void;
 }
 
 export interface StatsWidgetMeta {

@@ -6,6 +6,7 @@ import type { DailyCompletion } from "../../../lib/stats-logic";
 interface CompletionHeatmapWidgetProps {
   dailyCompletions: DailyCompletion[];
   activeYear: string;
+  onDateClick: (date: string) => void;
 }
 
 const HEATMAP_COLORS = [
@@ -99,7 +100,7 @@ function buildHeatmapData(dailyCompletions: DailyCompletion[], activeYear: strin
   return { columns, monthPositions };
 }
 
-export function CompletionHeatmapWidget({ dailyCompletions, activeYear }: CompletionHeatmapWidgetProps) {
+export function CompletionHeatmapWidget({ dailyCompletions, activeYear, onDateClick }: CompletionHeatmapWidgetProps) {
   const meta = STATS_WIDGET_META["completion-heatmap"];
   const { columns, monthPositions } = buildHeatmapData(dailyCompletions, activeYear);
 
@@ -153,11 +154,16 @@ export function CompletionHeatmapWidget({ dailyCompletions, activeYear }: Comple
             {columns.map((column, colIndex) => (
               <div key={colIndex} className="flex flex-col gap-1">
                 {column.map((day, dayIndex) => (
-                  <div
+                  <button
                     key={dayIndex}
+                    type="button"
+                    disabled={!day.date || day.count === 0}
+                    onClick={() => day.date && onDateClick(day.date)}
                     className={`h-3 w-3 rounded-sm ${day.date ? getColorForCount(day.count) : "bg-transparent"} ${
-                      day.date ? "cursor-pointer transition-all hover:ring-1 hover:ring-white/30" : ""
-                    }`}
+                      day.date && day.count > 0
+                        ? "cursor-pointer transition-all hover:ring-1 hover:ring-white/30"
+                        : "cursor-default"
+                    } disabled:opacity-50`}
                     title={
                       day.date
                         ? `${formatDate(day.date)}: ${day.count} ${day.count === 1 ? "entry" : "entries"}`
