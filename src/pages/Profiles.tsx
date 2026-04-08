@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw, Trophy } from "lucide-react";
+import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw, Trophy, Tv, ArrowUp, ArrowDown } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
 import { awardsLogic } from "../lib/awards-logic";
@@ -114,9 +114,27 @@ const PROFILE_TYPES = [
     dividerGradient: "to-indigo-500/20",
     accentColor: "text-indigo-400/60"
   },
+  {
+    key: "series", label: "Series", icon: Tv,
+    gradient: "from-teal-500 to-cyan-600", color: "text-teal-400",
+    bgGradient: "from-teal-600/30 via-cyan-600/20 to-teal-600/30",
+    overlayGradient: "from-teal-500/10 to-cyan-500/10",
+    placeholderGradient: "from-teal-600 to-cyan-600",
+    badgeGradient: "from-teal-500 to-cyan-600",
+    badgeShadow: "shadow-teal-500/25",
+    borderColor: "border-teal-500/30",
+    ringColor: "ring-teal-500/10",
+    shadowColor: "shadow-teal-500/20",
+    bgIconColor: "bg-teal-500/10",
+    iconColor: "text-teal-400",
+    barGradient: "from-teal-500 to-cyan-500",
+    dividerGradient: "to-teal-500/20",
+    accentColor: "text-teal-400/60"
+  },
 ];
 
 const FILTER_STORAGE_KEY = "profiles-filter-types";
+const SORT_ORDER_KEY = "profiles-sort-order";
 
 // Helper to load persisted filter from localStorage
 const loadPersistedFilter = (): string[] => {
@@ -132,6 +150,26 @@ const loadPersistedFilter = (): string[] => {
     // If parsing fails, fall back to default
   }
   return PROFILE_TYPES.map(t => t.key); // Default: all types selected
+};
+
+// Per-profile sort order: stored as { "type:name": "oldest" | "newest" }
+const loadSortOrderMap = (): Record<string, "oldest" | "newest"> => {
+  try {
+    const stored = localStorage.getItem(SORT_ORDER_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (typeof parsed === "object" && parsed !== null) {
+        return parsed;
+      }
+    }
+  } catch {
+    // If parsing fails, fall back to default
+  }
+  return {}; // Default: empty map (falls back to "newest" per profile)
+};
+
+const getSortOrderForProfile = (profileKey: string, map: Record<string, "oldest" | "newest">): "oldest" | "newest" => {
+  return map[profileKey] || "newest";
 };
 
 // Get gradient for a profile type
@@ -420,6 +458,10 @@ export default function ProfilesPage() {
   // View Mode State
   const [viewMode, setViewMode] = useState<ViewMode>('collection');
 
+  // Sort Order State (per-profile, persisted)
+  const [sortOrderMap, setSortOrderMap] = useState<Record<string, "oldest" | "newest">>(loadSortOrderMap);
+  const sortOrder = selectedProfile ? getSortOrderForProfile(`${selectedProfile.type}:${selectedProfile.name}`, sortOrderMap) : "newest";
+
   // Derived: awards grouped by year for the Awards tab
   const awardsByYear = useMemo(() => {
     const items: { entry: MediaEntry; categoryName: string; year: number }[] = [];
@@ -494,6 +536,11 @@ export default function ProfilesPage() {
     localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(selectedTypes));
   }, [selectedTypes]);
 
+  // Persist sort order map to localStorage
+  useEffect(() => {
+    localStorage.setItem(SORT_ORDER_KEY, JSON.stringify(sortOrderMap));
+  }, [sortOrderMap]);
+
   // Filter Logic
   useEffect(() => {
     let res = profiles;
@@ -543,10 +590,15 @@ export default function ProfilesPage() {
   const handleProfileClick = async (profile: ProfileSummary) => {
     setSelectedProfile(profile);
     setViewMode('collection'); // Reset to collection view when opening a new profile
-    // Load both collection (newest first) and timeline (oldest first) entries
+    // Clear stale entries immediately so old profile's items don't flash during animation
+    setProfileEntries([]);
+    setTimelineEntries([]);
+    setAwardsMap(new Map());
+    // Load both collection and timeline entries based on current sort order
+    const collectionAscending = sortOrder === "oldest";
     const [collectionData, timelineData] = await Promise.all([
-      profilesLogic.getProfileDetails(profile.type, profile.name, false),
-      profilesLogic.getProfileDetails(profile.type, profile.name, true)
+      profilesLogic.getProfileDetails(profile.type, profile.name, collectionAscending),
+      profilesLogic.getProfileDetails(profile.type, profile.name, true) // Timeline always chronological
     ]);
     setProfileEntries(collectionData);
     setTimelineEntries(timelineData);
@@ -560,6 +612,13 @@ export default function ProfilesPage() {
       setAwardsMap(new Map());
     }
   };
+
+  // Re-fetch collection entries when sort order changes (if a profile is selected)
+  useEffect(() => {
+    if (!selectedProfile) return;
+    const collectionAscending = sortOrder === "oldest";
+    profilesLogic.getProfileDetails(selectedProfile.type, selectedProfile.name, collectionAscending).then(setProfileEntries);
+  }, [sortOrder, selectedProfile]);
 
   // Handle Image Upload
   const handleUpdateImage = async () => {
@@ -764,6 +823,40 @@ export default function ProfilesPage() {
               >
                 <Trophy size={16} />
                 <span>Awards</span>
+              </button>
+            </div>
+
+            {/* Sort Order Toggle */}
+            <div className="flex items-center gap-1 p-1 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl">
+              <button
+                onClick={() => {
+                  if (selectedProfile) {
+                    const key = `${selectedProfile.type}:${selectedProfile.name}`;
+                    setSortOrderMap(prev => ({ ...prev, [key]: "oldest" }));
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${sortOrder === "oldest"
+                  ? `bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
+              >
+                <ArrowUp size={14} />
+                <span>Oldest</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (selectedProfile) {
+                    const key = `${selectedProfile.type}:${selectedProfile.name}`;
+                    setSortOrderMap(prev => ({ ...prev, [key]: "newest" }));
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${sortOrder === "newest"
+                  ? `bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
+              >
+                <ArrowDown size={14} />
+                <span>Newest</span>
               </button>
             </div>
 

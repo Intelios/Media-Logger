@@ -163,6 +163,7 @@ const MEDIA_COLUMNS = [
     "actress",
     "update_version",
     "franchise",
+    "series",
 ];
 
 const COLLECTION_COLUMNS = ["id", "name", "description", "created_date"];

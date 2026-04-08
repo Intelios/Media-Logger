@@ -24,6 +24,7 @@ export const MAIN_WIDGET_IDS = [
   "studios",
   "authors",
   "actresses",
+  "completion-heatmap",
 ] as const;
 
 export const STATS_DASHBOARD_VIEW_IDS = ["overview", "dashboard"] as const;
@@ -60,6 +61,7 @@ export interface StatsDashboardRenderContext {
   onViewAllGenres: () => void;
   onGenreClick: (genreName: string) => void;
   onMultiLogDayClick: (date: string) => void;
+  onHeatmapDateClick: (date: string) => void;
 }
 
 export interface StatsWidgetMeta {
@@ -335,5 +337,17 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     defaultOrder: 11,
     supportsEmptyState: true,
     displayModeOptions: ["bars", "donut"],
+  },
+  "completion-heatmap": {
+    id: "completion-heatmap",
+    zone: "main",
+    title: "Completion Heatmap",
+    description: "GitHub-style contribution heatmap showing daily completion activity.",
+    defaultSize: "full",
+    layoutRole: "hero",
+    heightPreset: "standard",
+    defaultVisible: false,
+    defaultOrder: 12,
+    supportsEmptyState: true,
   },
 };

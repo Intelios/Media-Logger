@@ -52,6 +52,7 @@ interface StatsDashboardProps {
   onViewAllGenres: () => void;
   onGenreClick: (genreName: string) => void;
   onMultiLogDayClick: (date: string) => void;
+  onHeatmapDateClick: (date: string) => void;
 }
 
 function isWidgetAvailable(definition: StatsWidgetDefinition, context: StatsDashboardRenderContext) {
@@ -98,6 +99,7 @@ export function StatsDashboard({
   onViewAllGenres,
   onGenreClick,
   onMultiLogDayClick,
+  onHeatmapDateClick,
 }: StatsDashboardProps) {
   const renderContext: StatsDashboardRenderContext = {
     activeYear,
@@ -110,6 +112,7 @@ export function StatsDashboard({
     onViewAllGenres,
     onGenreClick,
     onMultiLogDayClick,
+    onHeatmapDateClick,
   };
   const hiddenSet = new Set(layout.hidden);
   const activeViewDefinition = STATS_DASHBOARD_VIEW_DEFINITIONS[activeView];

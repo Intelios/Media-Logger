@@ -28,6 +28,11 @@ export interface MultiLogDay {
   entries: MultiLogDayEntry[];
 }
 
+export interface DailyCompletion {
+  date: string;
+  count: number;
+}
+
 export interface FullStats {
   total: number;
   average_score: number;
@@ -36,6 +41,7 @@ export interface FullStats {
   genres: StatItem[];
   platforms: StatItem[];
   franchises: StatItem[];
+  series: StatItem[];
   studios: StatItem[];
   authors: StatItem[];
   actresses: StatItem[];
@@ -47,6 +53,7 @@ export interface FullStats {
   scoreTimeline: ScoreTimelinePoint[];
   scoreTimelineGranularity: "month" | "year";
   averageScoreByType: StatItem[];
+  dailyCompletions: DailyCompletion[];
 }
 
 export interface StatsFilters {
@@ -58,6 +65,7 @@ export interface StatsDataset {
   entries: MediaEntry[];
   ratedEntries: Array<MediaEntry & { review_score: number }>;
   gameEntries: MediaEntry[];
+  tvEntries: MediaEntry[];
   now: Date;
 }
 
@@ -65,6 +73,7 @@ type CountableField =
   | "genre"
   | "platform"
   | "franchise"
+  | "series"
   | "director"
   | "author"
   | "actress"
@@ -100,6 +109,10 @@ function hasReviewScore(entry: MediaEntry): entry is MediaEntry & { review_score
 
 function isGameEntry(entry: MediaEntry) {
   return typeof entry.entry_type === "string" && entry.entry_type.trim().toLowerCase() === "game";
+}
+
+function isTvEntry(entry: MediaEntry) {
+  return typeof entry.entry_type === "string" && ["show", "k-drama", "anime"].includes(entry.entry_type.trim().toLowerCase());
 }
 
 function getMonthFromDate(dateStr: string) {
@@ -166,6 +179,7 @@ export function createStatsDataset(entries: MediaEntry[], now = new Date()): Sta
     entries,
     ratedEntries: entries.filter(hasReviewScore),
     gameEntries: entries.filter(isGameEntry),
+    tvEntries: entries.filter(isTvEntry),
     now,
   };
 }
@@ -254,6 +268,10 @@ export function selectPlatforms(dataset: StatsDataset) {
 
 export function selectFranchises(dataset: StatsDataset) {
   return countWithScores(dataset.gameEntries, "franchise").slice(0, 25);
+}
+
+export function selectSeries(dataset: StatsDataset) {
+  return countWithScores(dataset.tvEntries, "series").slice(0, 25);
 }
 
 export function selectStudios(dataset: StatsDataset) {
@@ -368,6 +386,23 @@ export function selectAverageScoreByType(dataset: StatsDataset) {
     .slice(0, 8);
 }
 
+export function selectDailyCompletions(dataset: StatsDataset): DailyCompletion[] {
+  const dailyMap = new Map<string, number>();
+
+  for (const entry of dataset.entries) {
+    const date = entry.completion_date?.trim();
+    if (!date) {
+      continue;
+    }
+
+    dailyMap.set(date, (dailyMap.get(date) ?? 0) + 1);
+  }
+
+  return [...dailyMap.entries()]
+    .sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
+    .map(([date, count]) => ({ date, count }));
+}
+
 export function buildFullStatsFromDataset(dataset: StatsDataset, filters: StatsFilters = {}): FullStats {
   const basicStats = selectBasicStats(dataset);
   const timelineGranularity = getTimelineGranularity(filters);
@@ -378,6 +413,7 @@ export function buildFullStatsFromDataset(dataset: StatsDataset, filters: StatsF
     genres: selectGenres(dataset),
     platforms: selectPlatforms(dataset),
     franchises: selectFranchises(dataset),
+    series: selectSeries(dataset),
     studios: selectStudios(dataset),
     authors: selectAuthors(dataset),
     actresses: selectActresses(dataset),
@@ -387,6 +423,7 @@ export function buildFullStatsFromDataset(dataset: StatsDataset, filters: StatsF
     scoreTimeline: selectScoreTimeline(dataset, timelineGranularity),
     scoreTimelineGranularity: timelineGranularity,
     averageScoreByType: selectAverageScoreByType(dataset),
+    dailyCompletions: selectDailyCompletions(dataset),
   };
 }
 
