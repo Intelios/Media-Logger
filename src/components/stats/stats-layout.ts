@@ -179,21 +179,20 @@ export function normalizeStatsDashboardViewLayout(
 
   const candidate = value as Partial<Record<keyof StatsDashboardViewPreferences, unknown>>;
   const { summaryIds, mainIds, allIds } = getZoneIdSets();
+  const providedHiddenIds = Array.isArray(candidate.hidden) ? (candidate.hidden as unknown[]) : undefined;
 
-  const providedHidden = Array.isArray(candidate.hidden)
+  const providedHidden = providedHiddenIds
     ? dedupeWidgetIds(
-        candidate.hidden.filter(
+        providedHiddenIds.filter(
           (widgetId): widgetId is StatsWidgetId => typeof widgetId === "string" && allIds.has(widgetId as StatsWidgetId)
         )
       )
     : [];
 
-  const defaultHidden = defaultLayout.hidden.filter((widgetId) => !providedHidden.includes(widgetId));
-
   return {
     summaryOrder: normalizeZoneOrder<SummaryWidgetId>(candidate.summaryOrder, summaryIds, defaultLayout.summaryOrder),
     mainOrder: normalizeZoneOrder<MainWidgetId>(candidate.mainOrder, mainIds, defaultLayout.mainOrder),
-    hidden: [...defaultHidden, ...providedHidden],
+    hidden: providedHiddenIds ? providedHidden : defaultLayout.hidden,
     displayModes: normalizeDisplayModes(candidate.displayModes),
   };
 }
