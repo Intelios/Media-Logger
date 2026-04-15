@@ -168,6 +168,10 @@ const loadSortOrderMap = (): Record<string, "oldest" | "newest"> => {
   return {}; // Default: empty map (falls back to "newest" per profile)
 };
 
+const getProfileSortKey = (profile: Pick<ProfileSummary, "type" | "name">): string => {
+  return `${profile.type}:${profile.name}`;
+};
+
 const getSortOrderForProfile = (profileKey: string, map: Record<string, "oldest" | "newest">): "oldest" | "newest" => {
   return map[profileKey] || "newest";
 };
@@ -460,7 +464,7 @@ export default function ProfilesPage() {
 
   // Sort Order State (per-profile, persisted)
   const [sortOrderMap, setSortOrderMap] = useState<Record<string, "oldest" | "newest">>(loadSortOrderMap);
-  const sortOrder = selectedProfile ? getSortOrderForProfile(`${selectedProfile.type}:${selectedProfile.name}`, sortOrderMap) : "newest";
+  const sortOrder = selectedProfile ? getSortOrderForProfile(getProfileSortKey(selectedProfile), sortOrderMap) : "newest";
 
   // Derived: awards grouped by year for the Awards tab
   const awardsByYear = useMemo(() => {
@@ -594,8 +598,8 @@ export default function ProfilesPage() {
     setProfileEntries([]);
     setTimelineEntries([]);
     setAwardsMap(new Map());
-    // Load both collection and timeline entries based on current sort order
-    const collectionAscending = sortOrder === "oldest";
+    // Load both collection and timeline entries using the clicked profile's saved sort order.
+    const collectionAscending = getSortOrderForProfile(getProfileSortKey(profile), sortOrderMap) === "oldest";
     const [collectionData, timelineData] = await Promise.all([
       profilesLogic.getProfileDetails(profile.type, profile.name, collectionAscending),
       profilesLogic.getProfileDetails(profile.type, profile.name, true) // Timeline always chronological
@@ -831,7 +835,7 @@ export default function ProfilesPage() {
               <button
                 onClick={() => {
                   if (selectedProfile) {
-                    const key = `${selectedProfile.type}:${selectedProfile.name}`;
+                    const key = getProfileSortKey(selectedProfile);
                     setSortOrderMap(prev => ({ ...prev, [key]: "oldest" }));
                   }
                 }}
@@ -846,7 +850,7 @@ export default function ProfilesPage() {
               <button
                 onClick={() => {
                   if (selectedProfile) {
-                    const key = `${selectedProfile.type}:${selectedProfile.name}`;
+                    const key = getProfileSortKey(selectedProfile);
                     setSortOrderMap(prev => ({ ...prev, [key]: "newest" }));
                   }
                 }}
