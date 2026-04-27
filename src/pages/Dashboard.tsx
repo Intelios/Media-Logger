@@ -1,14 +1,16 @@
 import { useEffect, useState, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Library, Star, Calendar, Folder, ArrowRight, Search, BarChart3, CalendarDays, Sparkles, Hourglass, RotateCcw } from "lucide-react";
 import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";
 import { MediaCard } from "../components/MediaCard";
+import { MediaShelf } from "../components/MediaShelf";
 import type { MediaEntry } from "../lib/db";
 import { getImageUrl } from "../lib/utils";
 import { getDisplayName } from "../lib/settings";
 import { getAvailableNavigationYears, getCurrentYearString } from "../lib/navigation-years";
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recent, setRecent] = useState<MediaEntry[]>([]);
   const [featured, setFeatured] = useState<{ entry: MediaEntry; imageUrl: string } | null>(null);
@@ -65,6 +67,14 @@ export default function Dashboard() {
     };
     load();
   }, []);
+
+  const handleShelfClick = (entry: MediaEntry) => {
+    if (entry.year_completed) {
+      navigate(
+        `/year/${entry.year_completed}?highlight=${entry.id}&type=${encodeURIComponent(entry.entry_type || "")}`
+      );
+    }
+  };
 
   // Format today's month+day for the "On This Day" subheader (e.g. "April 27th")
   const formatTodayMD = (): string => {
@@ -236,13 +246,7 @@ export default function Dashboard() {
             <ArrowRight size={14} />
           </Link>
         </div>
-        <div className="dashboard-recent-grid">
-          {recent.map((entry, i) => (
-            <div key={entry.id} className="dashboard-recent-card" style={{ animationDelay: `${i * 0.05}s` }}>
-              <MediaCard entry={entry} />
-            </div>
-          ))}
-        </div>
+        <MediaShelf entries={recent} onItemClick={handleShelfClick} />
       </section>
 
       {/* On This Day */}
