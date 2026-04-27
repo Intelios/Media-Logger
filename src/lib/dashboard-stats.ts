@@ -72,5 +72,17 @@ export const dashboardLogic = {
     return await db.select<MediaEntry[]>(
       "SELECT * FROM entries WHERE completion_date IS NOT NULL ORDER BY completion_date DESC, id DESC LIMIT 6"
     );
+  },
+
+  async getOnThisDayEntries(): Promise<MediaEntry[]> {
+    const db = await dbService.connect();
+    const today = new Date();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    // substr(completion_date, 6, 5) extracts 'MM-DD' from 'YYYY-MM-DD'
+    return await db.select<MediaEntry[]>(
+      "SELECT * FROM entries WHERE completion_date IS NOT NULL AND substr(completion_date, 6, 5) = $1 ORDER BY completion_date DESC, id DESC LIMIT 12",
+      [`${month}-${day}`]
+    );
   }
 };

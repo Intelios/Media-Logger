@@ -1434,8 +1434,15 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.5rem;
   padding: 0 0.5rem;
+}
+
+.dashboard-recent-subtitle {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, #9ca3af);
+  padding: 0 0.5rem;
+  margin-bottom: 1.25rem;
 }
 
 .dashboard-section-title {

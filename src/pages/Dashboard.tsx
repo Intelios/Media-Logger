@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Library, Star, Calendar, Folder, ArrowRight, Search, BarChart3, CalendarDays, Sparkles } from "lucide-react";
+import { Library, Star, Calendar, Folder, ArrowRight, Search, BarChart3, CalendarDays, Sparkles, Hourglass } from "lucide-react";
 import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";
 import { MediaCard } from "../components/MediaCard";
 import type { MediaEntry } from "../lib/db";
@@ -16,6 +16,7 @@ export default function Dashboard() {
   const [displayName, setDisplayName] = useState("Collector");
   const [browseYear, setBrowseYear] = useState(getCurrentYearString());
   const [recentYear, setRecentYear] = useState(getCurrentYearString());
+  const [onThisDay, setOnThisDay] = useState<MediaEntry[]>([]);
 
   // Track the current load operation to prevent stale updates
   const loadIdRef = useRef(0);
@@ -35,11 +36,12 @@ export default function Dashboard() {
 
     // Load Data
     const load = async () => {
-      const [statsData, recentEntries, feat, availableYears] = await Promise.all([
+      const [statsData, recentEntries, feat, availableYears, onThisDayEntries] = await Promise.all([
         dashboardLogic.getStats(),
         dashboardLogic.getRecentEntries(),
         dashboardLogic.getFeaturedEntry(),
         getAvailableNavigationYears(),
+        dashboardLogic.getOnThisDayEntries(),
       ]);
 
       const fallbackYear = availableYears[availableYears.length - 1] || getCurrentYearString();
@@ -50,6 +52,7 @@ export default function Dashboard() {
         setRecent(recentEntries);
         setBrowseYear(fallbackYear);
         setRecentYear(recentWithYear?.year_completed ? String(recentWithYear.year_completed) : fallbackYear);
+        setOnThisDay(onThisDayEntries);
       }
 
       if (feat) {
@@ -62,6 +65,18 @@ export default function Dashboard() {
     };
     load();
   }, []);
+
+  // Format today's month+day for the "On This Day" subheader (e.g. "April 27th")
+  const formatTodayMD = (): string => {
+    const today = new Date();
+    const day = today.getDate();
+    const month = today.toLocaleString('en-US', { month: 'long' });
+    const suffix = (d: number) => {
+      if (d > 3 && d < 21) return 'th';
+      switch (d % 10) { case 1: return 'st'; case 2: return 'nd'; case 3: return 'rd'; default: return 'th'; }
+    };
+    return `${month} ${day}${suffix(day)}`;
+  };
 
   if (!stats) return (
     <div className="flex items-center justify-center h-64">
@@ -220,6 +235,30 @@ export default function Dashboard() {
           ))}
         </div>
       </section>
+
+      {/* On This Day */}
+      {onThisDay.length > 0 && (
+        <section className="dashboard-recent" style={{ animationDelay: '0.3s' }}>
+          <div className="dashboard-recent-header">
+            <h3 className="dashboard-section-title">
+              <span className="dashboard-section-icon"><Hourglass size={20} /></span>
+              On This Day
+            </h3>
+            <Link to="/search" className="dashboard-view-all">
+              View All
+              <ArrowRight size={14} />
+            </Link>
+          </div>
+          <p className="dashboard-recent-subtitle">Entries completed on {formatTodayMD()}</p>
+          <div className="dashboard-recent-grid">
+            {onThisDay.map((entry, i) => (
+              <div key={entry.id} className="dashboard-recent-card" style={{ animationDelay: `${i * 0.05}s` }}>
+                <MediaCard entry={entry} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
