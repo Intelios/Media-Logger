@@ -229,51 +229,52 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
             : "border border-white/10 hover:shadow-2xl hover:shadow-primary/20 hover:border-primary/40"
       )}>
 
-        {/* Image Container */}
-        <div className="h-52 w-full relative overflow-hidden rounded-t-2xl">
-          <img
-            src={imgSrc}
-            alt={entry.name}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-            loading="lazy"
-            onError={() => setImgSrc(DEFAULT_COVER_IMAGE)}
-          />
+        {/* Image + Thermometer Wrapper */}
+        <div className="relative">
+          {/* Image Container */}
+          <div className="h-52 w-full relative overflow-hidden rounded-t-2xl">
+            <img
+              src={imgSrc}
+              alt={entry.name}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+              loading="lazy"
+              onError={() => setImgSrc(DEFAULT_COVER_IMAGE)}
+            />
 
-          {/* Gradient Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            {/* Gradient Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-          {/* Platinum Badge */}
-          {hasPlatinum && (
-            <div className="absolute top-2 left-2 group/platinum z-20">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-amber-400/95 via-yellow-300/95 to-cyan-300/95 rounded-full shadow-lg shadow-cyan-500/25 border border-white/30">
-                <Trophy size={12} className="text-slate-900" />
-                <span className="text-[10px] font-black tracking-wide text-slate-900">PLATINUM 100%</span>
-              </div>
-              <div className="absolute bottom-full left-0 mb-2 opacity-0 invisible group-hover/platinum:opacity-100 group-hover/platinum:visible transition-all duration-200 z-30">
-                <div className="bg-surface/95 backdrop-blur-xl border border-cyan-300/40 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
-                  <span className="text-xs font-medium text-cyan-200">Platinum / 100% Completed</span>
+            {/* Platinum Badge */}
+            {hasPlatinum && (
+              <div className="absolute top-2 left-2 group/platinum z-20">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-amber-400/95 via-yellow-300/95 to-cyan-300/95 rounded-full shadow-lg shadow-cyan-500/25 border border-white/30">
+                  <Trophy size={12} className="text-slate-900" />
+                  <span className="text-[10px] font-black tracking-wide text-slate-900">PLATINUM 100%</span>
+                </div>
+                <div className="absolute bottom-full left-0 mb-2 opacity-0 invisible group-hover/platinum:opacity-100 group-hover/platinum:visible transition-all duration-200 z-30">
+                  <div className="bg-surface/95 backdrop-blur-xl border border-cyan-300/40 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
+                    <span className="text-xs font-medium text-cyan-200">Platinum / 100% Completed</span>
+                  </div>
                 </div>
               </div>
+            )}
+
+            {/* Top Right: Action Menu */}
+            <div className="absolute top-2 right-2 z-20" ref={menuRef}>
+              <button
+                ref={menuButtonRef}
+                onClick={handleMenuClick}
+                className={cn(
+                  "p-1.5 bg-black/50 backdrop-blur-sm rounded-full transition-all hover:bg-black/70",
+                  menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                )}
+              >
+                <MoreVertical size={16} className="text-white" />
+              </button>
             </div>
-          )}
 
-          {/* Top Right: Action Menu */}
-          <div className="absolute top-2 right-2 z-20" ref={menuRef}>
-            <button
-              ref={menuButtonRef}
-              onClick={handleMenuClick}
-              className={cn(
-                "p-1.5 bg-black/50 backdrop-blur-sm rounded-full transition-all hover:bg-black/70",
-                menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-              )}
-            >
-              <MoreVertical size={16} className="text-white" />
-            </button>
-          </div>
-
-          {/* Rating Display */}
-          {(entry.review_score !== null && entry.review_score !== undefined) && (
-            ratingDisplayMode === 'pill' ? (
+            {/* Rating Pill */}
+            {(entry.review_score !== null && entry.review_score !== undefined) && ratingDisplayMode === 'pill' && (
               <div className={cn(
                 "absolute top-2 px-2.5 py-1 rounded-full flex items-center gap-1 text-xs font-bold shadow-lg transition-all duration-300",
                 "right-2 group-hover:right-11",
@@ -282,31 +283,11 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
                 <Star size={11} className="fill-current" />
                 <span>{entry.review_score.toFixed(1)}</span>
               </div>
-            ) : (
-              <div className="absolute bottom-0 left-0 right-0 h-4 z-10 flex items-center">
-                <div className="w-full h-1 bg-black/50 rounded-full relative overflow-visible">
-                  <div
-                    className={cn("h-full rounded-full relative", getRatingColor(entry.review_score))}
-                    style={{ width: `${(entry.review_score / 10) * 100}%` }}
-                  >
-                    <div className={cn(
-                      "absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 flex items-center justify-center min-w-[26px] h-4 px-1 rounded-full shadow-md border border-white/20 text-[9px] font-bold",
-                      getRatingColor(entry.review_score)
-                    )}>
-                      {entry.review_score.toFixed(1)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          )}
+            )}
 
-          {/* Award Badge */}
-          {hasAwards && (
-            <div className={cn(
-              "absolute left-2 group/award z-20",
-              ratingDisplayMode === 'thermometer' ? "bottom-5" : "bottom-2"
-            )}>
+            {/* Award Badge */}
+            {hasAwards && (
+              <div className="absolute bottom-2 left-2 group/award z-20">
               <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full shadow-lg shadow-amber-500/30 cursor-pointer">
                 <Trophy size={14} className="text-white fill-white/20" />
                 {awards.length > 1 && (
@@ -334,7 +315,27 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
           )}
         </div>
 
-        {/* Dropdown Menu - rendered via Portal */}
+        {/* Thermometer - sits at the image/card junction so the bulb can hang below */}
+        {(entry.review_score !== null && entry.review_score !== undefined) && ratingDisplayMode === 'thermometer' && (
+          <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center">
+            <div className="w-full h-1 bg-black/50 rounded-full relative overflow-visible">
+              <div
+                className={cn("h-full rounded-full relative", getRatingColor(entry.review_score))}
+                style={{ width: `${(entry.review_score / 10) * 100}%` }}
+              >
+                <div className={cn(
+                  "absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 flex items-center justify-center min-w-[26px] h-4 px-1 rounded-full shadow-md border border-white/20 text-[9px] font-bold",
+                  getRatingColor(entry.review_score)
+                )}>
+                  {entry.review_score.toFixed(1)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Dropdown Menu - rendered via Portal */}
         {menuOpen && createPortal(
           <div
             ref={menuRef}
