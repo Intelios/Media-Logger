@@ -1218,6 +1218,14 @@ body {
   opacity: 0.4;
 }
 
+.dashboard-featured-rewatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #fbbf24;
+  font-weight: 600;
+}
+
 /* Quick Actions Row */
 .dashboard-actions {
   display: grid;

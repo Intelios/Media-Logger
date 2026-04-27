@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Library, Star, Calendar, Folder, ArrowRight, Search, BarChart3, CalendarDays, Sparkles, Hourglass } from "lucide-react";
+import { Library, Star, Calendar, Folder, ArrowRight, Search, BarChart3, CalendarDays, Sparkles, Hourglass, RotateCcw } from "lucide-react";
 import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";
 import { MediaCard } from "../components/MediaCard";
 import type { MediaEntry } from "../lib/db";
@@ -129,6 +129,15 @@ export default function Dashboard() {
                   <span className="dashboard-featured-score">{featured.entry.review_score}/10</span>
                   <span className="dashboard-featured-dot">•</span>
                   <span>{featured.entry.completion_date || featured.entry.year_completed}</span>
+                  {featured.entry.is_rewatch === 1 && (
+                    <>
+                      <span className="dashboard-featured-dot">•</span>
+                      <span className="dashboard-featured-rewatch">
+                        <RotateCcw size={14} />
+                        Replay
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </Link>
