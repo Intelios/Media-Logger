@@ -3,6 +3,7 @@ import { appLocalDataDir } from '@tauri-apps/api/path';
 const STORAGE_KEY = 'media-logger-data-directory';
 const DISPLAY_NAME_KEY = 'media-logger-display-name';
 const NAVIGATION_YEARS_KEY = 'media-logger-navigation-years';
+const RATING_DISPLAY_MODE_KEY = 'media-logger-rating-display-mode';
 
 // Default display name for the dashboard greeting
 const DEFAULT_DISPLAY_NAME = 'Collector';
@@ -121,4 +122,21 @@ export function setNavigationYears(years: string[]): string[] {
 
     localStorage.setItem(NAVIGATION_YEARS_KEY, JSON.stringify(normalized));
     return normalized;
+}
+
+/**
+ * Get the configured rating display mode.
+ * Defaults to 'pill' for backward compatibility.
+ */
+export function getRatingDisplayMode(): 'pill' | 'thermometer' {
+    const mode = localStorage.getItem(RATING_DISPLAY_MODE_KEY);
+    if (mode === 'thermometer') return 'thermometer';
+    return 'pill';
+}
+
+/**
+ * Set the rating display mode.
+ */
+export function setRatingDisplayMode(mode: 'pill' | 'thermometer'): void {
+    localStorage.setItem(RATING_DISPLAY_MODE_KEY, mode);
 }

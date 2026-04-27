@@ -32,7 +32,9 @@ import {
     setDisplayName,
     clearDisplayName,
     hasCustomDisplayName,
-    getNavigationYears
+    getNavigationYears,
+    getRatingDisplayMode,
+    setRatingDisplayMode
 } from '../lib/settings';
 import { useTheme } from '../lib/ThemeContext';
 import type { ColorTheme, GlassStyle, ThemeMode } from '../lib/themes';
@@ -79,6 +81,7 @@ export default function Settings() {
     const [navigationYears, setNavigationYearsState] = useState<string[]>(() => getNavigationYears());
     const [yearInput, setYearInput] = useState('');
     const [yearError, setYearError] = useState('');
+    const [ratingDisplayMode, setRatingDisplayModeState] = useState<'pill' | 'thermometer'>(() => getRatingDisplayMode());
 
     const { colorTheme, themeMode, glassStyle, setColorTheme, setThemeMode, setGlassStyle, colorThemes } = useTheme();
 
@@ -103,6 +106,7 @@ export default function Settings() {
         setDisplayNameState(getDisplayName());
         setIsCustomName(hasCustomDisplayName());
         setNavigationYearsState(getNavigationYears());
+        setRatingDisplayModeState(getRatingDisplayMode());
 
         // Load data stats
         getDataStats().then(setDataStats).catch(console.error);
@@ -207,6 +211,13 @@ export default function Settings() {
         if (style === glassStyle) return;
         setGlassStyle(style);
         showToast(style === 'clear' ? 'Glass style set to Clear' : 'Glass style set to Default');
+    };
+
+    const handleRatingDisplayChange = (mode: 'pill' | 'thermometer') => {
+        if (mode === ratingDisplayMode) return;
+        setRatingDisplayMode(mode);
+        setRatingDisplayModeState(mode);
+        showToast(`Rating display set to ${mode === 'pill' ? 'Pill' : 'Thermometer'}`);
     };
 
     const exportJsonBackup = async () => {
@@ -564,6 +575,30 @@ export default function Settings() {
                                         className={`segmented-control-item ${glassStyle === 'clear' ? 'active' : ''}`}
                                     >
                                         Clear
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Rating Display</div>
+                            <div className="settings-row">
+                                <div>
+                                    <div className="settings-row-label">Card Rating Style</div>
+                                    <div className="settings-row-description">How ratings appear on entry cards</div>
+                                </div>
+                                <div className="segmented-control">
+                                    <button
+                                        onClick={() => handleRatingDisplayChange('pill')}
+                                        className={`segmented-control-item ${ratingDisplayMode === 'pill' ? 'active' : ''}`}
+                                    >
+                                        Pill
+                                    </button>
+                                    <button
+                                        onClick={() => handleRatingDisplayChange('thermometer')}
+                                        className={`segmented-control-item ${ratingDisplayMode === 'thermometer' ? 'active' : ''}`}
+                                    >
+                                        Thermometer
                                     </button>
                                 </div>
                             </div>

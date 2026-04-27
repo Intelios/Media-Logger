@@ -5,6 +5,7 @@ import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film,
 import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
+import { getRatingDisplayMode } from "../lib/settings";
 
 // Type badge colors matching Flet version
 const getTypeBadgeStyle = (type: string | null) => {
@@ -135,6 +136,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
   const genres = parseGenres(entry.genre);
   const isGameEntry = (entry.entry_type || "").toLowerCase().includes("game");
   const hasPlatinum = isGameEntry && entry.is_platinum === 1;
+  const ratingDisplayMode = getRatingDisplayMode();
 
   // Check boolean flags (stored as 0/1 in SQLite)
   const isRewatch = entry.is_rewatch === 1;
@@ -269,21 +271,42 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
             </button>
           </div>
 
-          {/* Rating Badge - single badge that moves on hover */}
+          {/* Rating Display */}
           {(entry.review_score !== null && entry.review_score !== undefined) && (
-            <div className={cn(
-              "absolute top-2 px-2.5 py-1 rounded-full flex items-center gap-1 text-xs font-bold shadow-lg transition-all duration-300",
-              "right-2 group-hover:right-11",
-              getRatingColor(entry.review_score)
-            )}>
-              <Star size={11} className="fill-current" />
-              <span>{entry.review_score.toFixed(1)}</span>
-            </div>
+            ratingDisplayMode === 'pill' ? (
+              <div className={cn(
+                "absolute top-2 px-2.5 py-1 rounded-full flex items-center gap-1 text-xs font-bold shadow-lg transition-all duration-300",
+                "right-2 group-hover:right-11",
+                getRatingColor(entry.review_score)
+              )}>
+                <Star size={11} className="fill-current" />
+                <span>{entry.review_score.toFixed(1)}</span>
+              </div>
+            ) : (
+              <div className="absolute bottom-0 left-0 right-0 h-4 z-10 flex items-center">
+                <div className="w-full h-1 bg-black/50 rounded-full relative overflow-visible">
+                  <div
+                    className={cn("h-full rounded-full relative", getRatingColor(entry.review_score))}
+                    style={{ width: `${(entry.review_score / 10) * 100}%` }}
+                  >
+                    <div className={cn(
+                      "absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 flex items-center justify-center min-w-[26px] h-4 px-1 rounded-full shadow-md border border-white/20 text-[9px] font-bold",
+                      getRatingColor(entry.review_score)
+                    )}>
+                      {entry.review_score.toFixed(1)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
           )}
 
           {/* Award Badge */}
           {hasAwards && (
-            <div className="absolute bottom-2 left-2 group/award">
+            <div className={cn(
+              "absolute left-2 group/award z-20",
+              ratingDisplayMode === 'thermometer' ? "bottom-5" : "bottom-2"
+            )}>
               <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full shadow-lg shadow-amber-500/30 cursor-pointer">
                 <Trophy size={14} className="text-white fill-white/20" />
                 {awards.length > 1 && (
