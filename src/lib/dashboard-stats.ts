@@ -70,7 +70,7 @@ export const dashboardLogic = {
   async getRecentEntries(): Promise<MediaEntry[]> {
     const db = await dbService.connect();
     return await db.select<MediaEntry[]>(
-      "SELECT * FROM entries WHERE completion_date IS NOT NULL ORDER BY completion_date DESC, id DESC LIMIT 6"
+      "SELECT * FROM entries WHERE completion_date IS NOT NULL ORDER BY completion_date DESC, id DESC LIMIT 15"
     );
   },
 

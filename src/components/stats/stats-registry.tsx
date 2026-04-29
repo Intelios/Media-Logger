@@ -24,6 +24,7 @@ import { AverageScoreByTypeWidget } from "./widgets/AverageScoreByTypeWidget";
 import { BreakdownListWidget } from "./widgets/BreakdownListWidget";
 import { CompletionHeatmapWidget } from "./widgets/CompletionHeatmapWidget";
 import { ContentTypeBreakdownWidget } from "./widgets/ContentTypeBreakdownWidget";
+import { MostReplayedWidget } from "./widgets/MostReplayedWidget";
 import { MultiLogDaysWidget } from "./widgets/MultiLogDaysWidget";
 import { MonthlyActivityWidget } from "./widgets/MonthlyActivityWidget";
 import { RatingDistributionWidget } from "./widgets/RatingDistributionWidget";
@@ -228,6 +229,9 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
         displayMode={context.displayModes.actresses ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
       />
     ),
+  }),
+  "most-replayed": createStatsWidgetDefinition("most-replayed", {
+    render: (context) => <MostReplayedWidget items={context.data.mostReplayed} />,
   }),
   "completion-heatmap": createStatsWidgetDefinition("completion-heatmap", {
     render: (context) => (

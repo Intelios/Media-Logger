@@ -24,6 +24,7 @@ export const MAIN_WIDGET_IDS = [
   "studios",
   "authors",
   "actresses",
+  "most-replayed",
   "completion-heatmap",
 ] as const;
 
@@ -338,6 +339,18 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     supportsEmptyState: true,
     displayModeOptions: ["bars", "donut"],
   },
+  "most-replayed": {
+    id: "most-replayed",
+    zone: "main",
+    title: "Most Replayed",
+    description: "Entries you have logged the most times — ranked by total completions.",
+    defaultSize: "half",
+    layoutRole: "list",
+    heightPreset: "standard",
+    defaultVisible: true,
+    defaultOrder: 12,
+    supportsEmptyState: true,
+  },
   "completion-heatmap": {
     id: "completion-heatmap",
     zone: "main",
@@ -347,7 +360,7 @@ export const STATS_WIDGET_META: Record<StatsWidgetId, StatsWidgetMeta> = {
     layoutRole: "hero",
     heightPreset: "standard",
     defaultVisible: false,
-    defaultOrder: 12,
+    defaultOrder: 13,
     supportsEmptyState: true,
   },
 };

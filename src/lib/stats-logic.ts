@@ -33,6 +33,15 @@ export interface DailyCompletion {
   count: number;
 }
 
+export interface MostReplayedItem {
+  name: string;
+  name_id: number;
+  total_completions: number;
+  rewatch_count: number;
+  avg_score: number | null;
+  entry_type: string | null;
+}
+
 export interface FullStats {
   total: number;
   average_score: number;
@@ -54,6 +63,7 @@ export interface FullStats {
   scoreTimelineGranularity: "month" | "year";
   averageScoreByType: StatItem[];
   dailyCompletions: DailyCompletion[];
+  mostReplayed: MostReplayedItem[];
 }
 
 export interface StatsFilters {
@@ -403,6 +413,52 @@ export function selectDailyCompletions(dataset: StatsDataset): DailyCompletion[]
     .map(([date, count]) => ({ date, count }));
 }
 
+export function selectMostReplayed(dataset: StatsDataset): MostReplayedItem[] {
+  const groups = new Map<
+    string,
+    { total: number; rewatches: number; id: number; scores: number[]; entryType: string | null }
+  >();
+
+  for (const entry of dataset.entries) {
+    const existing = groups.get(entry.name);
+    if (existing) {
+      existing.total += 1;
+      if (Boolean(entry.is_rewatch)) {
+        existing.rewatches += 1;
+      }
+      if (hasReviewScore(entry)) {
+        existing.scores.push(entry.review_score);
+      }
+      if (entry.entry_type) {
+        existing.entryType = entry.entry_type;
+      }
+    } else {
+      groups.set(entry.name, {
+        total: 1,
+        rewatches: Boolean(entry.is_rewatch) ? 1 : 0,
+        id: entry.id,
+        scores: hasReviewScore(entry) ? [entry.review_score] : [],
+        entryType: entry.entry_type ?? null,
+      });
+    }
+  }
+
+  return [...groups.entries()]
+    .filter(([, data]) => data.total >= 2)
+    .sort(([, left], [, right]) => right.total - left.total)
+    .slice(0, 25)
+    .map(([name, data]) => ({
+      name,
+      name_id: data.id,
+      total_completions: data.total,
+      rewatch_count: data.rewatches,
+      avg_score: data.scores.length > 0
+        ? data.scores.reduce((sum, s) => sum + s, 0) / data.scores.length
+        : null,
+      entry_type: data.entryType,
+    }));
+}
+
 export function buildFullStatsFromDataset(dataset: StatsDataset, filters: StatsFilters = {}): FullStats {
   const basicStats = selectBasicStats(dataset);
   const timelineGranularity = getTimelineGranularity(filters);
@@ -424,6 +480,7 @@ export function buildFullStatsFromDataset(dataset: StatsDataset, filters: StatsF
     scoreTimelineGranularity: timelineGranularity,
     averageScoreByType: selectAverageScoreByType(dataset),
     dailyCompletions: selectDailyCompletions(dataset),
+    mostReplayed: selectMostReplayed(dataset),
   };
 }
 
