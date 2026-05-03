@@ -81,3 +81,11 @@ Defined in Rust (`lib.rs` setup hook). Sends Tauri events (`menu-navigate`, `men
 - Do not change the DB connection flow — migrations must run on every connect.
 - Do not assume booleans in SQLite — check for 0/1 integer pattern.
 - Do not assume `npm run dev` gives you a desktop app — use `npm run tauri dev` for that.
+
+## What NOT to Suggest
+
+- If asked for new features do not suggest the following:
+  - Backlog Feature
+  - Web Browser version
+  - Mobile version
+- All of these are not wanted by the user!
