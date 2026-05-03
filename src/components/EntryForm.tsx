@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film, FileText, StickyNote, Trophy, Check } from "lucide-react";
+import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film, FileText, StickyNote, Trophy, Check, Clock } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { saveImage, getImageUrl } from "../lib/utils";
@@ -106,6 +106,8 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
           own_local_copy: initialData.own_local_copy ?? 0,
           is_platinum: initialData.is_platinum ?? 0,
           is_completed: initialData.is_completed ?? 0,
+          is_early_access: initialData.is_early_access ?? 0,
+          early_access_version: initialData.early_access_version ?? null,
         });
         if (initialData.image_url) {
           getImageUrl(initialData.image_url).then(setPreviewImage);
@@ -120,6 +122,8 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
           own_local_copy: 0,
           is_platinum: 0,
           is_completed: 0,
+          is_early_access: 0,
+          early_access_version: null,
           completion_date: new Date().toISOString().split('T')[0]
         });
         setPreviewImage("");
@@ -184,6 +188,12 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
       // Platinum applies only to games.
       if (key === "entry_type" && value !== "Game") {
         next.is_platinum = 0;
+      }
+
+      // Early Access applies only to games.
+      if (key === "entry_type" && value !== "Game") {
+        next.is_early_access = 0;
+        next.early_access_version = null;
       }
 
       // Completed applies only to Adult Visual Novels.
@@ -342,6 +352,41 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
               <span>{formData.is_platinum === 1 ? "Platinum / 100% Complete" : "Mark as Platinum / 100%"}</span>
             </button>
             <p className="text-xs text-gray-500">Use this for games you fully completed (Platinum / 100%).</p>
+          </div>
+
+          {/* Early Access Toggle */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+              <Clock size={14} className="text-violet-400" />
+              Early Access
+            </label>
+            <button
+              type="button"
+              onClick={() => updateField("is_early_access", formData.is_early_access === 1 ? 0 : 1)}
+              className={cn(
+                "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all border",
+                formData.is_early_access === 1
+                  ? "bg-violet-500/20 border-violet-500 text-violet-400 shadow-lg shadow-violet-500/20"
+                  : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
+              )}
+            >
+              <Clock size={16} />
+              <span>{formData.is_early_access === 1 ? "Early Access" : "Mark as Early Access"}</span>
+            </button>
+            <p className="text-xs text-gray-500">Use this for games that are still in development or early access.</p>
+
+            {formData.is_early_access === 1 && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                <label className="text-xs font-medium text-gray-400 mb-1.5 block">Version / Build / Date</label>
+                <input
+                  type="text"
+                  value={formData.early_access_version || ""}
+                  onChange={e => updateField("early_access_version", e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all"
+                  placeholder="e.g. v0.9.2, Build 1423, Jan 2026..."
+                />
+              </div>
+            )}
           </div>
         </>
       )}

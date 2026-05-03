@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Check,
   Calendar,
+  Clock,
 } from "lucide-react";
 import { getImageUrl, DEFAULT_COVER_IMAGE } from "../lib/utils";
 import type { MediaEntry } from "../lib/db";
@@ -129,6 +130,7 @@ export function ShelfItem({ entry, rotation = 0, onClick }: ShelfItemProps) {
 
   const isGame = (entry.entry_type || "").toLowerCase().includes("game");
   const hasPlatinum = isGame && entry.is_platinum === 1;
+  const isEarlyAccess = isGame && entry.is_early_access === 1;
   const isRewatch = entry.is_rewatch === 1;
   const hasLocalCopy = entry.own_local_copy === 1;
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
@@ -200,6 +202,12 @@ export function ShelfItem({ entry, rotation = 0, onClick }: ShelfItemProps) {
           <span className="flex items-center gap-1 text-[9px] text-cyan-300 font-semibold">
             <Trophy size={9} />
             Platinum
+          </span>
+        )}
+        {isEarlyAccess && (
+          <span className="flex items-center gap-1 text-[9px] text-violet-400 font-semibold">
+            <Clock size={9} />
+            Early Access{entry.early_access_version ? ` (${entry.early_access_version})` : ''}
           </span>
         )}
         {isRewatch && (

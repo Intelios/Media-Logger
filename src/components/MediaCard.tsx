@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus } from "lucide-react";
+import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus, Clock } from "lucide-react";
 import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
@@ -136,6 +136,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
   const genres = parseGenres(entry.genre);
   const isGameEntry = (entry.entry_type || "").toLowerCase().includes("game");
   const hasPlatinum = isGameEntry && entry.is_platinum === 1;
+  const isEarlyAccess = isGameEntry && entry.is_early_access === 1;
   const ratingDisplayMode = getRatingDisplayMode();
 
   // Check boolean flags (stored as 0/1 in SQLite)
@@ -411,6 +412,13 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
             {entry.name}
           </h3>
 
+          {/* Early Access Subtitle */}
+          {isEarlyAccess && (
+            <p className="text-[11px] text-violet-400/80 font-medium leading-tight">
+              Early Access{entry.early_access_version ? `: ${entry.early_access_version}` : ''}
+            </p>
+          )}
+
           {/* Type Badge Row */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <div className={cn(
@@ -500,8 +508,8 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
             </div>
           )}
 
-          {/* Rewatch / Local Copy Badges */}
-          {(isRewatch || hasLocalCopy || hasPlatinum) && (
+          {/* Rewatch / Local Copy / Early Access / Platinum Badges */}
+          {(isRewatch || hasLocalCopy || hasPlatinum || isEarlyAccess) && (
             <div className="flex items-center gap-1.5">
               {isRewatch && (
                 <div className="relative group/rewatch">
@@ -525,6 +533,19 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/local:opacity-100 group-hover/local:visible transition-all duration-200 z-[100]">
                     <div className="bg-surface/95 backdrop-blur-xl border border-emerald-500/30 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
                       <span className="text-xs font-medium text-emerald-400">Own Local Copy</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {isEarlyAccess && (
+                <div className="relative group/early-access">
+                  <div className="w-7 h-7 rounded-full bg-violet-500/20 border border-violet-500 flex items-center justify-center cursor-pointer">
+                    <Clock size={12} className="text-violet-400" />
+                  </div>
+                  {/* Early Access Tooltip */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/early-access:opacity-100 group-hover/early-access:visible transition-all duration-200 z-[100]">
+                    <div className="bg-surface/95 backdrop-blur-xl border border-violet-500/30 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
+                      <span className="text-xs font-medium text-violet-400">Early Access{entry.early_access_version ? `: ${entry.early_access_version}` : ''}</span>
                     </div>
                   </div>
                 </div>

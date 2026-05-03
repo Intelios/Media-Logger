@@ -280,6 +280,8 @@ async function ensureTablesExist(): Promise<void> {
             own_local_copy INTEGER DEFAULT 0,
             is_platinum INTEGER DEFAULT 0,
             is_completed INTEGER DEFAULT 0,
+            is_early_access INTEGER DEFAULT 0,
+            early_access_version TEXT,
             image_url TEXT,
             entry_type TEXT,
             platform TEXT,

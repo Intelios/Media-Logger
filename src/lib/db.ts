@@ -16,6 +16,8 @@ export interface MediaEntry {
   own_local_copy: number;
   is_platinum: number;
   is_completed: number;
+  is_early_access: number;
+  early_access_version: string | null;
   image_url: string | null;
   entry_type: string | null;
   platform: string | null;
@@ -149,9 +151,24 @@ class DBService {
         console.log('[DB] notes column added successfully');
       }
 
+      // Add is_early_access column if it doesn't exist
+      if (!columnNames.includes('is_early_access')) {
+        console.log('[DB] Adding is_early_access column...');
+        await this.db.execute("ALTER TABLE entries ADD COLUMN is_early_access INTEGER DEFAULT 0");
+        console.log('[DB] is_early_access column added successfully');
+      }
+
+      // Add early_access_version column if it doesn't exist
+      if (!columnNames.includes('early_access_version')) {
+        console.log('[DB] Adding early_access_version column...');
+        await this.db.execute("ALTER TABLE entries ADD COLUMN early_access_version TEXT");
+        console.log('[DB] early_access_version column added successfully');
+      }
+
       // Normalize nullable legacy rows
       await this.db.execute("UPDATE entries SET is_platinum = 0 WHERE is_platinum IS NULL");
       await this.db.execute("UPDATE entries SET is_completed = 0 WHERE is_completed IS NULL");
+      await this.db.execute("UPDATE entries SET is_early_access = 0 WHERE is_early_access IS NULL");
     } catch (error) {
       console.error('[DB] Migration error:', error);
     }
@@ -334,6 +351,8 @@ class DBService {
           own_local_copy INTEGER DEFAULT 0,
           is_platinum INTEGER DEFAULT 0,
           is_completed INTEGER DEFAULT 0,
+          is_early_access INTEGER DEFAULT 0,
+          early_access_version TEXT,
           image_url TEXT,
           entry_type TEXT,
           platform TEXT,
