@@ -240,7 +240,20 @@ export async function generateReview(params: ReviewParams): Promise<ReviewData> 
     });
   }
 
-  // ── 6. Most Replayed Franchise ───────────────────────────────────────────
+  // ── 6. Genre Cloud ───────────────────────────────────────────────────────
+  if (genreBreakdown.length > 1) {
+    const cloudGenres = genreBreakdown.slice(0, 35);
+    slides.push({
+      type: "genre-cloud",
+      title: "Genre Cloud",
+      subtitle: "Your media universe, visualized.",
+      stats: {
+        genreCloud: cloudGenres,
+      },
+    });
+  }
+
+  // ── 7. Most Replayed Franchise ───────────────────────────────────────────
   const franchiseBreakdown = countByField(entries, "franchise");
   if (franchiseBreakdown.length > 0 && franchiseBreakdown[0].count >= 2) {
     slides.push({

@@ -1,14 +1,17 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   Sparkles, ChevronLeft, ChevronRight, X, Play,
   Star, Trophy, Flame, Heart, Zap, Crown, Gem, BarChart3,
-  Gamepad2, Film, Eye,
+  Gamepad2, Film, Eye, Globe,
 } from "lucide-react";
+import { forceSimulation, forceCollide, forceManyBody, forceX, forceY } from "d3-force";
+import { scaleLinear } from "d3-scale";
 import { cn } from "../lib/utils_ui";
 import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
 import { generateReview, getReviewYears, type ReviewData, type ReviewSlide } from "../lib/review-logic";
 import type { MediaEntry } from "../lib/db";
+
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -29,6 +32,7 @@ const SLIDE_THEMES: Record<string, { gradient: string; accent: string }> = {
   "biggest-month":     { gradient: "from-amber-500 via-orange-500 to-red-500", accent: "amber" },
   "perfect-tens":      { gradient: "from-emerald-500 via-green-500 to-teal-500", accent: "emerald" },
   "top-genre":         { gradient: "from-pink-500 via-rose-500 to-fuchsia-600", accent: "pink" },
+  "genre-cloud":       { gradient: "from-indigo-500 via-violet-500 to-fuchsia-600", accent: "indigo" },
   "top-franchise":     { gradient: "from-sky-500 via-blue-500 to-indigo-600", accent: "blue" },
   "surprise-favorite": { gradient: "from-purple-500 via-fuchsia-500 to-pink-500", accent: "purple" },
   "hidden-gem":        { gradient: "from-teal-500 via-emerald-500 to-cyan-500", accent: "teal" },
@@ -44,6 +48,7 @@ const SLIDE_ICONS: Record<string, typeof Star> = {
   "biggest-month": Flame,
   "perfect-tens": Star,
   "top-genre": Heart,
+  "genre-cloud": Globe,
   "top-franchise": Zap,
   "surprise-favorite": Eye,
   "hidden-gem": Gem,
@@ -287,6 +292,202 @@ function TopGenreSlide({ slide }: { slide: ReviewSlide }) {
   );
 }
 
+function GenreCloudSlide({ slide }: { slide: ReviewSlide }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [nodes, setNodes] = useState<
+    Array<{ x: number; y: number; fx?: number | null; fy?: number | null; r: number; fontSize: number; value: any }>
+  >([]);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  const genreCloud: Array<{ name: string; count: number; avgScore?: number }> = slide.stats?.genreCloud || [];
+  const topGenres = useMemo(() => genreCloud.slice(0, 8), [genreCloud]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const el = containerRef.current;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const cr = entry.contentRect;
+        setDimensions({ width: cr.width, height: cr.height });
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (dimensions.width === 0 || dimensions.height === 0 || genreCloud.length === 0) return;
+
+    const cx = dimensions.width / 2;
+    const cy = dimensions.height / 2;
+    const maxCount = genreCloud[0].count;
+    const minCount = genreCloud[genreCloud.length - 1].count;
+
+    const radiusScale = scaleLinear().domain([minCount, maxCount]).range([28, 90]).clamp(true);
+    const fontScale = scaleLinear().domain([minCount, maxCount]).range([10, 26]).clamp(true);
+
+    // Spread nodes randomly over the whole container so they don't start on top of each other
+    const initialNodes = genreCloud.map((g) => ({
+      x: cx + (Math.random() - 0.5) * dimensions.width * 0.8,
+      y: cy + (Math.random() - 0.5) * dimensions.height * 0.8,
+      r: radiusScale(g.count),
+      fontSize: fontScale(g.count),
+      value: g,
+    }));
+
+    const sim = forceSimulation(initialNodes as any)
+      .force("charge", forceManyBody().strength(-120))
+      .force(
+        "collide",
+        forceCollide()
+          .radius((d: any) => d.r + 6)
+          .strength(0.9)
+          .iterations(3)
+      )
+      .force("x", forceX(cx).strength(0.08))
+      .force("y", forceY(cy).strength(0.08))
+      .alphaDecay(0.03)
+      .velocityDecay(0.3);
+
+    // Pre-run so nodes are already spread when first rendered
+    sim.tick(120);
+
+    // Then copy final positions into React state
+    setNodes(initialNodes.map((n) => ({ ...n })));
+
+    // Warm-up for a short while
+    sim
+      .alpha(0.3)
+      .on("tick", () => {
+        setNodes(initialNodes.map((n) => ({ ...n })));
+      })
+      .restart();
+
+    return () => {
+      sim.stop();
+    };
+  }, [dimensions.width, dimensions.height, genreCloud]);
+
+  // Build connecting lines between top genres within distance threshold
+  const lines = useMemo(() => {
+    if (!nodes.length) return [];
+    const threshold = 250;
+    const result: Array<{ x1: number; y1: number; x2: number; y2: number; opacity: number }> = [];
+    for (let i = 0; i < topGenres.length; i++) {
+      const a = nodes.find((n) => n.value.name === topGenres[i].name);
+      if (!a) continue;
+      for (let j = i + 1; j < topGenres.length; j++) {
+        const b = nodes.find((n) => n.value.name === topGenres[j].name);
+        if (!b) continue;
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < threshold) {
+          const fade = 1 - dist / threshold;
+          result.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, opacity: fade * 0.25 });
+        }
+      }
+    }
+    return result;
+  }, [nodes, topGenres]);
+
+  const maxCount = genreCloud.length > 0 ? genreCloud[0].count : 1;
+
+  return (
+    <div className="w-full h-[50vh] flex flex-col items-center justify-center review-fade-up" style={{ animationDelay: "300ms" }}>
+      {/* Main bubble area */}
+      <div ref={containerRef} className="relative w-full h-full max-w-xl">
+        {/* Background web pattern */}
+        <div className="absolute inset-0 opacity-10 pointer-events-none">
+          <svg width="100%" height="100%">
+            <defs>
+              <pattern id="web-pattern" width="60" height="60" patternUnits="userSpaceOnUse">
+                <circle cx="0" cy="0" r="1" fill="white" />
+                <circle cx="60" cy="0" r="1" fill="white" />
+                <circle cx="0" cy="60" r="1" fill="white" />
+                <circle cx="60" cy="60" r="1" fill="white" />
+                <circle cx="30" cy="30" r="1" fill="white" />
+                <line x1="0" y1="0" x2="60" y2="60" stroke="white" strokeWidth="0.5" />
+                <line x1="60" y1="0" x2="0" y2="60" stroke="white" strokeWidth="0.5" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#web-pattern)" />
+          </svg>
+        </div>
+
+        {/* Connecting lines between top N */}
+        <svg className="absolute inset-0 pointer-events-none overflow-visible">
+          {lines.map((line, i) => (
+            <line
+              key={i}
+              x1={line.x1}
+              y1={line.y1}
+              x2={line.x2}
+              y2={line.y2}
+              stroke="white"
+              strokeWidth="1"
+              opacity={line.opacity}
+              className="genre-cloud-line"
+            />
+          ))}
+        </svg>
+
+        {/* Bubbles */}
+        {nodes.map((node, i) => {
+          const genre = node.value;
+          const isHovered = hoveredIndex === i;
+          const isTop = topGenres.some((tg) => tg.name === genre.name);
+          // White-to-primary subtle tint depending on size
+          const intensity = Math.min(genre.count / maxCount, 1);
+
+          return (
+            <div
+              key={genre.name}
+              className="absolute flex items-center justify-center rounded-full cursor-default transition-transform duration-300"
+              style={{
+                left: node.x,
+                top: node.y,
+                width: node.r * 2,
+                height: node.r * 2,
+                transform: `translate(-50%, -50%) scale(${isHovered ? 1.15 : 1})`,
+                backgroundColor: `rgba(255, 255, 255, ${0.08 + intensity * 0.12})`,
+                border: `1.5px solid rgba(255, 255, 255, ${0.15 + intensity * 0.25})`,
+                boxShadow: isTop
+                  ? `0 0 ${20 + intensity * 30}px rgba(139, 92, 246, ${0.15 + intensity * 0.15})`
+                  : `0 0 ${10 + intensity * 15}px rgba(255, 255, 255, ${0.05 + intensity * 0.05})`,
+                zIndex: isHovered ? 10 : Math.round(intensity * 5),
+              }}
+              onMouseEnter={() => setHoveredIndex(i)}
+              onMouseLeave={() => setHoveredIndex(null)}
+            >
+              <span
+                className="text-center px-1 font-medium leading-tight select-none"
+                style={{
+                  fontSize: node.fontSize,
+                  color: `rgba(255, 255, 255, ${0.7 + intensity * 0.3})`,
+                  textWrap: "balance",
+                  wordBreak: "break-word",
+                }}
+              >
+                {genre.name}
+              </span>
+
+              {/* Hover tooltip */}
+              {isHovered && (
+                <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-1.5 text-xs text-white whitespace-nowrap pointer-events-none border border-white/10">
+                  <span className="font-semibold">{genre.count}</span> {genre.count === 1 ? "entry" : "entries"}
+                  {genre.avgScore ? ` · ${genre.avgScore} avg` : ""}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TopFranchiseSlide({ slide }: { slide: ReviewSlide }) {
   const { topFranchise, franchises } = slide.stats!;
   return (
@@ -422,6 +623,7 @@ function SlideContent({ slide }: { slide: ReviewSlide }) {
     case "biggest-month": return <BiggestMonthSlide slide={slide} />;
     case "perfect-tens": return <PerfectTensSlide slide={slide} />;
     case "top-genre": return <TopGenreSlide slide={slide} />;
+    case "genre-cloud": return <GenreCloudSlide slide={slide} />;
     case "top-franchise": return <TopFranchiseSlide slide={slide} />;
     case "rating-breakdown": return <RatingBreakdownSlide slide={slide} />;
     case "award-winners": return <AwardWinnersSlide slide={slide} />;

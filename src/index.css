@@ -2254,3 +2254,20 @@ body {
   background-size: 200% 200%;
   animation: gradient-shift 8s ease infinite;
 }
+
+/* ===== GENRE CLOUD SLIDE ===== */
+@keyframes genre-cloud-line-pulse {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.genre-cloud-line {
+  animation: genre-cloud-line-pulse 3s ease-in-out infinite;
+}
+
