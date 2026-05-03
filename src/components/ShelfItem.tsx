@@ -15,6 +15,7 @@ import {
   Check,
   Calendar,
   Clock,
+  Captions,
 } from "lucide-react";
 import { getImageUrl, DEFAULT_COVER_IMAGE } from "../lib/utils";
 import type { MediaEntry } from "../lib/db";
@@ -133,6 +134,7 @@ export function ShelfItem({ entry, rotation = 0, onClick }: ShelfItemProps) {
   const isEarlyAccess = isGame && entry.is_early_access === 1;
   const isRewatch = entry.is_rewatch === 1;
   const hasLocalCopy = entry.own_local_copy === 1;
+  const hasSubtitles = entry.has_subtitles === 1;
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const genres = parseGenres(entry.genre);
   const completionDate = formatDate(entry.completion_date);
@@ -220,6 +222,12 @@ export function ShelfItem({ entry, rotation = 0, onClick }: ShelfItemProps) {
           <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-semibold">
             <Check size={9} />
             Owned
+          </span>
+        )}
+        {hasSubtitles && (
+          <span className="flex items-center gap-1 text-[9px] text-orange-400 font-semibold">
+            <Captions size={9} />
+            Subtitles
           </span>
         )}
       </div>

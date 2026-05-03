@@ -109,6 +109,7 @@ export default function StatsPage() {
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [data, setData] = useState<FullStats | null>(null);
   const [profileKeys, setProfileKeys] = useState<Set<string>>(new Set());
+  const [profileKeysReady, setProfileKeysReady] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState("");
@@ -175,6 +176,7 @@ export default function StatsPage() {
     const refreshProfileKeys = async () => {
       const keys = await profilesLogic.getProfileKeys();
       setProfileKeys(keys);
+      setProfileKeysReady(true);
     };
 
     const handleEntryAdded = () => {
@@ -326,6 +328,7 @@ export default function StatsPage() {
         entryTypes={ENTRY_TYPES}
         selectedTypes={selectedTypes}
         profileKeys={profileKeys}
+        profileKeysReady={profileKeysReady}
         onSelectedTypesChange={handleTypesChange}
         presets={PRESET_KEYS.map((key) => FILTER_PRESETS[key])}
         activePreset={activePreset}

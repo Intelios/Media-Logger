@@ -14,6 +14,7 @@ export interface MediaEntry {
   year_completed: number | null;
   is_rewatch: number; // SQLite stores booleans as 0/1
   own_local_copy: number;
+  has_subtitles: number;
   is_platinum: number;
   is_completed: number;
   is_early_access: number;
@@ -130,6 +131,13 @@ class DBService {
         console.log('[DB] Series column added successfully');
       }
 
+      // Add has_subtitles column if it doesn't exist
+      if (!columnNames.includes('has_subtitles')) {
+        console.log('[DB] Adding has_subtitles column...');
+        await this.db.execute("ALTER TABLE entries ADD COLUMN has_subtitles INTEGER DEFAULT 0");
+        console.log('[DB] has_subtitles column added successfully');
+      }
+
       // Add is_platinum column if it doesn't exist
       if (!columnNames.includes('is_platinum')) {
         console.log('[DB] Adding is_platinum column...');
@@ -166,6 +174,7 @@ class DBService {
       }
 
       // Normalize nullable legacy rows
+      await this.db.execute("UPDATE entries SET has_subtitles = 0 WHERE has_subtitles IS NULL");
       await this.db.execute("UPDATE entries SET is_platinum = 0 WHERE is_platinum IS NULL");
       await this.db.execute("UPDATE entries SET is_completed = 0 WHERE is_completed IS NULL");
       await this.db.execute("UPDATE entries SET is_early_access = 0 WHERE is_early_access IS NULL");
@@ -349,6 +358,7 @@ class DBService {
           year_completed INTEGER,
           is_rewatch INTEGER DEFAULT 0,
           own_local_copy INTEGER DEFAULT 0,
+          has_subtitles INTEGER DEFAULT 0,
           is_platinum INTEGER DEFAULT 0,
           is_completed INTEGER DEFAULT 0,
           is_early_access INTEGER DEFAULT 0,

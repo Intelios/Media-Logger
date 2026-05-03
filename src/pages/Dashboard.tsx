@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Library, Star, Calendar, Folder, ArrowRight, Search, BarChart3, CalendarDays, Sparkles, Hourglass, RotateCcw } from "lucide-react";
+import { Library, Star, Calendar, Folder, ArrowRight, Search, BarChart3, CalendarDays, Sparkles, Hourglass, RotateCcw, Captions } from "lucide-react";
 import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";
 import { MediaCard } from "../components/MediaCard";
 import { MediaShelf } from "../components/MediaShelf";
@@ -145,6 +145,15 @@ export default function Dashboard() {
                       <span className="dashboard-featured-rewatch">
                         <RotateCcw size={14} />
                         Replay
+                      </span>
+                    </>
+                  )}
+                  {featured.entry.has_subtitles === 1 && (
+                    <>
+                      <span className="dashboard-featured-dot">•</span>
+                      <span className="dashboard-featured-rewatch" style={{ color: '#fb923c' }}>
+                        <Captions size={14} />
+                        Subtitles
                       </span>
                     </>
                   )}

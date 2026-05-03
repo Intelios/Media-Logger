@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus, Clock } from "lucide-react";
+import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus, Clock, Captions } from "lucide-react";
 import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
@@ -142,6 +142,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
   // Check boolean flags (stored as 0/1 in SQLite)
   const isRewatch = entry.is_rewatch === 1;
   const hasLocalCopy = entry.own_local_copy === 1;
+  const hasSubtitles = entry.has_subtitles === 1;
 
   useEffect(() => {
     getImageUrl(entry.image_url).then(setImgSrc);
@@ -508,8 +509,8 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
             </div>
           )}
 
-          {/* Rewatch / Local Copy / Early Access / Platinum Badges */}
-          {(isRewatch || hasLocalCopy || hasPlatinum || isEarlyAccess) && (
+          {/* Rewatch / Local Copy / Subtitles / Early Access / Platinum Badges */}
+          {(isRewatch || hasLocalCopy || hasSubtitles || hasPlatinum || isEarlyAccess) && (
             <div className="flex items-center gap-1.5">
               {isRewatch && (
                 <div className="relative group/rewatch">
@@ -533,6 +534,19 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/local:opacity-100 group-hover/local:visible transition-all duration-200 z-[100]">
                     <div className="bg-surface/95 backdrop-blur-xl border border-emerald-500/30 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
                       <span className="text-xs font-medium text-emerald-400">Own Local Copy</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {hasSubtitles && (
+                <div className="relative group/subtitles">
+                  <div className="w-7 h-7 rounded-full bg-orange-500/20 border border-orange-500 flex items-center justify-center cursor-pointer">
+                    <Captions size={12} className="text-orange-400" />
+                  </div>
+                  {/* Subtitles Tooltip */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/subtitles:opacity-100 group-hover/subtitles:visible transition-all duration-200 z-[100]">
+                    <div className="bg-surface/95 backdrop-blur-xl border border-orange-500/30 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
+                      <span className="text-xs font-medium text-orange-400">Subtitles</span>
                     </div>
                   </div>
                 </div>
@@ -881,6 +895,11 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
                           {dup.own_local_copy === 1 && (
                             <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center" title="Local Copy">
                               <Check size={12} className="text-emerald-500" />
+                            </div>
+                          )}
+                          {dup.has_subtitles === 1 && (
+                            <div className="w-7 h-7 rounded-full bg-orange-500/20 border border-orange-500 flex items-center justify-center" title="Subtitles">
+                              <Captions size={12} className="text-orange-400" />
                             </div>
                           )}
                         </div>

@@ -173,7 +173,7 @@ export function BreakdownListWidget({
   const hasMore = items.length > 3;
   const donutItems = buildDonutItems(items);
   const effectiveDisplayMode =
-    displayMode === "donut" && donutItems.length >= 2
+    displayMode === "donut" && donutItems.length >= 1
       ? "donut"
       : "bars";
 
@@ -210,9 +210,14 @@ export function BreakdownListWidget({
       }
     >
       {effectiveDisplayMode === "donut" ? (
-        <div className="flex h-full min-h-0 flex-col gap-4">
-          <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          <div className="shrink-0 rounded-2xl border border-white/10 bg-black/10 px-3 py-4">
             <div className="relative mx-auto h-44 w-full max-w-[220px]">
+              <div className="pointer-events-none absolute inset-0 z-0 flex flex-col items-center justify-center">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">Total</span>
+                <span className="mt-1 text-2xl font-bold text-white">{totalCount}</span>
+              </div>
+
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -238,15 +243,10 @@ export function BreakdownListWidget({
                   />
                 </PieChart>
               </ResponsiveContainer>
-
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">Total</span>
-                <span className="mt-1 text-2xl font-bold text-white">{totalCount}</span>
-              </div>
             </div>
           </div>
 
-          <div className="custom-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+          <div className="custom-scrollbar min-h-[80px] flex-1 space-y-2 overflow-y-auto pr-1">
             {donutItems.map((item, index) => {
               const percentage = totalCount > 0 ? (item.count / totalCount) * 100 : 0;
 

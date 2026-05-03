@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { Gamepad2, Film, Heart, Sparkles, ChevronDown, ChevronUp, X, HardDrive, RotateCcw } from "lucide-react";
+import { Gamepad2, Film, Heart, Sparkles, ChevronDown, ChevronUp, X, HardDrive, RotateCcw, Captions } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { profilesLogic } from "../lib/profiles-logic";
@@ -16,6 +16,7 @@ const PRESET_STORAGE_KEY = "yearview-active-preset";
 const QUICK_FILTERS_VISIBLE_KEY = "yearview-quick-filters-visible";
 const LOCAL_COPY_FILTER_KEY = "yearview-local-copy-filter";
 const REWATCH_FILTER_KEY = "yearview-rewatch-filter";
+const SUBTITLES_FILTER_KEY = "yearview-subtitles-filter";
 
 // Status filter types: null = show all, true = show only with status, false = show only without status
 type StatusFilter = boolean | null;
@@ -132,6 +133,7 @@ export default function YearView() {
   // Status filters state
   const [localCopyFilter, setLocalCopyFilter] = useState<StatusFilter>(() => loadStatusFilter(LOCAL_COPY_FILTER_KEY));
   const [rewatchFilter, setRewatchFilter] = useState<StatusFilter>(() => loadStatusFilter(REWATCH_FILTER_KEY));
+  const [subtitlesFilter, setSubtitlesFilter] = useState<StatusFilter>(() => loadStatusFilter(SUBTITLES_FILTER_KEY));
 
   // Toggle quick filters visibility
   const toggleQuickFilters = () => {
@@ -169,6 +171,17 @@ export default function YearView() {
     }
   };
 
+  // Handle subtitles filter toggle
+  const handleSubtitlesToggle = () => {
+    const newValue = cycleStatusFilter(subtitlesFilter);
+    setSubtitlesFilter(newValue);
+    if (newValue === null) {
+      localStorage.removeItem(SUBTITLES_FILTER_KEY);
+    } else {
+      localStorage.setItem(SUBTITLES_FILTER_KEY, String(newValue));
+    }
+  };
+
   // Handle preset button click
   const handlePresetClick = (presetKey: Exclude<PresetKey, null>) => {
     if (activePreset === presetKey) {
@@ -189,7 +202,7 @@ export default function YearView() {
       const data = await dbService.getEntriesByYear(year);
       setEntries(data);
       // Apply current filter immediately upon load
-      applyFilter(data, selectedTypes, localCopyFilter, rewatchFilter);
+      applyFilter(data, selectedTypes, localCopyFilter, rewatchFilter, subtitlesFilter);
 
       // Fetch awards for all entries
       const mediaIds = data.map(e => e.id).filter((id): id is number => id !== undefined);
@@ -211,8 +224,8 @@ export default function YearView() {
 
   // Re-run filter when selection changes OR entries change OR status filters change
   useEffect(() => {
-    applyFilter(entries, selectedTypes, localCopyFilter, rewatchFilter);
-  }, [selectedTypes, entries, localCopyFilter, rewatchFilter]);
+    applyFilter(entries, selectedTypes, localCopyFilter, rewatchFilter, subtitlesFilter);
+  }, [selectedTypes, entries, localCopyFilter, rewatchFilter, subtitlesFilter]);
 
   useEffect(() => {
     loadData();
@@ -272,7 +285,7 @@ export default function YearView() {
   }, [highlightedId, filteredEntries]);
 
   // Handle Filtering Logic
-  const applyFilter = (data: MediaEntry[], types: string[], localCopy: StatusFilter, rewatch: StatusFilter) => {
+  const applyFilter = (data: MediaEntry[], types: string[], localCopy: StatusFilter, rewatch: StatusFilter, subtitles: StatusFilter) => {
     let result = data;
 
     // Apply type filter
@@ -291,6 +304,11 @@ export default function YearView() {
     // Apply rewatch filter
     if (rewatch !== null) {
       result = result.filter(e => (e.is_rewatch === 1) === rewatch);
+    }
+
+    // Apply subtitles filter
+    if (subtitles !== null) {
+      result = result.filter(e => (e.has_subtitles === 1) === subtitles);
     }
 
     setFilteredEntries(result);
@@ -480,17 +498,42 @@ export default function YearView() {
               )}
             </button>
 
+            {/* Subtitles Filter */}
+            <button
+              onClick={handleSubtitlesToggle}
+              className={`
+                group relative flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm
+                transition-all duration-200
+                ${subtitlesFilter !== null
+                  ? subtitlesFilter
+                    ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg shadow-black/20'
+                    : 'bg-gradient-to-r from-gray-600 to-gray-700 text-white shadow-lg shadow-black/20'
+                  : 'bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15]'}
+              `}
+              title={subtitlesFilter === null ? "Show all" : subtitlesFilter ? "Showing only with subtitles" : "Showing only without subtitles"}
+            >
+              <Captions size={16} className={subtitlesFilter !== null ? '' : 'opacity-70 group-hover:opacity-100'} />
+              <span>Subtitles</span>
+              {subtitlesFilter !== null && (
+                <span className="text-xs px-1.5 py-0.5 rounded-md ml-1 bg-white/20">
+                  {subtitlesFilter ? "Yes" : "No"}
+                </span>
+              )}
+            </button>
+
             {/* Clear/Reset button - only show when a preset or status filter is active */}
-            {(activePreset || localCopyFilter !== null || rewatchFilter !== null) && (
+            {(activePreset || localCopyFilter !== null || rewatchFilter !== null || subtitlesFilter !== null) && (
               <button
                 onClick={() => {
                   setActivePreset(null);
                   setSelectedTypes(ENTRY_TYPES);
                   setLocalCopyFilter(null);
                   setRewatchFilter(null);
+                  setSubtitlesFilter(null);
                   localStorage.removeItem(PRESET_STORAGE_KEY);
                   localStorage.removeItem(LOCAL_COPY_FILTER_KEY);
                   localStorage.removeItem(REWATCH_FILTER_KEY);
+                  localStorage.removeItem(SUBTITLES_FILTER_KEY);
                 }}
                 className="
                   flex items-center gap-1 px-2 py-1.5 rounded-lg text-sm

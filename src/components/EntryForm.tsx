@@ -104,6 +104,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
           ...initialData,
           is_rewatch: initialData.is_rewatch ?? 0,
           own_local_copy: initialData.own_local_copy ?? 0,
+          has_subtitles: initialData.has_subtitles ?? 0,
           is_platinum: initialData.is_platinum ?? 0,
           is_completed: initialData.is_completed ?? 0,
           is_early_access: initialData.is_early_access ?? 0,
@@ -120,6 +121,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
           review_score: null,
           is_rewatch: 0,
           own_local_copy: 0,
+          has_subtitles: 0,
           is_platinum: 0,
           is_completed: 0,
           is_early_access: 0,
@@ -548,12 +550,12 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
       </div>
 
       {/* Toggle Options */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-3">
         <button
           type="button"
           onClick={() => updateField("is_rewatch", formData.is_rewatch === 1 ? 0 : 1)}
           className={cn(
-            "flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all border",
+            "flex items-center justify-center gap-2 px-3 py-3 rounded-xl font-medium transition-all border",
             formData.is_rewatch === 1
               ? "bg-amber-500/20 border-amber-500 text-amber-400"
               : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
@@ -566,7 +568,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
           type="button"
           onClick={() => updateField("own_local_copy", formData.own_local_copy === 1 ? 0 : 1)}
           className={cn(
-            "flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all border",
+            "flex items-center justify-center gap-2 px-3 py-3 rounded-xl font-medium transition-all border",
             formData.own_local_copy === 1
               ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
               : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
@@ -574,6 +576,19 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
         >
           <span>💾</span>
           <span>Own Copy</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => updateField("has_subtitles", formData.has_subtitles === 1 ? 0 : 1)}
+          className={cn(
+            "flex items-center justify-center gap-2 px-3 py-3 rounded-xl font-medium transition-all border",
+            formData.has_subtitles === 1
+              ? "bg-orange-500/20 border-orange-500 text-orange-400"
+              : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
+          )}
+        >
+          <span>📝</span>
+          <span>Subtitles</span>
         </button>
       </div>
     </div>

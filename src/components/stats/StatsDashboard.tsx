@@ -29,6 +29,7 @@ interface StatsDashboardProps {
   entryTypes: string[];
   selectedTypes: string[];
   profileKeys: Set<string>;
+  profileKeysReady: boolean;
   onSelectedTypesChange: (types: string[]) => void;
   presets: StatsFilterPreset[];
   activePreset: StatsPresetKey;
@@ -76,6 +77,7 @@ export function StatsDashboard({
   entryTypes,
   selectedTypes,
   profileKeys,
+  profileKeysReady,
   onSelectedTypesChange,
   presets,
   activePreset,
@@ -105,6 +107,7 @@ export function StatsDashboard({
     activeYear,
     selectedTypes,
     profileKeys,
+    profileKeysReady,
     displayModes: layout.displayModes,
     data,
     onPerfect10Click,
