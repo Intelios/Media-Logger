@@ -28,3 +28,4 @@ tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 window-vibrancy = "0.5"
 chrono = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate"] }

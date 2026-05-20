@@ -210,7 +210,7 @@ export default function Settings() {
     const handleGlassStyleChange = (style: GlassStyle) => {
         if (style === glassStyle) return;
         setGlassStyle(style);
-        showToast(style === 'clear' ? 'Glass style set to Clear' : 'Glass style set to Default');
+        showToast(style === 'clear' ? 'Backdrop style set to Clear' : 'Backdrop style set to Default');
     };
 
     const handleRatingDisplayChange = (mode: 'pill' | 'thermometer') => {
@@ -555,12 +555,12 @@ export default function Settings() {
                         </div>
 
                         <div className="settings-group">
-                            <div className="settings-group-label">Window Glass</div>
+                            <div className="settings-group-label">Window Background</div>
                             <div className="settings-row">
                                 <div>
-                                    <div className="settings-row-label">Glass Style</div>
+                                    <div className="settings-row-label">Native Backdrop</div>
                                     <div className="settings-row-description">
-                                        Default keeps a solid background. Clear enables a liquid glass effect that shows colors and shapes from your desktop behind the app window.
+                                        Default keeps the main content solid. Clear lets more of the native desktop backdrop show through, using Liquid Glass or vibrancy on macOS and Mica on Windows.
                                     </div>
                                 </div>
                                 <div className="segmented-control">

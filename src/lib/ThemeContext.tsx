@@ -56,15 +56,15 @@ function getGlassColors(mode: ThemeMode, glassStyle: GlassStyle) {
     };
 }
 
-async function applyNativeGlassStyle(style: GlassStyle): Promise<void> {
+async function applyNativeGlassStyle(style: GlassStyle, mode: ThemeMode): Promise<void> {
     if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
         return;
     }
 
     try {
-        await invoke('apply_glass_style', { style });
+        await invoke('apply_glass_style', { style, mode });
     } catch (error) {
-        console.error('Failed to apply native glass style:', error);
+        console.error('Failed to apply native window backdrop:', error);
     }
 }
 
@@ -160,10 +160,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         applyTheme(colorTheme, themeMode, glassStyle);
     }, [colorTheme, themeMode, glassStyle]);
 
-    // Keep native macOS glass variant in sync with appearance setting.
+    // Keep native desktop backdrop in sync with appearance settings.
     useEffect(() => {
-        void applyNativeGlassStyle(glassStyle);
-    }, [glassStyle]);
+        void applyNativeGlassStyle(glassStyle, themeMode);
+    }, [glassStyle, themeMode]);
 
     const setColorTheme = useCallback((theme: ColorTheme) => {
         setColorThemeState(theme);

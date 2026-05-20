@@ -56,4 +56,8 @@ TODO.md
 /dist
 patchnote.md
 /temp
-/.github
+# GitHub local metadata, except Actions workflows
+/.github/*
+!/.github/workflows/
+!/.github/workflows/*.yml
+!/.github/workflows/*.yaml

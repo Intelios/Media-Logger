@@ -10,6 +10,19 @@ import { shouldShowWelcome } from "../lib/onboarding-logic";
 import { getNavigationYears } from "../lib/settings";
 import { getAvailableNavigationYears, getCurrentYearString, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
 
+function isMacPlatform(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /mac/i.test(navigator.platform) || /mac os/i.test(navigator.userAgent);
+}
+
+function getShortcutLabel(key: string): string {
+  return isMacPlatform() ? `⌘${key}` : `Ctrl+${key}`;
+}
+
+function isEditableShortcutTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+}
+
 export function Layout() {
   const [isYearsCollapsed, setIsYearsCollapsed] = useState(false);
   const [years, setYears] = useState<string[]>(() => getNavigationYears());
@@ -65,6 +78,44 @@ export function Layout() {
     };
   }, [navigate]);
 
+  // Windows/Linux do not use the native macOS menu bar, so handle shortcuts here.
+  useEffect(() => {
+    if (isMacPlatform()) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || isEditableShortcutTarget(event.target)) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      const routes: Record<string, string> = {
+        "1": "/",
+        "2": `/year/${currentYear}`,
+        "3": "/search",
+        "4": "/stats",
+        "5": "/profiles",
+        "6": "/awards",
+        "7": "/collections",
+        ",": "/settings",
+      };
+
+      if (key === "n") {
+        event.preventDefault();
+        setShowEntryForm(true);
+        return;
+      }
+
+      const route = routes[key];
+      if (route) {
+        event.preventDefault();
+        navigate(route);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentYear, navigate]);
+
   // Fetch all entries for autocomplete when the entry form opens
   useEffect(() => {
     if (showEntryForm) {
@@ -112,7 +163,7 @@ export function Layout() {
   return (
     <div className="flex h-screen overflow-hidden" style={{ color: "var(--color-text)" }}>
 
-      {/* Sidebar - transparent to show native macOS vibrancy */}
+      {/* Sidebar - transparent to show the native desktop backdrop */}
       <aside className={cn(
         "bg-transparent border-r flex flex-col transition-all duration-300 ease-out",
         isCompact ? "w-[72px] p-3" : "w-64 p-4"
@@ -142,7 +193,7 @@ export function Layout() {
 
           {/* Overview Section */}
           {!isCompact && <SectionLabel label="Overview" />}
-          <NavItem to="/" icon={<Home size={18} />} label="Home" shortcut="⌘1" isCompact={isCompact} />
+          <NavItem to="/" icon={<Home size={18} />} label="Home" shortcut={getShortcutLabel("1")} isCompact={isCompact} />
 
           {/* Years Section */}
           <div className="py-2">
@@ -168,6 +219,7 @@ export function Layout() {
                   label={year}
                   isCompact={isCompact}
                   badge={year === currentYear ? "NOW" : undefined}
+                  shortcut={year === currentYear ? getShortcutLabel("2") : undefined}
                 />
               ))}
             </div>
@@ -175,16 +227,16 @@ export function Layout() {
 
           {/* Library Section */}
           {!isCompact && <SectionLabel label="Library" />}
-          <NavItem to="/stats" icon={<BarChart3 size={18} />} label="Stats" shortcut="⌘2" isCompact={isCompact} />
-          <NavItem to="/search" icon={<Search size={18} />} label="Search" shortcut="⌘3" isCompact={isCompact} />
-          <NavItem to="/awards" icon={<Award size={18} />} label="Awards" isCompact={isCompact} />
-          <NavItem to="/profiles" icon={<Users size={18} />} label="Profiles" isCompact={isCompact} />
-          <NavItem to="/collections" icon={<Layers size={18} />} label="Collections" isCompact={isCompact} />
+          <NavItem to="/stats" icon={<BarChart3 size={18} />} label="Stats" shortcut={getShortcutLabel("4")} isCompact={isCompact} />
+          <NavItem to="/search" icon={<Search size={18} />} label="Search" shortcut={getShortcutLabel("3")} isCompact={isCompact} />
+          <NavItem to="/awards" icon={<Award size={18} />} label="Awards" shortcut={getShortcutLabel("6")} isCompact={isCompact} />
+          <NavItem to="/profiles" icon={<Users size={18} />} label="Profiles" shortcut={getShortcutLabel("5")} isCompact={isCompact} />
+          <NavItem to="/collections" icon={<Layers size={18} />} label="Collections" shortcut={getShortcutLabel("7")} isCompact={isCompact} />
           <NavItem to="/review" icon={<PartyPopper size={18} />} label="Review" isCompact={isCompact} />
 
           {/* System Section */}
           {!isCompact && <SectionLabel label="System" />}
-          <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" isCompact={isCompact} />
+          <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" shortcut={getShortcutLabel(",")} isCompact={isCompact} />
         </nav>
 
         {/* Bottom Actions */}
@@ -308,7 +360,7 @@ function NavItem({
               )}
 
               {/* Keyboard shortcut (shown on hover) */}
-              {shortcut && !badge && (
+              {shortcut && (
                 <span className="text-[10px] text-[var(--color-text-subtle)] opacity-0 group-hover:opacity-100 transition-opacity">
                   {shortcut}
                 </span>

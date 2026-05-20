@@ -1,10 +1,10 @@
 use serde::Serialize;
 use std::fs;
+use std::io::{Read, Seek, Write};
 use std::path::{Component, Path, PathBuf};
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Emitter;
 use tauri::Manager;
+#[cfg(target_os = "macos")]
 use tauri::menu::{Menu, MenuItemBuilder, PredefinedMenuItem, Submenu};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -18,13 +18,16 @@ fn apply_glass_style(
     app: tauri::AppHandle,
     window: tauri::WebviewWindow,
     style: String,
+    mode: String,
 ) -> Result<(), String> {
+    let normalized = style.trim().to_ascii_lowercase();
+
     #[cfg(target_os = "macos")]
     {
         use tauri_plugin_liquid_glass::{GlassMaterialVariant, LiquidGlassConfig, LiquidGlassExt};
         use window_vibrancy::{NSVisualEffectMaterial, apply_vibrancy};
 
-        let normalized = style.trim().to_ascii_lowercase();
+        let _ = &mode;
 
         // macOS 26+ can switch between native liquid glass variants.
         if app.liquid_glass().is_supported() {
@@ -50,9 +53,48 @@ fn apply_glass_style(
         }
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
-        let _ = (app, window, style);
+        let _ = (app, normalized);
+        apply_windows_backdrop(&window, theme_mode_is_dark(&mode))?;
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = (app, window, normalized, mode);
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn theme_mode_is_dark(mode: &str) -> Option<bool> {
+    match mode.trim().to_ascii_lowercase().as_str() {
+        "dark" => Some(true),
+        "light" => Some(false),
+        _ => None,
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn apply_windows_backdrop(
+    window: &tauri::WebviewWindow,
+    dark: Option<bool>,
+) -> Result<(), String> {
+    use window_vibrancy::{apply_blur, apply_mica};
+
+    if let Err(mica_error) = apply_mica(window, dark) {
+        let fallback_color = if dark.unwrap_or(true) {
+            (18, 18, 18, 125)
+        } else {
+            (245, 245, 245, 125)
+        };
+
+        apply_blur(window, Some(fallback_color)).map_err(|blur_error| {
+            format!(
+                "Failed to apply Windows Mica ({mica_error}); fallback blur failed: {blur_error}"
+            )
+        })?;
     }
 
     Ok(())
@@ -70,172 +112,69 @@ struct ExtractBackupAssetsResult {
     assets_restored: usize,
 }
 
-struct TempDirGuard {
-    path: PathBuf,
+fn zip_options() -> zip::write::SimpleFileOptions {
+    zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
 }
 
-impl TempDirGuard {
-    fn new(prefix: &str) -> Result<Self, String> {
-        let unique_suffix = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|error| format!("Failed to create temp path: {error}"))?
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "media-logger-{prefix}-{}-{unique_suffix}",
-            std::process::id()
-        ));
-        fs::create_dir_all(&path).map_err(|error| {
-            format!(
-                "Failed to create temp directory {}: {error}",
-                path.display()
-            )
-        })?;
-        Ok(Self { path })
-    }
-
-    fn path(&self) -> &Path {
-        &self.path
-    }
+fn create_zip_archive(file_path: &Path) -> Result<zip::ZipWriter<fs::File>, String> {
+    let file = fs::File::create(file_path)
+        .map_err(|error| format!("Failed to create ZIP {}: {error}", file_path.display()))?;
+    Ok(zip::ZipWriter::new(file))
 }
 
-impl Drop for TempDirGuard {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
-    }
+fn open_zip_archive(file_path: &Path) -> Result<zip::ZipArchive<fs::File>, String> {
+    let file = fs::File::open(file_path)
+        .map_err(|error| format!("Failed to open ZIP {}: {error}", file_path.display()))?;
+    zip::ZipArchive::new(file)
+        .map_err(|error| format!("Failed to read ZIP {}: {error}", file_path.display()))
 }
 
-fn zip_command_name() -> &'static str {
-    #[cfg(target_os = "macos")]
-    {
-        "/usr/bin/zip"
-    }
+fn add_file_to_zip<W: Write + Seek>(
+    zip: &mut zip::ZipWriter<W>,
+    source_path: &Path,
+    archive_path: &str,
+) -> Result<(), String> {
+    zip.start_file(archive_path, zip_options())
+        .map_err(|error| format!("Failed to add {archive_path} to ZIP: {error}"))?;
 
-    #[cfg(not(target_os = "macos"))]
-    {
-        "zip"
-    }
+    let mut file = fs::File::open(source_path)
+        .map_err(|error| format!("Failed to open {}: {error}", source_path.display()))?;
+    std::io::copy(&mut file, zip)
+        .map_err(|error| format!("Failed to write {archive_path} to ZIP: {error}"))?;
+
+    Ok(())
 }
 
-fn unzip_command_name() -> &'static str {
-    #[cfg(target_os = "macos")]
-    {
-        "/usr/bin/unzip"
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        "unzip"
-    }
-}
-
-fn path_to_string(path: &Path) -> Result<String, String> {
-    path.to_str()
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| format!("Path contains invalid UTF-8: {}", path.display()))
-}
-
-fn run_command(command: &str, args: &[&str], current_dir: Option<&Path>) -> Result<String, String> {
-    let mut process = Command::new(command);
-    process.args(args);
-
-    if let Some(dir) = current_dir {
-        process.current_dir(dir);
-    }
-
-    let output = process
-        .output()
-        .map_err(|error| format!("Failed to run {command}: {error}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let detail = if !stderr.is_empty() {
-            stderr
-        } else if !stdout.is_empty() {
-            stdout
-        } else {
-            format!("process exited with status {}", output.status)
-        };
-        return Err(format!("{command} failed: {detail}"));
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
-}
-
-fn copy_dir_recursive(source: &Path, destination: &Path, overwrite: bool) -> Result<usize, String> {
-    if !source.exists() {
-        return Ok(0);
-    }
-
-    fs::create_dir_all(destination).map_err(|error| {
-        format!(
-            "Failed to create destination directory {}: {error}",
-            destination.display()
-        )
-    })?;
-
-    let mut files_copied = 0;
-    let entries = fs::read_dir(source)
-        .map_err(|error| format!("Failed to read directory {}: {error}", source.display()))?;
+fn add_dir_to_zip<W: Write + Seek>(
+    zip: &mut zip::ZipWriter<W>,
+    source_dir: &Path,
+    archive_prefix: &str,
+) -> Result<(), String> {
+    let entries = fs::read_dir(source_dir)
+        .map_err(|error| format!("Failed to read directory {}: {error}", source_dir.display()))?;
 
     for entry in entries {
         let entry = entry.map_err(|error| {
             format!(
                 "Failed to read an entry inside {}: {error}",
-                source.display()
+                source_dir.display()
             )
         })?;
         let entry_type = entry
             .file_type()
             .map_err(|error| format!("Failed to inspect {}: {error}", entry.path().display()))?;
-        let source_path = entry.path();
-        let destination_path = destination.join(entry.file_name());
+        let entry_name = entry.file_name().to_string_lossy().replace('\\', "/");
+        let archive_path = format!("{archive_prefix}/{entry_name}");
 
         if entry_type.is_dir() {
-            files_copied += copy_dir_recursive(&source_path, &destination_path, overwrite)?;
-            continue;
+            add_dir_to_zip(zip, &entry.path(), &archive_path)?;
+        } else if entry_type.is_file() {
+            add_file_to_zip(zip, &entry.path(), &archive_path)?;
         }
-
-        if !entry_type.is_file() {
-            continue;
-        }
-
-        if let Some(parent) = destination_path.parent() {
-            fs::create_dir_all(parent).map_err(|error| {
-                format!(
-                    "Failed to create parent directory {}: {error}",
-                    parent.display()
-                )
-            })?;
-        }
-
-        if !overwrite && destination_path.exists() {
-            continue;
-        }
-
-        fs::copy(&source_path, &destination_path).map_err(|error| {
-            format!(
-                "Failed to copy {} to {}: {error}",
-                source_path.display(),
-                destination_path.display()
-            )
-        })?;
-        files_copied += 1;
     }
 
-    Ok(files_copied)
-}
-
-fn list_zip_entries(file_path: &Path) -> Result<Vec<String>, String> {
-    let zip_path = path_to_string(file_path)?;
-    let output = run_command(unzip_command_name(), &["-Z1", &zip_path], None)?;
-
-    Ok(output
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .map(ToOwned::to_owned)
-        .collect())
+    Ok(())
 }
 
 fn archive_path_is_safe(path: &str) -> bool {
@@ -274,29 +213,19 @@ fn create_backup_zip(
         })?;
     }
 
-    let temp_dir = TempDirGuard::new("backup-export")?;
-    let backup_json_path = temp_dir.path().join("backup.json");
-    fs::write(&backup_json_path, backup_json).map_err(|error| {
-        format!(
-            "Failed to write temporary backup.json at {}: {error}",
-            backup_json_path.display()
-        )
-    })?;
+    let mut zip = create_zip_archive(&output_path)?;
+    zip.start_file("backup.json", zip_options())
+        .map_err(|error| format!("Failed to add backup.json to ZIP: {error}"))?;
+    zip.write_all(backup_json.as_bytes())
+        .map_err(|error| format!("Failed to write backup.json to ZIP: {error}"))?;
 
     let assets_source = Path::new(&data_dir).join("assets");
     if assets_source.is_dir() {
-        copy_dir_recursive(&assets_source, &temp_dir.path().join("assets"), true)?;
+        add_dir_to_zip(&mut zip, &assets_source, "assets")?;
     }
 
-    let output_path = path_to_string(&output_path)?;
-    let mut args = vec!["-rq".to_string(), output_path, "backup.json".to_string()];
-
-    if assets_source.is_dir() {
-        args.push("assets".to_string());
-    }
-
-    let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-    run_command(zip_command_name(), &arg_refs, Some(temp_dir.path()))?;
+    zip.finish()
+        .map_err(|error| format!("Failed to finalize ZIP backup: {error}"))?;
 
     Ok(())
 }
@@ -304,18 +233,14 @@ fn create_backup_zip(
 #[tauri::command]
 fn read_backup_zip(file_path: String) -> Result<BackupZipReadResult, String> {
     let zip_path = PathBuf::from(file_path);
-    let entries = list_zip_entries(&zip_path)?;
-
-    if !entries.iter().any(|entry| entry == "backup.json") {
-        return Err("Backup ZIP is missing backup.json".to_string());
-    }
-
-    let zip_path = path_to_string(&zip_path)?;
-    let backup_json = run_command(
-        unzip_command_name(),
-        &["-p", &zip_path, "backup.json"],
-        None,
-    )?;
+    let mut archive = open_zip_archive(&zip_path)?;
+    let mut backup_file = archive
+        .by_name("backup.json")
+        .map_err(|_| "Backup ZIP is missing backup.json".to_string())?;
+    let mut backup_json = String::new();
+    backup_file
+        .read_to_string(&mut backup_json)
+        .map_err(|error| format!("Failed to read backup.json from ZIP: {error}"))?;
 
     serde_json::from_str::<serde_json::Value>(&backup_json)
         .map_err(|error| format!("backup.json is not valid JSON: {error}"))?;
@@ -330,45 +255,74 @@ fn extract_backup_assets(
     overwrite: bool,
 ) -> Result<ExtractBackupAssetsResult, String> {
     let zip_path = PathBuf::from(file_path);
-    let entries = list_zip_entries(&zip_path)?;
-    let asset_entries = entries
-        .iter()
-        .filter(|entry| entry.starts_with("assets/"))
-        .cloned()
-        .collect::<Vec<_>>();
+    let mut archive = open_zip_archive(&zip_path)?;
+    let mut asset_indexes = Vec::new();
 
-    if asset_entries.is_empty() {
-        return Ok(ExtractBackupAssetsResult { assets_restored: 0 });
-    }
+    for index in 0..archive.len() {
+        let entry = archive
+            .by_index(index)
+            .map_err(|error| format!("Failed to inspect ZIP entry: {error}"))?;
+        let entry = entry.name().to_string();
 
-    for entry in &asset_entries {
-        if !archive_path_is_safe(entry) {
-            return Err(format!("Backup ZIP contains an unsafe asset path: {entry}"));
-        }
-    }
-
-    for entry in &entries {
-        if entry != "backup.json" && !archive_path_is_safe(entry) {
+        if entry != "backup.json" && !archive_path_is_safe(&entry) {
             return Err(format!("Backup ZIP contains an unsafe path: {entry}"));
         }
+
+        if entry.starts_with("assets/") {
+            asset_indexes.push(index);
+        }
     }
 
-    let temp_dir = TempDirGuard::new("backup-assets")?;
-    let zip_path = path_to_string(&zip_path)?;
-    let temp_path = path_to_string(temp_dir.path())?;
-    run_command(
-        unzip_command_name(),
-        &["-qq", &zip_path, "-d", &temp_path],
-        None,
-    )?;
-
-    let extracted_assets = temp_dir.path().join("assets");
-    if !extracted_assets.exists() {
+    if asset_indexes.is_empty() {
         return Ok(ExtractBackupAssetsResult { assets_restored: 0 });
     }
 
     let destination_assets = Path::new(&data_dir).join("assets");
-    let assets_restored = copy_dir_recursive(&extracted_assets, &destination_assets, overwrite)?;
+    let mut assets_restored = 0;
+
+    for index in asset_indexes {
+        let mut entry = archive
+            .by_index(index)
+            .map_err(|error| format!("Failed to read ZIP asset entry: {error}"))?;
+
+        if entry.is_dir() {
+            continue;
+        }
+
+        let entry_name = entry.name().to_string();
+        let relative_path = entry_name.strip_prefix("assets/").unwrap_or_default();
+        if relative_path.is_empty() {
+            continue;
+        }
+
+        let destination_path = destination_assets.join(relative_path);
+        if !overwrite && destination_path.exists() {
+            continue;
+        }
+
+        if let Some(parent) = destination_path.parent() {
+            fs::create_dir_all(parent).map_err(|error| {
+                format!(
+                    "Failed to create parent directory {}: {error}",
+                    parent.display()
+                )
+            })?;
+        }
+
+        let mut destination_file = fs::File::create(&destination_path).map_err(|error| {
+            format!(
+                "Failed to create restored asset {}: {error}",
+                destination_path.display()
+            )
+        })?;
+        std::io::copy(&mut entry, &mut destination_file).map_err(|error| {
+            format!(
+                "Failed to restore asset {}: {error}",
+                destination_path.display()
+            )
+        })?;
+        assets_restored += 1;
+    }
 
     Ok(ExtractBackupAssetsResult { assets_restored })
 }
@@ -391,7 +345,7 @@ pub fn run() {
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
 
-            // Create native macOS menu bar
+            // Apply platform-native backdrop effects.
             #[cfg(target_os = "macos")]
             {
                 use tauri_plugin_liquid_glass::{
@@ -414,7 +368,17 @@ pub fn run() {
                     apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None)
                         .expect("Failed to apply vibrancy");
                 }
+            }
 
+            #[cfg(target_os = "windows")]
+            {
+                if let Err(error) = apply_windows_backdrop(&window, None) {
+                    eprintln!("Failed to apply Windows backdrop: {error}");
+                }
+            }
+
+            #[cfg(target_os = "macos")]
+            {
                 // App menu (appears as "Media Logger" in menu bar)
                 let app_menu = Submenu::with_items(
                     app,
