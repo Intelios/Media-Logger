@@ -1,4 +1,4 @@
-import { dbService, type MediaEntry } from "./db";
+import { dbService, type MediaEntry, type BacklogItem } from "./db";
 
 // CSV parsing and generation utilities
 
@@ -137,6 +137,7 @@ export interface ExportData {
     award_categories: string;
     award_winners: string;
     profiles?: string;
+    backlog_items?: string;
     export_date: string;
     version: string;
 }
@@ -174,6 +175,7 @@ const AWARD_TEMPLATE_COLUMNS = ["id", "name", "created_date"];
 const AWARD_CATEGORY_COLUMNS = ["id", "name", "year", "sort_order", "template_id"];
 const AWARD_WINNER_COLUMNS = ["category_id", "media_id", "selected_date"];
 const PROFILE_COLUMNS = ["type", "name", "image_url"];
+const BACKLOG_COLUMNS = ["id", "name", "entry_type", "genre", "image_url", "status", "added_date", "sort_order"];
 
 /**
  * Export all data from the database as CSV strings
@@ -221,6 +223,11 @@ export async function exportAllData(): Promise<ExportData> {
         { type: string; name: string; image_url: string }[]
     >("SELECT * FROM profiles ORDER BY type ASC, name ASC");
 
+    // Export backlog items
+    const backlogItems = await db.select<BacklogItem[]>(
+        "SELECT * FROM backlog_items ORDER BY id ASC"
+    );
+
     return {
         media_entries: toCSV(mediaEntries as unknown as Record<string, unknown>[], MEDIA_COLUMNS),
         collections: toCSV(collections, COLLECTION_COLUMNS),
@@ -230,8 +237,9 @@ export async function exportAllData(): Promise<ExportData> {
         award_categories: toCSV(awardCategories, AWARD_CATEGORY_COLUMNS),
         award_winners: toCSV(awardWinners, AWARD_WINNER_COLUMNS),
         profiles: toCSV(profiles, PROFILE_COLUMNS),
+        backlog_items: toCSV(backlogItems as unknown as Record<string, unknown>[], BACKLOG_COLUMNS),
         export_date: new Date().toISOString(),
-        version: "1.3",
+        version: "1.4",
     };
 }
 
@@ -366,6 +374,20 @@ async function ensureTablesExist(): Promise<void> {
             name TEXT NOT NULL,
             image_url TEXT NOT NULL,
             PRIMARY KEY (type, name)
+        )
+    `);
+
+    // Create backlog_items table
+    await db.execute(`
+        CREATE TABLE IF NOT EXISTS backlog_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            entry_type TEXT NOT NULL,
+            genre TEXT,
+            image_url TEXT,
+            status TEXT NOT NULL DEFAULT 'planning',
+            added_date TEXT NOT NULL,
+            sort_order INTEGER DEFAULT 0
         )
     `);
 
@@ -678,6 +700,26 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                     );
                     result.profilesImported++;
                 }
+            }
+        }
+        // 9. Import backlog items
+        if (data.backlog_items) {
+            const backlogItems = parseCSV<BacklogItem>(data.backlog_items);
+
+            for (const item of backlogItems) {
+                if (!item.name || !item.entry_type) continue;
+
+                const existing = await db.select<{ id: number }[]>(
+                    "SELECT id FROM backlog_items WHERE name = $1 AND entry_type = $2",
+                    [item.name, item.entry_type]
+                );
+
+                if (existing.length > 0) continue;
+
+                await db.execute(
+                    "INSERT INTO backlog_items (name, entry_type, genre, image_url, status, added_date, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                    [item.name, item.entry_type, item.genre, item.image_url, item.status || 'planning', item.added_date || new Date().toISOString().split('T')[0], item.sort_order || 0]
+                );
             }
         }
     } catch (error) {

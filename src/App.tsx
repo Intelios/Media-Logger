@@ -12,6 +12,7 @@ const AwardsPage = lazy(() => import("./pages/Awards"));
 const CollectionsPage = lazy(() => import("./pages/Collections"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 const ReviewPage = lazy(() => import("./pages/Review"));
+const BacklogPage = lazy(() => import("./pages/Backlog"));
 
 function RouteFallback() {
   return (
@@ -44,6 +45,7 @@ function App() {
             <Route path="profiles" element={<LazyRoute><ProfilesPage /></LazyRoute>} />
             <Route path="awards" element={<LazyRoute><AwardsPage /></LazyRoute>} />
             <Route path="collections" element={<LazyRoute><CollectionsPage /></LazyRoute>} />
+            <Route path="backlog" element={<LazyRoute><BacklogPage /></LazyRoute>} />
             <Route path="review" element={<LazyRoute><ReviewPage /></LazyRoute>} />
             <Route path="settings" element={<LazyRoute><SettingsPage /></LazyRoute>} />
 

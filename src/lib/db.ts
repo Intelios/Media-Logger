@@ -31,6 +31,17 @@ export interface MediaEntry {
   series: string | null;
 }
 
+export interface BacklogItem {
+  id: number;
+  name: string;
+  entry_type: string;
+  genre: string | null;
+  image_url: string | null;
+  status: 'planning' | 'in_progress';
+  added_date: string;
+  sort_order: number;
+}
+
 export interface EntrySearchFilters {
   query?: string;
   entryTypes: string[];
@@ -438,6 +449,20 @@ class DBService {
         )
       `);
 
+      // Create backlog items table
+      await this.db.execute(`
+        CREATE TABLE IF NOT EXISTS backlog_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          entry_type TEXT NOT NULL,
+          genre TEXT,
+          image_url TEXT,
+          status TEXT NOT NULL DEFAULT 'planning',
+          added_date TEXT NOT NULL,
+          sort_order INTEGER DEFAULT 0
+        )
+      `);
+
       console.log('[DB] Base tables ensured');
     } catch (error) {
       console.error('[DB] Error creating tables:', error);
@@ -723,6 +748,62 @@ class DBService {
       "SELECT * FROM entries WHERE name = $1 ORDER BY completion_date ASC",
       [name]
     );
+  }
+
+  // --- Backlog ---
+
+  async getAllBacklogItems(): Promise<BacklogItem[]> {
+    const db = await this.connect();
+    return await db.select<BacklogItem[]>(
+      "SELECT * FROM backlog_items ORDER BY CASE status WHEN 'in_progress' THEN 0 ELSE 1 END, sort_order ASC, id DESC"
+    );
+  }
+
+  async getBacklogItemsByStatus(status: BacklogItem['status']): Promise<BacklogItem[]> {
+    const db = await this.connect();
+    return await db.select<BacklogItem[]>(
+      "SELECT * FROM backlog_items WHERE status = $1 ORDER BY sort_order ASC, id DESC",
+      [status]
+    );
+  }
+
+  async addBacklogItem(item: Omit<BacklogItem, 'id'>): Promise<number> {
+    const db = await this.connect();
+    const keys = Object.keys(item);
+    const values = Object.values(item);
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(",");
+
+    const result: any = await db.execute(
+      `INSERT INTO backlog_items (${keys.join(",")}) VALUES (${placeholders})`,
+      values
+    );
+    return result.lastInsertId;
+  }
+
+  async updateBacklogItem(item: BacklogItem): Promise<void> {
+    const db = await this.connect();
+    const { id, ...rest } = item;
+    const keys = Object.keys(rest);
+    const values = Object.values(rest);
+    const setString = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
+
+    await db.execute(
+      `UPDATE backlog_items SET ${setString} WHERE id = $${values.length + 1}`,
+      [...values, id]
+    );
+  }
+
+  async updateBacklogStatus(id: number, status: BacklogItem['status']): Promise<void> {
+    const db = await this.connect();
+    await db.execute(
+      "UPDATE backlog_items SET status = $1 WHERE id = $2",
+      [status, id]
+    );
+  }
+
+  async deleteBacklogItem(id: number): Promise<void> {
+    const db = await this.connect();
+    await db.execute("DELETE FROM backlog_items WHERE id = $1", [id]);
   }
 }
 

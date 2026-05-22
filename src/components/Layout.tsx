@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Home, Calendar, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Sparkles, Settings, PartyPopper } from "lucide-react";
+import { Home, Calendar, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Sparkles, Settings, PartyPopper, Bookmark } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
 import { WelcomeScreen } from "./WelcomeScreen";
@@ -96,6 +96,7 @@ export function Layout() {
         "5": "/profiles",
         "6": "/awards",
         "7": "/collections",
+        "8": "/backlog",
         ",": "/settings",
       };
 
@@ -229,6 +230,7 @@ export function Layout() {
           {!isCompact && <SectionLabel label="Library" />}
           <NavItem to="/stats" icon={<BarChart3 size={18} />} label="Stats" shortcut={getShortcutLabel("4")} isCompact={isCompact} />
           <NavItem to="/search" icon={<Search size={18} />} label="Search" shortcut={getShortcutLabel("3")} isCompact={isCompact} />
+          <NavItem to="/backlog" icon={<Bookmark size={18} />} label="Backlog" shortcut={getShortcutLabel("8")} isCompact={isCompact} />
           <NavItem to="/awards" icon={<Award size={18} />} label="Awards" shortcut={getShortcutLabel("6")} isCompact={isCompact} />
           <NavItem to="/profiles" icon={<Users size={18} />} label="Profiles" shortcut={getShortcutLabel("5")} isCompact={isCompact} />
           <NavItem to="/collections" icon={<Layers size={18} />} label="Collections" shortcut={getShortcutLabel("7")} isCompact={isCompact} />
