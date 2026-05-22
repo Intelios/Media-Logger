@@ -85,7 +85,6 @@ Defined in Rust (`lib.rs` setup hook). Sends Tauri events (`menu-navigate`, `men
 ## What NOT to Suggest
 
 - If asked for new features do not suggest the following:
-  - Backlog Feature
   - Web Browser version
   - Mobile version
 - All of these are not wanted by the user!
