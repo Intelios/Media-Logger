@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw, Trophy, Tv, ArrowUp, ArrowDown, Captions } from "lucide-react";
+import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw, Trophy, Tv, ArrowUp, ArrowDown, Captions, MoreVertical, EyeOff, Eye } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
 import { awardsLogic } from "../lib/awards-logic";
@@ -396,9 +397,19 @@ function AwardCard({
 }
 
 // --- SUB-COMPONENT: Individual Profile Card for the Grid ---
-function ProfileCard({ profile, onClick }: { profile: ProfileSummary, onClick: (p: ProfileSummary) => void }) {
+function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
+  profile: ProfileSummary;
+  onClick: (p: ProfileSummary) => void;
+  onAction: (p: ProfileSummary) => void;
+  actionLabel: string;
+  ActionIcon: typeof EyeOff;
+}) {
   const [imgSrc, setImgSrc] = useState("");
   const typeConfig = getTypeConfig(profile.type);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (profile.image_url) {
@@ -408,49 +419,120 @@ function ProfileCard({ profile, onClick }: { profile: ProfileSummary, onClick: (
     }
   }, [profile.image_url]);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
+
+  const handleMenuClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!menuOpen && menuButtonRef.current) {
+      const rect = menuButtonRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setMenuOpen(!menuOpen);
+  };
+
   return (
-    <button
-      onClick={() => onClick(profile)}
-      className="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden hover:border-white/25 transition-all duration-300 text-left h-full min-h-[7rem] w-full flex items-center p-4 gap-4 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/40"
-    >
-      {/* Gradient accent bar */}
-      <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${typeConfig.gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
+    <div className="group relative h-full">
+      <button
+        onClick={() => onClick(profile)}
+        className="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden hover:border-white/25 transition-all duration-300 text-left h-full min-h-[7rem] w-full flex items-center p-4 gap-4 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/40"
+      >
+        {/* Gradient accent bar */}
+        <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${typeConfig.gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
 
-      {/* Avatar / Image */}
-      <div className={`h-16 w-16 rounded-xl bg-black/40 flex-shrink-0 overflow-hidden border border-white/10 group-hover:border-white/25 transition-colors shadow-lg`}>
-        {imgSrc ? (
-          <img src={imgSrc} className="h-full w-full object-cover" alt={profile.name} />
-        ) : (
-          <div className={`h-full w-full flex items-center justify-center bg-gradient-to-br ${typeConfig.gradient} opacity-20`}>
-            <span className="text-2xl font-bold opacity-80 uppercase">{profile.name[0]}</span>
-          </div>
-        )}
-      </div>
-
-      <div className="flex-1 min-w-0 pl-1">
-        <h4 className="font-semibold text-lg group-hover:text-white transition-colors truncate">
-          {profile.name}
-        </h4>
-        <div className="flex items-center gap-3 mt-1.5">
-          <span className={`text-xs font-medium capitalize ${typeConfig.color}`}>
-            {profile.type}
-          </span>
-          <div className="flex items-center gap-1.5 text-gray-400">
-            <Hash size={12} />
-            <span className="text-xs">{profile.count}</span>
-          </div>
-          {profile.average_score > 0 && (
-            <div className="flex items-center gap-1 text-yellow-500">
-              <Star size={12} fill="currentColor" />
-              <span className="text-xs font-medium">{profile.average_score}</span>
+        {/* Avatar / Image */}
+        <div className={`h-16 w-16 rounded-xl bg-black/40 flex-shrink-0 overflow-hidden border border-white/10 group-hover:border-white/25 transition-colors shadow-lg`}>
+          {imgSrc ? (
+            <img src={imgSrc} className="h-full w-full object-cover" alt={profile.name} />
+          ) : (
+            <div className={`h-full w-full flex items-center justify-center bg-gradient-to-br ${typeConfig.gradient} opacity-20`}>
+              <span className="text-2xl font-bold opacity-80 uppercase">{profile.name[0]}</span>
             </div>
           )}
         </div>
+
+        <div className="flex-1 min-w-0 pl-1">
+          <h4 className="font-semibold text-lg group-hover:text-white transition-colors truncate">
+            {profile.name}
+          </h4>
+          <div className="flex items-center gap-3 mt-1.5">
+            <span className={`text-xs font-medium capitalize ${typeConfig.color}`}>
+              {profile.type}
+            </span>
+            <div className="flex items-center gap-1.5 text-gray-400">
+              <Hash size={12} />
+              <span className="text-xs">{profile.count}</span>
+            </div>
+            {profile.average_score > 0 && (
+              <div className="flex items-center gap-1 text-yellow-500">
+                <Star size={12} fill="currentColor" />
+                <span className="text-xs font-medium">{profile.average_score}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Hover glow effect */}
+        <div className={`absolute inset-0 bg-gradient-to-r ${typeConfig.gradient} opacity-0 group-hover:opacity-5 transition-opacity pointer-events-none`} />
+      </button>
+
+      {/* Action menu button */}
+      <div className="absolute top-2 right-2 z-20" ref={menuRef}>
+        <button
+          ref={menuButtonRef}
+          onClick={handleMenuClick}
+          className={`p-1.5 bg-black/50 backdrop-blur-sm rounded-full transition-all hover:bg-black/70 ${
+            menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}
+        >
+          <MoreVertical size={16} className="text-white" />
+        </button>
       </div>
 
-      {/* Hover glow effect */}
-      <div className={`absolute inset-0 bg-gradient-to-r ${typeConfig.gradient} opacity-0 group-hover:opacity-5 transition-opacity pointer-events-none`} />
-    </button>
+      {menuOpen && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed w-44 rounded-xl border border-white/20 bg-transparent backdrop-blur-2xl shadow-2xl shadow-black/45 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[200]"
+          style={{
+            top: menuPosition.top,
+            right: menuPosition.right,
+            background: "color-mix(in srgb, var(--color-surface) 42%, transparent)",
+            backdropFilter: "blur(24px) saturate(170%)",
+            WebkitBackdropFilter: "blur(24px) saturate(170%)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen(false);
+              onAction(profile);
+            }}
+            className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm ${
+              actionLabel === "Hide Profile"
+                ? "text-red-400 hover:bg-red-500/15"
+                : "text-green-400 hover:bg-green-500/15"
+            } transition-colors`}
+          >
+            <ActionIcon size={14} />
+            <span>{actionLabel}</span>
+          </button>
+        </div>,
+        document.body
+      )}
+    </div>
   );
 }
 
@@ -497,6 +579,10 @@ export default function ProfilesPage() {
   // Detail View Image State
   const [headerImgSrc, setHeaderImgSrc] = useState("");
 
+  // Hidden profiles
+  const [showHidden, setShowHidden] = useState(false);
+  const [hiddenProfiles, setHiddenProfiles] = useState<ProfileSummary[]>([]);
+
   // Filters
   const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedFilter);
   const [searchQuery, setSearchQuery] = useState("");
@@ -513,10 +599,34 @@ export default function ProfilesPage() {
     loadProfiles();
   }, []);
 
+  useEffect(() => {
+    if (showHidden) loadHiddenProfiles();
+  }, [showHidden]);
+
   const loadProfiles = async () => {
     const data = await profilesLogic.getAllProfiles();
     setProfiles(data);
+    if (showHidden) {
+      const hidden = await profilesLogic.getHiddenProfiles();
+      setHiddenProfiles(hidden);
+    }
     return data;
+  };
+
+  const loadHiddenProfiles = async () => {
+    const hidden = await profilesLogic.getHiddenProfiles();
+    setHiddenProfiles(hidden);
+  };
+
+  const handleHideProfile = async (profile: ProfileSummary) => {
+    await profilesLogic.hideProfile(profile.type, profile.name);
+    await loadProfiles();
+  };
+
+  const handleUnhideProfile = async (profile: ProfileSummary) => {
+    await profilesLogic.unhideProfile(profile.type, profile.name);
+    await loadProfiles();
+    await loadHiddenProfiles();
   };
 
   // Handle deep-link URL params (e.g., /profiles?type=artist&name=SomeName)
@@ -553,7 +663,7 @@ export default function ProfilesPage() {
 
   // Filter Logic
   useEffect(() => {
-    let res = profiles;
+    let res = showHidden ? hiddenProfiles : profiles;
 
     // Type Filter
     if (selectedTypes.length !== PROFILE_TYPES.length) {
@@ -567,7 +677,7 @@ export default function ProfilesPage() {
     }
 
     setFilteredProfiles(res);
-  }, [selectedTypes, searchQuery, profiles]);
+  }, [selectedTypes, searchQuery, profiles, showHidden, hiddenProfiles]);
 
   // Load Header Image when entering Detail View
   useEffect(() => {
@@ -1019,7 +1129,7 @@ export default function ProfilesPage() {
                 </div>
                 Profiles
               </h2>
-              <p className="text-gray-400 mt-1">Discover your most frequent collaborators</p>
+              <p className="text-gray-400 mt-1">{showHidden ? "Profiles you've hidden — unhide to restore" : "Discover your most frequent collaborators"}</p>
             </div>
 
             {/* Search bar */}
@@ -1077,9 +1187,22 @@ export default function ProfilesPage() {
               </button>
             )}
 
-            {/* Stats */}
-            <div className="ml-auto text-sm text-gray-500">
-              {filteredProfiles.length} profiles
+            {/* Stats and Hidden toggle */}
+            <div className="ml-auto flex items-center gap-3">
+              <button
+                onClick={() => setShowHidden(!showHidden)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                  showHidden
+                    ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                    : 'bg-white/5 text-gray-400 hover:text-white border border-white/10 hover:border-white/20'
+                }`}
+              >
+                <EyeOff size={14} />
+                <span>Hidden</span>
+              </button>
+              <div className="text-sm text-gray-500">
+                {filteredProfiles.length} {showHidden ? 'hidden' : ''} profiles
+              </div>
             </div>
           </div>
         </div>
@@ -1096,7 +1219,10 @@ export default function ProfilesPage() {
             >
               <ProfileCard
                 profile={profile}
-                onClick={handleProfileClick}
+                onClick={showHidden ? () => {} : handleProfileClick}
+                onAction={showHidden ? handleUnhideProfile : handleHideProfile}
+                actionLabel={showHidden ? "Unhide Profile" : "Hide Profile"}
+                ActionIcon={showHidden ? Eye : EyeOff}
               />
             </div>
           ))}

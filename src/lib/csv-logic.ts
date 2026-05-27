@@ -137,6 +137,7 @@ export interface ExportData {
     award_categories: string;
     award_winners: string;
     profiles?: string;
+    hidden_profiles?: string;
     backlog_items?: string;
     export_date: string;
     version: string;
@@ -175,6 +176,7 @@ const AWARD_TEMPLATE_COLUMNS = ["id", "name", "created_date"];
 const AWARD_CATEGORY_COLUMNS = ["id", "name", "year", "sort_order", "template_id"];
 const AWARD_WINNER_COLUMNS = ["category_id", "media_id", "selected_date"];
 const PROFILE_COLUMNS = ["type", "name", "image_url"];
+const HIDDEN_PROFILE_COLUMNS = ["type", "name", "hidden_date"];
 const BACKLOG_COLUMNS = ["id", "name", "entry_type", "genre", "image_url", "status", "added_date", "sort_order"];
 
 /**
@@ -223,6 +225,11 @@ export async function exportAllData(): Promise<ExportData> {
         { type: string; name: string; image_url: string }[]
     >("SELECT * FROM profiles ORDER BY type ASC, name ASC");
 
+    // Export hidden profiles
+    const hiddenProfiles = await db.select<
+        { type: string; name: string; hidden_date: string }[]
+    >("SELECT * FROM hidden_profiles ORDER BY type ASC, name ASC");
+
     // Export backlog items
     const backlogItems = await db.select<BacklogItem[]>(
         "SELECT * FROM backlog_items ORDER BY id ASC"
@@ -237,9 +244,10 @@ export async function exportAllData(): Promise<ExportData> {
         award_categories: toCSV(awardCategories, AWARD_CATEGORY_COLUMNS),
         award_winners: toCSV(awardWinners, AWARD_WINNER_COLUMNS),
         profiles: toCSV(profiles, PROFILE_COLUMNS),
+        hidden_profiles: toCSV(hiddenProfiles, HIDDEN_PROFILE_COLUMNS),
         backlog_items: toCSV(backlogItems as unknown as Record<string, unknown>[], BACKLOG_COLUMNS),
         export_date: new Date().toISOString(),
-        version: "1.4",
+        version: "1.5",
     };
 }
 
@@ -373,6 +381,16 @@ async function ensureTablesExist(): Promise<void> {
             type TEXT NOT NULL,
             name TEXT NOT NULL,
             image_url TEXT NOT NULL,
+            PRIMARY KEY (type, name)
+        )
+    `);
+
+    // Create hidden_profiles table
+    await db.execute(`
+        CREATE TABLE IF NOT EXISTS hidden_profiles (
+            type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            hidden_date TEXT NOT NULL,
             PRIMARY KEY (type, name)
         )
     `);
@@ -702,6 +720,23 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                 }
             }
         }
+        // 8.5. Import hidden profiles
+        if (data.hidden_profiles) {
+            const hiddenProfiles = parseCSV<{
+                type: string;
+                name: string;
+                hidden_date: string;
+            }>(data.hidden_profiles);
+
+            for (const hp of hiddenProfiles) {
+                if (!hp.type || !hp.name) continue;
+                await db.execute(
+                    "INSERT OR IGNORE INTO hidden_profiles (type, name, hidden_date) VALUES ($1, $2, $3)",
+                    [hp.type, hp.name, hp.hidden_date || new Date().toISOString()]
+                );
+            }
+        }
+
         // 9. Import backlog items
         if (data.backlog_items) {
             const backlogItems = parseCSV<BacklogItem>(data.backlog_items);

@@ -449,6 +449,16 @@ class DBService {
         )
       `);
 
+      // Create hidden profiles table
+      await this.db.execute(`
+        CREATE TABLE IF NOT EXISTS hidden_profiles (
+          type TEXT NOT NULL,
+          name TEXT NOT NULL,
+          hidden_date TEXT NOT NULL,
+          PRIMARY KEY (type, name)
+        )
+      `);
+
       // Create backlog items table
       await this.db.execute(`
         CREATE TABLE IF NOT EXISTS backlog_items (
