@@ -4,6 +4,8 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { appLocalDataDir } from '@tauri-apps/api/path';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
     FolderOpen,
     RotateCcw,
@@ -20,7 +22,10 @@ import {
     Plus,
     X,
     Info,
-    Copy
+    Copy,
+    ScrollText,
+    ChevronDown,
+    ChevronRight
 } from 'lucide-react';
 import { exportToFile, importFromFile, getDataStats, type ImportResult } from '../lib/csv-logic';
 import { DB_FILENAME } from '../lib/db';
@@ -40,11 +45,28 @@ import {
 import { useTheme } from '../lib/ThemeContext';
 import type { ColorTheme, GlassStyle } from '../lib/themes';
 import { getCurrentYearString, updateNavigationYears } from '../lib/navigation-years';
+import changelogData from '../data/changelog.json';
 import packageJson from '../../package.json';
 import tauriConfig from '../../src-tauri/tauri.conf.json';
 
-type SettingsSection = 'general' | 'appearance' | 'data' | 'about';
+type SettingsSection = 'general' | 'appearance' | 'data' | 'changelog' | 'about';
 type BackupFormat = 'json' | 'zip';
+
+type ChangelogRelease = {
+    version: string;
+    title: string;
+    date: string;
+    body: string;
+    prerelease: boolean;
+    url?: string;
+};
+
+type ChangelogData = {
+    generatedAt: string | null;
+    source: string;
+    repository: string | null;
+    releases: ChangelogRelease[];
+};
 
 type EnvironmentInfo = {
     platform: string;
@@ -75,6 +97,38 @@ const appMetadata = {
     tauriCliVersion: packageJson.devDependencies['@tauri-apps/cli'] ?? 'Unknown',
     reactVersion: packageJson.dependencies.react ?? 'Unknown',
 };
+
+const changelog = changelogData as ChangelogData;
+const markdownPlugins = [remarkGfm];
+
+function formatReleaseDate(value: string): string {
+    const [year, month, day] = value.split('-').map(Number);
+
+    if (!year || !month || !day) {
+        return value || 'Unknown date';
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+    }).format(new Date(year, month - 1, day));
+}
+
+function formatGeneratedAt(value: string | null): string {
+    if (!value) return 'Not synced yet';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    return new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    }).format(date);
+}
 
 function getEnvironmentInfo(): EnvironmentInfo {
     return {
@@ -130,6 +184,7 @@ function createFailedImportResult(error: unknown): ImportResult {
 
 export default function Settings() {
     const [activeSection, setActiveSection] = useState<SettingsSection>('general');
+    const [expandedReleaseVersion, setExpandedReleaseVersion] = useState<string | null>(() => changelog.releases[0]?.version ?? null);
     const [currentPath, setCurrentPath] = useState<string>('');
     const [defaultPath, setDefaultPath] = useState<string>('');
     const [isCustom, setIsCustom] = useState(false);
@@ -436,10 +491,13 @@ export default function Settings() {
         }
     };
 
+    const latestRelease = changelog.releases[0];
+
     const navItems: { id: SettingsSection; label: string; icon: React.ReactNode }[] = [
         { id: 'general', label: 'General', icon: <User size={18} /> },
         { id: 'appearance', label: 'Appearance', icon: <Palette size={18} /> },
         { id: 'data', label: 'Data', icon: <Database size={18} /> },
+        { id: 'changelog', label: 'Changelog', icon: <ScrollText size={18} /> },
         { id: 'about', label: 'About', icon: <Info size={18} /> },
     ];
 
@@ -903,6 +961,104 @@ export default function Settings() {
                             <AlertCircle size={16} style={{ color: '#3B82F6', flexShrink: 0, marginTop: 2 }} />
                             <span>JSON backups include all database data in JSON format with embedded CSVs but do not bundle local assets. ZIP backups include the same backup JSON plus the current <strong style={{ color: 'var(--color-text)' }}>assets/</strong> folder from your data directory.</span>
                         </div>
+                    </div>
+                )}
+
+                {/* Changelog Section */}
+                {activeSection === 'changelog' && (
+                    <div className="settings-section-enter" key="changelog">
+                        <h1 className="settings-section-title">Changelog</h1>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Local Release Notes</div>
+                            <div className="settings-row changelog-summary-row">
+                                <div className="changelog-summary-header">
+                                    <div className="changelog-summary-icon">
+                                        <ScrollText size={24} />
+                                    </div>
+                                    <div>
+                                        <div className="settings-row-label">Published GitHub Releases</div>
+                                        <div className="settings-row-description">
+                                            Release notes are synced during development and bundled into the app for offline viewing.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="changelog-summary-grid">
+                                    <div className="changelog-summary-card">
+                                        <span className="changelog-summary-value">{appMetadata.appVersion}</span>
+                                        <span className="changelog-summary-label">Current Version</span>
+                                    </div>
+                                    <div className="changelog-summary-card">
+                                        <span className="changelog-summary-value">{changelog.releases.length}</span>
+                                        <span className="changelog-summary-label">Releases</span>
+                                    </div>
+                                    <div className="changelog-summary-card">
+                                        <span className="changelog-summary-value">{latestRelease?.version ?? 'None'}</span>
+                                        <span className="changelog-summary-label">Latest Synced</span>
+                                    </div>
+                                    <div className="changelog-summary-card">
+                                        <span className="changelog-summary-value changelog-summary-date">{formatGeneratedAt(changelog.generatedAt)}</span>
+                                        <span className="changelog-summary-label">Last Updated</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {changelog.releases.length > 0 ? (
+                            changelog.releases.map((release) => {
+                                const isExpanded = expandedReleaseVersion === release.version;
+
+                                return (
+                                    <div className="settings-group changelog-release" key={release.version}>
+                                        <button
+                                            type="button"
+                                            className="changelog-release-header"
+                                            onClick={() => setExpandedReleaseVersion(isExpanded ? null : release.version)}
+                                            aria-expanded={isExpanded}
+                                        >
+                                            <div className="changelog-release-heading">
+                                                <div className="changelog-release-meta">
+                                                    <span className="changelog-version-badge">{release.version}</span>
+                                                    {release.prerelease && (
+                                                        <span className="changelog-prerelease-badge">Prerelease</span>
+                                                    )}
+                                                </div>
+                                                <div className="changelog-release-title">{release.title}</div>
+                                                <div className="settings-row-description">{formatReleaseDate(release.date)}</div>
+                                            </div>
+                                            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                                        </button>
+
+                                        {isExpanded && (
+                                            <div className="changelog-release-body">
+                                                {release.body ? (
+                                                    <div className="changelog-markdown">
+                                                        <ReactMarkdown remarkPlugins={markdownPlugins}>
+                                                            {release.body}
+                                                        </ReactMarkdown>
+                                                    </div>
+                                                ) : (
+                                                    <p className="changelog-empty-note">No release notes were provided for this release.</p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="settings-group">
+                                <div className="settings-row changelog-empty-state">
+                                    <ScrollText size={28} />
+                                    <div>
+                                        <div className="settings-row-label">No changelog synced yet</div>
+                                        <div className="settings-row-description">
+                                            Run <code>npm run changelog:sync</code> before building the app to bundle published release notes.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
