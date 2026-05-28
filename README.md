@@ -84,7 +84,7 @@ Entries can include completion date, score, description, notes, local artwork, g
 
 ## Data and Compatibility
 
-- Uses a local SQLite database named `jav_log.db`.
+- Uses a local SQLite database named `media_logger.db`. Installs from before 3.0 used `jav_log.db`; these are migrated automatically on first launch (the original file is kept as a backup).
 - Stores selected artwork inside an `assets/images` folder under the app data directory.
 - Supports a custom data directory if you want to keep the database somewhere specific.
 - Includes schema migrations for older installs, including legacy table compatibility and newer awards, profiles, collections, backlog, and series features.

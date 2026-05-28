@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Settings, PartyPopper, Bookmark } from "lucide-react";
+import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Settings, PartyPopper, Bookmark, Database, X } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
 import { WelcomeScreen } from "./WelcomeScreen";
-import { dbService, type MediaEntry } from "../lib/db";
+import { dbService, type MediaEntry, DB_FILENAME, DB_MIGRATED_FLAG_KEY } from "../lib/db";
 import { listen } from "@tauri-apps/api/event";
 import { shouldShowWelcome } from "../lib/onboarding-logic";
 import { getNavigationYears } from "../lib/settings";
@@ -31,6 +31,7 @@ export function Layout() {
   });
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showDbMigratedBanner, setShowDbMigratedBanner] = useState(false);
   const [allEntries, setAllEntries] = useState<MediaEntry[]>([]);
   const navigate = useNavigate();
   const currentYear = getCurrentYearString();
@@ -123,14 +124,24 @@ export function Layout() {
     }
   }, [showEntryForm]);
 
-  // Check if we should show welcome screen
+  // Check if we should show welcome screen. This awaits a DB query, which runs the
+  // lazy connect() (and thus any one-time legacy DB migration) — so afterwards we can
+  // reliably read the migration flag to decide whether to show the one-time banner.
   useEffect(() => {
     const checkWelcome = async () => {
       const show = await shouldShowWelcome();
       setShowWelcome(show);
+      if (localStorage.getItem(DB_MIGRATED_FLAG_KEY)) {
+        setShowDbMigratedBanner(true);
+      }
     };
     checkWelcome();
   }, []);
+
+  const handleDismissDbMigratedBanner = () => {
+    localStorage.removeItem(DB_MIGRATED_FLAG_KEY);
+    setShowDbMigratedBanner(false);
+  };
 
   const handleWelcomeComplete = (openEntryForm?: boolean) => {
     setShowWelcome(false);
@@ -250,6 +261,29 @@ export function Layout() {
 
       {/* Main Content Area - uses theme variable for background */}
       <main className="flex-1 overflow-y-auto p-6 scroll-smooth" style={{ backgroundColor: 'var(--color-background)' }}>
+        {showDbMigratedBanner && (
+          <div
+            className="mb-4 flex items-start gap-3 rounded-xl border px-4 py-3"
+            style={{
+              borderColor: "var(--color-border)",
+              backgroundColor: "var(--color-surface, rgba(0,0,0,0.03))",
+            }}
+          >
+            <Database size={18} className="mt-0.5 shrink-0 text-primary" />
+            <div className="flex-1 text-sm text-[var(--color-text)]">
+              Your library was upgraded to the new <code className="font-mono">{DB_FILENAME}</code> format.
+              A backup of your old database file was kept and your data is fully intact.
+            </div>
+            <button
+              onClick={handleDismissDbMigratedBanner}
+              className="shrink-0 rounded-md p-1 text-[var(--color-text-muted)] transition-colors hover:bg-black/5 hover:text-[var(--color-text)]"
+              title="Dismiss"
+              aria-label="Dismiss"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
         <Outlet />
       </main>
 

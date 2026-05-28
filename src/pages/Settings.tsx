@@ -23,6 +23,7 @@ import {
     Copy
 } from 'lucide-react';
 import { exportToFile, importFromFile, getDataStats, type ImportResult } from '../lib/csv-logic';
+import { DB_FILENAME } from '../lib/db';
 import {
     getDataDirectory,
     setDataDirectory,
@@ -409,7 +410,7 @@ export default function Settings() {
             currentDataDirectory: currentPath || 'Loading',
             defaultDataDirectory: defaultPath || 'Loading',
             storageMode: isCustom ? 'custom' : 'default',
-            databaseFile: 'jav_log.db',
+            databaseFile: DB_FILENAME,
         },
         library: {
             mediaEntries: dataStats?.mediaCount ?? null,
@@ -767,7 +768,7 @@ export default function Settings() {
                                     </div>
                                     <div className="tree-item tree-indent-1">
                                         <Database size={14} style={{ color: 'var(--color-primary)' }} />
-                                        <span>jav_log.db</span>
+                                        <span>{DB_FILENAME}</span>
                                         <span className="tree-item-desc">— SQLite database</span>
                                     </div>
                                     <div className="tree-item tree-indent-1">
@@ -969,7 +970,7 @@ export default function Settings() {
                             <AboutInfoRow label="Current Data Directory" value={currentPath || 'Loading...'} mono />
                             <AboutInfoRow label="Default Data Directory" value={defaultPath || 'Loading...'} mono />
                             <AboutInfoRow label="Storage Mode" value={isCustom ? 'Custom data directory' : 'Default app local data directory'} />
-                            <AboutInfoRow label="Database File" value="jav_log.db" mono />
+                            <AboutInfoRow label="Database File" value={DB_FILENAME} mono />
                             <AboutInfoRow label="Media Entries" value={dataStats?.mediaCount ?? 'Loading...'} />
                             <AboutInfoRow label="Collections" value={dataStats?.collectionCount ?? 'Loading...'} />
                             <AboutInfoRow label="Awards" value={dataStats?.awardCount ?? 'Loading...'} />
