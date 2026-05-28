@@ -20,7 +20,9 @@ import {
     Loader2,
     ExternalLink,
     Plus,
-    X
+    X,
+    Info,
+    Copy
 } from 'lucide-react';
 import { exportToFile, importFromFile, getDataStats, type ImportResult } from '../lib/csv-logic';
 import {
@@ -39,9 +41,22 @@ import {
 import { useTheme } from '../lib/ThemeContext';
 import type { ColorTheme, GlassStyle, ThemeMode } from '../lib/themes';
 import { getCurrentYearString, updateNavigationYears } from '../lib/navigation-years';
+import packageJson from '../../package.json';
+import tauriConfig from '../../src-tauri/tauri.conf.json';
 
-type SettingsSection = 'general' | 'appearance' | 'data';
+type SettingsSection = 'general' | 'appearance' | 'data' | 'about';
 type BackupFormat = 'json' | 'zip';
+
+type EnvironmentInfo = {
+    platform: string;
+    userAgent: string;
+    language: string;
+    timezone: string;
+    viewport: string;
+    screen: string;
+    devicePixelRatio: string;
+    hardwareConcurrency: string;
+};
 
 type BackupZipReadResult = {
     backupJson: string;
@@ -50,6 +65,53 @@ type BackupZipReadResult = {
 type ExtractBackupAssetsResult = {
     assetsRestored: number;
 };
+
+const appMetadata = {
+    appName: tauriConfig.productName,
+    appVersion: tauriConfig.version,
+    appIdentifier: tauriConfig.identifier,
+    packageName: packageJson.name,
+    packageVersion: packageJson.version,
+    tauriApiVersion: packageJson.dependencies['@tauri-apps/api'] ?? 'Unknown',
+    tauriCliVersion: packageJson.devDependencies['@tauri-apps/cli'] ?? 'Unknown',
+    reactVersion: packageJson.dependencies.react ?? 'Unknown',
+};
+
+function getEnvironmentInfo(): EnvironmentInfo {
+    return {
+        platform: navigator.platform || 'Unknown',
+        userAgent: navigator.userAgent || 'Unknown',
+        language: navigator.language || 'Unknown',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Unknown',
+        viewport: `${window.innerWidth} x ${window.innerHeight}`,
+        screen: `${window.screen.width} x ${window.screen.height}`,
+        devicePixelRatio: String(window.devicePixelRatio || 1),
+        hardwareConcurrency: navigator.hardwareConcurrency
+            ? `${navigator.hardwareConcurrency} logical processors`
+            : 'Unknown',
+    };
+}
+
+function AboutInfoRow({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
+    return (
+        <div className="settings-row">
+            <div className="settings-row-label">{label}</div>
+            <div
+                className="settings-row-value"
+                style={{
+                    textAlign: 'right',
+                    justifyContent: 'flex-end',
+                    fontFamily: mono ? "'SF Mono', 'Menlo', monospace" : undefined,
+                    fontSize: mono ? 12 : undefined,
+                    maxWidth: '70%',
+                    overflowWrap: 'anywhere'
+                }}
+            >
+                {value}
+            </div>
+        </div>
+    );
+}
 
 function createFailedImportResult(error: unknown): ImportResult {
     return {
@@ -74,6 +136,7 @@ export default function Settings() {
     const [isCustom, setIsCustom] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
+    const [environmentInfo, setEnvironmentInfo] = useState<EnvironmentInfo>(() => getEnvironmentInfo());
 
     // Display name state
     const [displayName, setDisplayNameState] = useState<string>('');
@@ -110,6 +173,12 @@ export default function Settings() {
 
         // Load data stats
         getDataStats().then(setDataStats).catch(console.error);
+
+        const handleEnvironmentChange = () => setEnvironmentInfo(getEnvironmentInfo());
+        handleEnvironmentChange();
+        window.addEventListener('resize', handleEnvironmentChange);
+
+        return () => window.removeEventListener('resize', handleEnvironmentChange);
     }, []);
 
     const showToast = (message: string) => {
@@ -329,10 +398,55 @@ export default function Settings() {
         }
     };
 
+    const buildDebugInfo = () => JSON.stringify({
+        application: {
+            appName: appMetadata.appName,
+            appVersion: appMetadata.appVersion,
+            appIdentifier: appMetadata.appIdentifier,
+            packageName: appMetadata.packageName,
+            packageVersion: appMetadata.packageVersion,
+            tauriApiVersion: appMetadata.tauriApiVersion,
+            tauriCliVersion: appMetadata.tauriCliVersion,
+            reactVersion: appMetadata.reactVersion,
+            viteMode: import.meta.env.MODE,
+            buildType: import.meta.env.DEV ? 'development' : 'production',
+        },
+        data: {
+            currentDataDirectory: currentPath || 'Loading',
+            defaultDataDirectory: defaultPath || 'Loading',
+            storageMode: isCustom ? 'custom' : 'default',
+            databaseFile: 'jav_log.db',
+        },
+        library: {
+            mediaEntries: dataStats?.mediaCount ?? null,
+            collections: dataStats?.collectionCount ?? null,
+            awards: dataStats?.awardCount ?? null,
+        },
+        preferences: {
+            displayName,
+            themeMode,
+            colorTheme: colorTheme.name,
+            glassStyle,
+            navigationYears,
+        },
+        environment: environmentInfo,
+    }, null, 2);
+
+    const handleCopyDebugInfo = async () => {
+        try {
+            await navigator.clipboard.writeText(buildDebugInfo());
+            showToast('Debug info copied to clipboard');
+        } catch (error) {
+            console.error('Copy debug info error:', error);
+            showToast('Unable to copy debug info');
+        }
+    };
+
     const navItems: { id: SettingsSection; label: string; icon: React.ReactNode }[] = [
         { id: 'general', label: 'General', icon: <User size={18} /> },
         { id: 'appearance', label: 'Appearance', icon: <Palette size={18} /> },
         { id: 'data', label: 'Data', icon: <Database size={18} /> },
+        { id: 'about', label: 'About', icon: <Info size={18} /> },
     ];
 
     return (
@@ -820,6 +934,114 @@ export default function Settings() {
                         }}>
                             <AlertCircle size={16} style={{ color: '#3B82F6', flexShrink: 0, marginTop: 2 }} />
                             <span>JSON backups include all database data in JSON format with embedded CSVs but do not bundle local assets. ZIP backups include the same backup JSON plus the current <strong style={{ color: 'var(--color-text)' }}>assets/</strong> folder from your data directory.</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* About Section */}
+                {activeSection === 'about' && (
+                    <div className="settings-section-enter" key="about">
+                        <h1 className="settings-section-title">About</h1>
+
+                        <div className="settings-group">
+                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 16 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                    <div style={{
+                                        width: 52,
+                                        height: 52,
+                                        borderRadius: 14,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))',
+                                        color: 'white',
+                                        flexShrink: 0
+                                    }}>
+                                        <Info size={26} />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)' }}>
+                                            {appMetadata.appName}
+                                        </div>
+                                        <div className="settings-row-description" style={{ fontSize: 13, marginTop: 4 }}>
+                                            A local-first desktop media journal for tracking completed media, collections, awards, profiles, and stats.
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleCopyDebugInfo}
+                                    className="settings-btn settings-btn-primary"
+                                    style={{ alignSelf: 'flex-start' }}
+                                >
+                                    <Copy size={14} />
+                                    Copy Debug Info
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Application</div>
+                            <AboutInfoRow label="App Name" value={appMetadata.appName} />
+                            <AboutInfoRow label="App Version" value={appMetadata.appVersion} />
+                            <AboutInfoRow label="App Identifier" value={appMetadata.appIdentifier} mono />
+                            <AboutInfoRow label="Package Name" value={appMetadata.packageName} mono />
+                            <AboutInfoRow label="Package Version" value={appMetadata.packageVersion} />
+                            <AboutInfoRow label="Build Mode" value={import.meta.env.MODE} />
+                            <AboutInfoRow label="Build Type" value={import.meta.env.DEV ? 'Development' : 'Production'} />
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Runtime</div>
+                            <AboutInfoRow label="Tauri API Package" value={appMetadata.tauriApiVersion} mono />
+                            <AboutInfoRow label="Tauri CLI Package" value={appMetadata.tauriCliVersion} mono />
+                            <AboutInfoRow label="React Package" value={appMetadata.reactVersion} mono />
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Data & Library</div>
+                            <AboutInfoRow label="Current Data Directory" value={currentPath || 'Loading...'} mono />
+                            <AboutInfoRow label="Default Data Directory" value={defaultPath || 'Loading...'} mono />
+                            <AboutInfoRow label="Storage Mode" value={isCustom ? 'Custom data directory' : 'Default app local data directory'} />
+                            <AboutInfoRow label="Database File" value="jav_log.db" mono />
+                            <AboutInfoRow label="Media Entries" value={dataStats?.mediaCount ?? 'Loading...'} />
+                            <AboutInfoRow label="Collections" value={dataStats?.collectionCount ?? 'Loading...'} />
+                            <AboutInfoRow label="Awards" value={dataStats?.awardCount ?? 'Loading...'} />
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Preferences</div>
+                            <AboutInfoRow label="Display Name" value={displayName || 'Collector'} />
+                            <AboutInfoRow label="Theme Mode" value={themeMode} />
+                            <AboutInfoRow label="Accent Theme" value={colorTheme.name} />
+                            <AboutInfoRow label="Glass Style" value={glassStyle} />
+                            <AboutInfoRow label="Navigation Years" value={navigationYears.join(', ')} />
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Environment</div>
+                            <AboutInfoRow label="Platform" value={environmentInfo.platform} />
+                            <AboutInfoRow label="Language" value={environmentInfo.language} />
+                            <AboutInfoRow label="Timezone" value={environmentInfo.timezone} />
+                            <AboutInfoRow label="Viewport" value={environmentInfo.viewport} />
+                            <AboutInfoRow label="Screen" value={environmentInfo.screen} />
+                            <AboutInfoRow label="Device Pixel Ratio" value={environmentInfo.devicePixelRatio} />
+                            <AboutInfoRow label="CPU Threads" value={environmentInfo.hardwareConcurrency} />
+                            <AboutInfoRow label="WebView User Agent" value={environmentInfo.userAgent} mono />
+                        </div>
+
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 8,
+                            padding: '12px 16px',
+                            borderRadius: 8,
+                            background: 'rgba(59, 130, 246, 0.1)',
+                            border: '1px solid rgba(59, 130, 246, 0.2)',
+                            fontSize: 13,
+                            color: 'var(--color-text-muted)'
+                        }}>
+                            <AlertCircle size={16} style={{ color: '#3B82F6', flexShrink: 0, marginTop: 2 }} />
+                            <span>Copied debug info includes filesystem paths to help diagnose storage issues. It does not include media titles, notes, descriptions, or other entry-level content.</span>
                         </div>
                     </div>
                 )}

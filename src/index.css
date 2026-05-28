@@ -425,6 +425,32 @@ body {
   overflow-y: auto;
 }
 
+@media (max-width: 760px) {
+  .settings-layout {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .settings-sidebar {
+    width: 100%;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .settings-nav-item {
+    flex-shrink: 0;
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+
+  .settings-content {
+    padding: 20px 16px;
+  }
+}
+
 .settings-section-title {
   font-size: 22px;
   font-weight: 600;
@@ -2300,4 +2326,3 @@ body {
     0 4px 10px rgba(0, 0, 0, 0.4),
     inset -1px 0 2px rgba(255, 255, 255, 0.05);
 }
-

@@ -80,7 +80,7 @@ Entries can include completion date, score, description, notes, local artwork, g
 | Collections | Creates custom shelves with drag-and-drop ordering for favorites, rankings, series rewatches, or themed picks. |
 | Backlog | Tracks upcoming media in planning and in-progress lanes, with type filters and quick completion into the main library. |
 | Review | Generates an animated year-in-review slideshow with themed slides, backdrop artwork, and preset filters for gaming, media, or adult content. |
-| Settings | Manages color themes, display mode, display name, navigation years, backup import/export, and storage location. |
+| Settings | Manages color themes, display mode, display name, navigation years, backup import/export, storage location, and About/debug information. |
 
 ## Data and Compatibility
 
