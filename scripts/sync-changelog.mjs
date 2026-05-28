@@ -96,16 +96,27 @@ function parseReleasePages(output) {
   return parsed;
 }
 
+function sanitizeReleaseBody(body) {
+  return body
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .filter((line) => !/^\s*(?:[-*]\s*)?(?:\*\*)?Full Changelog(?:\*\*)?:\s*https?:\/\/github\.com\/.+\/compare\/.+\s*$/i.test(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function normalizeRelease(release) {
   const publishedAt = release.published_at || release.created_at || '';
   const version = String(release.tag_name || '').trim();
   const title = String(release.name || version || 'Untitled Release').trim();
+  const body = typeof release.body === 'string' ? sanitizeReleaseBody(release.body) : '';
 
   return {
     version,
     title,
     date: publishedAt ? publishedAt.slice(0, 10) : '',
-    body: typeof release.body === 'string' ? release.body.trim() : '',
+    body,
     prerelease: Boolean(release.prerelease),
     url: typeof release.html_url === 'string' ? release.html_url : '',
   };
