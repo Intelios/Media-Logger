@@ -62,6 +62,31 @@ export interface SearchFilterOptions {
   series: string[];
 }
 
+export interface RandomPickFilters {
+  entryTypes: string[];
+  ratingOperator: "any" | "eq" | "gte" | "lte";
+  ratingValue: number;
+  yearMode: "any" | "exact" | "range";
+  yearExact: number | null;
+  yearFrom: number | null;
+  yearTo: number | null;
+  localCopy: "any" | "yes" | "no";
+  rewatchStatus: "any" | "never" | "has";
+  genres: string[];
+  platforms: string[];
+  franchises: string[];
+  series: string[];
+}
+
+export interface RandomPickFilterOptions {
+  genres: string[];
+  platforms: string[];
+  franchises: string[];
+  series: string[];
+  years: number[];
+  entryTypes: string[];
+}
+
 // 2. Database Service
 class DBService {
   private db: Database | null = null;
@@ -814,6 +839,146 @@ class DBService {
   async deleteBacklogItem(id: number): Promise<void> {
     const db = await this.connect();
     await db.execute("DELETE FROM backlog_items WHERE id = $1", [id]);
+  }
+
+  // Random Pick methods
+
+  async getRandomPickFilterOptions(): Promise<RandomPickFilterOptions> {
+    const db = await this.connect();
+
+    const [platforms, franchises, series, genres, years, entryTypes] = await Promise.all([
+      this.getDistinctColumnValues(db, 'platform'),
+      this.getDistinctColumnValues(db, 'franchise'),
+      this.getDistinctColumnValues(db, 'series'),
+      db.select<{ value: string }[]>(
+        `WITH RECURSIVE split(value, rest) AS (
+           SELECT '', TRIM(genre) || ','
+           FROM entries
+           WHERE genre IS NOT NULL AND TRIM(genre) <> ''
+           UNION ALL
+           SELECT
+             TRIM(SUBSTR(rest, 0, INSTR(rest, ','))),
+             LTRIM(SUBSTR(rest, INSTR(rest, ',') + 1))
+           FROM split
+           WHERE rest <> ''
+         )
+         SELECT DISTINCT value
+         FROM split
+         WHERE value <> ''
+         ORDER BY value COLLATE NOCASE ASC`
+      ),
+      db.select<{ value: number }[]>(
+        `SELECT DISTINCT year_completed as value
+         FROM entries
+         WHERE year_completed IS NOT NULL
+         ORDER BY year_completed DESC`
+      ),
+      db.select<{ value: string }[]>(
+        `SELECT DISTINCT entry_type as value
+         FROM entries
+         WHERE entry_type IS NOT NULL AND TRIM(entry_type) <> ''
+         ORDER BY value COLLATE NOCASE ASC`
+      ),
+    ]);
+
+    return {
+      genres: genres.map(({ value }) => value),
+      platforms,
+      franchises,
+      series,
+      years: years.map(({ value }) => value),
+      entryTypes: entryTypes.map(({ value }) => value),
+    };
+  }
+
+  private buildRandomPickWhere(filters: RandomPickFilters): { whereClause: string; params: unknown[] } {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filters.entryTypes.length > 0) {
+      const placeholders = filters.entryTypes.map((v) => {
+        params.push(v);
+        return `$${params.length}`;
+      });
+      conditions.push(`entry_type IN (${placeholders.join(', ')})`);
+    }
+
+    if (filters.ratingOperator !== "any") {
+      const ops = { eq: "=", gte: ">=", lte: "<=" } as const;
+      params.push(filters.ratingValue);
+      conditions.push(`review_score ${ops[filters.ratingOperator]} $${params.length}`);
+    }
+
+    if (filters.yearMode === "exact" && filters.yearExact != null) {
+      params.push(filters.yearExact);
+      conditions.push(`year_completed = $${params.length}`);
+    } else if (filters.yearMode === "range") {
+      if (filters.yearFrom != null) {
+        params.push(filters.yearFrom);
+        conditions.push(`year_completed >= $${params.length}`);
+      }
+      if (filters.yearTo != null) {
+        params.push(filters.yearTo);
+        conditions.push(`year_completed <= $${params.length}`);
+      }
+    }
+
+    if (filters.localCopy === "yes") {
+      conditions.push(`own_local_copy = 1`);
+    } else if (filters.localCopy === "no") {
+      conditions.push(`own_local_copy = 0`);
+    }
+
+    if (filters.rewatchStatus === "never") {
+      conditions.push(`is_rewatch = 0`);
+    } else if (filters.rewatchStatus === "has") {
+      conditions.push(`is_rewatch = 1`);
+    }
+
+    if (filters.genres.length > 0) {
+      const genreClauses = filters.genres.map((g) => {
+        const escaped = this.escapeLike(g);
+        params.push(`%${escaped}%`);
+        return `genre LIKE $${params.length} ESCAPE '\\'`;
+      });
+      conditions.push(`(${genreClauses.join(' OR ')})`);
+    }
+
+    const addInFilter = (column: string, values: string[]) => {
+      if (values.length === 0) return;
+      const placeholders = values.map((v) => {
+        params.push(v);
+        return `$${params.length}`;
+      });
+      conditions.push(`${column} IN (${placeholders.join(', ')})`);
+    };
+
+    addInFilter('platform', filters.platforms);
+    addInFilter('franchise', filters.franchises);
+    addInFilter('series', filters.series);
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    return { whereClause, params };
+  }
+
+  async getRandomPickCount(filters: RandomPickFilters): Promise<number> {
+    const db = await this.connect();
+    const { whereClause, params } = this.buildRandomPickWhere(filters);
+    const result = await db.select<{ count: number }[]>(
+      `SELECT COUNT(*) as count FROM entries ${whereClause}`,
+      params
+    );
+    return result[0].count;
+  }
+
+  async getRandomEntry(filters: RandomPickFilters): Promise<MediaEntry | null> {
+    const db = await this.connect();
+    const { whereClause, params } = this.buildRandomPickWhere(filters);
+    const results = await db.select<MediaEntry[]>(
+      `SELECT * FROM entries ${whereClause} ORDER BY RANDOM() LIMIT 1`,
+      params
+    );
+    return results[0] ?? null;
   }
 }
 

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Search as SearchIcon, X, Filter, ChevronDown, ChevronUp, Sparkles, RotateCcw } from "lucide-react";
+import { Search as SearchIcon, X, Filter, ChevronDown, ChevronUp, Sparkles, RotateCcw, Dices } from "lucide-react";
 import { dbService, type MediaEntry, type SearchFilterOptions } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
+import { RandomPickModal } from "../components/RandomPickModal";
 import { cn } from "../lib/utils_ui";
 
 const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"];
@@ -64,6 +65,7 @@ export default function SearchPage() {
   const [refreshToken, setRefreshToken] = useState(0);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showRandomPick, setShowRandomPick] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
   const [formEntries, setFormEntries] = useState<MediaEntry[]>([]);
   const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
@@ -270,24 +272,33 @@ export default function SearchPage() {
         </div>
 
         <div className="space-y-4">
-          <button
-            onClick={() => setShowAdvancedFilters((current) => !current)}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
-              showAdvancedFilters || activeFilterCount > 0
-                ? "bg-white/10 border-white/20 text-white"
-                : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white"
-            )}
-          >
-            <Filter size={16} />
-            <span>Advanced Filters</span>
-            {activeFilterCount > 0 && (
-              <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
-                {activeFilterCount}
-              </span>
-            )}
-            {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowAdvancedFilters((current) => !current)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
+                showAdvancedFilters || activeFilterCount > 0
+                  ? "bg-white/10 border-white/20 text-white"
+                  : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white"
+              )}
+            >
+              <Filter size={16} />
+              <span>Advanced Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
+                  {activeFilterCount}
+                </span>
+              )}
+              {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            <button
+              onClick={() => setShowRandomPick(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white"
+            >
+              <Dices size={16} />
+              <span>Random Pick</span>
+            </button>
+          </div>
 
           {showAdvancedFilters && (
             <div className="relative z-50 bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-sm space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -453,6 +464,11 @@ export default function SearchPage() {
         onSave={handleSave}
         initialData={editingEntry}
         allEntries={formEntries}
+      />
+
+      <RandomPickModal
+        isOpen={showRandomPick}
+        onClose={() => setShowRandomPick(false)}
       />
     </div>
   );
