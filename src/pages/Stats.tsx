@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Film, Gamepad2, Heart } from "lucide-react";
 import { StatsEntriesModal } from "../components/StatsEntriesModal";
 import { GenreBreakdownModal } from "../components/GenreBreakdownModal";
 import { StatsDashboard } from "../components/stats/StatsDashboard";
@@ -7,7 +6,6 @@ import {
   MAIN_WIDGET_IDS,
   SUMMARY_WIDGET_IDS,
   type StatsDashboardViewId,
-  type StatsFilterPreset,
   type StatsPresetKey,
   type StatsWidgetId,
 } from "../components/stats/stats-config";
@@ -23,36 +21,10 @@ import {
 } from "../components/stats/stats-layout";
 import { getAvailableNavigationYears, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
 import { type MediaEntry } from "../lib/db";
+import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, type FilterPresetKey } from "../lib/media-config";
 import { profilesLogic } from "../lib/profiles-logic";
 import { getNavigationYears } from "../lib/settings";
 import { statsLogic, type FullStats } from "../lib/stats-logic";
-
-const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"];
-const PRESET_KEYS: Exclude<StatsPresetKey, null>[] = ["gaming", "media", "adult"];
-
-const FILTER_PRESETS: Record<Exclude<StatsPresetKey, null>, StatsFilterPreset> = {
-  gaming: {
-    key: "gaming",
-    label: "Gaming",
-    icon: Gamepad2,
-    types: ["Game"],
-    gradient: "from-green-500 to-emerald-600",
-  },
-  media: {
-    key: "media",
-    label: "Media",
-    icon: Film,
-    types: ["K-Drama", "Anime", "Show", "Movie", "Book", "Album"],
-    gradient: "from-blue-500 to-purple-600",
-  },
-  adult: {
-    key: "adult",
-    label: "Adult",
-    icon: Heart,
-    types: ["JAV", "Hentai", "Adult Visual Novel"],
-    gradient: "from-pink-500 to-rose-600",
-  },
-};
 
 const STATS_YEAR_KEY = "stats-active-year";
 const STATS_TYPES_KEY = "stats-selected-types";
@@ -61,7 +33,7 @@ const STATS_PRESET_KEY = "stats-active-preset";
 const loadPersistedPreset = (): StatsPresetKey => {
   try {
     const stored = localStorage.getItem(STATS_PRESET_KEY);
-    if (stored && PRESET_KEYS.includes(stored as Exclude<StatsPresetKey, null>)) {
+    if (stored && FILTER_PRESET_KEYS.includes(stored as FilterPresetKey)) {
       return stored as StatsPresetKey;
     }
   } catch {
@@ -330,7 +302,7 @@ export default function StatsPage() {
         profileKeys={profileKeys}
         profileKeysReady={profileKeysReady}
         onSelectedTypesChange={handleTypesChange}
-        presets={PRESET_KEYS.map((key) => FILTER_PRESETS[key])}
+        presets={FILTER_PRESET_KEYS.map((key) => FILTER_PRESETS[key])}
         activePreset={activePreset}
         onPresetClick={handlePresetClick}
         onResetPreset={handleResetPreset}

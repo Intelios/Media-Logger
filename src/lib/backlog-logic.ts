@@ -20,14 +20,17 @@ export const backlogLogic = {
     genre?: string | null,
     imageUrl?: string | null
   ): Promise<number> {
+    const status: BacklogItem['status'] = 'planning';
+    const sortOrder = await dbService.getNextBacklogSortOrder(status);
+
     return await dbService.addBacklogItem({
       name,
       entry_type: entryType,
       genre: genre ?? null,
       image_url: imageUrl ?? null,
-      status: 'planning',
+      status,
       added_date: new Date().toISOString().split('T')[0],
-      sort_order: 0,
+      sort_order: sortOrder,
     });
   },
 
@@ -49,6 +52,10 @@ export const backlogLogic = {
     if (!existing) return;
 
     await dbService.updateBacklogItem({ ...existing, ...fields });
+  },
+
+  async updateItemOrder(status: BacklogItem['status'], ids: number[]): Promise<void> {
+    await dbService.updateBacklogItemOrder(status, ids);
   },
 
   async getCountsByType(): Promise<Record<string, number>> {

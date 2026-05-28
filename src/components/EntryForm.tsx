@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, Film, FileText, StickyNote, Trophy, Check, Clock } from "lucide-react";
+import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { saveImage, getImageUrl } from "../lib/utils";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
+import { ENTRY_TYPE_OPTIONS } from "../lib/media-config";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { AutocompleteInput } from "./AutocompleteInput";
@@ -16,20 +17,6 @@ interface EntryFormProps {
   onSave: (data: Partial<MediaEntry>) => void;
   allEntries?: MediaEntry[];
 }
-
-const ENTRY_TYPES = [
-  { value: "Movie", icon: <Film size={14} /> },
-  { value: "Show", icon: <Film size={14} /> },
-  { value: "Anime", icon: <Sparkles size={14} /> },
-  { value: "Book", icon: <Book size={14} /> },
-  { value: "Album", icon: <Music size={14} /> },
-  { value: "K-Drama", icon: <Film size={14} /> },
-  { value: "JAV", icon: <Star size={14} /> },
-  { value: "Hentai", icon: <Star size={14} /> },
-  { value: "Game", icon: <Gamepad size={14} /> },
-  { value: "Adult Visual Novel", icon: <Gamepad size={14} /> },
-  { value: "Other", icon: <Tag size={14} /> },
-];
 
 type TabId = "basic" | "details" | "media";
 
@@ -236,7 +223,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
       <div className="space-y-2">
         <label className="text-sm font-medium text-gray-300">Type</label>
         <div className="grid grid-cols-3 gap-2">
-          {ENTRY_TYPES.map(type => (
+            {ENTRY_TYPE_OPTIONS.map(type => (
             <button
               key={type.value}
               type="button"

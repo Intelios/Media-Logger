@@ -6,6 +6,7 @@ import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { CollectionModal } from "../components/CollectionModal";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { WinnerPicker } from "../components/WinnerPicker"; // Reusing the picker for adding items
 import { getImageUrl } from "../lib/utils";
 import { ArrowUpDown } from "lucide-react"; // Import ArrowUpDown icon
@@ -67,6 +68,7 @@ export default function CollectionsPage() {
   const [editCollectionOpen, setEditCollectionOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [collectionToDelete, setCollectionToDelete] = useState<Collection | null>(null);
+  const [itemToRemove, setItemToRemove] = useState<MediaEntry | null>(null);
 
   useEffect(() => {
     loadCollections();
@@ -129,12 +131,13 @@ export default function CollectionsPage() {
     }
   };
 
-  const handleRemoveItem = async (mediaId: number) => {
-    if (selectedCollection && confirm("Remove from collection?")) {
-      await collectionsLogic.removeItem(selectedCollection.id, mediaId);
+  const confirmRemoveItem = async () => {
+    if (selectedCollection && itemToRemove?.id) {
+      await collectionsLogic.removeItem(selectedCollection.id, itemToRemove.id);
       await refreshSelectedCollection(selectedCollection);
       await loadCollections();
     }
+    setItemToRemove(null);
   };
 
   const handleReorderSave = async (newOrder: MediaEntry[]) => {
@@ -279,7 +282,7 @@ export default function CollectionsPage() {
                 />
                 {/* Hover Remove Button */}
                 <button
-                  onClick={() => handleRemoveItem(entry.id)}
+                  onClick={() => setItemToRemove(entry)}
                   className="absolute top-2 left-2 bg-red-600 hover:bg-red-500 p-2 rounded-xl text-white opacity-0 group-hover:opacity-100 transition-all shadow-lg z-30 hover:scale-110"
                   title="Remove from collection"
                 >
@@ -327,6 +330,17 @@ export default function CollectionsPage() {
           initialData={editingEntry}
           allEntries={items}
         />
+
+        <ConfirmDialog
+          isOpen={itemToRemove !== null}
+          onClose={() => setItemToRemove(null)}
+          onConfirm={confirmRemoveItem}
+          title="Remove Collection Item"
+          confirmLabel="Remove"
+          detail="The entry will stay in your library; it will only be removed from this collection."
+        >
+          Remove <span className="font-semibold text-white">"{itemToRemove?.name}"</span> from <span className="font-semibold text-white">"{selectedCollection.name}"</span>?
+        </ConfirmDialog>
       </div>
     );
   }

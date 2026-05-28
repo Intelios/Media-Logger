@@ -6,6 +6,7 @@ import { WinnerPicker } from "../components/WinnerPicker";
 import { InputModal } from "../components/InputModal";
 import { ReorderModal, type ReorderItem } from "../components/ReorderModal";
 import { CategoryPicker } from "../components/CategoryPicker";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { getImageUrl } from "../lib/utils";
@@ -55,6 +56,8 @@ export default function AwardsPage() {
   const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
   const [reorderOpen, setReorderOpen] = useState(false);
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<CategoryWithWinner | null>(null);
+  const [yearToDelete, setYearToDelete] = useState<AwardYearSummary | null>(null);
 
   // New Input Modal State
   const [inputModalOpen, setInputModalOpen] = useState(false);
@@ -125,11 +128,20 @@ export default function AwardsPage() {
     }
   };
 
-  const handleDeleteCategory = async (id: number) => {
-    if (confirm("Delete this award category?")) {
-      await awardsLogic.deleteCategory(id);
-      if (selectedYear) loadCategories(selectedYear);
-    }
+  const confirmDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+
+    await awardsLogic.deleteCategory(categoryToDelete.id);
+    if (selectedYear) await loadCategories(selectedYear);
+    setCategoryToDelete(null);
+  };
+
+  const confirmDeleteYear = async () => {
+    if (!yearToDelete) return;
+
+    await awardsLogic.deleteYear(yearToDelete.year);
+    await loadYears();
+    setYearToDelete(null);
   };
 
   const openPicker = (catId: number) => {
@@ -200,35 +212,49 @@ export default function AwardsPage() {
 
             {/* Year Cards */}
             {years.map((y, index) => (
-              <button
+              <div
                 key={y.year}
-                onClick={() => handleYearSelect(y.year)}
-                className="relative bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl p-5 text-left hover:border-amber-500/50 transition-all hover:shadow-xl hover:shadow-amber-500/10 group overflow-hidden min-h-[140px] award-card-enter"
+                className="relative group min-h-[140px] award-card-enter"
                 style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-amber-500/0 to-yellow-500/0 group-hover:from-amber-500/5 group-hover:to-yellow-500/10 transition-all duration-500" />
-                <div className="relative z-10">
-                  <h3 className="text-3xl font-black text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-amber-300 group-hover:to-yellow-500 transition-all">
-                    {y.year}
-                  </h3>
-                  <div className="mt-3 space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Awards</span>
-                      <span className="font-mono">{y.categories}</span>
+                <button
+                  onClick={() => handleYearSelect(y.year)}
+                  className="relative h-full w-full bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl p-5 text-left hover:border-amber-500/50 transition-all hover:shadow-xl hover:shadow-amber-500/10 overflow-hidden min-h-[140px]"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500/0 to-yellow-500/0 group-hover:from-amber-500/5 group-hover:to-yellow-500/10 transition-all duration-500" />
+                  <div className="relative z-10">
+                    <h3 className="text-3xl font-black text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-amber-300 group-hover:to-yellow-500 transition-all">
+                      {y.year}
+                    </h3>
+                    <div className="mt-3 space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Awards</span>
+                        <span className="font-mono">{y.categories}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Winners</span>
+                        <span className="font-mono text-amber-400">{y.winners}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Winners</span>
-                      <span className="font-mono text-amber-400">{y.winners}</span>
+                    <div className="h-1 w-full bg-white/5 rounded-full mt-3 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full transition-all"
+                        style={{ width: `${y.categories > 0 ? (y.winners / y.categories) * 100 : 0}%` }}
+                      />
                     </div>
                   </div>
-                  <div className="h-1 w-full bg-white/5 rounded-full mt-3 overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full transition-all"
-                      style={{ width: `${y.categories > 0 ? (y.winners / y.categories) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-              </button>
+                </button>
+                {y.categories === 0 && y.winners === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setYearToDelete(y)}
+                    className="absolute top-3 right-3 z-20 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                    title="Delete empty award year"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </section>
@@ -283,6 +309,17 @@ export default function AwardsPage() {
           placeholder="e.g. 2026"
           defaultValue={new Date().getFullYear().toString()}
         />
+
+        <ConfirmDialog
+          isOpen={yearToDelete !== null}
+          onClose={() => setYearToDelete(null)}
+          onConfirm={confirmDeleteYear}
+          title="Delete Award Year"
+          confirmLabel="Delete Year"
+          detail="Only the empty year shell will be removed. Award templates and other years will stay intact."
+        >
+          Are you sure you want to delete <span className="font-semibold text-white">{yearToDelete?.year}</span>?
+        </ConfirmDialog>
       </div>
     );
   }
@@ -480,7 +517,7 @@ export default function AwardsPage() {
                   <span className={cat.winner ? "text-amber-200" : "text-white"}>{cat.name}</span>
                 </h3>
                 <button
-                  onClick={() => handleDeleteCategory(cat.id)}
+                  onClick={() => setCategoryToDelete(cat)}
                   className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                 >
                   <Trash2 size={18} />
@@ -553,6 +590,17 @@ export default function AwardsPage() {
         onCreateNew={handleCreateNewCategory}
         year={selectedYear || new Date().getFullYear()}
       />
+
+      <ConfirmDialog
+        isOpen={categoryToDelete !== null}
+        onClose={() => setCategoryToDelete(null)}
+        onConfirm={confirmDeleteCategory}
+        title="Delete Award Category"
+        confirmLabel="Delete Category"
+        detail="Any selected winner for this category will also be removed."
+      >
+        Are you sure you want to delete <span className="font-semibold text-white">"{categoryToDelete?.name}"</span>?
+      </ConfirmDialog>
     </div>
   );
 }

@@ -1,17 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Bookmark, Plus, Play, Clock, Package } from "lucide-react";
+import { ArrowUpDown, Bookmark, Plus, Play, Clock, Package } from "lucide-react";
 import { BacklogCase } from "../components/BacklogCase";
 import { BacklogForm } from "../components/BacklogForm";
 import { EntryForm } from "../components/EntryForm";
+import { ReorderModal } from "../components/ReorderModal";
 import { backlogLogic, type BacklogItemsByStatus } from "../lib/backlog-logic";
 import { dbService, type BacklogItem, type MediaEntry } from "../lib/db";
+import { ENTRY_TYPES } from "../lib/media-config";
 import { saveImage } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 
-const TYPE_FILTERS = [
-  "All", "Movie", "Show", "Anime", "Book", "Album", "K-Drama",
-  "Game", "JAV", "Hentai", "Adult Visual Novel", "Other",
-];
+const TYPE_FILTERS = ["All", ...ENTRY_TYPES];
 
 export default function Backlog() {
   const [items, setItems] = useState<BacklogItemsByStatus>({ inProgress: [], planning: [] });
@@ -22,6 +21,7 @@ export default function Backlog() {
   const [completionInitialData, setCompletionInitialData] = useState<Partial<MediaEntry> | null>(null);
   const [allEntries, setAllEntries] = useState<MediaEntry[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
+  const [reorderStatus, setReorderStatus] = useState<BacklogItem['status'] | null>(null);
   const loadIdRef = useRef(0);
 
   const loadItems = useCallback(async () => {
@@ -51,6 +51,14 @@ export default function Backlog() {
   const filteredPlanning = filterItems(items.planning);
   const totalCount = items.inProgress.length + items.planning.length;
   const isEmpty = totalCount === 0;
+  const isFiltering = activeFilter !== "All";
+  const reorderItems = reorderStatus === "in_progress"
+    ? items.inProgress
+    : reorderStatus === "planning"
+      ? items.planning
+      : [];
+
+  const getStatusLabel = (status: BacklogItem['status']) => status === "in_progress" ? "In Progress" : "Planning";
 
   const handleAddSave = async (data: { name: string; entry_type: string; genre: string | null; image_url: string | null }) => {
     if (editingItem) {
@@ -132,6 +140,17 @@ export default function Backlog() {
     }
   };
 
+  const handleReorderSave = async (newOrder: BacklogItem[]) => {
+    if (!reorderStatus) return;
+
+    await backlogLogic.updateItemOrder(reorderStatus, newOrder.map(item => item.id));
+    setItems((current) => reorderStatus === "in_progress"
+      ? { ...current, inProgress: newOrder }
+      : { ...current, planning: newOrder }
+    );
+    setReorderStatus(null);
+  };
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       {/* Header */}
@@ -200,14 +219,26 @@ export default function Backlog() {
       {/* In Progress Section */}
       {!isEmpty && (
         <section>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex items-center gap-2">
-              <Play size={16} className="text-amber-400" fill="currentColor" />
-              <h2 className="text-lg font-bold text-white">In Progress</h2>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Play size={16} className="text-amber-400" fill="currentColor" />
+                <h2 className="text-lg font-bold text-white">In Progress</h2>
+              </div>
+              <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                {filteredInProgress.length}
+              </span>
             </div>
-            <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">
-              {filteredInProgress.length}
-            </span>
+            <button
+              type="button"
+              onClick={() => setReorderStatus("in_progress")}
+              disabled={items.inProgress.length < 2 || isFiltering}
+              title={isFiltering ? "Clear the type filter to reorder all in-progress items" : undefined}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white/5 disabled:hover:text-gray-400"
+            >
+              <ArrowUpDown size={14} />
+              Reorder
+            </button>
           </div>
 
           {filteredInProgress.length > 0 ? (
@@ -243,14 +274,26 @@ export default function Backlog() {
       {/* Planning Section */}
       {!isEmpty && (
         <section>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex items-center gap-2">
-              <Bookmark size={16} className="text-gray-400" />
-              <h2 className="text-lg font-bold text-white">Planning</h2>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Bookmark size={16} className="text-gray-400" />
+                <h2 className="text-lg font-bold text-white">Planning</h2>
+              </div>
+              <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-white/10 text-gray-400">
+                {filteredPlanning.length}
+              </span>
             </div>
-            <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-white/10 text-gray-400">
-              {filteredPlanning.length}
-            </span>
+            <button
+              type="button"
+              onClick={() => setReorderStatus("planning")}
+              disabled={items.planning.length < 2 || isFiltering}
+              title={isFiltering ? "Clear the type filter to reorder all planning items" : undefined}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white/5 disabled:hover:text-gray-400"
+            >
+              <ArrowUpDown size={14} />
+              Reorder
+            </button>
           </div>
 
           {filteredPlanning.length > 0 ? (
@@ -301,6 +344,14 @@ export default function Backlog() {
           allEntries={allEntries}
         />
       )}
+
+      <ReorderModal
+        isOpen={reorderStatus !== null}
+        onClose={() => setReorderStatus(null)}
+        items={reorderItems}
+        onSave={handleReorderSave}
+        title={reorderStatus ? `Reorder ${getStatusLabel(reorderStatus)} Backlog` : "Reorder Backlog"}
+      />
 
       {/* Delete Confirmation */}
       {showDeleteConfirm !== null && (

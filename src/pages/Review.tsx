@@ -3,27 +3,20 @@ import { createPortal } from "react-dom";
 import {
   Sparkles, ChevronLeft, ChevronRight, X, Play,
   Star, Trophy, Flame, Heart, Zap, Crown, Gem, BarChart3,
-  Gamepad2, Film, Eye, Globe,
+  Eye, Globe,
 } from "lucide-react";
 import { forceSimulation, forceCollide, forceManyBody, forceX, forceY } from "d3-force";
 import { scaleLinear } from "d3-scale";
 import { cn } from "../lib/utils_ui";
 import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
 import { generateReview, getReviewYears, type ReviewData, type ReviewSlide } from "../lib/review-logic";
+import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 import type { MediaEntry } from "../lib/db";
 
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-type PresetKey = "gaming" | "media" | "adult" | null;
-const FILTER_PRESETS: Record<Exclude<PresetKey, null>, { label: string; icon: typeof Gamepad2; types: string[] }> = {
-  gaming: { label: "Gaming", icon: Gamepad2, types: ["Game"] },
-  media: { label: "Media", icon: Film, types: ["K-Drama", "Anime", "Show", "Movie", "Book", "Album"] },
-  adult: { label: "Adult", icon: Heart, types: ["JAV", "Hentai", "Adult Visual Novel"] },
-};
 
 // Slide gradient themes
 const SLIDE_THEMES: Record<string, { gradient: string; accent: string }> = {
@@ -838,7 +831,7 @@ export default function ReviewPage() {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // null = full year
   const [selectedTypes, setSelectedTypes] = useState<string[]>([...ENTRY_TYPES]);
-  const [activePreset, setActivePreset] = useState<PresetKey>(null);
+  const [activePreset, setActivePreset] = useState<ActiveFilterPresetKey>(null);
   const [loading, setLoading] = useState(false);
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
 
@@ -849,7 +842,7 @@ export default function ReviewPage() {
     });
   }, []);
 
-  const handlePreset = (key: Exclude<PresetKey, null>) => {
+  const handlePreset = (key: FilterPresetKey) => {
     if (activePreset === key) {
       setActivePreset(null);
       setSelectedTypes([...ENTRY_TYPES]);
@@ -956,7 +949,7 @@ export default function ReviewPage() {
 
         {/* Presets */}
         <div className="flex gap-2 mb-3">
-          {(Object.keys(FILTER_PRESETS) as Exclude<PresetKey, null>[]).map(key => {
+          {FILTER_PRESET_KEYS.map(key => {
             const preset = FILTER_PRESETS[key];
             const Icon = preset.icon;
             const isActive = activePreset === key;

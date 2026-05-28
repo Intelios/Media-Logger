@@ -57,6 +57,20 @@ export const awardsLogic = {
     );
   },
 
+  async deleteYear(year: number): Promise<void> {
+    const db = await dbService.connect();
+    const categoryCount = await db.select<{ count: number }[]>(
+      "SELECT COUNT(*) as count FROM award_categories WHERE year = $1",
+      [year]
+    );
+
+    if ((categoryCount[0]?.count ?? 0) > 0) {
+      throw new Error("Only empty award years can be deleted");
+    }
+
+    await db.execute("DELETE FROM award_years WHERE year = $1", [year]);
+  },
+
   // 2. Get full data for a specific year
   async getAwardsForYear(year: number) {
     const db = await dbService.connect();

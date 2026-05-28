@@ -1,15 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { Gamepad2, Film, Heart, Sparkles, ChevronDown, ChevronUp, X, HardDrive, RotateCcw, Captions } from "lucide-react";
+import { Sparkles, ChevronDown, ChevronUp, X, HardDrive, RotateCcw, Captions } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { profilesLogic } from "../lib/profiles-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
 import { MultiSelectFilter } from "../components/MultiSelectFilter"; // Import the component
-
-// Matches your Python config
-const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"];
+import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 
 const FILTER_STORAGE_KEY = "yearview-filter-types";
 const PRESET_STORAGE_KEY = "yearview-active-preset";
@@ -21,36 +19,12 @@ const SUBTITLES_FILTER_KEY = "yearview-subtitles-filter";
 // Status filter types: null = show all, true = show only with status, false = show only without status
 type StatusFilter = boolean | null;
 
-// Quick filter presets
-type PresetKey = "gaming" | "media" | "adult" | null;
-
-const FILTER_PRESETS: Record<Exclude<PresetKey, null>, { label: string; icon: typeof Gamepad2; types: string[]; gradient: string }> = {
-  gaming: {
-    label: "Gaming",
-    icon: Gamepad2,
-    types: ["Game"],
-    gradient: "from-green-500 to-emerald-600",
-  },
-  media: {
-    label: "Media",
-    icon: Film,
-    types: ["K-Drama", "Anime", "Show", "Movie", "Book", "Album"],
-    gradient: "from-blue-500 to-purple-600",
-  },
-  adult: {
-    label: "Adult",
-    icon: Heart,
-    types: ["JAV", "Hentai", "Adult Visual Novel"],
-    gradient: "from-pink-500 to-rose-600",
-  },
-};
-
 // Helper to load persisted preset from localStorage
-const loadPersistedPreset = (): PresetKey => {
+const loadPersistedPreset = (): ActiveFilterPresetKey => {
   try {
     const stored = localStorage.getItem(PRESET_STORAGE_KEY);
-    if (stored && (stored === "gaming" || stored === "media" || stored === "adult")) {
-      return stored as PresetKey;
+    if (stored && FILTER_PRESET_KEYS.includes(stored as FilterPresetKey)) {
+      return stored as FilterPresetKey;
     }
   } catch {
     // If parsing fails, fall back to default
@@ -110,7 +84,7 @@ export default function YearView() {
   const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedFilter);
 
   // State for active preset
-  const [activePreset, setActivePreset] = useState<PresetKey>(loadPersistedPreset);
+  const [activePreset, setActivePreset] = useState<ActiveFilterPresetKey>(loadPersistedPreset);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -183,7 +157,7 @@ export default function YearView() {
   };
 
   // Handle preset button click
-  const handlePresetClick = (presetKey: Exclude<PresetKey, null>) => {
+  const handlePresetClick = (presetKey: FilterPresetKey) => {
     if (activePreset === presetKey) {
       // Deactivate preset - reset to all types
       setActivePreset(null);
@@ -418,7 +392,7 @@ export default function YearView() {
           ">
             <span className="text-xs text-gray-500 uppercase tracking-wider font-medium mr-2">Presets</span>
 
-            {(Object.keys(FILTER_PRESETS) as Exclude<PresetKey, null>[]).map((key) => {
+            {FILTER_PRESET_KEYS.map((key) => {
               const preset = FILTER_PRESETS[key];
               const Icon = preset.icon;
               const isActive = activePreset === key;

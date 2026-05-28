@@ -1,26 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Upload, Save, Sparkles, Film, Music, Book, Gamepad, Star, Tag, Image as ImageIcon } from "lucide-react";
+import { X, Upload, Save, Sparkles, Image as ImageIcon } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { saveImage, getImageUrl } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
+import { ENTRY_TYPE_OPTIONS } from "../lib/media-config";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import type { BacklogItem } from "../lib/db";
-
-const ENTRY_TYPES = [
-  { value: "Movie", icon: <Film size={14} /> },
-  { value: "Show", icon: <Film size={14} /> },
-  { value: "Anime", icon: <Sparkles size={14} /> },
-  { value: "Book", icon: <Book size={14} /> },
-  { value: "Album", icon: <Music size={14} /> },
-  { value: "K-Drama", icon: <Film size={14} /> },
-  { value: "JAV", icon: <Star size={14} /> },
-  { value: "Hentai", icon: <Star size={14} /> },
-  { value: "Game", icon: <Gamepad size={14} /> },
-  { value: "Adult Visual Novel", icon: <Gamepad size={14} /> },
-  { value: "Other", icon: <Tag size={14} /> },
-];
 
 interface BacklogFormProps {
   isOpen: boolean;
@@ -154,7 +141,7 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1.5">Type</label>
             <div className="flex flex-wrap gap-1.5">
-              {ENTRY_TYPES.map(t => (
+              {ENTRY_TYPE_OPTIONS.map(t => (
                 <button
                   key={t.value}
                   type="button"

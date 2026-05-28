@@ -815,6 +815,15 @@ class DBService {
     return result.lastInsertId;
   }
 
+  async getNextBacklogSortOrder(status: BacklogItem['status']): Promise<number> {
+    const db = await this.connect();
+    const result = await db.select<{ next_order: number }[]>(
+      "SELECT COALESCE(MAX(sort_order), -1) + 1 as next_order FROM backlog_items WHERE status = $1",
+      [status]
+    );
+    return result[0]?.next_order ?? 0;
+  }
+
   async updateBacklogItem(item: BacklogItem): Promise<void> {
     const db = await this.connect();
     const { id, ...rest } = item;
@@ -830,10 +839,21 @@ class DBService {
 
   async updateBacklogStatus(id: number, status: BacklogItem['status']): Promise<void> {
     const db = await this.connect();
+    const nextSortOrder = await this.getNextBacklogSortOrder(status);
     await db.execute(
-      "UPDATE backlog_items SET status = $1 WHERE id = $2",
-      [status, id]
+      "UPDATE backlog_items SET status = $1, sort_order = $2 WHERE id = $3",
+      [status, nextSortOrder, id]
     );
+  }
+
+  async updateBacklogItemOrder(status: BacklogItem['status'], ids: number[]): Promise<void> {
+    const db = await this.connect();
+    for (let i = 0; i < ids.length; i++) {
+      await db.execute(
+        "UPDATE backlog_items SET sort_order = $1 WHERE id = $2 AND status = $3",
+        [i, ids[i], status]
+      );
+    }
   }
 
   async deleteBacklogItem(id: number): Promise<void> {

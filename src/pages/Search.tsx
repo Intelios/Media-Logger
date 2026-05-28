@@ -7,8 +7,8 @@ import { EntryForm } from "../components/EntryForm";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { RandomPickModal } from "../components/RandomPickModal";
 import { cn } from "../lib/utils_ui";
+import { ENTRY_TYPES } from "../lib/media-config";
 
-const ENTRY_TYPES = ["Movie", "Show", "Anime", "Book", "Album", "K-Drama", "JAV", "Hentai", "Game", "Adult Visual Novel", "Other"];
 const SEARCH_FILTERS_KEY = "search-filters";
 
 interface SearchFilters {
@@ -196,15 +196,7 @@ export default function SearchPage() {
     };
   }, [isModalOpen, refreshToken]);
 
-  const activeFilterCount =
-    filters.entryTypes.length +
-    filters.platforms.length +
-    filters.actresses.length +
-    filters.directors.length +
-    filters.authors.length +
-    filters.franchises.length +
-    filters.series.length;
-    filters.series.length;
+  const activeFilterCount = getActiveFilterCount(filters);
 
   const hasActiveSearch = query.trim().length > 0 || activeFilterCount > 0;
 
@@ -475,14 +467,11 @@ export default function SearchPage() {
 }
 
 function hasActiveFilters(filters: SearchFilters): boolean {
-  return (
-    filters.entryTypes.length > 0 ||
-    filters.platforms.length > 0 ||
-    filters.actresses.length > 0 ||
-    filters.directors.length > 0 ||
-    filters.authors.length > 0 ||
-    filters.franchises.length > 0
-  );
+  return getActiveFilterCount(filters) > 0;
+}
+
+function getActiveFilterCount(filters: SearchFilters): number {
+  return Object.values(filters).reduce((count, values) => count + values.length, 0);
 }
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {

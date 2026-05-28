@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { ActiveFilterPresetKey, MediaFilterPreset } from "../../lib/media-config";
 import type { FullStats } from "../../lib/stats-logic";
 
 export const SUMMARY_WIDGET_IDS = [
@@ -85,15 +85,8 @@ export interface StatsWidgetDefinition extends StatsWidgetMeta {
   render: (context: StatsDashboardRenderContext) => ReactNode;
 }
 
-export type StatsPresetKey = "gaming" | "media" | "adult" | null;
-
-export interface StatsFilterPreset {
-  key: Exclude<StatsPresetKey, null>;
-  label: string;
-  icon: LucideIcon;
-  types: string[];
-  gradient: string;
-}
+export type StatsPresetKey = ActiveFilterPresetKey;
+export type StatsFilterPreset = MediaFilterPreset;
 
 export const STATS_DASHBOARD_VIEW_DEFINITIONS: Record<StatsDashboardViewId, StatsDashboardViewDefinition> = {
   overview: {
