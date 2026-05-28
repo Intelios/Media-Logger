@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Home, Calendar, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Sparkles, Settings, PartyPopper, Bookmark } from "lucide-react";
+import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Settings, PartyPopper, Bookmark } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
 import { WelcomeScreen } from "./WelcomeScreen";
@@ -24,7 +24,6 @@ function isEditableShortcutTarget(target: EventTarget | null): boolean {
 }
 
 export function Layout() {
-  const [isYearsCollapsed, setIsYearsCollapsed] = useState(false);
   const [years, setYears] = useState<string[]>(() => getNavigationYears());
   const [isCompact, setIsCompact] = useState(() => {
     const saved = localStorage.getItem("sidebar-compact");
@@ -171,24 +170,6 @@ export function Layout() {
       )}
         style={{ borderColor: "var(--color-border)" }}
       >
-        {/* Logo */}
-        <div className={cn("mb-6", isCompact ? "px-0 text-center" : "px-2")}>
-          {isCompact ? (
-            <div className="w-10 h-10 mx-auto rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20 animate-pulse-subtle">
-              <Sparkles size={20} className="text-white" />
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
-                <Sparkles size={20} className="text-white" />
-              </div>
-              <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">
-                Media Logger
-              </h1>
-            </div>
-          )}
-        </div>
-
         {/* Navigation Items */}
         <nav className="flex-1 space-y-1 overflow-y-auto pr-1 custom-scrollbar">
 
@@ -196,49 +177,45 @@ export function Layout() {
           {!isCompact && <SectionLabel label="Overview" />}
           <NavItem to="/" icon={<Home size={18} />} label="Home" shortcut={getShortcutLabel("1")} isCompact={isCompact} />
 
-          {/* Years Section */}
-          <div className="py-2">
-            {!isCompact && (
-              <button
-                onClick={() => setIsYearsCollapsed(!isYearsCollapsed)}
-                className="w-full flex items-center justify-between px-2 text-xs font-semibold uppercase tracking-wider mb-2 transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-              >
-                <span>Years</span>
-                {isYearsCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-              </button>
-            )}
-
-            <div className={cn(
-              "space-y-1 overflow-hidden transition-all duration-200",
-              isYearsCollapsed && !isCompact ? "max-h-0 opacity-0" : "max-h-[500px] opacity-100"
-            )}>
+          {/* Years Section - vertical timeline rail */}
+          <CollapsibleSection label="Years" storageKey="years" isCompact={isCompact}>
+            <div className={cn("relative", isCompact ? "" : "pl-1")}>
+              {/* Rail line connecting the dots */}
+              <div
+                className="absolute top-3 bottom-3 w-px"
+                style={{
+                  left: isCompact ? "50%" : "21px",
+                  transform: isCompact ? "translateX(-0.5px)" : undefined,
+                  backgroundColor: "var(--color-border)",
+                }}
+              />
               {years.map(year => (
-                <NavItem
+                <YearTimelineItem
                   key={year}
-                  to={`/year/${year}`}
-                  icon={<Calendar size={18} />}
-                  label={year}
+                  year={year}
                   isCompact={isCompact}
-                  badge={year === currentYear ? "NOW" : undefined}
+                  isCurrent={year === currentYear}
                   shortcut={year === currentYear ? getShortcutLabel("2") : undefined}
                 />
               ))}
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* Library Section */}
-          {!isCompact && <SectionLabel label="Library" />}
-          <NavItem to="/stats" icon={<BarChart3 size={18} />} label="Stats" shortcut={getShortcutLabel("4")} isCompact={isCompact} />
-          <NavItem to="/search" icon={<Search size={18} />} label="Search" shortcut={getShortcutLabel("3")} isCompact={isCompact} />
-          <NavItem to="/backlog" icon={<Bookmark size={18} />} label="Backlog" shortcut={getShortcutLabel("8")} isCompact={isCompact} />
-          <NavItem to="/awards" icon={<Award size={18} />} label="Awards" shortcut={getShortcutLabel("6")} isCompact={isCompact} />
-          <NavItem to="/profiles" icon={<Users size={18} />} label="Profiles" shortcut={getShortcutLabel("5")} isCompact={isCompact} />
-          <NavItem to="/collections" icon={<Layers size={18} />} label="Collections" shortcut={getShortcutLabel("7")} isCompact={isCompact} />
-          <NavItem to="/review" icon={<PartyPopper size={18} />} label="Review" isCompact={isCompact} />
+          <CollapsibleSection label="Library" storageKey="library" isCompact={isCompact}>
+            <NavItem to="/stats" icon={<BarChart3 size={18} />} label="Stats" shortcut={getShortcutLabel("4")} isCompact={isCompact} />
+            <NavItem to="/search" icon={<Search size={18} />} label="Search" shortcut={getShortcutLabel("3")} isCompact={isCompact} />
+            <NavItem to="/backlog" icon={<Bookmark size={18} />} label="Backlog" shortcut={getShortcutLabel("8")} isCompact={isCompact} />
+            <NavItem to="/awards" icon={<Award size={18} />} label="Awards" shortcut={getShortcutLabel("6")} isCompact={isCompact} />
+            <NavItem to="/profiles" icon={<Users size={18} />} label="Profiles" shortcut={getShortcutLabel("5")} isCompact={isCompact} />
+            <NavItem to="/collections" icon={<Layers size={18} />} label="Collections" shortcut={getShortcutLabel("7")} isCompact={isCompact} />
+            <NavItem to="/review" icon={<PartyPopper size={18} />} label="Review" isCompact={isCompact} />
+          </CollapsibleSection>
 
           {/* System Section */}
-          {!isCompact && <SectionLabel label="System" />}
-          <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" shortcut={getShortcutLabel(",")} isCompact={isCompact} />
+          <CollapsibleSection label="System" storageKey="system" isCompact={isCompact}>
+            <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" shortcut={getShortcutLabel(",")} isCompact={isCompact} />
+          </CollapsibleSection>
         </nav>
 
         {/* Bottom Actions */}
@@ -300,6 +277,116 @@ function SectionLabel({ label }: { label: string }) {
       <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)]">{label}</span>
       <div className="flex-1 h-px" style={{ backgroundColor: "var(--color-border-subtle)" }} />
     </div>
+  );
+}
+
+// Collapsible sidebar section with persisted state. Header hides in compact mode.
+function CollapsibleSection({
+  label,
+  storageKey,
+  isCompact,
+  children,
+}: {
+  label: string;
+  storageKey: string;
+  isCompact?: boolean;
+  children: React.ReactNode;
+}) {
+  const persistKey = `sidebar-section-${storageKey}`;
+  const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem(persistKey) === "true");
+
+  useEffect(() => {
+    localStorage.setItem(persistKey, String(isCollapsed));
+  }, [persistKey, isCollapsed]);
+
+  return (
+    <div className="py-2">
+      {!isCompact && (
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="w-full flex items-center justify-between px-2 text-xs font-semibold uppercase tracking-wider mb-2 transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+        >
+          <span>{label}</span>
+          {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+        </button>
+      )}
+
+      <div className={cn(
+        "space-y-1 overflow-hidden transition-all duration-200",
+        isCollapsed && !isCompact ? "max-h-0 opacity-0" : "max-h-[1000px] opacity-100"
+      )}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Year entry rendered as a dot on the vertical timeline rail.
+function YearTimelineItem({
+  year,
+  isCompact,
+  isCurrent,
+  shortcut,
+}: {
+  year: string;
+  isCompact?: boolean;
+  isCurrent?: boolean;
+  shortcut?: string;
+}) {
+  return (
+    <NavLink
+      to={`/year/${year}`}
+      className={({ isActive }) =>
+        cn(
+          "group relative flex items-center rounded-lg text-sm font-medium transition-all duration-200",
+          isCompact ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2",
+          isActive
+            ? "text-[var(--color-text)]"
+            : "text-[var(--color-text-muted)] hover:bg-black/5 hover:text-[var(--color-text)]"
+        )
+      }
+      title={isCompact ? year : undefined}
+    >
+      {({ isActive }) => {
+        // Dot marker sitting on the rail: glowing for the current year,
+        // filled for the active route, hollow otherwise.
+        const dot = (
+          <span
+            className={cn(
+              "block w-2.5 h-2.5 rounded-full transition-all duration-200 z-10",
+              isCurrent && "animate-pulse-subtle"
+            )}
+            style={
+              isCurrent || isActive
+                ? {
+                    backgroundColor: "var(--color-primary)",
+                    boxShadow: isCurrent ? "0 0 8px 2px var(--color-primary)" : undefined,
+                  }
+                : {
+                    backgroundColor: "var(--color-surface)",
+                    boxShadow: "0 0 0 2px var(--color-border)",
+                  }
+            }
+          />
+        );
+
+        if (isCompact) return dot;
+
+        return (
+          <>
+            <span className="relative flex w-2.5 items-center justify-center transition-transform duration-200 group-hover:scale-110">
+              {dot}
+            </span>
+            <span className="flex-1">{year}</span>
+            {shortcut && (
+              <span className="text-[10px] text-[var(--color-text-subtle)] opacity-0 group-hover:opacity-100 transition-opacity">
+                {shortcut}
+              </span>
+            )}
+          </>
+        );
+      }}
+    </NavLink>
   );
 }
 
