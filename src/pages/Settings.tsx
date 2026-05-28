@@ -10,8 +10,6 @@ import {
     Database,
     Image,
     CheckCircle2,
-    Sun,
-    Moon,
     User,
     Palette,
     Download,
@@ -39,7 +37,7 @@ import {
     setRatingDisplayMode
 } from '../lib/settings';
 import { useTheme } from '../lib/ThemeContext';
-import type { ColorTheme, GlassStyle, ThemeMode } from '../lib/themes';
+import type { ColorTheme, GlassStyle } from '../lib/themes';
 import { getCurrentYearString, updateNavigationYears } from '../lib/navigation-years';
 import packageJson from '../../package.json';
 import tauriConfig from '../../src-tauri/tauri.conf.json';
@@ -146,7 +144,7 @@ export default function Settings() {
     const [yearError, setYearError] = useState('');
     const [ratingDisplayMode, setRatingDisplayModeState] = useState<'pill' | 'thermometer'>(() => getRatingDisplayMode());
 
-    const { colorTheme, themeMode, glassStyle, setColorTheme, setThemeMode, setGlassStyle, colorThemes } = useTheme();
+    const { colorTheme, glassStyle, setColorTheme, setGlassStyle, colorThemes } = useTheme();
 
     // Data export/import state
     const [dataStats, setDataStats] = useState<{ mediaCount: number; collectionCount: number; awardCount: number } | null>(null);
@@ -270,10 +268,6 @@ export default function Settings() {
 
     const handleColorThemeChange = (theme: ColorTheme) => {
         setColorTheme(theme);
-    };
-
-    const handleThemeModeChange = (mode: ThemeMode) => {
-        setThemeMode(mode);
     };
 
     const handleGlassStyleChange = (style: GlassStyle) => {
@@ -424,7 +418,6 @@ export default function Settings() {
         },
         preferences: {
             displayName,
-            themeMode,
             colorTheme: colorTheme.name,
             glassStyle,
             navigationYears,
@@ -616,32 +609,6 @@ export default function Settings() {
                 {activeSection === 'appearance' && (
                     <div className="settings-section-enter" key="appearance">
                         <h1 className="settings-section-title">Appearance</h1>
-
-                        <div className="settings-group">
-                            <div className="settings-group-label">Theme Mode</div>
-                            <div className="settings-row">
-                                <div>
-                                    <div className="settings-row-label">Interface Style</div>
-                                    <div className="settings-row-description">Choose light or dark mode</div>
-                                </div>
-                                <div className="segmented-control">
-                                    <button
-                                        onClick={() => handleThemeModeChange('light')}
-                                        className={`segmented-control-item ${themeMode === 'light' ? 'active' : ''}`}
-                                    >
-                                        <Sun size={16} />
-                                        Light
-                                    </button>
-                                    <button
-                                        onClick={() => handleThemeModeChange('dark')}
-                                        className={`segmented-control-item ${themeMode === 'dark' ? 'active' : ''}`}
-                                    >
-                                        <Moon size={16} />
-                                        Dark
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
 
                         <div className="settings-group">
                             <div className="settings-group-label">Accent Color</div>
@@ -1011,7 +978,6 @@ export default function Settings() {
                         <div className="settings-group">
                             <div className="settings-group-label">Preferences</div>
                             <AboutInfoRow label="Display Name" value={displayName || 'Collector'} />
-                            <AboutInfoRow label="Theme Mode" value={themeMode} />
                             <AboutInfoRow label="Accent Theme" value={colorTheme.name} />
                             <AboutInfoRow label="Glass Style" value={glassStyle} />
                             <AboutInfoRow label="Navigation Years" value={navigationYears.join(', ')} />

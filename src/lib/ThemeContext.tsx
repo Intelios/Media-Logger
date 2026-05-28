@@ -3,45 +3,27 @@ import { invoke } from '@tauri-apps/api/core';
 import {
     ColorTheme,
     GlassStyle,
-    ThemeMode,
     COLOR_THEMES,
-    MODE_THEMES,
+    DARK_COLORS,
     STORAGE_KEYS,
     getDefaultColorTheme,
     getDefaultGlassStyle,
-    getDefaultThemeMode,
     getColorThemeById,
 } from './themes';
 
 interface ThemeContextType {
     colorTheme: ColorTheme;
-    themeMode: ThemeMode;
     glassStyle: GlassStyle;
     setColorTheme: (theme: ColorTheme) => void;
-    setThemeMode: (mode: ThemeMode) => void;
     setGlassStyle: (style: GlassStyle) => void;
     colorThemes: ColorTheme[];
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-function getGlassColors(mode: ThemeMode, glassStyle: GlassStyle) {
-    const base = MODE_THEMES[mode].colors;
+function getGlassColors(glassStyle: GlassStyle) {
+    const base = DARK_COLORS;
     if (glassStyle === 'default') return base;
-
-    if (mode === 'light') {
-        return {
-            ...base,
-            background: 'rgba(255, 255, 255, 0.58)',
-            backgroundAlt: 'rgba(248, 250, 252, 0.5)',
-            surface: 'rgba(255, 255, 255, 0.28)',
-            surfaceHover: 'rgba(255, 255, 255, 0.38)',
-            border: 'rgba(255, 255, 255, 0.38)',
-            borderSubtle: 'rgba(255, 255, 255, 0.22)',
-            scrollbarThumb: 'rgba(0, 0, 0, 0.22)',
-            scrollbarThumbHover: 'rgba(0, 0, 0, 0.35)',
-        };
-    }
 
     return {
         ...base,
@@ -56,28 +38,25 @@ function getGlassColors(mode: ThemeMode, glassStyle: GlassStyle) {
     };
 }
 
-async function applyNativeGlassStyle(style: GlassStyle, mode: ThemeMode): Promise<void> {
+async function applyNativeGlassStyle(style: GlassStyle): Promise<void> {
     if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
         return;
     }
 
     try {
-        await invoke('apply_glass_style', { style, mode });
+        await invoke('apply_glass_style', { style, mode: 'dark' });
     } catch (error) {
         console.error('Failed to apply native window backdrop:', error);
     }
 }
 
-// Apply theme to CSS variables
-function applyTheme(colorTheme: ColorTheme, mode: ThemeMode, glassStyle: GlassStyle): void {
+function applyTheme(colorTheme: ColorTheme, glassStyle: GlassStyle): void {
     const root = document.documentElement;
-    const modeColors = getGlassColors(mode, glassStyle);
+    const modeColors = getGlassColors(glassStyle);
 
-    // Color theme variables
     root.style.setProperty('--color-primary', colorTheme.primary);
     root.style.setProperty('--color-secondary', colorTheme.secondary);
 
-    // Mode theme variables
     root.style.setProperty('--color-background', modeColors.background);
     root.style.setProperty('--color-background-alt', modeColors.backgroundAlt);
     root.style.setProperty('--color-surface', modeColors.surface);
@@ -90,50 +69,29 @@ function applyTheme(colorTheme: ColorTheme, mode: ThemeMode, glassStyle: GlassSt
     root.style.setProperty('--color-scrollbar-thumb', modeColors.scrollbarThumb);
     root.style.setProperty('--color-scrollbar-thumb-hover', modeColors.scrollbarThumbHover);
 
-    // Set color scheme for native elements
-    root.style.setProperty('color-scheme', mode);
-    root.setAttribute('data-theme-mode', mode);
+    root.style.setProperty('color-scheme', 'dark');
+    root.setAttribute('data-theme-mode', 'dark');
     root.setAttribute('data-glass-style', glassStyle);
 
-    // Toggle light mode class for any CSS that needs it
-    if (mode === 'light') {
-        root.classList.add('light-mode');
-        root.classList.remove('dark-mode');
-    } else {
-        root.classList.add('dark-mode');
-        root.classList.remove('light-mode');
-    }
+    root.classList.add('dark-mode');
+    root.classList.remove('light-mode');
 }
 
-function getSystemThemeMode(): ThemeMode {
-    if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: light)').matches) {
-        return 'light';
-    }
-    return getDefaultThemeMode();
-}
-
-// Load persisted theme from localStorage
-function loadPersistedTheme(): { colorTheme: ColorTheme; themeMode: ThemeMode; glassStyle: GlassStyle } {
+function loadPersistedTheme(): { colorTheme: ColorTheme; glassStyle: GlassStyle } {
     try {
         const savedColorThemeId = localStorage.getItem(STORAGE_KEYS.colorTheme);
-        const savedMode = localStorage.getItem(STORAGE_KEYS.themeMode) as ThemeMode | null;
         const savedGlassStyle = localStorage.getItem(STORAGE_KEYS.glassStyle) as GlassStyle | null;
 
         const colorTheme = savedColorThemeId
             ? getColorThemeById(savedColorThemeId)
             : getDefaultColorTheme();
 
-        const themeMode = savedMode && (savedMode === 'dark' || savedMode === 'light')
-            ? savedMode
-            : getSystemThemeMode();
-
         const glassStyle = savedGlassStyle === 'clear' ? 'clear' : getDefaultGlassStyle();
 
-        return { colorTheme, themeMode, glassStyle };
+        return { colorTheme, glassStyle };
     } catch {
         return {
             colorTheme: getDefaultColorTheme(),
-            themeMode: getSystemThemeMode(),
             glassStyle: getDefaultGlassStyle(),
         };
     }
@@ -145,34 +103,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         return colorTheme;
     });
 
-    const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
-        const { themeMode } = loadPersistedTheme();
-        return themeMode;
-    });
-
     const [glassStyle, setGlassStyleState] = useState<GlassStyle>(() => {
         const { glassStyle } = loadPersistedTheme();
         return glassStyle;
     });
 
-    // Apply theme on mount and whenever it changes
     useEffect(() => {
-        applyTheme(colorTheme, themeMode, glassStyle);
-    }, [colorTheme, themeMode, glassStyle]);
+        applyTheme(colorTheme, glassStyle);
+    }, [colorTheme, glassStyle]);
 
-    // Keep native desktop backdrop in sync with appearance settings.
     useEffect(() => {
-        void applyNativeGlassStyle(glassStyle, themeMode);
-    }, [glassStyle, themeMode]);
+        void applyNativeGlassStyle(glassStyle);
+    }, [glassStyle]);
 
     const setColorTheme = useCallback((theme: ColorTheme) => {
         setColorThemeState(theme);
         localStorage.setItem(STORAGE_KEYS.colorTheme, theme.id);
-    }, []);
-
-    const setThemeMode = useCallback((mode: ThemeMode) => {
-        setThemeModeState(mode);
-        localStorage.setItem(STORAGE_KEYS.themeMode, mode);
     }, []);
 
     const setGlassStyle = useCallback((style: GlassStyle) => {
@@ -184,10 +130,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         <ThemeContext.Provider
             value={{
                 colorTheme,
-                themeMode,
                 glassStyle,
                 setColorTheme,
-                setThemeMode,
                 setGlassStyle,
                 colorThemes: COLOR_THEMES,
             }}

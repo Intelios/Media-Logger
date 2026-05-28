@@ -1,6 +1,5 @@
 // Theme definitions for Media Logger
 
-export type ThemeMode = 'dark' | 'light';
 export type GlassStyle = 'default' | 'clear';
 
 export interface ColorTheme {
@@ -10,25 +9,6 @@ export interface ColorTheme {
     secondary: string;
     // Preview colors for the swatch
     previewGradient: string;
-}
-
-export interface ModeTheme {
-    id: ThemeMode;
-    name: string;
-    icon: string; // emoji for UI
-    colors: {
-        background: string;
-        backgroundAlt: string;
-        surface: string;
-        surfaceHover: string;
-        text: string;
-        textMuted: string;
-        textSubtle: string;
-        border: string;
-        borderSubtle: string;
-        scrollbarThumb: string;
-        scrollbarThumbHover: string;
-    };
 }
 
 // Color themes
@@ -119,60 +99,30 @@ export const COLOR_THEMES: ColorTheme[] = [
     },
 ];
 
-// Mode themes
-export const MODE_THEMES: Record<ThemeMode, ModeTheme> = {
-    dark: {
-        id: 'dark',
-        name: 'Dark',
-        icon: '🌙',
-        colors: {
-            background: '#121212',
-            backgroundAlt: '#0A0A0A',
-            surface: '#1E1E1E',
-            surfaceHover: '#2A2A2A',
-            text: '#FFFFFF',
-            textMuted: '#9CA3AF',
-            textSubtle: '#6B7280',
-            border: 'rgba(255, 255, 255, 0.1)',
-            borderSubtle: 'rgba(255, 255, 255, 0.05)',
-            scrollbarThumb: 'rgba(255, 255, 255, 0.15)',
-            scrollbarThumbHover: 'rgba(255, 255, 255, 0.25)',
-        },
-    },
-    light: {
-        id: 'light',
-        name: 'Light',
-        icon: '☀️',
-        colors: {
-            background: '#FFFFFF',
-            backgroundAlt: '#F9FAFB',
-            surface: '#F3F4F6',
-            surfaceHover: '#E5E7EB',
-            text: '#111827',
-            textMuted: '#6B7280',
-            textSubtle: '#9CA3AF',
-            border: 'rgba(0, 0, 0, 0.1)',
-            borderSubtle: 'rgba(0, 0, 0, 0.05)',
-            scrollbarThumb: 'rgba(0, 0, 0, 0.2)',
-            scrollbarThumbHover: 'rgba(0, 0, 0, 0.3)',
-        },
-    },
-};
+// Dark mode colors (used by ThemeContext)
+export const DARK_COLORS = {
+    background: '#121212',
+    backgroundAlt: '#0A0A0A',
+    surface: '#1E1E1E',
+    surfaceHover: '#2A2A2A',
+    text: '#FFFFFF',
+    textMuted: '#9CA3AF',
+    textSubtle: '#6B7280',
+    border: 'rgba(255, 255, 255, 0.1)',
+    borderSubtle: 'rgba(255, 255, 255, 0.05)',
+    scrollbarThumb: 'rgba(255, 255, 255, 0.15)',
+    scrollbarThumbHover: 'rgba(255, 255, 255, 0.25)',
+} as const;
 
 // Storage keys
 export const STORAGE_KEYS = {
     colorTheme: 'media-logger-color-theme',
-    themeMode: 'media-logger-theme-mode',
     glassStyle: 'media-logger-glass-style',
 } as const;
 
 // Get default theme
 export function getDefaultColorTheme(): ColorTheme {
     return COLOR_THEMES[0];
-}
-
-export function getDefaultThemeMode(): ThemeMode {
-    return 'dark';
 }
 
 export function getDefaultGlassStyle(): GlassStyle {

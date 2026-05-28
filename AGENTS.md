@@ -55,9 +55,9 @@ There are no test, lint, formatter, or CI configs. Do not look for them.
 
 ## Theming
 
-- Theme info stored in `localStorage` keys: `media-logger-color-theme`, `media-logger-theme-mode`, `media-logger-glass-style`
+- Theme info stored in `localStorage` keys: `media-logger-color-theme`, `media-logger-glass-style`
 - CSS variables (`--color-primary`, `--color-surface`, etc.) drive all styling
-- Light mode uses `.light-mode` class overrides on dark-biased utility classes (see `src/index.css`)
+- Dark mode only — no light mode support
 - macOS native glass/vibrancy applied via Tauri command `apply_glass_style` (Rust backend)
 - `tauri-plugin-liquid-glass` requires macOS 26+; older macOS falls back to `window-vibrancy`
 
