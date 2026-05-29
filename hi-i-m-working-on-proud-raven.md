@@ -21,8 +21,12 @@ filtered-down the year is (explaining the "still freezes when filtered" symptom)
 
 **Chosen approach (confirmed with user):** balanced, **no new dependency / no virtualization**
 (big years are ~150–400 entries). Animations may be tuned. **Scope: YearView only.** Outcome: first
-grid paint right after a single indexed query, offscreen cards skipped, filter toggles interruptible,
-and the profile scan cached away.
+grid paint right after the year query, offscreen cards skipped, filter toggles interruptible, and the
+profile scan cached away.
+
+Note: `getEntriesByYear()` is already the right narrow query, but the current schema does not appear
+to create an index on `entries.year_completed`. Do not claim/measure this as an indexed-query win
+unless an explicit index migration is added separately.
 
 Note: the 5 per-card modals are already conditionally rendered (`{open && createPortal(...)}`), so
 they are **not** a hidden cost — leave them alone.
@@ -36,9 +40,14 @@ In `src/lib/profiles-logic.ts`:
 - Add module-level `let profileKeysCache: Set<string> | null` and an in-flight
   `let profileKeysPromise: Promise<Set<string>> | null` (dedupe so the parallel `loadData` can't
   trigger two cold scans).
-- Rewrite `getProfileKeys()` to return the cache if present, else the in-flight promise, else run
-  `profilesLogic.getAllProfiles()` once (reference `profilesLogic.` explicitly, not `this`, inside
-  the async IIFE), store the Set, and clear the promise in `.finally`.
+- The cache must respect the current Adult Media visibility setting because `aggregateAllProfiles()`
+  uses `filterHiddenEntries()`. Either key/cache the result by `isAdultMediaEnabled()` or invalidate
+  the profile-key cache when the existing adult visibility event fires; do not reuse a cache warmed
+  under the opposite setting.
+- Rewrite `getProfileKeys()` to return the cache for the current Adult Media visibility state if
+  present, else the in-flight promise for that state, else run `profilesLogic.getAllProfiles()` once
+  (reference `profilesLogic.` explicitly, not `this`, inside the async IIFE), store the Set, and
+  clear the promise in `.finally`.
 - Export `invalidateProfilesCache()` that nulls both.
 
 **Invalidation — must avoid a circular import.** `db.ts` imports only Tauri/settings/media-config
@@ -91,6 +100,8 @@ In `src/pages/YearView.tsx`:
 - `const deferredEntries = useDeferredValue(filteredEntries)`; render the **grid from `deferredEntries`**
   (keeps toggles responsive/interruptible) but keep the header count (378) reading
   `filteredEntries.length` so the count updates instantly.
+- Base the grid-vs-empty branch on `deferredEntries.length`, since that is the committed list being
+  rendered. The header count should still use `filteredEntries.length`.
 - Repoint the `scrollIntoView` highlight effect (268-275) to depend on **`deferredEntries`** (the
   highlighted DOM node only exists after the deferred grid commits); keep its 100ms timeout.
 
@@ -137,9 +148,13 @@ In `src/pages/YearView.tsx`:
 
 ## Risks / gotchas
 - **No circular import:** invalidate via the `db.ts` listener seam + in-file hide/unhide calls — never import `profiles-logic` into `db.ts`.
+- **Adult Media cache correctness:** `getProfileKeys()` cannot reuse a cache across Adult Media
+  on/off states because hidden adult entries change the profile key set.
 - **Stale setState** on fast year/adult switches → guard with `loadIdRef`.
 - **memo is a no-op** unless the three handlers are `useCallback`.
 - **Preserve filter semantics:** empty-selection ⇒ nothing; all-visible-selected ⇒ skip type filter.
+- **Deferred empty state:** render the grid/empty branch from `deferredEntries`, not the eager
+  `filteredEntries`, while keeping the visible count eager.
 - **scrollIntoView vs content-visibility:** exclude highlighted card from `cv-auto`; scroll effect keys off `deferredEntries`.
 - **In-flight dedupe** on `getProfileKeys` so the parallel load can't double-scan on the cold path.
 
