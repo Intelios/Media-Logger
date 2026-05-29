@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus, Clock, Captions } from "lucide-react";
 import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
@@ -101,6 +102,12 @@ const isPerfectTen = (score: number | null | undefined): boolean => {
   return score === 10;
 };
 
+const cardLiftTransition = {
+  type: "spring",
+  stiffness: 380,
+  damping: 26,
+} as const;
+
 // Award type for badges
 export interface MediaAward {
   categoryName: string;
@@ -143,6 +150,11 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
   const isRewatch = entry.is_rewatch === 1;
   const hasLocalCopy = entry.own_local_copy === 1;
   const hasSubtitles = entry.has_subtitles === 1;
+  const elevationShadow = hasPlatinum
+    ? "0 30px 60px rgba(0, 0, 0, 0.42), 0 12px 26px rgba(8, 47, 73, 0.28), 0 0 54px rgba(34, 211, 238, 0.22), 0 0 84px rgba(245, 158, 11, 0.14)"
+    : perfectTen
+      ? "0 30px 60px rgba(0, 0, 0, 0.42), 0 12px 26px rgba(6, 78, 59, 0.26), 0 0 58px rgba(52, 211, 153, 0.22)"
+      : "0 26px 54px rgba(0, 0, 0, 0.38), 0 10px 22px rgba(0, 0, 0, 0.24), 0 0 36px color-mix(in srgb, var(--color-primary) 18%, transparent)";
 
   useEffect(() => {
     getImageUrl(entry.image_url).then(setImgSrc);
@@ -222,14 +234,22 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
 
   return (
     <>
-      <div className={cn(
-        "group relative bg-surface/80 backdrop-blur-md rounded-2xl hover:scale-[1.03] transition-all duration-300 cursor-pointer",
-        hasPlatinum
-          ? "border-2 border-cyan-300 shadow-[0_0_22px_rgba(34,211,238,0.35),0_0_44px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(34,211,238,0.45),0_0_60px_rgba(245,158,11,0.3)] hover:border-cyan-200 animate-platinum-glow"
-          : perfectTen
-            ? "border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4),0_0_40px_rgba(52,211,153,0.2)] hover:shadow-[0_0_25px_rgba(52,211,153,0.5),0_0_50px_rgba(52,211,153,0.3)] hover:border-emerald-300 animate-perfect-glow"
-            : "border border-white/10 hover:shadow-2xl hover:shadow-primary/20 hover:border-primary/40"
-      )}>
+      <motion.div
+        whileHover={{ y: -6, scale: 1.02 }}
+        transition={cardLiftTransition}
+        className={cn(
+          "group relative bg-surface/80 backdrop-blur-md rounded-2xl transition-[box-shadow,border-color,background-color] duration-300 ease-out cursor-pointer will-change-transform",
+          hasPlatinum
+            ? "border-2 border-cyan-300 shadow-[0_0_22px_rgba(34,211,238,0.35),0_0_44px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(34,211,238,0.45),0_0_60px_rgba(245,158,11,0.3)] hover:border-cyan-200 animate-platinum-glow"
+            : perfectTen
+              ? "border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4),0_0_40px_rgba(52,211,153,0.2)] hover:shadow-[0_0_25px_rgba(52,211,153,0.5),0_0_50px_rgba(52,211,153,0.3)] hover:border-emerald-300 animate-perfect-glow"
+              : "border border-white/10 hover:shadow-2xl hover:shadow-primary/20 hover:border-primary/40"
+        )}
+      >
+        <div
+          className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100"
+          style={{ boxShadow: elevationShadow }}
+        />
 
         {/* Image + Thermometer Wrapper */}
         <div className="relative">
@@ -918,7 +938,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
           </div>,
           document.body
         )}
-      </div>
+      </motion.div>
     </>
   );
 }
