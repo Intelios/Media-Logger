@@ -386,23 +386,39 @@ function YearTimelineItem({
         // Dot marker sitting on the rail: glowing for the current year,
         // filled for the active route, hollow otherwise.
         const dot = (
-          <span
-            className={cn(
-              "block w-2.5 h-2.5 rounded-full transition-all duration-200 z-10",
-              isCurrent && "animate-pulse-subtle"
+          <span className="relative flex w-2.5 h-2.5 items-center justify-center z-10">
+            <span
+              className={cn(
+                "block w-2.5 h-2.5 rounded-full transition-colors duration-200",
+                isCurrent && "animate-pulse-subtle"
+              )}
+              style={
+                isCurrent
+                  ? {
+                      backgroundColor: "var(--color-primary)",
+                      boxShadow: "0 0 8px 2px var(--color-primary)",
+                    }
+                  : {
+                      backgroundColor: "var(--color-surface)",
+                      boxShadow: "0 0 0 2px var(--color-border)",
+                    }
+              }
+            />
+            {isActive && (
+              <motion.span
+                layoutId="year-active-dot"
+                className="absolute inset-0 z-20 rounded-full bg-primary"
+                style={{
+                  boxShadow: isCurrent ? "0 0 8px 2px var(--color-primary)" : undefined,
+                }}
+                transition={{
+                  type: "spring",
+                  stiffness: 350,
+                  damping: 25,
+                }}
+              />
             )}
-            style={
-              isCurrent || isActive
-                ? {
-                    backgroundColor: "var(--color-primary)",
-                    boxShadow: isCurrent ? "0 0 8px 2px var(--color-primary)" : undefined,
-                  }
-                : {
-                    backgroundColor: "var(--color-surface)",
-                    boxShadow: "0 0 0 2px var(--color-border)",
-                  }
-            }
-          />
+          </span>
         );
 
         if (isCompact) return dot;
