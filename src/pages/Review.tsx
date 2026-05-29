@@ -11,6 +11,7 @@ import { cn } from "../lib/utils_ui";
 import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
 import { generateReview, getReviewYears, type ReviewData, type ReviewSlide } from "../lib/review-logic";
 import { FILTER_PRESETS, getVisibleEntryTypes, getVisiblePresetKeys, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
+import { AnimatedNumber } from "../components/AnimatedNumber";
 import type { MediaEntry } from "../lib/db";
 
 
@@ -50,35 +51,6 @@ const SLIDE_ICONS: Record<string, typeof Star> = {
   "finale": Sparkles,
   "empty": X,
 };
-
-// ─── Animated Number Counter ─────────────────────────────────────────────────
-
-function AnimatedNumber({ value, duration = 1200, className }: { value: number; duration?: number; className?: string }) {
-  const [display, setDisplay] = useState(0);
-  const ref = useRef<number>(0);
-
-  useEffect(() => {
-    const start = performance.now();
-    const from = 0;
-
-    function tick(now: number) {
-      const elapsed = now - start;
-      const progress = Math.min(elapsed / duration, 1);
-      // Ease out cubic
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const current = Math.round(from + (value - from) * eased);
-      setDisplay(current);
-      if (progress < 1) {
-        ref.current = requestAnimationFrame(tick);
-      }
-    }
-
-    ref.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(ref.current);
-  }, [value, duration]);
-
-  return <span className={className}>{display}</span>;
-}
 
 // ─── Entry Thumbnail ─────────────────────────────────────────────────────────
 

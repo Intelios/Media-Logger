@@ -1,13 +1,36 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { motion, type Variants } from "framer-motion";
 import { Library, Star, Calendar, Folder, ArrowRight, Search, BarChart3, CalendarDays, Sparkles, Hourglass, RotateCcw, Captions } from "lucide-react";
 import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";
+import { AnimatedNumber } from "../components/AnimatedNumber";
 import { MediaCard } from "../components/MediaCard";
 import { MediaShelf } from "../components/MediaShelf";
 import type { MediaEntry } from "../lib/db";
 import { getImageUrl } from "../lib/utils";
 import { getDisplayName } from "../lib/settings";
 import { getAvailableNavigationYears, getCurrentYearString } from "../lib/navigation-years";
+
+const greetingContainerVariants: Variants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.14,
+    },
+  },
+};
+
+const greetingWordVariants: Variants = {
+  hidden: { opacity: 0, y: 8 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.35,
+      ease: "easeOut",
+    },
+  },
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -97,6 +120,9 @@ export default function Dashboard() {
     </div>
   );
 
+  const averageRating = Number.parseFloat(stats.average_rating);
+  const greetingWords = greeting.split(" ");
+
   return (
     <div className="dashboard-container">
       {/* Compact Greeting Header */}
@@ -106,10 +132,28 @@ export default function Dashboard() {
             <Sparkles size={18} />
           </div>
           <div>
-            <h1 className="dashboard-title">
-              {greeting}, <span className="dashboard-title-accent">{displayName}</span>
-            </h1>
-            <p className="dashboard-subtitle">Your personal media collection • {stats.total_entries} entries tracked</p>
+            <motion.h1
+              className="dashboard-title"
+              variants={greetingContainerVariants}
+              initial="hidden"
+              animate="visible"
+            >
+              {greetingWords.map((word, index) => (
+                <motion.span
+                  key={`${word}-${index}`}
+                  variants={greetingWordVariants}
+                  className={`inline-block${index < greetingWords.length - 1 ? " mr-1.5" : ""}`}
+                >
+                  {word}{index === greetingWords.length - 1 ? "," : ""}
+                </motion.span>
+              ))}{" "}
+              <motion.span className="dashboard-title-accent inline-block" variants={greetingWordVariants}>
+                {displayName}
+              </motion.span>
+            </motion.h1>
+            <p className="dashboard-subtitle">
+              Your personal media collection • <AnimatedNumber value={stats.total_entries} /> entries tracked
+            </p>
           </div>
         </div>
       </header>
@@ -205,7 +249,7 @@ export default function Dashboard() {
                 <Library size={24} />
               </div>
               <div className="dashboard-stat-info">
-                <div className="dashboard-stat-value">{stats.total_entries}</div>
+                <div className="dashboard-stat-value"><AnimatedNumber value={stats.total_entries} /></div>
                 <div className="dashboard-stat-label">Total Entries</div>
               </div>
             </div>
@@ -215,7 +259,7 @@ export default function Dashboard() {
                 <Star size={24} />
               </div>
               <div className="dashboard-stat-info">
-                <div className="dashboard-stat-value">{stats.average_rating}</div>
+                <div className="dashboard-stat-value"><AnimatedNumber value={averageRating} decimals={1} /></div>
                 <div className="dashboard-stat-label">Avg Rating</div>
               </div>
             </div>
