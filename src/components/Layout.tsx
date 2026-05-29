@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Settings, PartyPopper, Bookmark, Database, X } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
@@ -456,11 +457,17 @@ function NavItem({
     >
       {({ isActive }) => (
         <>
-          {/* Left accent bar */}
-          <div className={cn(
-            "absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-r-full transition-all duration-200",
-            isActive ? "h-5 bg-primary" : "h-0 bg-transparent"
-          )} />
+          {isActive && (
+            <motion.div
+              layoutId="nav-active-bar"
+              className="absolute left-0 top-[calc(50%-0.625rem)] w-1 h-5 rounded-r-full bg-primary"
+              transition={{
+                type: "spring",
+                stiffness: 350,
+                damping: 25,
+              }}
+            />
+          )}
 
           {/* Icon with subtle animation */}
           <span className={cn(
