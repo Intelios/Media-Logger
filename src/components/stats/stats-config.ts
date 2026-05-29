@@ -58,6 +58,9 @@ export interface StatsDashboardRenderContext {
   profileKeysReady: boolean;
   displayModes: Partial<Record<DisplayModeWidgetId, StatsWidgetDisplayMode>>;
   data: FullStats;
+  // Specific years selectable for the per-widget "Compare year" overlay (excludes "All Time"
+  // and the active year). Empty when there is nothing to compare against.
+  comparisonYearOptions: string[];
   onPerfect10Click: () => void;
   onThisMonthClick: () => void;
   onViewAllGenres: () => void;

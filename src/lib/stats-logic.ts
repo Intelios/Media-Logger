@@ -16,6 +16,11 @@ export interface ScoreTimelinePoint {
   count: number;
 }
 
+export interface ComparisonSeries {
+  monthlyCompletions: { month: string; count: number }[];
+  scoreTimeline: ScoreTimelinePoint[];
+}
+
 export interface MultiLogDayEntry {
   id: number;
   name: string;
@@ -569,6 +574,18 @@ export const statsLogic = {
   async getStats(yearFilter?: string, typeFilter: string[] = []): Promise<FullStats> {
     const entries = await getFilteredEntries({ year: yearFilter, types: typeFilter });
     return buildFullStatsFromDataset(createStatsDataset(entries), { year: yearFilter, types: typeFilter });
+  },
+
+  // Lightweight fetch for the per-widget "Compare year" overlay. A comparison year is always a
+  // specific year, so the score timeline is computed at month granularity to line up with the
+  // active chart's Jan–Dec axis. Filters (types + adult exclusion) are honoured via getFilteredEntries.
+  async getComparisonSeries(year: string, typeFilter: string[] = []): Promise<ComparisonSeries> {
+    const entries = await getFilteredEntries({ year, types: typeFilter });
+    const dataset = createStatsDataset(entries);
+    return {
+      monthlyCompletions: selectMonthlyCompletions(dataset),
+      scoreTimeline: selectScoreTimeline(dataset, "month"),
+    };
   },
 
   async getFilteredEntries(yearFilter?: string, typeFilter: string[] = []) {

@@ -110,6 +110,7 @@ export function StatsDashboard({
     profileKeysReady,
     displayModes: layout.displayModes,
     data,
+    comparisonYearOptions: yearOptions.filter((year) => year !== "All Time" && year !== activeYear),
     onPerfect10Click,
     onThisMonthClick,
     onViewAllGenres,
