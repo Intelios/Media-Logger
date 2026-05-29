@@ -38,6 +38,28 @@ const DB_SIDECAR_SUFFIXES = ['', '-wal', '-shm'];
 // to show a one-time banner.
 export const DB_MIGRATED_FLAG_KEY = 'media-logger-db-migrated';
 
+const mutationListeners: Array<() => void> = [];
+
+export function onEntriesMutated(fn: () => void): () => void {
+  mutationListeners.push(fn);
+  return () => {
+    const index = mutationListeners.indexOf(fn);
+    if (index !== -1) {
+      mutationListeners.splice(index, 1);
+    }
+  };
+}
+
+function notifyEntriesMutated(): void {
+  mutationListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch (error) {
+      console.error('Error in entry mutation listener:', error);
+    }
+  });
+}
+
 // 1. Define Interfaces matching your Python `database.py` schema
 export interface MediaEntry {
   id: number;
@@ -884,6 +906,7 @@ class DBService {
       `INSERT INTO entries (${keys.join(",")}) VALUES (${placeholders})`,
       values
     );
+    notifyEntriesMutated();
     return result.lastInsertId;
   }
 
@@ -901,11 +924,13 @@ class DBService {
       `UPDATE entries SET ${setString} WHERE id = $${values.length + 1}`,
       [...values, id]
     );
+    notifyEntriesMutated();
   }
 
   async deleteEntry(id: number): Promise<void> {
     const db = await this.connect();
     await db.execute("DELETE FROM entries WHERE id = $1", [id]);
+    notifyEntriesMutated();
   }
 
   /**

@@ -10,6 +10,11 @@
 @tailwind components;
 @tailwind utilities;
 
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 420px;
+}
+
 /* Theme CSS Variables - defaults set here, overridden by ThemeContext */
 :root {
   /* Color theme */

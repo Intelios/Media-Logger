@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useDeferredValue, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Sparkles, ChevronDown, ChevronUp, X, HardDrive, RotateCcw, Captions } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
@@ -18,6 +18,38 @@ const SUBTITLES_FILTER_KEY = "yearview-subtitles-filter";
 
 // Status filter types: null = show all, true = show only with status, false = show only without status
 type StatusFilter = boolean | null;
+
+const computeFiltered = (
+  data: MediaEntry[],
+  types: string[],
+  localCopy: StatusFilter,
+  rewatch: StatusFilter,
+  subtitles: StatusFilter
+): MediaEntry[] => {
+  let result = data;
+
+  if (types.length === 0) {
+    return [];
+  }
+
+  if (types.length !== getVisibleEntryTypes().length) {
+    result = result.filter(e => e.entry_type && types.includes(e.entry_type));
+  }
+
+  if (localCopy !== null) {
+    result = result.filter(e => (e.own_local_copy === 1) === localCopy);
+  }
+
+  if (rewatch !== null) {
+    result = result.filter(e => (e.is_rewatch === 1) === rewatch);
+  }
+
+  if (subtitles !== null) {
+    result = result.filter(e => (e.has_subtitles === 1) === subtitles);
+  }
+
+  return result;
+};
 
 // Helper to load persisted preset from localStorage
 const loadPersistedPreset = (): ActiveFilterPresetKey => {
@@ -82,7 +114,6 @@ export default function YearView() {
   const adultEnabled = useAdultMediaEnabled();
   const [searchParams, setSearchParams] = useSearchParams();
   const [entries, setEntries] = useState<MediaEntry[]>([]);
-  const [filteredEntries, setFilteredEntries] = useState<MediaEntry[]>([]);
 
   // State for multi-select - Initialize from localStorage
   const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedFilter);
@@ -104,6 +135,7 @@ export default function YearView() {
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const hasProcessedHighlight = useRef(false);
+  const loadIdRef = useRef(0);
 
   // Quick filters visibility state
   const [quickFiltersVisible, setQuickFiltersVisible] = useState<boolean>(loadQuickFiltersVisible);
@@ -176,24 +208,55 @@ export default function YearView() {
   };
 
   const loadData = useCallback(async () => {
-    if (year) {
-      const data = await dbService.getEntriesByYear(year);
-      setEntries(data);
-      // Apply current filter immediately upon load
-      applyFilter(data, selectedTypes, localCopyFilter, rewatchFilter, subtitlesFilter);
+    if (!year) return;
 
-      // Fetch awards for all entries
+    const myLoadId = ++loadIdRef.current;
+    const entriesPromise = dbService.getEntriesByYear(year);
+    const keysPromise = profilesLogic.getProfileKeys().catch((error) => {
+      if (loadIdRef.current === myLoadId) {
+        console.error('Error loading profile keys:', error);
+      }
+      return null;
+    });
+
+    try {
+      const data = await entriesPromise;
+      if (loadIdRef.current !== myLoadId) return;
+
+      setEntries(data);
+
       const mediaIds = data.map(e => e.id).filter((id): id is number => id !== undefined);
       if (mediaIds.length > 0) {
-        const awards = await awardsLogic.getAwardsForMediaBatch(mediaIds);
-        setAwardsMap(awards);
+        void awardsLogic.getAwardsForMediaBatch(mediaIds)
+          .then((awards) => {
+            if (loadIdRef.current !== myLoadId) return;
+            setAwardsMap(awards);
+          })
+          .catch((error) => {
+            if (loadIdRef.current === myLoadId) {
+              console.error('Error loading awards:', error);
+            }
+          });
+      } else {
+        setAwardsMap(new Map());
       }
 
-      // Load profile keys for clickable profile links
-      const keys = await profilesLogic.getProfileKeys();
-      setProfileKeys(keys);
+      void keysPromise.then((keys) => {
+        if (loadIdRef.current !== myLoadId || !keys) return;
+        setProfileKeys(keys);
+      });
+    } catch (error) {
+      if (loadIdRef.current === myLoadId) {
+        console.error('Error loading year entries:', error);
+      }
     }
   }, [year, adultEnabled]); // adultEnabled: re-fetch so getEntriesByYear re-applies the adult filter
+
+  const filteredEntries = useMemo(
+    () => computeFiltered(entries, selectedTypes, localCopyFilter, rewatchFilter, subtitlesFilter),
+    [entries, selectedTypes, localCopyFilter, rewatchFilter, subtitlesFilter]
+  );
+  const deferredEntries = useDeferredValue(filteredEntries);
 
   // When Adult Media is toggled, drop any now-hidden types from the active
   // selection and clear the adult preset so the filter UI stays consistent.
@@ -211,11 +274,6 @@ export default function YearView() {
   useEffect(() => {
     localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(selectedTypes));
   }, [selectedTypes]);
-
-  // Re-run filter when selection changes OR entries change OR status filters change
-  useEffect(() => {
-    applyFilter(entries, selectedTypes, localCopyFilter, rewatchFilter, subtitlesFilter);
-  }, [selectedTypes, entries, localCopyFilter, rewatchFilter, subtitlesFilter]);
 
   useEffect(() => {
     loadData();
@@ -272,37 +330,7 @@ export default function YearView() {
         highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 100);
     }
-  }, [highlightedId, filteredEntries]);
-
-  // Handle Filtering Logic
-  const applyFilter = (data: MediaEntry[], types: string[], localCopy: StatusFilter, rewatch: StatusFilter, subtitles: StatusFilter) => {
-    let result = data;
-
-    // Apply type filter
-    if (types.length === 0) {
-      setFilteredEntries([]); // Nothing selected = nothing shown
-      return;
-    } else if (types.length !== getVisibleEntryTypes().length) {
-      result = result.filter(e => e.entry_type && types.includes(e.entry_type));
-    }
-
-    // Apply local copy filter
-    if (localCopy !== null) {
-      result = result.filter(e => (e.own_local_copy === 1) === localCopy);
-    }
-
-    // Apply rewatch filter
-    if (rewatch !== null) {
-      result = result.filter(e => (e.is_rewatch === 1) === rewatch);
-    }
-
-    // Apply subtitles filter
-    if (subtitles !== null) {
-      result = result.filter(e => (e.has_subtitles === 1) === subtitles);
-    }
-
-    setFilteredEntries(result);
-  };
+  }, [highlightedId, deferredEntries]);
 
   const handleSave = async (data: Partial<MediaEntry>) => {
     if (editingEntry?.id) {
@@ -316,18 +344,18 @@ export default function YearView() {
     setTimeout(() => loadData(), 50);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = useCallback(async (id: number) => {
     await dbService.deleteEntry(id);
     loadData();
-  };
+  }, [loadData]);
 
-  const handleEditFromCard = (entry: MediaEntry) => {
+  const handleEditFromCard = useCallback((entry: MediaEntry) => {
     setEditingEntry(entry);
     setIsModalOpen(true);
-  };
+  }, []);
 
   // Handle duplicating an entry (for rewatch/replay)
-  const handleDuplicate = (entry: MediaEntry) => {
+  const handleDuplicate = useCallback((entry: MediaEntry) => {
     // Create a new entry based on the original, but:
     // - Remove the ID (so it creates a new entry)
     // - Set is_rewatch to 1
@@ -340,7 +368,7 @@ export default function YearView() {
     };
     setEditingEntry(duplicatedEntry);
     setIsModalOpen(true);
-  };
+  }, []);
 
   return (
     <div className="space-y-6 relative min-h-[calc(100vh-100px)]">
@@ -540,9 +568,9 @@ export default function YearView() {
       </header>
 
       {/* Grid */}
-      {filteredEntries.length > 0 ? (
+      {deferredEntries.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-20">
-          {filteredEntries.map(entry => {
+          {deferredEntries.map(entry => {
             const isHighlighted = entry.id === highlightedId;
             return (
               <div
@@ -550,7 +578,7 @@ export default function YearView() {
                 ref={isHighlighted ? highlightRef : null}
                 className={`transition-all duration-300 ${isHighlighted
                   ? 'ring-4 ring-amber-400 ring-offset-2 ring-offset-gray-900 rounded-2xl animate-pulse'
-                  : ''
+                  : 'cv-auto'
                   }`}
               >
                 <MediaCard

@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -123,7 +124,7 @@ interface MediaCardProps {
   onDuplicate?: (entry: MediaEntry) => void;
 }
 
-export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys }: MediaCardProps) {
+export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys }: MediaCardProps) {
   const navigate = useNavigate();
   const [imgSrc, setImgSrc] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -238,7 +239,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
         whileHover={{ y: -6, scale: 1.02 }}
         transition={cardLiftTransition}
         className={cn(
-          "group relative bg-surface/80 backdrop-blur-md rounded-2xl transition-[box-shadow,border-color,background-color] duration-300 ease-out cursor-pointer will-change-transform",
+          "group relative bg-surface/80 backdrop-blur-md rounded-2xl transition-[box-shadow,border-color,background-color] duration-300 ease-out cursor-pointer",
           hasPlatinum
             ? "border-2 border-cyan-300 shadow-[0_0_22px_rgba(34,211,238,0.35),0_0_44px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(34,211,238,0.45),0_0_60px_rgba(245,158,11,0.3)] hover:border-cyan-200 animate-platinum-glow"
             : perfectTen
@@ -941,4 +942,4 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
       </motion.div>
     </>
   );
-}
+});
