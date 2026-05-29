@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { Children, isValidElement, useState, useEffect, useCallback, type ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Settings, PartyPopper, Bookmark, Database, X } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
@@ -23,6 +23,46 @@ function getShortcutLabel(key: string): string {
 function isEditableShortcutTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
 }
+
+const iconLayoutTransition = {
+  type: "spring",
+  stiffness: 400,
+  damping: 25,
+} as const;
+
+const hoverSpringTransition = {
+  type: "spring",
+  stiffness: 420,
+  damping: 16,
+} as const;
+
+const labelTransition = {
+  duration: 0.18,
+  ease: "easeOut",
+} as const;
+
+const navIconVariants = {
+  rest: { scale: 1 },
+  hover: {
+    scale: 1.16,
+    transition: hoverSpringTransition,
+  },
+};
+
+const navGlowVariants = {
+  rest: { opacity: 0, scale: 0.4 },
+  hover: {
+    opacity: 0.18,
+    scale: 1.65,
+    transition: hoverSpringTransition,
+  },
+};
+
+const yearTrailTransition = {
+  type: "spring",
+  stiffness: 200,
+  damping: 30,
+} as const;
 
 export function Layout() {
   const [years, setYears] = useState<string[]>(() => getNavigationYears());
@@ -186,47 +226,61 @@ export function Layout() {
         <nav className="flex-1 space-y-1 overflow-y-auto pr-1 custom-scrollbar">
 
           {/* Overview Section */}
-          {!isCompact && <SectionLabel label="Overview" />}
+          <AnimatePresence initial={false}>
+            {!isCompact && <SectionLabel key="overview-label" label="Overview" />}
+          </AnimatePresence>
           <NavItem to="/" icon={<Home size={18} />} label="Home" shortcut={getShortcutLabel("1")} isCompact={isCompact} />
 
           {/* Years Section - vertical timeline rail */}
           <CollapsibleSection label="Years" storageKey="years" isCompact={isCompact}>
-            <div className={cn("relative", isCompact ? "" : "pl-1")}>
-              {/* Rail line connecting the dots */}
-              <div
-                className="absolute top-3 bottom-3 w-px"
-                style={{
-                  left: isCompact ? "50%" : "21px",
-                  transform: isCompact ? "translateX(-0.5px)" : undefined,
-                  backgroundColor: "var(--color-border)",
-                }}
-              />
-              {years.map(year => (
-                <YearTimelineItem
-                  key={year}
-                  year={year}
-                  isCompact={isCompact}
-                  isCurrent={year === currentYear}
-                  shortcut={year === currentYear ? getShortcutLabel("2") : undefined}
+            {(isCollapsed) => (
+              <div className={cn("relative", isCompact ? "" : "pl-1")}>
+                {/* Rail line connecting the dots */}
+                <div
+                  className="absolute top-3 bottom-3 w-px"
+                  style={{
+                    left: isCompact ? "50%" : "21px",
+                    transform: isCompact ? "translateX(-0.5px)" : undefined,
+                    backgroundColor: "var(--color-border)",
+                  }}
                 />
-              ))}
-            </div>
+                <StaggerContainer isCollapsed={isCollapsed}>
+                  {years.map(year => (
+                    <YearTimelineItem
+                      key={year}
+                      year={year}
+                      isCompact={isCompact}
+                      isCurrent={year === currentYear}
+                      shortcut={year === currentYear ? getShortcutLabel("2") : undefined}
+                    />
+                  ))}
+                </StaggerContainer>
+              </div>
+            )}
           </CollapsibleSection>
 
           {/* Library Section */}
           <CollapsibleSection label="Library" storageKey="library" isCompact={isCompact}>
-            <NavItem to="/stats" icon={<BarChart3 size={18} />} label="Stats" shortcut={getShortcutLabel("4")} isCompact={isCompact} />
-            <NavItem to="/search" icon={<Search size={18} />} label="Search" shortcut={getShortcutLabel("3")} isCompact={isCompact} />
-            <NavItem to="/backlog" icon={<Bookmark size={18} />} label="Backlog" shortcut={getShortcutLabel("8")} isCompact={isCompact} />
-            <NavItem to="/awards" icon={<Award size={18} />} label="Awards" shortcut={getShortcutLabel("6")} isCompact={isCompact} />
-            <NavItem to="/profiles" icon={<Users size={18} />} label="Profiles" shortcut={getShortcutLabel("5")} isCompact={isCompact} />
-            <NavItem to="/collections" icon={<Layers size={18} />} label="Collections" shortcut={getShortcutLabel("7")} isCompact={isCompact} />
-            <NavItem to="/review" icon={<PartyPopper size={18} />} label="Review" isCompact={isCompact} />
+            {(isCollapsed) => (
+              <StaggerContainer isCollapsed={isCollapsed}>
+                <NavItem to="/stats" icon={<BarChart3 size={18} />} label="Stats" shortcut={getShortcutLabel("4")} isCompact={isCompact} />
+                <NavItem to="/search" icon={<Search size={18} />} label="Search" shortcut={getShortcutLabel("3")} isCompact={isCompact} />
+                <NavItem to="/backlog" icon={<Bookmark size={18} />} label="Backlog" shortcut={getShortcutLabel("8")} isCompact={isCompact} />
+                <NavItem to="/awards" icon={<Award size={18} />} label="Awards" shortcut={getShortcutLabel("6")} isCompact={isCompact} />
+                <NavItem to="/profiles" icon={<Users size={18} />} label="Profiles" shortcut={getShortcutLabel("5")} isCompact={isCompact} />
+                <NavItem to="/collections" icon={<Layers size={18} />} label="Collections" shortcut={getShortcutLabel("7")} isCompact={isCompact} />
+                <NavItem to="/review" icon={<PartyPopper size={18} />} label="Review" isCompact={isCompact} />
+              </StaggerContainer>
+            )}
           </CollapsibleSection>
 
           {/* System Section */}
           <CollapsibleSection label="System" storageKey="system" isCompact={isCompact}>
-            <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" shortcut={getShortcutLabel(",")} isCompact={isCompact} />
+            {(isCollapsed) => (
+              <StaggerContainer isCollapsed={isCollapsed}>
+                <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" shortcut={getShortcutLabel(",")} isCompact={isCompact} />
+              </StaggerContainer>
+            )}
           </CollapsibleSection>
         </nav>
 
@@ -241,8 +295,16 @@ export function Layout() {
               isCompact ? "px-2" : "px-4"
             )}
           >
-            <Plus size={18} />
-            {!isCompact && <span>Add Entry</span>}
+            <motion.span layout transition={iconLayoutTransition} className="flex h-5 w-5 items-center justify-center">
+              <Plus size={18} />
+            </motion.span>
+            <AnimatePresence initial={false}>
+              {!isCompact && (
+                <AnimatedSidebarText key="add-entry-label">
+                  Add Entry
+                </AnimatedSidebarText>
+              )}
+            </AnimatePresence>
           </button>
 
           {/* Compact Toggle */}
@@ -254,8 +316,16 @@ export function Layout() {
             )}
             title={isCompact ? "Expand sidebar" : "Collapse sidebar"}
           >
-            {isCompact ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
-            {!isCompact && <span>Collapse</span>}
+            <motion.span layout transition={iconLayoutTransition} className="flex h-5 w-5 items-center justify-center">
+              {isCompact ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
+            </motion.span>
+            <AnimatePresence initial={false}>
+              {!isCompact && (
+                <AnimatedSidebarText key="collapse-label">
+                  Collapse
+                </AnimatedSidebarText>
+              )}
+            </AnimatePresence>
           </button>
         </div>
       </aside>
@@ -308,10 +378,63 @@ export function Layout() {
 // Section label component
 function SectionLabel({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-2 px-2 py-3">
+    <motion.div
+      layout
+      initial={{ opacity: 0, x: -6 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -6 }}
+      transition={labelTransition}
+      className="flex items-center gap-2 px-2 py-3"
+    >
       <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)]">{label}</span>
       <div className="flex-1 h-px" style={{ backgroundColor: "var(--color-border-subtle)" }} />
-    </div>
+    </motion.div>
+  );
+}
+
+function AnimatedSidebarText({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <motion.span
+      initial={{ opacity: 0, x: -6 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -6 }}
+      transition={labelTransition}
+      className={className}
+    >
+      {children}
+    </motion.span>
+  );
+}
+
+function StaggerContainer({ children, isCollapsed }: { children: ReactNode; isCollapsed: boolean }) {
+  const items = Children.toArray(children);
+
+  return (
+    <>
+      {items.map((child, index) => (
+        <motion.div
+          key={isValidElement(child) && child.key != null ? child.key : index}
+          initial={false}
+          animate={isCollapsed ? { opacity: 0, x: -8 } : { opacity: 1, x: 0 }}
+          transition={
+            isCollapsed
+              ? {
+                  duration: 0.12,
+                  delay: (items.length - index - 1) * 0.015,
+                  ease: "easeOut",
+                }
+              : {
+                  type: "spring",
+                  stiffness: 420,
+                  damping: 30,
+                  delay: index * 0.04,
+                }
+          }
+        >
+          {child}
+        </motion.div>
+      ))}
+    </>
   );
 }
 
@@ -325,10 +448,12 @@ function CollapsibleSection({
   label: string;
   storageKey: string;
   isCompact?: boolean;
-  children: React.ReactNode;
+  children: ReactNode | ((isCollapsed: boolean) => ReactNode);
 }) {
   const persistKey = `sidebar-section-${storageKey}`;
   const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem(persistKey) === "true");
+  const isContentCollapsed = isCollapsed && !isCompact;
+  const content = typeof children === "function" ? children(isContentCollapsed) : children;
 
   useEffect(() => {
     localStorage.setItem(persistKey, String(isCollapsed));
@@ -336,21 +461,31 @@ function CollapsibleSection({
 
   return (
     <div className="py-2">
-      {!isCompact && (
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="w-full flex items-center justify-between px-2 text-xs font-semibold uppercase tracking-wider mb-2 transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-        >
-          <span>{label}</span>
-          {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-        </button>
-      )}
+      <AnimatePresence initial={false}>
+        {!isCompact && (
+          <motion.button
+            key={`${storageKey}-section-toggle`}
+            layout
+            initial={{ opacity: 0, x: -6 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -6 }}
+            transition={labelTransition}
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="w-full flex items-center justify-between px-2 text-xs font-semibold uppercase tracking-wider mb-2 transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+          >
+            <span>{label}</span>
+            <motion.span layout transition={iconLayoutTransition} className="flex h-4 w-4 items-center justify-center">
+              {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            </motion.span>
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       <div className={cn(
         "space-y-1 overflow-hidden transition-all duration-200",
-        isCollapsed && !isCompact ? "max-h-0 opacity-0" : "max-h-[1000px] opacity-100"
+        isContentCollapsed ? "max-h-0 opacity-0" : "max-h-[1000px] opacity-100"
       )}>
-        {children}
+        {content}
       </div>
     </div>
   );
@@ -369,20 +504,21 @@ function YearTimelineItem({
   shortcut?: string;
 }) {
   return (
-    <NavLink
-      to={`/year/${year}`}
-      className={({ isActive }) =>
-        cn(
-          "group relative flex items-center rounded-lg text-sm font-medium transition-all duration-200",
-          isCompact ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2",
-          isActive
-            ? "text-[var(--color-text)]"
-            : "text-[var(--color-text-muted)] hover:bg-black/5 hover:text-[var(--color-text)]"
-        )
-      }
-      title={isCompact ? year : undefined}
-    >
-      {({ isActive }) => {
+    <motion.div initial="rest" animate="rest" whileHover="hover">
+      <NavLink
+        to={`/year/${year}`}
+        className={({ isActive }) =>
+          cn(
+            "group relative flex items-center rounded-lg text-sm font-medium transition-all duration-200",
+            isCompact ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2",
+            isActive
+              ? "text-[var(--color-text)]"
+              : "text-[var(--color-text-muted)] hover:bg-black/5 hover:text-[var(--color-text)]"
+          )
+        }
+        title={isCompact ? year : undefined}
+      >
+        {({ isActive }) => {
         // Dot marker sitting on the rail: glowing for the current year,
         // filled for the active route, hollow otherwise.
         const dot = (
@@ -405,39 +541,57 @@ function YearTimelineItem({
               }
             />
             {isActive && (
-              <motion.span
-                layoutId="year-active-dot"
-                className="absolute inset-0 z-20 rounded-full bg-primary"
-                style={{
-                  boxShadow: isCurrent ? "0 0 8px 2px var(--color-primary)" : undefined,
-                }}
-                transition={{
-                  type: "spring",
-                  stiffness: 350,
-                  damping: 25,
-                }}
-              />
+              <>
+                <motion.span
+                  layoutId="year-active-trail"
+                  className="absolute z-10 rounded-full bg-primary blur-md opacity-25"
+                  style={{ inset: "-5px" }}
+                  transition={yearTrailTransition}
+                />
+                <motion.span
+                  layoutId="year-active-dot"
+                  className="absolute inset-0 z-20 rounded-full bg-primary"
+                  style={{
+                    boxShadow: isCurrent ? "0 0 8px 2px var(--color-primary)" : undefined,
+                  }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 350,
+                    damping: 25,
+                  }}
+                />
+              </>
             )}
           </span>
         );
 
-        if (isCompact) return dot;
-
         return (
           <>
-            <span className="relative flex w-2.5 items-center justify-center transition-transform duration-200 group-hover:scale-110">
+            <motion.span
+              layout
+              variants={navIconVariants}
+              transition={iconLayoutTransition}
+              className="relative z-10 flex w-2.5 shrink-0 items-center justify-center"
+            >
               {dot}
-            </span>
-            <span className="flex-1">{year}</span>
-            {shortcut && (
-              <span className="text-[10px] text-[var(--color-text-subtle)] opacity-0 group-hover:opacity-100 transition-opacity">
-                {shortcut}
-              </span>
-            )}
+            </motion.span>
+            <AnimatePresence initial={false}>
+              {!isCompact && (
+                <AnimatedSidebarText key="year-content" className="flex min-w-0 flex-1 items-center gap-3">
+                  <span className="flex-1">{year}</span>
+                  {shortcut && (
+                    <span className="text-[10px] text-[var(--color-text-subtle)] opacity-0 transition-opacity group-hover:opacity-100">
+                      {shortcut}
+                    </span>
+                  )}
+                </AnimatedSidebarText>
+              )}
+            </AnimatePresence>
           </>
         );
-      }}
-    </NavLink>
+        }}
+      </NavLink>
+    </motion.div>
   );
 }
 
@@ -451,70 +605,85 @@ function NavItem({
   badge
 }: {
   to: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   shortcut?: string;
   isCompact?: boolean;
   badge?: string;
 }) {
   return (
-    <NavLink
-      to={to}
-      className={({ isActive }) =>
-        cn(
-          "group relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200",
-          isCompact ? "justify-center px-2 py-2.5" : "px-3 py-2",
-          isActive
-            ? "bg-primary/15 text-[var(--color-text)]"
-            : "text-[var(--color-text-muted)] hover:bg-black/5 hover:text-[var(--color-text)]"
-        )
-      }
-      title={isCompact ? label : undefined}
-    >
-      {({ isActive }) => (
-        <>
-          {isActive && (
-            <motion.div
-              layoutId="nav-active-bar"
-              className="absolute left-0 top-[calc(50%-0.625rem)] w-1 h-5 rounded-r-full bg-primary"
-              transition={{
-                type: "spring",
-                stiffness: 350,
-                damping: 25,
-              }}
-            />
-          )}
+    <motion.div initial="rest" animate="rest" whileHover="hover">
+      <NavLink
+        to={to}
+        className={({ isActive }) =>
+          cn(
+            "group relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200",
+            isCompact ? "justify-center px-2 py-2.5" : "px-3 py-2",
+            isActive
+              ? "bg-primary/15 text-[var(--color-text)]"
+              : "text-[var(--color-text-muted)] hover:bg-black/5 hover:text-[var(--color-text)]"
+          )
+        }
+        title={isCompact ? label : undefined}
+      >
+        {({ isActive }) => (
+          <>
+            {isActive && (
+              <motion.div
+                layoutId="nav-active-bar"
+                className="absolute left-0 top-[calc(50%-0.625rem)] w-1 h-5 rounded-r-full bg-primary"
+                transition={{
+                  type: "spring",
+                  stiffness: 350,
+                  damping: 25,
+                }}
+              />
+            )}
 
-          {/* Icon with subtle animation */}
-          <span className={cn(
-            "transition-transform duration-200 group-hover:scale-110",
-            isActive && "text-primary"
-          )}>
-            {icon}
-          </span>
-
-          {/* Label */}
-          {!isCompact && (
-            <>
-              <span className="flex-1">{label}</span>
-
-              {/* Current year badge */}
-              {badge && (
-                <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-secondary/20 text-secondary">
-                  {badge}
-                </span>
+            {/* Icon with spring hover and a subtle theme-colored glow. */}
+            <motion.span
+              layout
+              variants={navIconVariants}
+              transition={iconLayoutTransition}
+              className={cn(
+                "relative flex h-5 w-5 shrink-0 items-center justify-center",
+                isActive && "text-primary"
               )}
+            >
+              <motion.span
+                variants={navGlowVariants}
+                className="pointer-events-none absolute inset-0 rounded-full bg-primary blur-md"
+              />
+              <span className="relative z-10 flex h-5 w-5 items-center justify-center">
+                {icon}
+              </span>
+            </motion.span>
 
-              {/* Keyboard shortcut (shown on hover) */}
-              {shortcut && (
-                <span className="text-[10px] text-[var(--color-text-subtle)] opacity-0 group-hover:opacity-100 transition-opacity">
-                  {shortcut}
-                </span>
+            {/* Label */}
+            <AnimatePresence initial={false}>
+              {!isCompact && (
+                <AnimatedSidebarText key="nav-content" className="flex min-w-0 flex-1 items-center gap-3">
+                  <span className="flex-1 truncate">{label}</span>
+
+                  {/* Current year badge */}
+                  {badge && (
+                    <span className="rounded bg-secondary/20 px-1.5 py-0.5 text-[10px] font-bold text-secondary">
+                      {badge}
+                    </span>
+                  )}
+
+                  {/* Keyboard shortcut (shown on hover) */}
+                  {shortcut && (
+                    <span className="text-[10px] text-[var(--color-text-subtle)] opacity-0 transition-opacity group-hover:opacity-100">
+                      {shortcut}
+                    </span>
+                  )}
+                </AnimatedSidebarText>
               )}
-            </>
-          )}
-        </>
-      )}
-    </NavLink>
+            </AnimatePresence>
+          </>
+        )}
+      </NavLink>
+    </motion.div>
   );
 }
