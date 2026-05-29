@@ -4,8 +4,8 @@
   <rect x="74" y="126" width="152" height="152" rx="28" fill="#0F172A" fill-opacity="0.65" stroke="#FFFFFF" stroke-opacity="0.16"/>
   <path d="M116 239L147.5 205L171 228.5L194 204L226 239V248H116V239Z" fill="#FFFFFF" fill-opacity="0.2"/>
   <circle cx="191" cy="168" r="15" fill="#FFFFFF" fill-opacity="0.24"/>
-  <text x="150" y="323" text-anchor="middle" fill="#E2E8F0" font-family="system-ui, sans-serif" font-size="24" font-weight="700" letter-spacing="0.18em">NO COVER</text>
-  <text x="150" y="354" text-anchor="middle" fill="#94A3B8" font-family="system-ui, sans-serif" font-size="14" letter-spacing="0.08em">LOCAL FALLBACK</text>
+  <text x="150" y="323" text-anchor="middle" fill="#E2E8F0" font-family="Inter, sans-serif" font-size="24" font-weight="700" letter-spacing="0.18em">NO COVER</text>
+  <text x="150" y="354" text-anchor="middle" fill="#94A3B8" font-family="Inter, sans-serif" font-size="14" letter-spacing="0.08em">LOCAL FALLBACK</text>
   <defs>
     <linearGradient id="paint0_linear_1_2" x1="30" y1="42" x2="270" y2="408" gradientUnits="userSpaceOnUse">
       <stop stop-color="#164E63"/>
