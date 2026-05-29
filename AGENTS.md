@@ -1,6 +1,6 @@
 # Media Logger — Agent Guide
 
-**Tauri v2 + React 19 + TypeScript + Tailwind CSS** desktop app for tracking completed media.
+**Tauri v2 + React 19 + TypeScript + Tailwind CSS** desktop app for tracking completed media. This is a desktop app only, there are 0 plans for mobile or website usage.
 
 ## Commands
 
@@ -11,6 +11,7 @@
 | `npm run build` | `tsc && vite build` (type-check then frontend build) |
 | `npm run tauri build` | Production desktop app bundle |
 | `npm run tauri` | Tauri CLI passthrough |
+| `npm run changelog:sync` | Syncs changelog with Github Releases. This is intended for use by the user only.|
 
 There are no test, lint, formatter, or CI configs. Do not look for them.
 
@@ -82,10 +83,3 @@ Defined in Rust (`lib.rs` setup hook). Sends Tauri events (`menu-navigate`, `men
 - Do not change the DB connection flow — migrations must run on every connect.
 - Do not assume booleans in SQLite — check for 0/1 integer pattern.
 - Do not assume `npm run dev` gives you a desktop app — use `npm run tauri dev` for that.
-
-## What NOT to Suggest
-
-- If asked for new features do not suggest the following:
-  - Web Browser version
-  - Mobile version
-- All of these are not wanted by the user!
