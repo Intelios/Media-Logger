@@ -28,7 +28,8 @@ import {
     ChevronRight
 } from 'lucide-react';
 import { exportToFile, importFromFile, getDataStats, type ImportResult } from '../lib/csv-logic';
-import { DB_FILENAME } from '../lib/db';
+import { DB_FILENAME, dbService } from '../lib/db';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
     getDataDirectory,
     setDataDirectory,
@@ -40,7 +41,9 @@ import {
     hasCustomDisplayName,
     getNavigationYears,
     getRatingDisplayMode,
-    setRatingDisplayMode
+    setRatingDisplayMode,
+    isAdultMediaEnabled,
+    setAdultMediaEnabled
 } from '../lib/settings';
 import { useTheme } from '../lib/ThemeContext';
 import type { ColorTheme, GlassStyle } from '../lib/themes';
@@ -200,6 +203,11 @@ export default function Settings() {
     const [yearError, setYearError] = useState('');
     const [ratingDisplayMode, setRatingDisplayModeState] = useState<'pill' | 'thermometer'>(() => getRatingDisplayMode());
 
+    // Adult Media visibility toggle + its "hide existing entries" confirmation
+    const [adultMediaEnabled, setAdultMediaEnabledState] = useState<boolean>(() => isAdultMediaEnabled());
+    const [showAdultConfirm, setShowAdultConfirm] = useState(false);
+    const [adultCount, setAdultCount] = useState(0);
+
     const { colorTheme, glassStyle, setColorTheme, setGlassStyle, colorThemes } = useTheme();
 
     // Data export/import state
@@ -224,6 +232,7 @@ export default function Settings() {
         setIsCustomName(hasCustomDisplayName());
         setNavigationYearsState(getNavigationYears());
         setRatingDisplayModeState(getRatingDisplayMode());
+        setAdultMediaEnabledState(isAdultMediaEnabled());
 
         // Load data stats
         getDataStats().then(setDataStats).catch(console.error);
@@ -337,6 +346,26 @@ export default function Settings() {
         setRatingDisplayMode(mode);
         setRatingDisplayModeState(mode);
         showToast(`Rating display set to ${mode === 'pill' ? 'Pill' : 'Thermometer'}`);
+    };
+
+    const applyAdultMedia = (enabled: boolean) => {
+        setAdultMediaEnabled(enabled);
+        setAdultMediaEnabledState(enabled);
+        showToast(enabled ? 'Adult media shown' : 'Adult media hidden');
+    };
+
+    const handleAdultMediaToggle = async (enabled: boolean) => {
+        if (enabled === adultMediaEnabled) return;
+        // Turning off while adult entries exist: confirm they'll be hidden (not deleted).
+        if (!enabled) {
+            const count = await dbService.countAdultEntries();
+            if (count > 0) {
+                setAdultCount(count);
+                setShowAdultConfirm(true);
+                return;
+            }
+        }
+        applyAdultMedia(enabled);
     };
 
     const exportJsonBackup = async () => {
@@ -658,6 +687,32 @@ export default function Settings() {
                                             </button>
                                         </span>
                                     ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Content</div>
+                            <div className="settings-row">
+                                <div>
+                                    <div className="settings-row-label">Adult Media</div>
+                                    <div className="settings-row-description">
+                                        Show JAV, Hentai, and Adult Visual Novel types and entries throughout the app. When off, existing adult entries are hidden everywhere — never deleted — and reappear when turned back on.
+                                    </div>
+                                </div>
+                                <div className="segmented-control">
+                                    <button
+                                        onClick={() => handleAdultMediaToggle(true)}
+                                        className={`segmented-control-item ${adultMediaEnabled ? 'active' : ''}`}
+                                    >
+                                        On
+                                    </button>
+                                    <button
+                                        onClick={() => handleAdultMediaToggle(false)}
+                                        className={`segmented-control-item ${!adultMediaEnabled ? 'active' : ''}`}
+                                    >
+                                        Off
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1305,6 +1360,20 @@ export default function Settings() {
                         </div>
                     </div>
                 )}
+
+                <ConfirmDialog
+                    isOpen={showAdultConfirm}
+                    tone="default"
+                    title="Hide Adult Media?"
+                    subtitle="Nothing is deleted — this can be undone"
+                    confirmLabel="Hide"
+                    onClose={() => setShowAdultConfirm(false)}
+                    onConfirm={() => applyAdultMedia(false)}
+                >
+                    {adultCount} existing adult {adultCount === 1 ? 'entry' : 'entries'} will be hidden everywhere
+                    (collection, stats, search, backlog, random pick, and review). Nothing is deleted — turn this
+                    back on anytime to restore them.
+                </ConfirmDialog>
             </main>
         </div>
     );

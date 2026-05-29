@@ -1,4 +1,4 @@
-import { type MediaEntry, dbService } from "./db";
+import { type MediaEntry, dbService, adultExclusionSql } from "./db";
 
 export interface StatItem {
   name: string;
@@ -109,6 +109,10 @@ function appendStatsFilters(query: string, params: Array<string | number>, filte
     nextQuery += ` AND entry_type IN (${placeholders})`;
     params.push(...selectedTypes);
   }
+
+  // Exclude adult entries from every stat (totals, averages, breakdowns,
+  // widgets) when the Adult Media setting is off. No-op when enabled.
+  nextQuery += adultExclusionSql();
 
   return nextQuery;
 }

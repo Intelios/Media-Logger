@@ -21,7 +21,7 @@ import {
 } from "../components/stats/stats-layout";
 import { getAvailableNavigationYears, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
 import { type MediaEntry } from "../lib/db";
-import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, type FilterPresetKey } from "../lib/media-config";
+import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, getVisibleEntryTypes, getVisiblePresetKeys, useAdultMediaEnabled, type FilterPresetKey } from "../lib/media-config";
 import { profilesLogic } from "../lib/profiles-logic";
 import { getNavigationYears } from "../lib/settings";
 import { statsLogic, type FullStats } from "../lib/stats-logic";
@@ -62,17 +62,20 @@ const loadPersistedTypes = (): string[] => {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.every((type) => ENTRY_TYPES.includes(type))) {
-        return parsed;
+        // Drop any adult types when the setting is off (entries are filtered at the data layer).
+        const visible = getVisibleEntryTypes();
+        return parsed.filter((type) => visible.includes(type));
       }
     }
   } catch {
     // Fall back to the full type list.
   }
 
-  return [...ENTRY_TYPES];
+  return getVisibleEntryTypes();
 };
 
 export default function StatsPage() {
+  const adultEnabled = useAdultMediaEnabled();
   const [years, setYears] = useState<string[]>(() => getNavigationYears());
   const [activeYear, setActiveYear] = useState(loadPersistedYear);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedTypes);
@@ -96,7 +99,7 @@ export default function StatsPage() {
 
   const handleResetPreset = () => {
     setActivePreset(null);
-    setSelectedTypes([...ENTRY_TYPES]);
+    setSelectedTypes(getVisibleEntryTypes());
     localStorage.removeItem(STATS_PRESET_KEY);
   };
 
@@ -170,9 +173,17 @@ export default function StatsPage() {
     }
   }, [activeYear, years]);
 
+  // When Adult Media is toggled, drop hidden types from the selection and clear
+  // the adult preset so the stats UI and dataset stay consistent.
+  useEffect(() => {
+    const visible = getVisibleEntryTypes();
+    setSelectedTypes((prev) => (prev.every((t) => visible.includes(t)) ? prev : prev.filter((t) => visible.includes(t))));
+    setActivePreset((prev) => (prev === "adult" ? null : prev));
+  }, [adultEnabled]);
+
   useEffect(() => {
     void statsLogic.getStats(activeYear, selectedTypes).then(setData);
-  }, [activeYear, selectedTypes]);
+  }, [activeYear, selectedTypes, adultEnabled]);
 
   const handlePerfect10Click = async () => {
     const entries = await statsLogic.getPerfect10Entries(activeYear, selectedTypes);
@@ -297,12 +308,12 @@ export default function StatsPage() {
       <StatsDashboard
         activeYear={activeYear}
         yearOptions={["All Time", ...years]}
-        entryTypes={ENTRY_TYPES}
+        entryTypes={getVisibleEntryTypes()}
         selectedTypes={selectedTypes}
         profileKeys={profileKeys}
         profileKeysReady={profileKeysReady}
         onSelectedTypesChange={handleTypesChange}
-        presets={FILTER_PRESET_KEYS.map((key) => FILTER_PRESETS[key])}
+        presets={getVisiblePresetKeys().map((key) => FILTER_PRESETS[key])}
         activePreset={activePreset}
         onPresetClick={handlePresetClick}
         onResetPreset={handleResetPreset}

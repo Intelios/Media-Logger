@@ -7,7 +7,7 @@ import { EntryForm } from "../components/EntryForm";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { RandomPickModal } from "../components/RandomPickModal";
 import { cn } from "../lib/utils_ui";
-import { ENTRY_TYPES } from "../lib/media-config";
+import { getVisibleEntryTypes, useAdultMediaEnabled } from "../lib/media-config";
 
 const SEARCH_FILTERS_KEY = "search-filters";
 
@@ -54,6 +54,7 @@ const loadPersistedFilters = (): SearchFilters => {
 };
 
 export default function SearchPage() {
+  const adultEnabled = useAdultMediaEnabled();
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 220);
   const [results, setResults] = useState<MediaEntry[]>([]);
@@ -95,7 +96,7 @@ export default function SearchPage() {
     return () => {
       isActive = false;
     };
-  }, [refreshToken]);
+  }, [refreshToken, adultEnabled]);
 
   useEffect(() => {
     localStorage.setItem(SEARCH_FILTERS_KEY, JSON.stringify(filters));
@@ -141,7 +142,7 @@ export default function SearchPage() {
     return () => {
       isActive = false;
     };
-  }, [debouncedQuery, filters, refreshToken]);
+  }, [debouncedQuery, filters, refreshToken, adultEnabled]);
 
   useEffect(() => {
     let isActive = true;
@@ -309,7 +310,7 @@ export default function SearchPage() {
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 <MultiSelectFilter
-                  options={ENTRY_TYPES}
+                  options={getVisibleEntryTypes()}
                   selected={filters.entryTypes}
                   onChange={(value) => updateFilter("entryTypes", value)}
                   label="Type"

@@ -7,7 +7,7 @@ import { profilesLogic } from "../lib/profiles-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
 import { MultiSelectFilter } from "../components/MultiSelectFilter"; // Import the component
-import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
+import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, getVisibleEntryTypes, getVisiblePresetKeys, useAdultMediaEnabled, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 
 const FILTER_STORAGE_KEY = "yearview-filter-types";
 const PRESET_STORAGE_KEY = "yearview-active-preset";
@@ -65,17 +65,21 @@ const loadPersistedFilter = (): string[] => {
       const parsed = JSON.parse(stored);
       // Validate that parsed values are valid entry types
       if (Array.isArray(parsed) && parsed.every(t => ENTRY_TYPES.includes(t))) {
-        return parsed;
+        // Drop any adult types when the setting is off so the active selection
+        // matches the visible options (entries are already filtered at the data layer).
+        const visible = getVisibleEntryTypes();
+        return parsed.filter(t => visible.includes(t));
       }
     }
   } catch {
     // If parsing fails, fall back to default
   }
-  return ENTRY_TYPES; // Default: all types selected
+  return getVisibleEntryTypes(); // Default: all visible types selected
 };
 
 export default function YearView() {
   const { year } = useParams();
+  const adultEnabled = useAdultMediaEnabled();
   const [searchParams, setSearchParams] = useSearchParams();
   const [entries, setEntries] = useState<MediaEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = useState<MediaEntry[]>([]);
@@ -159,9 +163,9 @@ export default function YearView() {
   // Handle preset button click
   const handlePresetClick = (presetKey: FilterPresetKey) => {
     if (activePreset === presetKey) {
-      // Deactivate preset - reset to all types
+      // Deactivate preset - reset to all visible types
       setActivePreset(null);
-      setSelectedTypes(ENTRY_TYPES);
+      setSelectedTypes(getVisibleEntryTypes());
       localStorage.removeItem(PRESET_STORAGE_KEY);
     } else {
       // Activate preset
@@ -189,7 +193,19 @@ export default function YearView() {
       const keys = await profilesLogic.getProfileKeys();
       setProfileKeys(keys);
     }
-  }, [year]); // Removed selectedTypes from dependency to prevent infinite loops if logic changes
+  }, [year, adultEnabled]); // adultEnabled: re-fetch so getEntriesByYear re-applies the adult filter
+
+  // When Adult Media is toggled, drop any now-hidden types from the active
+  // selection and clear the adult preset so the filter UI stays consistent.
+  useEffect(() => {
+    const visible = getVisibleEntryTypes();
+    setSelectedTypes(prev => {
+      if (prev.every(t => visible.includes(t))) return prev;
+      const next = prev.filter(t => visible.includes(t));
+      return next.length > 0 ? next : visible;
+    });
+    setActivePreset(prev => (prev === "adult" ? null : prev));
+  }, [adultEnabled]);
 
   // Persist filter selection to localStorage
   useEffect(() => {
@@ -228,8 +244,8 @@ export default function YearView() {
       hasProcessedHighlight.current = true;
       const entryId = parseInt(highlightParam, 10);
 
-      // If a type is specified and not currently in our filter, add it
-      if (typeParam && !selectedTypes.includes(typeParam) && ENTRY_TYPES.includes(typeParam)) {
+      // If a type is specified and not currently in our filter, add it (only if visible)
+      if (typeParam && !selectedTypes.includes(typeParam) && getVisibleEntryTypes().includes(typeParam)) {
         setSelectedTypes([typeParam]);
         setActivePreset(null);
         localStorage.removeItem(PRESET_STORAGE_KEY);
@@ -266,7 +282,7 @@ export default function YearView() {
     if (types.length === 0) {
       setFilteredEntries([]); // Nothing selected = nothing shown
       return;
-    } else if (types.length !== ENTRY_TYPES.length) {
+    } else if (types.length !== getVisibleEntryTypes().length) {
       result = result.filter(e => e.entry_type && types.includes(e.entry_type));
     }
 
@@ -365,7 +381,7 @@ export default function YearView() {
 
           {/* Multi-Select Filter */}
           <MultiSelectFilter
-            options={ENTRY_TYPES}
+            options={getVisibleEntryTypes()}
             selected={selectedTypes}
             onChange={(types) => {
               setSelectedTypes(types);
@@ -392,7 +408,7 @@ export default function YearView() {
           ">
             <span className="text-xs text-gray-500 uppercase tracking-wider font-medium mr-2">Presets</span>
 
-            {FILTER_PRESET_KEYS.map((key) => {
+            {getVisiblePresetKeys().map((key) => {
               const preset = FILTER_PRESETS[key];
               const Icon = preset.icon;
               const isActive = activePreset === key;
@@ -500,7 +516,7 @@ export default function YearView() {
               <button
                 onClick={() => {
                   setActivePreset(null);
-                  setSelectedTypes(ENTRY_TYPES);
+                  setSelectedTypes(getVisibleEntryTypes());
                   setLocalCopyFilter(null);
                   setRewatchFilter(null);
                   setSubtitlesFilter(null);
@@ -553,7 +569,7 @@ export default function YearView() {
         <div className="flex flex-col items-center justify-center py-20 text-gray-500">
           <p className="text-lg">No entries match your filter.</p>
           <button
-            onClick={() => setSelectedTypes(ENTRY_TYPES)}
+            onClick={() => setSelectedTypes(getVisibleEntryTypes())}
             className="mt-4 text-primary hover:underline"
           >
             Reset Filters

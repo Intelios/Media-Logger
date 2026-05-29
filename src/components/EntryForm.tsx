@@ -5,7 +5,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { saveImage, getImageUrl } from "../lib/utils";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
-import { ENTRY_TYPE_OPTIONS } from "../lib/media-config";
+import { getVisibleEntryTypeOptions } from "../lib/media-config";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { AutocompleteInput } from "./AutocompleteInput";
@@ -223,7 +223,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
       <div className="space-y-2">
         <label className="text-sm font-medium text-gray-300">Type</label>
         <div className="grid grid-cols-3 gap-2">
-            {ENTRY_TYPE_OPTIONS.map(type => (
+            {getVisibleEntryTypeOptions().map(type => (
             <button
               key={type.value}
               type="button"

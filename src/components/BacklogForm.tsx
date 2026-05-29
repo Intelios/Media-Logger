@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { saveImage, getImageUrl } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
-import { ENTRY_TYPE_OPTIONS } from "../lib/media-config";
+import { getVisibleEntryTypeOptions } from "../lib/media-config";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import type { BacklogItem } from "../lib/db";
@@ -141,7 +141,7 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1.5">Type</label>
             <div className="flex flex-wrap gap-1.5">
-              {ENTRY_TYPE_OPTIONS.map(t => (
+              {getVisibleEntryTypeOptions().map(t => (
                 <button
                   key={t.value}
                   type="button"

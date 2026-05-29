@@ -10,7 +10,7 @@ import { scaleLinear } from "d3-scale";
 import { cn } from "../lib/utils_ui";
 import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
 import { generateReview, getReviewYears, type ReviewData, type ReviewSlide } from "../lib/review-logic";
-import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
+import { FILTER_PRESETS, getVisibleEntryTypes, getVisiblePresetKeys, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 import type { MediaEntry } from "../lib/db";
 
 
@@ -830,7 +830,7 @@ export default function ReviewPage() {
   const [years, setYears] = useState<number[]>([]);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // null = full year
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([...ENTRY_TYPES]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(getVisibleEntryTypes);
   const [activePreset, setActivePreset] = useState<ActiveFilterPresetKey>(null);
   const [loading, setLoading] = useState(false);
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
@@ -845,7 +845,7 @@ export default function ReviewPage() {
   const handlePreset = (key: FilterPresetKey) => {
     if (activePreset === key) {
       setActivePreset(null);
-      setSelectedTypes([...ENTRY_TYPES]);
+      setSelectedTypes(getVisibleEntryTypes());
     } else {
       setActivePreset(key);
       setSelectedTypes(FILTER_PRESETS[key].types);
@@ -949,7 +949,7 @@ export default function ReviewPage() {
 
         {/* Presets */}
         <div className="flex gap-2 mb-3">
-          {FILTER_PRESET_KEYS.map(key => {
+          {getVisiblePresetKeys().map(key => {
             const preset = FILTER_PRESETS[key];
             const Icon = preset.icon;
             const isActive = activePreset === key;
@@ -970,10 +970,10 @@ export default function ReviewPage() {
             );
           })}
           <button
-            onClick={() => { setActivePreset(null); setSelectedTypes([...ENTRY_TYPES]); }}
+            onClick={() => { setActivePreset(null); setSelectedTypes(getVisibleEntryTypes()); }}
             className={cn(
               "px-3 py-2 rounded-xl text-sm font-medium transition-all border",
-              selectedTypes.length === ENTRY_TYPES.length && !activePreset
+              selectedTypes.length === getVisibleEntryTypes().length && !activePreset
                 ? "bg-primary/20 border-primary/40 text-white scale-105"
                 : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
             )}
@@ -984,7 +984,7 @@ export default function ReviewPage() {
 
         {/* Individual type checkboxes */}
         <div className="flex flex-wrap gap-2">
-          {ENTRY_TYPES.map(type => {
+          {getVisibleEntryTypes().map(type => {
             const isSelected = selectedTypes.includes(type);
             return (
               <button

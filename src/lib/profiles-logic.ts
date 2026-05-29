@@ -1,4 +1,4 @@
-import { dbService, type MediaEntry } from "./db";
+import { dbService, type MediaEntry, filterHiddenEntries } from "./db";
 import { saveImage } from "./utils";
 
 export interface ProfileSummary {
@@ -13,7 +13,7 @@ export const PROFILE_TYPES = ["director", "actress", "artist", "author", "franch
 
 async function aggregateAllProfiles(): Promise<ProfileSummary[]> {
   const db = await dbService.connect();
-  const entries = await db.select<MediaEntry[]>("SELECT * FROM entries");
+  const entries = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
 
   const customImages = await db.select<{ type: string, name: string, image_url: string }[]>(
     "SELECT * FROM profiles"
@@ -128,7 +128,7 @@ export const profilesLogic = {
 
   async getProfileDetails(type: string, name: string, ascending: boolean = false): Promise<MediaEntry[]> {
     const db = await dbService.connect();
-    const allEntries = await db.select<MediaEntry[]>("SELECT * FROM entries");
+    const allEntries = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
 
     const filtered = allEntries.filter(e => {
       const column = type as keyof MediaEntry;

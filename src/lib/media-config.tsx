@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Book, Film, Gamepad, Gamepad2, Heart, Music, Sparkles, Star, Tag, type LucideIcon } from "lucide-react";
+import { isAdultMediaEnabled, ADULT_MEDIA_VISIBILITY_CHANGED_EVENT } from "./settings";
 
 export const ENTRY_TYPES: string[] = [
   "Movie",
@@ -65,3 +66,55 @@ export const FILTER_PRESETS: Record<FilterPresetKey, MediaFilterPreset> = {
     gradient: "from-pink-500 to-rose-600",
   },
 };
+
+// The media types considered "adult". These remain in the canonical lists above
+// (so existing entries still render and persisted filters still validate), but
+// are filtered out of the UI option lists and data fetches when the Adult Media
+// setting is turned off. Mirrors FILTER_PRESETS.adult.types.
+export const ADULT_ENTRY_TYPES: string[] = ["JAV", "Hentai", "Adult Visual Novel"];
+const ADULT_ENTRY_TYPE_SET = new Set(ADULT_ENTRY_TYPES);
+
+export function isAdultType(type: string | null | undefined): boolean {
+  return type != null && ADULT_ENTRY_TYPE_SET.has(type);
+}
+
+/**
+ * The entry types that should be offered in pickers/filters right now. Functions
+ * (not constants) so they re-evaluate per render and respond to the setting.
+ */
+export function getVisibleEntryTypes(): string[] {
+  return isAdultMediaEnabled() ? ENTRY_TYPES : ENTRY_TYPES.filter((t) => !isAdultType(t));
+}
+
+export function getVisibleEntryTypeOptions(): { value: string; icon: ReactNode }[] {
+  return isAdultMediaEnabled()
+    ? ENTRY_TYPE_OPTIONS
+    : ENTRY_TYPE_OPTIONS.filter((o) => !isAdultType(o.value));
+}
+
+export function getVisiblePresetKeys(): FilterPresetKey[] {
+  return isAdultMediaEnabled()
+    ? FILTER_PRESET_KEYS
+    : FILTER_PRESET_KEYS.filter((k) => k !== "adult");
+}
+
+/**
+ * Reactive subscription to the Adult Media setting. Re-renders the consuming
+ * component when the toggle changes (same tab via the custom event, other
+ * windows via the storage event) so views update without an app restart.
+ */
+export function useAdultMediaEnabled(): boolean {
+  const [enabled, setEnabled] = useState(isAdultMediaEnabled);
+
+  useEffect(() => {
+    const handler = () => setEnabled(isAdultMediaEnabled());
+    window.addEventListener(ADULT_MEDIA_VISIBILITY_CHANGED_EVENT, handler);
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener(ADULT_MEDIA_VISIBILITY_CHANGED_EVENT, handler);
+      window.removeEventListener("storage", handler);
+    };
+  }, []);
+
+  return enabled;
+}

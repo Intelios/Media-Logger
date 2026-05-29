@@ -1,7 +1,29 @@
 import Database from '@tauri-apps/plugin-sql';
 import { join } from '@tauri-apps/api/path';
 import { exists, copyFile, stat, remove } from '@tauri-apps/plugin-fs';
-import { getDataDirectory } from './settings';
+import { getDataDirectory, isAdultMediaEnabled } from './settings';
+import { ADULT_ENTRY_TYPES, isAdultType } from './media-config';
+
+/**
+ * SQL fragment that excludes adult entries when the Adult Media setting is off.
+ * Returns '' when enabled. Designed to be appended inside an existing WHERE
+ * clause (note the leading ' AND '). Rows with a NULL entry_type are kept.
+ * The data is never deleted — this only hides it from queries.
+ */
+export function adultExclusionSql(): string {
+  if (isAdultMediaEnabled()) return '';
+  const list = ADULT_ENTRY_TYPES.map((t) => `'${t.replace(/'/g, "''")}'`).join(', ');
+  return ` AND (entry_type IS NULL OR entry_type NOT IN (${list}))`;
+}
+
+/**
+ * In-memory equivalent of adultExclusionSql for array-returning fetches that are
+ * simpler to post-filter than to splice into positional-parameter SQL.
+ */
+export function filterHiddenEntries<T extends { entry_type: string | null }>(rows: T[]): T[] {
+  if (isAdultMediaEnabled()) return rows;
+  return rows.filter((r) => !isAdultType(r.entry_type));
+}
 
 // Canonical database filename. Renamed from the legacy 'jav_log.db' in 3.0.
 export const DB_FILENAME = 'media_logger.db';
@@ -688,9 +710,24 @@ class DBService {
 
   async getAllEntries(): Promise<MediaEntry[]> {
     const db = await this.connect();
-    return await db.select<MediaEntry[]>(
+    const rows = await db.select<MediaEntry[]>(
       "SELECT * FROM entries ORDER BY completion_date DESC, id DESC"
     );
+    return filterHiddenEntries(rows);
+  }
+
+  /**
+   * Count of adult entries, ignoring the Adult Media setting. Used by the
+   * Settings confirmation dialog to tell the user how many entries will be
+   * hidden (not deleted) when they turn the setting off.
+   */
+  async countAdultEntries(): Promise<number> {
+    const db = await this.connect();
+    const list = ADULT_ENTRY_TYPES.map((t) => `'${t.replace(/'/g, "''")}'`).join(', ');
+    const result = await db.select<{ count: number }[]>(
+      `SELECT COUNT(*) as count FROM entries WHERE entry_type IN (${list})`
+    );
+    return result[0]?.count ?? 0;
   }
 
   private escapeLike(value: string): string {
@@ -704,7 +741,7 @@ class DBService {
     const results = await db.select<{ value: string }[]>(
       `SELECT DISTINCT TRIM(${column}) as value
        FROM entries
-       WHERE ${column} IS NOT NULL AND TRIM(${column}) <> ''
+       WHERE ${column} IS NOT NULL AND TRIM(${column}) <> ''${adultExclusionSql()}
        ORDER BY value COLLATE NOCASE ASC`
     );
 
@@ -724,7 +761,7 @@ class DBService {
         `WITH RECURSIVE split(value, rest) AS (
            SELECT '', TRIM(actress) || ','
            FROM entries
-           WHERE actress IS NOT NULL AND TRIM(actress) <> ''
+           WHERE actress IS NOT NULL AND TRIM(actress) <> ''${adultExclusionSql()}
            UNION ALL
            SELECT
              TRIM(SUBSTR(rest, 0, INSTR(rest, ','))),
@@ -803,21 +840,23 @@ class DBService {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    return await db.select<MediaEntry[]>(
+    const rows = await db.select<MediaEntry[]>(
       `SELECT *
        FROM entries
        ${whereClause}
        ORDER BY completion_date DESC, id DESC`,
       params
     );
+    return filterHiddenEntries(rows);
   }
 
   async getEntriesByYear(year: string): Promise<MediaEntry[]> {
     const db = await this.connect();
-    return await db.select<MediaEntry[]>(
+    const rows = await db.select<MediaEntry[]>(
       "SELECT * FROM entries WHERE year_completed = $1 ORDER BY completion_date ASC",
       [year]
     );
+    return filterHiddenEntries(rows);
   }
 
   async getStats() {
@@ -884,17 +923,19 @@ class DBService {
 
   async getAllBacklogItems(): Promise<BacklogItem[]> {
     const db = await this.connect();
-    return await db.select<BacklogItem[]>(
+    const rows = await db.select<BacklogItem[]>(
       "SELECT * FROM backlog_items ORDER BY CASE status WHEN 'in_progress' THEN 0 ELSE 1 END, sort_order ASC, id DESC"
     );
+    return filterHiddenEntries(rows);
   }
 
   async getBacklogItemsByStatus(status: BacklogItem['status']): Promise<BacklogItem[]> {
     const db = await this.connect();
-    return await db.select<BacklogItem[]>(
+    const rows = await db.select<BacklogItem[]>(
       "SELECT * FROM backlog_items WHERE status = $1 ORDER BY sort_order ASC, id DESC",
       [status]
     );
+    return filterHiddenEntries(rows);
   }
 
   async addBacklogItem(item: Omit<BacklogItem, 'id'>): Promise<number> {
@@ -969,7 +1010,7 @@ class DBService {
         `WITH RECURSIVE split(value, rest) AS (
            SELECT '', TRIM(genre) || ','
            FROM entries
-           WHERE genre IS NOT NULL AND TRIM(genre) <> ''
+           WHERE genre IS NOT NULL AND TRIM(genre) <> ''${adultExclusionSql()}
            UNION ALL
            SELECT
              TRIM(SUBSTR(rest, 0, INSTR(rest, ','))),
@@ -985,13 +1026,13 @@ class DBService {
       db.select<{ value: number }[]>(
         `SELECT DISTINCT year_completed as value
          FROM entries
-         WHERE year_completed IS NOT NULL
+         WHERE year_completed IS NOT NULL${adultExclusionSql()}
          ORDER BY year_completed DESC`
       ),
       db.select<{ value: string }[]>(
         `SELECT DISTINCT entry_type as value
          FROM entries
-         WHERE entry_type IS NOT NULL AND TRIM(entry_type) <> ''
+         WHERE entry_type IS NOT NULL AND TRIM(entry_type) <> ''${adultExclusionSql()}
          ORDER BY value COLLATE NOCASE ASC`
       ),
     ]);
@@ -1071,6 +1112,13 @@ class DBService {
     addInFilter('platform', filters.platforms);
     addInFilter('franchise', filters.franchises);
     addInFilter('series', filters.series);
+
+    // Hide adult entries from random picks (count and result) when disabled,
+    // regardless of any stale entryTypes filter that might include them.
+    if (!isAdultMediaEnabled()) {
+      const list = ADULT_ENTRY_TYPES.map((t) => `'${t.replace(/'/g, "''")}'`).join(', ');
+      conditions.push(`(entry_type IS NULL OR entry_type NOT IN (${list}))`);
+    }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     return { whereClause, params };
