@@ -103,19 +103,34 @@ export function Layout() {
     };
   }, [refreshYears]);
 
-  // Listen for menu events from Tauri backend
+  // Listen for menu events from Tauri backend.
+  // listen() resolves to its unlisten fn asynchronously; under React 19
+  // StrictMode the effect mounts→unmounts→mounts in dev, so we guard with a
+  // `cancelled` flag to unlisten as soon as the promise resolves if cleanup
+  // already ran — preventing double-registration (menu events firing twice).
   useEffect(() => {
-    const unlistenNav = listen<string>("menu-navigate", (event) => {
+    let cancelled = false;
+    let offNav: (() => void) | undefined;
+    let offNewEntry: (() => void) | undefined;
+
+    listen<string>("menu-navigate", (event) => {
       navigate(event.payload);
+    }).then((fn) => {
+      if (cancelled) fn();
+      else offNav = fn;
     });
 
-    const unlistenNewEntry = listen("menu-new-entry", () => {
+    listen("menu-new-entry", () => {
       setShowEntryForm(true);
+    }).then((fn) => {
+      if (cancelled) fn();
+      else offNewEntry = fn;
     });
 
     return () => {
-      unlistenNav.then((fn) => fn());
-      unlistenNewEntry.then((fn) => fn());
+      cancelled = true;
+      offNav?.();
+      offNewEntry?.();
     };
   }, [navigate]);
 

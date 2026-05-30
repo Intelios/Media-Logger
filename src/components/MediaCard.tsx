@@ -136,6 +136,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
   const [duplicatesLoading, setDuplicatesLoading] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuDropdownRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const contextInfo = getContextInfo(entry);
@@ -164,7 +165,9 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
   // Click outside to close menu
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const insideButton = menuRef.current?.contains(e.target as Node);
+      const insideDropdown = menuDropdownRef.current?.contains(e.target as Node);
+      if (!insideButton && !insideDropdown) {
         setMenuOpen(false);
       }
     };
@@ -361,7 +364,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
       {/* Dropdown Menu - rendered via Portal */}
         {menuOpen && createPortal(
           <div
-            ref={menuRef}
+            ref={menuDropdownRef}
             className="fixed w-44 rounded-xl border border-white/20 bg-transparent backdrop-blur-2xl shadow-2xl shadow-black/45 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[200]"
             style={{
               top: menuPosition.top,

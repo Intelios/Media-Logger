@@ -302,7 +302,7 @@ function TimelineCard({
                     <span className="text-xs font-medium">Subtitles</span>
                   </div>
                 )}
-                {entry.review_score && (
+                {entry.review_score != null && (
                   <div className="flex items-center gap-1 text-yellow-500">
                     <Star size={10} fill="currentColor" />
                     <span className="text-xs font-medium">{entry.review_score}</span>
@@ -375,7 +375,7 @@ function AwardCard({
             <span className="text-xs text-gray-400 capitalize bg-white/5 px-2 py-0.5 rounded">
               {entry.entry_type || 'Entry'}
             </span>
-            {entry.review_score && (
+            {entry.review_score != null && (
               <div className="flex items-center gap-1 text-yellow-500">
                 <Star size={10} fill="currentColor" />
                 <span className="text-xs font-medium">{entry.review_score}</span>
@@ -410,6 +410,7 @@ function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (profile.image_url) {
@@ -421,7 +422,9 @@ function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const insideButton = menuRef.current?.contains(e.target as Node);
+      const insideDropdown = menuDropdownRef.current?.contains(e.target as Node);
+      if (!insideButton && !insideDropdown) {
         setMenuOpen(false);
       }
     };
@@ -503,7 +506,7 @@ function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
 
       {menuOpen && createPortal(
         <div
-          ref={menuRef}
+          ref={menuDropdownRef}
           className="fixed w-44 rounded-xl border border-white/20 bg-transparent backdrop-blur-2xl shadow-2xl shadow-black/45 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[200]"
           style={{
             top: menuPosition.top,

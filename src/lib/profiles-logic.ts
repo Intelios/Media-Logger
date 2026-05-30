@@ -60,7 +60,7 @@ async function aggregateAllProfiles(): Promise<ProfileSummary[]> {
 
         const data = profileMap.get(key)!;
         data.count++;
-        if (entry.review_score) {
+        if (entry.review_score != null) {
           data.totalScore += entry.review_score;
           data.scoreCount++;
         }

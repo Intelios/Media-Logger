@@ -74,7 +74,7 @@ function EntryThumb({ entry, size = "md", delay = 0 }: { entry: MediaEntry; size
     >
       <img src={imgSrc} alt={entry.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-      {entry.review_score && (
+      {entry.review_score != null && (
         <div className="absolute bottom-1 right-1 bg-black/60 backdrop-blur-sm rounded-md px-1.5 py-0.5 text-xs font-bold text-white">
           {entry.review_score}
         </div>
