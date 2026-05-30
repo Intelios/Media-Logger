@@ -6,7 +6,7 @@ import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { MediaListCard } from "../components/MediaListCard";
 import type { MediaEntry } from "../lib/db";
-import { getImageUrl } from "../lib/utils";
+import { getImageUrl, releaseImageUrl } from "../lib/utils";
 import { getDisplayName } from "../lib/settings";
 import { getAvailableNavigationYears, getCurrentYearString } from "../lib/navigation-years";
 
@@ -45,6 +45,9 @@ export default function Dashboard() {
   const loadIdRef = useRef(0);
 
   useEffect(() => {
+    let cancelled = false;
+    let featuredImagePath: string | null = null;
+
     // Time based greeting
     const hour = new Date().getHours();
     if (hour < 12) setGreeting("Good Morning");
@@ -80,12 +83,20 @@ export default function Dashboard() {
       if (feat) {
         const imageUrl = await getImageUrl(feat.image_url);
         // Only update state if this is still the current load operation
-        if (loadIdRef.current === currentLoadId) {
+        if (!cancelled && loadIdRef.current === currentLoadId) {
+          featuredImagePath = feat.image_url;
           setFeatured({ entry: feat, imageUrl });
+        } else {
+          releaseImageUrl(feat.image_url);
         }
       }
     };
     load();
+
+    return () => {
+      cancelled = true;
+      releaseImageUrl(featuredImagePath);
+    };
   }, []);
 
   const handleCardClick = (entry: MediaEntry) => {

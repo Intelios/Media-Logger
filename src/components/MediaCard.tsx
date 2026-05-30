@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus, Clock, Captions } from "lucide-react";
-import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, useImageUrl } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { getRatingDisplayMode } from "../lib/settings";
@@ -126,7 +126,7 @@ interface MediaCardProps {
 
 export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys }: MediaCardProps) {
   const navigate = useNavigate();
-  const [imgSrc, setImgSrc] = useState("");
+  const imgSrc = useImageUrl(entry.image_url);
   const [menuOpen, setMenuOpen] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [imageViewOpen, setImageViewOpen] = useState(false);
@@ -157,10 +157,6 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
     : perfectTen
       ? "0 30px 60px rgba(0, 0, 0, 0.42), 0 12px 26px rgba(6, 78, 59, 0.26), 0 0 58px rgba(52, 211, 153, 0.22)"
       : "0 26px 54px rgba(0, 0, 0, 0.38), 0 10px 22px rgba(0, 0, 0, 0.24), 0 0 36px color-mix(in srgb, var(--color-primary) 18%, transparent)";
-
-  useEffect(() => {
-    getImageUrl(entry.image_url).then(setImgSrc);
-  }, [entry.image_url]);
 
   // Click outside to close menu
   useEffect(() => {
@@ -264,7 +260,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
               alt={entry.name}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
               loading="lazy"
-              onError={() => setImgSrc(DEFAULT_COVER_IMAGE)}
+              onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; }}
             />
 
             {/* Gradient Overlay */}
@@ -727,7 +723,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                 src={imgSrc}
                 alt={entry.name}
                 className="max-w-[90vw] max-h-[80vh] object-contain rounded-2xl shadow-2xl"
-                onError={() => setImgSrc(DEFAULT_COVER_IMAGE)}
+                onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; }}
               />
 
               {/* Title below image */}

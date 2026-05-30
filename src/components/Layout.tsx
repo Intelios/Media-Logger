@@ -217,10 +217,7 @@ export function Layout() {
       if (entryData.year_completed) {
         navigate(`/year/${entryData.year_completed}`);
 
-        // Dispatch event after navigation with delay to ensure YearView is mounted
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('entry-added', { detail: { year: entryData.year_completed } }));
-        }, 100);
+        window.dispatchEvent(new CustomEvent('entry-added', { detail: { year: entryData.year_completed } }));
       }
     } catch (error) {
       console.error("Failed to save entry:", error);
@@ -497,10 +494,12 @@ function CollapsibleSection({
       </AnimatePresence>
 
       <div className={cn(
-        "space-y-1 overflow-hidden transition-all duration-200",
-        isContentCollapsed ? "max-h-0 opacity-0" : "max-h-[1000px] opacity-100"
+        "grid transition-[grid-template-rows,opacity] duration-200",
+        isContentCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
       )}>
-        {content}
+        <div className="min-h-0 overflow-hidden space-y-1">
+          {content}
+        </div>
       </div>
     </div>
   );

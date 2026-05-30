@@ -9,15 +9,11 @@ import { CategoryPicker } from "../components/CategoryPicker";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
-import { getImageUrl } from "../lib/utils";
+import { useImageUrl } from "../lib/utils";
 
 // Small helper component for loading images asynchronously (required for Tauri)
 function WinnerThumbnail({ entry }: { entry: MediaEntry }) {
-  const [imgSrc, setImgSrc] = useState<string>("");
-
-  useEffect(() => {
-    getImageUrl(entry.image_url).then(setImgSrc);
-  }, [entry.image_url]);
+  const imgSrc = useImageUrl(entry.image_url, "");
 
   return (
     <div className="w-16 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">

@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Star, Calendar, RotateCcw, Captions, Trophy, Clock } from "lucide-react";
 import type { MediaEntry } from "../lib/db";
-import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, useImageUrl } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 import { getTypeBadgeStyle, getRatingColor, formatDate, parseGenres } from "./MediaCard";
 
@@ -24,7 +23,7 @@ interface MediaListCardProps {
  * as a soft blurred wash that fades into the surface — no hard box edges.
  */
 export function MediaListCard({ entry, onClick, index = 0 }: MediaListCardProps) {
-  const [imgSrc, setImgSrc] = useState("");
+  const imgSrc = useImageUrl(entry.image_url, "");
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const genres = parseGenres(entry.genre).slice(0, 2);
   const hasScore = entry.review_score !== null && entry.review_score !== undefined;
@@ -34,10 +33,6 @@ export function MediaListCard({ entry, onClick, index = 0 }: MediaListCardProps)
   const isEarlyAccess = isGameEntry && entry.is_early_access === 1;
   const isRewatch = entry.is_rewatch === 1;
   const hasSubtitles = entry.has_subtitles === 1;
-
-  useEffect(() => {
-    getImageUrl(entry.image_url).then(setImgSrc);
-  }, [entry.image_url]);
 
   return (
     <motion.div
@@ -59,7 +54,7 @@ export function MediaListCard({ entry, onClick, index = 0 }: MediaListCardProps)
         src={imgSrc || DEFAULT_COVER_IMAGE}
         alt={entry.name}
         loading="lazy"
-        onError={() => setImgSrc(DEFAULT_COVER_IMAGE)}
+        onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; }}
         className="media-list-card-thumb"
       />
 

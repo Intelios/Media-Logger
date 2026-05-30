@@ -3,7 +3,7 @@ import { X, Dices, RotateCcw, ArrowLeft, Shuffle, ChevronDown, Check } from "luc
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { dbService, type MediaEntry, type RandomPickFilters, type RandomPickFilterOptions } from "../lib/db";
-import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, getImageUrl, releaseImageUrl } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 
 interface RandomPickModalProps {
@@ -140,18 +140,17 @@ function CustomSelect({ value, onChange, options, placeholder }: {
 }
 
 // Custom multi-select chip picker (replaces MultiSelectFilter for inline use)
-function ChipPicker({ options, selected, onChange, columns }: {
+function ChipPicker({ options, selected, onChange }: {
   options: string[];
   selected: string[];
   onChange: (v: string[]) => void;
-  columns?: number;
 }) {
   const toggle = (opt: string) => {
     onChange(selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt]);
   };
 
   return (
-    <div className={cn("flex flex-wrap gap-1.5", columns && `grid grid-cols-${columns} gap-1.5`)}>
+    <div className="flex flex-wrap gap-1.5">
       {options.map((opt) => {
         const active = selected.includes(opt);
         return (
@@ -193,18 +192,51 @@ export function RandomPickModal({ isOpen, onClose }: RandomPickModalProps) {
   const [isPickLoading, setIsPickLoading] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const countTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pickedImagePathRef = useRef<string | null>(null);
+  const imageRequestRef = useRef(0);
+  const isOpenRef = useRef(isOpen);
 
   useEscapeToClose(isOpen, onClose);
   useFocusTrap(isOpen, modalRef);
 
+  const releasePickedImage = useCallback(() => {
+    releaseImageUrl(pickedImagePathRef.current);
+    pickedImagePathRef.current = null;
+  }, []);
+
+  const setPickedImage = useCallback(async (imagePath: string | null) => {
+    const requestId = ++imageRequestRef.current;
+    const url = await getImageUrl(imagePath);
+    if (requestId !== imageRequestRef.current || !isOpenRef.current) {
+      releaseImageUrl(imagePath);
+      return;
+    }
+
+    releasePickedImage();
+    pickedImagePathRef.current = imagePath;
+    setPickedImageUrl(url);
+  }, [releasePickedImage]);
+
+  useEffect(() => () => {
+    isOpenRef.current = false;
+    imageRequestRef.current += 1;
+    releasePickedImage();
+  }, [releasePickedImage]);
+
   useEffect(() => {
+    isOpenRef.current = isOpen;
     if (isOpen) {
+      releasePickedImage();
       setFilters({ ...DEFAULT_FILTERS });
       setPhase("configure");
       setPickedEntry(null);
+      setPickedImageUrl(DEFAULT_COVER_IMAGE);
       dbService.getRandomPickFilterOptions().then(setFilterOptions).catch(console.error);
+    } else {
+      imageRequestRef.current += 1;
+      releasePickedImage();
     }
-  }, [isOpen]);
+  }, [isOpen, releasePickedImage]);
 
   const updateCount = useCallback((f: RandomPickFilters) => {
     if (countTimerRef.current) clearTimeout(countTimerRef.current);
@@ -232,8 +264,7 @@ export function RandomPickModal({ isOpen, onClose }: RandomPickModalProps) {
       const entry = await dbService.getRandomEntry(filters);
       if (entry) {
         setPickedEntry(entry);
-        const url = await getImageUrl(entry.image_url);
-        setPickedImageUrl(url);
+        await setPickedImage(entry.image_url);
         setPhase("result");
       }
     } catch (err) {
@@ -249,8 +280,7 @@ export function RandomPickModal({ isOpen, onClose }: RandomPickModalProps) {
       const entry = await dbService.getRandomEntry(filters);
       if (entry) {
         setPickedEntry(entry);
-        const url = await getImageUrl(entry.image_url);
-        setPickedImageUrl(url);
+        await setPickedImage(entry.image_url);
       }
     } catch (err) {
       console.error("Re-roll failed:", err);

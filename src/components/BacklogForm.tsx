@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { X, Upload, Save, Sparkles, Image as ImageIcon } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { saveImage, getImageUrl } from "../lib/utils";
+import { saveImage, getImageUrl, releaseImageUrl } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 import { getVisibleEntryTypeOptions } from "../lib/media-config";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
@@ -30,6 +30,9 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
   useFocusTrap(isOpen, modalRef);
 
   useEffect(() => {
+    let cancelled = false;
+    let acquiredImagePath: string | null = null;
+
     if (isOpen) {
       setRawImagePath(null);
       if (initialData) {
@@ -38,7 +41,16 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
         setGenre(initialData.genre || "");
         setExistingImageUrl(initialData.image_url);
         if (initialData.image_url) {
-          getImageUrl(initialData.image_url).then(setPreviewImage);
+          const imagePath = initialData.image_url;
+          getImageUrl(imagePath).then((url) => {
+            if (cancelled) {
+              releaseImageUrl(imagePath);
+              return;
+            }
+
+            acquiredImagePath = imagePath;
+            setPreviewImage(url);
+          });
         } else {
           setPreviewImage("");
         }
@@ -50,6 +62,11 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
         setExistingImageUrl(null);
       }
     }
+
+    return () => {
+      cancelled = true;
+      releaseImageUrl(acquiredImagePath);
+    };
   }, [isOpen, initialData]);
 
   const handleImagePick = async () => {

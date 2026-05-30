@@ -340,8 +340,7 @@ export default function YearView() {
       // Create new entry (either brand new or duplicated)
       await dbService.addEntry(data as Omit<MediaEntry, "id">);
     }
-    // Small delay to ensure DB write commits before read
-    setTimeout(() => loadData(), 50);
+    await loadData();
   };
 
   const handleDelete = useCallback(async (id: number) => {

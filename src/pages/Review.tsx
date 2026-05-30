@@ -8,7 +8,7 @@ import {
 import { forceSimulation, forceCollide, forceManyBody, forceX, forceY } from "d3-force";
 import { scaleLinear } from "d3-scale";
 import { cn } from "../lib/utils_ui";
-import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, getImageUrl, releaseImageUrl, useImageUrl } from "../lib/utils";
 import { generateReview, getReviewYears, type ReviewData, type ReviewSlide } from "../lib/review-logic";
 import { FILTER_PRESETS, getVisibleEntryTypes, getVisiblePresetKeys, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 import { AnimatedNumber } from "../components/AnimatedNumber";
@@ -55,11 +55,7 @@ const SLIDE_ICONS: Record<string, typeof Star> = {
 // ─── Entry Thumbnail ─────────────────────────────────────────────────────────
 
 function EntryThumb({ entry, size = "md", delay = 0 }: { entry: MediaEntry; size?: "sm" | "md" | "lg"; delay?: number }) {
-  const [imgSrc, setImgSrc] = useState("");
-
-  useEffect(() => {
-    getImageUrl(entry.image_url).then(setImgSrc);
-  }, [entry.image_url]);
+  const imgSrc = useImageUrl(entry.image_url);
 
   const sizeClasses = {
     sm: "w-16 h-20",
@@ -614,6 +610,7 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
 
   useEffect(() => {
     let cancelled = false;
+    const acquiredPaths: string[] = [];
     const backgroundPaths = [...new Set(
       data.slides
         .map(reviewSlide => reviewSlide.backgroundImagePath)
@@ -630,6 +627,11 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
     Promise.all(
       backgroundPaths.map(async (path) => {
         const resolvedUrl = await getImageUrl(path);
+        if (cancelled) {
+          releaseImageUrl(path);
+        } else {
+          acquiredPaths.push(path);
+        }
         return [path, resolvedUrl] as const;
       })
     ).then((results) => {
@@ -647,6 +649,7 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
 
     return () => {
       cancelled = true;
+      acquiredPaths.forEach(releaseImageUrl);
     };
   }, [data]);
 

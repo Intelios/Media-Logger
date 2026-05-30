@@ -7,7 +7,7 @@ import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
 import { awardsLogic } from "../lib/awards-logic";
 import type { MediaEntry } from "../lib/db";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
-import { getImageUrl } from "../lib/utils";
+import { useImageUrl } from "../lib/utils";
 
 type ViewMode = 'collection' | 'timeline' | 'awards';
 
@@ -205,14 +205,8 @@ function TimelineCard({
   isFirst: boolean;
   isLast: boolean;
 }) {
-  const [imgSrc, setImgSrc] = useState('');
+  const imgSrc = useImageUrl(entry.image_url, '');
   const isLeft = index % 2 === 0;
-
-  useEffect(() => {
-    if (entry.image_url) {
-      getImageUrl(entry.image_url).then(setImgSrc);
-    }
-  }, [entry.image_url]);
 
   return (
     <div
@@ -341,13 +335,7 @@ function AwardCard({
   profileConfig: typeof PROFILE_TYPES[number];
   index: number;
 }) {
-  const [imgSrc, setImgSrc] = useState('');
-
-  useEffect(() => {
-    if (entry.image_url) {
-      getImageUrl(entry.image_url).then(setImgSrc);
-    }
-  }, [entry.image_url]);
+  const imgSrc = useImageUrl(entry.image_url, '');
 
   return (
     <div
@@ -404,21 +392,13 @@ function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
   actionLabel: string;
   ActionIcon: typeof EyeOff;
 }) {
-  const [imgSrc, setImgSrc] = useState("");
+  const imgSrc = useImageUrl(profile.image_url, "");
   const typeConfig = getTypeConfig(profile.type);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const menuDropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (profile.image_url) {
-      getImageUrl(profile.image_url).then(setImgSrc);
-    } else {
-      setImgSrc("");
-    }
-  }, [profile.image_url]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -579,9 +559,6 @@ export default function ProfilesPage() {
       .map(([year, awards]) => ({ year, awards }));
   }, [awardsMap, profileEntries]);
 
-  // Detail View Image State
-  const [headerImgSrc, setHeaderImgSrc] = useState("");
-
   // Hidden profiles
   const [showHidden, setShowHidden] = useState(false);
   const [hiddenProfiles, setHiddenProfiles] = useState<ProfileSummary[]>([]);
@@ -593,6 +570,7 @@ export default function ProfilesPage() {
   // URL params for deep-linking to a specific profile
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const headerImgSrc = useImageUrl(selectedProfile?.image_url, "");
 
   // Return-to info: where the user came from (e.g., year view)
   const [returnTo, setReturnTo] = useState<{ year: string; entryId: string; entryType: string } | null>(null);
@@ -682,15 +660,6 @@ export default function ProfilesPage() {
     setFilteredProfiles(res);
   }, [selectedTypes, searchQuery, profiles, showHidden, hiddenProfiles]);
 
-  // Load Header Image when entering Detail View
-  useEffect(() => {
-    if (selectedProfile?.image_url) {
-      getImageUrl(selectedProfile.image_url).then(setHeaderImgSrc);
-    } else {
-      setHeaderImgSrc("");
-    }
-  }, [selectedProfile]);
-
   // Toggle type filter
   const toggleType = (typeKey: string) => {
     setSelectedTypes(prev => {
@@ -761,9 +730,7 @@ export default function ProfilesPage() {
           const savedRelPath = await profilesLogic.setProfileImage(selectedProfile.type, selectedProfile.name, path);
 
           if (savedRelPath) {
-            // Update Header immediately
-            const newUrl = await getImageUrl(savedRelPath);
-            setHeaderImgSrc(newUrl);
+            setSelectedProfile({ ...selectedProfile, image_url: savedRelPath });
 
             // Update Main List logic so it persists when going back
             const newProfiles = await profilesLogic.getAllProfiles();

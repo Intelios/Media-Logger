@@ -30,6 +30,14 @@ const STATS_YEAR_KEY = "stats-active-year";
 const STATS_TYPES_KEY = "stats-selected-types";
 const STATS_PRESET_KEY = "stats-active-preset";
 
+type StatsModalSource =
+  | { kind: "perfect10s" }
+  | { kind: "thisMonth" }
+  | { kind: "genre"; value: string }
+  | { kind: "loggedDate"; value: string }
+  | { kind: "completedDate"; value: string }
+  | null;
+
 const loadPersistedPreset = (): StatsPresetKey => {
   try {
     const stored = localStorage.getItem(STATS_PRESET_KEY);
@@ -88,6 +96,7 @@ export default function StatsPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState("");
+  const [modalSource, setModalSource] = useState<StatsModalSource>(null);
   const [modalEntries, setModalEntries] = useState<MediaEntry[]>([]);
   const [genreModalOpen, setGenreModalOpen] = useState(false);
 
@@ -188,6 +197,7 @@ export default function StatsPage() {
   const handlePerfect10Click = async () => {
     const entries = await statsLogic.getPerfect10Entries(activeYear, selectedTypes);
     setModalTitle("Perfect 10s");
+    setModalSource({ kind: "perfect10s" });
     setModalEntries(entries);
     setModalOpen(true);
   };
@@ -195,6 +205,7 @@ export default function StatsPage() {
   const handleThisMonthClick = async () => {
     const entries = await statsLogic.getThisMonthEntries(activeYear, selectedTypes);
     setModalTitle("This Month");
+    setModalSource({ kind: "thisMonth" });
     setModalEntries(entries);
     setModalOpen(true);
   };
@@ -202,6 +213,7 @@ export default function StatsPage() {
   const handleGenreClick = async (genreName: string) => {
     const entries = await statsLogic.getEntriesByGenre(genreName, activeYear, selectedTypes);
     setModalTitle(`Genre: ${genreName}`);
+    setModalSource({ kind: "genre", value: genreName });
     setModalEntries(entries);
     setGenreModalOpen(false);
     setModalOpen(true);
@@ -210,6 +222,7 @@ export default function StatsPage() {
   const handleMultiLogDayClick = async (date: string) => {
     const entries = await statsLogic.getEntriesByCompletionDate(date, activeYear, selectedTypes);
     setModalTitle(`Logged on: ${date}`);
+    setModalSource({ kind: "loggedDate", value: date });
     setModalEntries(entries);
     setModalOpen(true);
   };
@@ -217,6 +230,7 @@ export default function StatsPage() {
   const handleHeatmapDateClick = async (date: string) => {
     const entries = await statsLogic.getEntriesByCompletionDate(date, activeYear, selectedTypes);
     setModalTitle(`Completed on: ${date}`);
+    setModalSource({ kind: "completedDate", value: date });
     setModalEntries(entries);
     setModalOpen(true);
   };
@@ -225,20 +239,20 @@ export default function StatsPage() {
     void statsLogic.getStats(activeYear, selectedTypes).then(setData);
     void profilesLogic.getProfileKeys().then(setProfileKeys);
 
-    if (modalTitle === "Perfect 10s") {
+    if (modalSource?.kind === "perfect10s") {
       void statsLogic.getPerfect10Entries(activeYear, selectedTypes).then(setModalEntries);
-    } else if (modalTitle === "This Month") {
+    } else if (modalSource?.kind === "thisMonth") {
       void statsLogic.getThisMonthEntries(activeYear, selectedTypes).then(setModalEntries);
-    } else if (modalTitle.startsWith("Genre: ")) {
-      const genreName = modalTitle.replace("Genre: ", "");
-      void statsLogic.getEntriesByGenre(genreName, activeYear, selectedTypes).then(setModalEntries);
-    } else if (modalTitle.startsWith("Logged on: ")) {
-      const date = modalTitle.replace("Logged on: ", "");
-      void statsLogic.getEntriesByCompletionDate(date, activeYear, selectedTypes).then(setModalEntries);
-    } else if (modalTitle.startsWith("Completed on: ")) {
-      const date = modalTitle.replace("Completed on: ", "");
-      void statsLogic.getEntriesByCompletionDate(date, activeYear, selectedTypes).then(setModalEntries);
+    } else if (modalSource?.kind === "genre") {
+      void statsLogic.getEntriesByGenre(modalSource.value, activeYear, selectedTypes).then(setModalEntries);
+    } else if (modalSource?.kind === "loggedDate" || modalSource?.kind === "completedDate") {
+      void statsLogic.getEntriesByCompletionDate(modalSource.value, activeYear, selectedTypes).then(setModalEntries);
     }
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    setModalSource(null);
   };
 
   const activeView = dashboardPreferences.activeView;
@@ -348,7 +362,7 @@ export default function StatsPage() {
 
       <StatsEntriesModal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={handleModalClose}
         title={modalTitle}
         entries={modalEntries}
         onEntriesChange={handleModalEntriesChange}

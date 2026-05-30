@@ -37,6 +37,7 @@ const DB_SIDECAR_SUFFIXES = ['', '-wal', '-shm'];
 // localStorage key set after a successful legacy migration; consumed once by the UI
 // to show a one-time banner.
 export const DB_MIGRATED_FLAG_KEY = 'media-logger-db-migrated';
+const ENTRY_SCHEMA_VERSION = 1;
 
 const mutationListeners: Array<() => void> = [];
 
@@ -285,8 +286,41 @@ class DBService {
     // Repair schema drift from older builds
     await this.runSchemaCompatibilityMigrations();
 
-    // Check if newer entry columns exist by querying table info
+    // Check newer entry columns once for migrated DBs, then skip this probing on future connects.
+    await this.runEntryColumnMigrations();
+
+    // Award templates migration
+    await this.runAwardTemplatesMigration();
+  }
+
+  private async getTableInfo(tableName: string): Promise<{ name: string; pk: number }[]> {
+    if (!this.db) return [];
+    return await this.db.select<{ name: string; pk: number }[]>(
+      `PRAGMA table_info(${tableName})`
+    );
+  }
+
+  private async runSchemaCompatibilityMigrations() {
+    if (!this.db) return;
+
     try {
+      await this.migrateAwardYearsTable();
+      await this.migrateCollectionItemsTable();
+      await this.migrateAwardCategoriesTable();
+      await this.migrateAwardWinnersTable();
+    } catch (error) {
+      console.error('[DB] Compatibility migration error:', error);
+    }
+  }
+
+  private async runEntryColumnMigrations() {
+    if (!this.db) return;
+
+    try {
+      const versionRows = await this.db.select<{ user_version: number }[]>("PRAGMA user_version");
+      const schemaVersion = versionRows[0]?.user_version ?? 0;
+      if (schemaVersion >= ENTRY_SCHEMA_VERSION) return;
+
       const columns = await this.db.select<{ name: string }[]>(
         "PRAGMA table_info(entries)"
       );
@@ -353,31 +387,9 @@ class DBService {
       await this.db.execute("UPDATE entries SET is_platinum = 0 WHERE is_platinum IS NULL");
       await this.db.execute("UPDATE entries SET is_completed = 0 WHERE is_completed IS NULL");
       await this.db.execute("UPDATE entries SET is_early_access = 0 WHERE is_early_access IS NULL");
+      await this.db.execute(`PRAGMA user_version = ${ENTRY_SCHEMA_VERSION}`);
     } catch (error) {
       console.error('[DB] Migration error:', error);
-    }
-
-    // Award templates migration
-    await this.runAwardTemplatesMigration();
-  }
-
-  private async getTableInfo(tableName: string): Promise<{ name: string; pk: number }[]> {
-    if (!this.db) return [];
-    return await this.db.select<{ name: string; pk: number }[]>(
-      `PRAGMA table_info(${tableName})`
-    );
-  }
-
-  private async runSchemaCompatibilityMigrations() {
-    if (!this.db) return;
-
-    try {
-      await this.migrateAwardYearsTable();
-      await this.migrateCollectionItemsTable();
-      await this.migrateAwardCategoriesTable();
-      await this.migrateAwardWinnersTable();
-    } catch (error) {
-      console.error('[DB] Compatibility migration error:', error);
     }
   }
 
@@ -879,20 +891,6 @@ class DBService {
       [year]
     );
     return filterHiddenEntries(rows);
-  }
-
-  async getStats() {
-    const db = await this.connect();
-    // We can run multiple queries in parallel for speed
-    const [totalResult, avgResult] = await Promise.all([
-      db.select<{ total: number }[]>("SELECT COUNT(*) as total FROM entries"),
-      db.select<{ avg_rating: number }[]>("SELECT AVG(review_score) as avg_rating FROM entries WHERE review_score IS NOT NULL")
-    ]);
-
-    return {
-      total_entries: totalResult[0].total,
-      average_rating: avgResult[0].avg_rating
-    };
   }
 
   async addEntry(entry: Omit<MediaEntry, "id">): Promise<number> {
