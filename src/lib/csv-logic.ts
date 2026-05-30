@@ -157,6 +157,8 @@ const MEDIA_COLUMNS = [
     "has_subtitles",
     "is_platinum",
     "is_completed",
+    "is_early_access",
+    "early_access_version",
     "image_url",
     "entry_type",
     "platform",
@@ -461,7 +463,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
 
                 // Check for duplicate by name + completion_date
                 const existing = await db.select<{ id: number }[]>(
-                    "SELECT id FROM entries WHERE name = $1 AND completion_date = $2",
+                    "SELECT id FROM entries WHERE name = $1 AND completion_date IS $2",
                     [entry.name, entry.completion_date]
                 );
 
