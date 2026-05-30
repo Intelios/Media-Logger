@@ -70,20 +70,17 @@ Every row is inserted with its own awaited `db.execute`, inside several sequenti
 ### L2. Fragile `setTimeout` write/refresh hacks
 **`src/pages/YearView.tsx:344`** (`setTimeout(() => loadData(), 50)` "to ensure DB write commits") and **`src/components/Layout.tsx:206`** (`entry-added` dispatched after `100ms`). The DB writes are already `await`ed, so the delays are unnecessary and racy. Call `loadData()` directly / dispatch synchronously after the awaited write.
 
-### L3. Dashboard featured pick is O(offset) and re-randomizes every visit
-**`src/lib/dashboard-stats.ts:62`** uses `ORDER BY id ASC LIMIT 1 OFFSET <random>` (scans `offset` rows). `ORDER BY RANDOM() LIMIT 1` is simpler and equivalent. Separately, the dashboard only loads on mount, so the "Featured" entry rerolls on every navigation back to Home — fine if intended, worth confirming.
-
-### L4. Collapsible sidebar sections clip past ~1000px
+### L3. Collapsible sidebar sections clip past ~1000px
 **`src/components/Layout.tsx:486`** uses `max-h-[1000px]` for the expanded state. A user with a long Years timeline (≈27+ years) or future-expanded Library section would have content clipped by the transition wrapper. Use `grid-template-rows` 0fr→1fr or a measured height instead of a magic max-height.
 
-### L5. Image blob URL cache never revoked
+### L4. Image blob URL cache never revoked
 **`src/lib/utils.ts:7`** `urlCache` keeps every `URL.createObjectURL` blob for the app's lifetime and never calls `URL.revokeObjectURL`. Over a long session browsing large libraries this is a slow memory leak. Also, the cache keys on the relative path, so it's never invalidated if a file at that path is replaced (currently safe only because saved images use fresh UUID filenames).
 
 
-### L6. `ChipPicker` dynamic Tailwind class can't be generated
+### L5. `ChipPicker` dynamic Tailwind class can't be generated
 **`src/components/RandomPickModal.tsx:154`** builds `grid-cols-${columns}` in a template literal. Tailwind purges classes it can't see statically, so this class would never exist. Currently harmless (the `columns` prop is never passed), but it's dead/misleading code.
 
-### L7. Minor duplications & brittleness
+### L6. Minor duplications & brittleness
 - **`src/components/EntryForm.tsx:178`** & **`:183`** — two identical `if (key === "entry_type" && value !== "Game")` blocks; merge them.
 - **`src/pages/Stats.tsx:232`** — `handleModalEntriesChange` re-derives which query to run by string-parsing the modal title (`"Genre: "`, `"Logged on: "`). Brittle; track the active modal kind in state instead.
 - **`src/lib/db.ts` migrations** — the many sequential `ALTER TABLE … ADD COLUMN` + `PRAGMA table_info` calls run on every `connect()`. Correct, but consider a single version-gate so a fully-migrated DB skips the per-column probing.
