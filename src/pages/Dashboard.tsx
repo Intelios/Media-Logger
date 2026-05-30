@@ -1,13 +1,35 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Library, Star, Calendar, Folder, ArrowRight, Search, BarChart3, CalendarDays, Sparkles, Hourglass, RotateCcw, Captions } from "lucide-react";
+import { motion, type Variants } from "framer-motion";
+import { Library, Star, Calendar, Folder, ArrowRight, Sparkles, Hourglass, RotateCcw, Captions } from "lucide-react";
 import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";
-import { MediaCard } from "../components/MediaCard";
-import { MediaShelf } from "../components/MediaShelf";
+import { AnimatedNumber } from "../components/AnimatedNumber";
+import { MediaListCard } from "../components/MediaListCard";
 import type { MediaEntry } from "../lib/db";
-import { getImageUrl } from "../lib/utils";
+import { getImageUrl, releaseImageUrl } from "../lib/utils";
 import { getDisplayName } from "../lib/settings";
 import { getAvailableNavigationYears, getCurrentYearString } from "../lib/navigation-years";
+
+const greetingContainerVariants: Variants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.14,
+    },
+  },
+};
+
+const greetingWordVariants: Variants = {
+  hidden: { opacity: 0, y: 8 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.35,
+      ease: "easeOut",
+    },
+  },
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -16,7 +38,6 @@ export default function Dashboard() {
   const [featured, setFeatured] = useState<{ entry: MediaEntry; imageUrl: string } | null>(null);
   const [greeting, setGreeting] = useState("Hello");
   const [displayName, setDisplayName] = useState("Collector");
-  const [browseYear, setBrowseYear] = useState(getCurrentYearString());
   const [recentYear, setRecentYear] = useState(getCurrentYearString());
   const [onThisDay, setOnThisDay] = useState<MediaEntry[]>([]);
 
@@ -24,6 +45,9 @@ export default function Dashboard() {
   const loadIdRef = useRef(0);
 
   useEffect(() => {
+    let cancelled = false;
+    let featuredImagePath: string | null = null;
+
     // Time based greeting
     const hour = new Date().getHours();
     if (hour < 12) setGreeting("Good Morning");
@@ -52,7 +76,6 @@ export default function Dashboard() {
       if (loadIdRef.current === currentLoadId) {
         setStats(statsData);
         setRecent(recentEntries);
-        setBrowseYear(fallbackYear);
         setRecentYear(recentWithYear?.year_completed ? String(recentWithYear.year_completed) : fallbackYear);
         setOnThisDay(onThisDayEntries);
       }
@@ -60,15 +83,23 @@ export default function Dashboard() {
       if (feat) {
         const imageUrl = await getImageUrl(feat.image_url);
         // Only update state if this is still the current load operation
-        if (loadIdRef.current === currentLoadId) {
+        if (!cancelled && loadIdRef.current === currentLoadId) {
+          featuredImagePath = feat.image_url;
           setFeatured({ entry: feat, imageUrl });
+        } else {
+          releaseImageUrl(feat.image_url);
         }
       }
     };
     load();
+
+    return () => {
+      cancelled = true;
+      releaseImageUrl(featuredImagePath);
+    };
   }, []);
 
-  const handleShelfClick = (entry: MediaEntry) => {
+  const handleCardClick = (entry: MediaEntry) => {
     if (entry.year_completed) {
       navigate(
         `/year/${entry.year_completed}?highlight=${entry.id}&type=${encodeURIComponent(entry.entry_type || "")}`
@@ -97,6 +128,9 @@ export default function Dashboard() {
     </div>
   );
 
+  const averageRating = Number.parseFloat(stats.average_rating);
+  const greetingWords = greeting.split(" ");
+
   return (
     <div className="dashboard-container">
       {/* Compact Greeting Header */}
@@ -106,161 +140,149 @@ export default function Dashboard() {
             <Sparkles size={18} />
           </div>
           <div>
-            <h1 className="dashboard-title">
-              {greeting}, <span className="dashboard-title-accent">{displayName}</span>
-            </h1>
-            <p className="dashboard-subtitle">Your personal media collection • {stats.total_entries} entries tracked</p>
+            <motion.h1
+              className="dashboard-title"
+              variants={greetingContainerVariants}
+              initial="hidden"
+              animate="visible"
+            >
+              {greetingWords.map((word, index) => (
+                <motion.span
+                  key={`${word}-${index}`}
+                  variants={greetingWordVariants}
+                  className={`inline-block${index < greetingWords.length - 1 ? " mr-1.5" : ""}`}
+                >
+                  {word}{index === greetingWords.length - 1 ? "," : ""}
+                </motion.span>
+              ))}{" "}
+              <motion.span className="dashboard-title-accent inline-block" variants={greetingWordVariants}>
+                {displayName}
+              </motion.span>
+            </motion.h1>
+            <p className="dashboard-subtitle">
+              Your personal media collection • <AnimatedNumber value={stats.total_entries} /> entries tracked
+            </p>
           </div>
         </div>
       </header>
 
-      {/* Main Bento Grid */}
-      <div className="dashboard-bento">
-        {/* Left Column: Featured + Quick Actions */}
-        <div className="dashboard-left-col">
-          {/* Featured Entry - Large Hero Card */}
-          {featured && (
-            <Link
-              to={`/year/${featured.entry.year_completed}?highlight=${featured.entry.id}&type=${encodeURIComponent(featured.entry.entry_type || '')}`}
-              className="dashboard-featured"
-            >
-              <div className="dashboard-featured-bg">
-                <img src={featured.imageUrl} alt="" />
-              </div>
-              <div className="dashboard-featured-content">
-                <div className="dashboard-featured-badge">
-                  <Star size={12} className="fill-current" />
-                  <span>Featured</span>
-                </div>
-                <h2 className="dashboard-featured-title">{featured.entry.name}</h2>
-                <div className="dashboard-featured-meta">
-                  <span className="dashboard-featured-type">{featured.entry.entry_type}</span>
+      {/* Featured Entry - Large Hero Card (full width) */}
+      {featured && (
+        <Link
+          to={`/year/${featured.entry.year_completed}?highlight=${featured.entry.id}&type=${encodeURIComponent(featured.entry.entry_type || '')}`}
+          className="dashboard-featured"
+        >
+          <div className="dashboard-featured-bg">
+            <img src={featured.imageUrl} alt="" />
+          </div>
+          <div className="dashboard-featured-content">
+            <div className="dashboard-featured-badge">
+              <Star size={12} className="fill-current" />
+              <span>Featured</span>
+            </div>
+            <h2 className="dashboard-featured-title">{featured.entry.name}</h2>
+            <div className="dashboard-featured-meta">
+              <span className="dashboard-featured-type">{featured.entry.entry_type}</span>
+              <span className="dashboard-featured-dot">•</span>
+              <span className="dashboard-featured-score">{featured.entry.review_score}/10</span>
+              <span className="dashboard-featured-dot">•</span>
+              <span>{featured.entry.completion_date || featured.entry.year_completed}</span>
+              {featured.entry.is_rewatch === 1 && (
+                <>
                   <span className="dashboard-featured-dot">•</span>
-                  <span className="dashboard-featured-score">{featured.entry.review_score}/10</span>
+                  <span className="dashboard-featured-rewatch">
+                    <RotateCcw size={14} />
+                    Replay
+                  </span>
+                </>
+              )}
+              {featured.entry.has_subtitles === 1 && (
+                <>
                   <span className="dashboard-featured-dot">•</span>
-                  <span>{featured.entry.completion_date || featured.entry.year_completed}</span>
-                  {featured.entry.is_rewatch === 1 && (
-                    <>
-                      <span className="dashboard-featured-dot">•</span>
-                      <span className="dashboard-featured-rewatch">
-                        <RotateCcw size={14} />
-                        Replay
-                      </span>
-                    </>
-                  )}
-                  {featured.entry.has_subtitles === 1 && (
-                    <>
-                      <span className="dashboard-featured-dot">•</span>
-                      <span className="dashboard-featured-rewatch" style={{ color: '#fb923c' }}>
-                        <Captions size={14} />
-                        Subtitles
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </Link>
-          )}
+                  <span className="dashboard-featured-rewatch" style={{ color: '#fb923c' }}>
+                    <Captions size={14} />
+                    Subtitles
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        </Link>
+      )}
 
-          {/* Quick Actions Row */}
-          <div className="dashboard-actions">
-            <Link to={`/year/${browseYear}`} className="dashboard-action dashboard-action-purple">
-              <div className="dashboard-action-icon">
-                <CalendarDays size={20} />
-              </div>
-              <div className="dashboard-action-text">
-                <span className="dashboard-action-label">Browse Years</span>
-                <span className="dashboard-action-hint">View by year</span>
-              </div>
-              <ArrowRight size={16} className="dashboard-action-arrow" />
-            </Link>
-            <Link to="/search" className="dashboard-action dashboard-action-blue">
-              <div className="dashboard-action-icon">
-                <Search size={20} />
-              </div>
-              <div className="dashboard-action-text">
-                <span className="dashboard-action-label">Search</span>
-                <span className="dashboard-action-hint">Find entries</span>
-              </div>
-              <ArrowRight size={16} className="dashboard-action-arrow" />
-            </Link>
-            <Link to="/stats" className="dashboard-action dashboard-action-green">
-              <div className="dashboard-action-icon">
-                <BarChart3 size={20} />
-              </div>
-              <div className="dashboard-action-text">
-                <span className="dashboard-action-label">Analytics</span>
-                <span className="dashboard-action-hint">View stats</span>
-              </div>
-              <ArrowRight size={16} className="dashboard-action-arrow" />
-            </Link>
+      {/* Stats Row */}
+      <div className="dashboard-stats-row">
+        <div className="dashboard-stat dashboard-stat-blue">
+          <div className="dashboard-stat-icon-wrapper">
+            <Library size={24} />
+          </div>
+          <div className="dashboard-stat-info">
+            <div className="dashboard-stat-value"><AnimatedNumber value={stats.total_entries} /></div>
+            <div className="dashboard-stat-label">Total Entries</div>
           </div>
         </div>
 
-        {/* Right Column: Stats Grid */}
-        <div className="dashboard-right-col">
-          <div className="dashboard-stats-grid">
-            <div className="dashboard-stat dashboard-stat-blue">
-              <div className="dashboard-stat-icon-wrapper">
-                <Library size={24} />
-              </div>
-              <div className="dashboard-stat-info">
-                <div className="dashboard-stat-value">{stats.total_entries}</div>
-                <div className="dashboard-stat-label">Total Entries</div>
-              </div>
-            </div>
+        <div className="dashboard-stat dashboard-stat-amber">
+          <div className="dashboard-stat-icon-wrapper">
+            <Star size={24} />
+          </div>
+          <div className="dashboard-stat-info">
+            <div className="dashboard-stat-value"><AnimatedNumber value={averageRating} decimals={1} /></div>
+            <div className="dashboard-stat-label">Avg Rating</div>
+          </div>
+        </div>
 
-            <div className="dashboard-stat dashboard-stat-amber">
-              <div className="dashboard-stat-icon-wrapper">
-                <Star size={24} />
-              </div>
-              <div className="dashboard-stat-info">
-                <div className="dashboard-stat-value">{stats.average_rating}</div>
-                <div className="dashboard-stat-label">Avg Rating</div>
-              </div>
-            </div>
+        <div className="dashboard-stat dashboard-stat-green">
+          <div className="dashboard-stat-icon-wrapper">
+            <Folder size={24} />
+          </div>
+          <div className="dashboard-stat-info">
+            <div className="dashboard-stat-value">{stats.most_common_type}</div>
+            <div className="dashboard-stat-label">Top Type</div>
+          </div>
+        </div>
 
-            <div className="dashboard-stat dashboard-stat-green">
-              <div className="dashboard-stat-icon-wrapper">
-                <Folder size={24} />
-              </div>
-              <div className="dashboard-stat-info">
-                <div className="dashboard-stat-value">{stats.most_common_type}</div>
-                <div className="dashboard-stat-label">Top Type</div>
-              </div>
-            </div>
-
-            <div className="dashboard-stat dashboard-stat-purple">
-              <div className="dashboard-stat-icon-wrapper">
-                <Calendar size={24} />
-              </div>
-              <div className="dashboard-stat-info">
-                <div className="dashboard-stat-value">{stats.most_productive_year}</div>
-                <div className="dashboard-stat-label">Peak Year</div>
-              </div>
-            </div>
+        <div className="dashboard-stat dashboard-stat-purple">
+          <div className="dashboard-stat-icon-wrapper">
+            <Calendar size={24} />
+          </div>
+          <div className="dashboard-stat-info">
+            <div className="dashboard-stat-value">{stats.most_productive_year}</div>
+            <div className="dashboard-stat-label">Peak Year</div>
           </div>
         </div>
       </div>
 
-      {/* Recent Completions */}
-      <section className="dashboard-recent">
-        <div className="dashboard-recent-header">
-          <h3 className="dashboard-section-title">
-            <span className="dashboard-section-icon">📅</span>
-            Recent Completions
-          </h3>
-          <Link to={`/year/${recentYear}`} className="dashboard-view-all">
-            View All
-            <ArrowRight size={14} />
-          </Link>
-        </div>
-        <MediaShelf entries={recent} onItemClick={handleShelfClick} />
-      </section>
+      {/* Recent Completions + On This Day */}
+      <div className="dashboard-lists">
+        {/* Recent Completions */}
+        <section className="dashboard-recent">
+          <div className="dashboard-recent-header">
+            <h3 className="dashboard-section-title">
+              <span className="dashboard-section-icon">📅</span>
+              Recent Completions
+            </h3>
+            <Link to={`/year/${recentYear}`} className="dashboard-view-all">
+              View All
+              <ArrowRight size={14} />
+            </Link>
+          </div>
+          <p className="dashboard-recent-subtitle">Your latest completions</p>
+          {recent.length > 0 ? (
+            <div className="dashboard-list-stack">
+              {recent.slice(0, 6).map((entry, i) => (
+                <MediaListCard key={entry.id} entry={entry} onClick={handleCardClick} index={i} />
+              ))}
+            </div>
+          ) : (
+            <div className="dashboard-list-empty">
+              <span>No recent completions</span>
+            </div>
+          )}
+        </section>
 
-      {/* On This Day */}
-      {onThisDay.length > 0 && (
-        <section className="dashboard-recent" style={{ animationDelay: '0.3s' }}>
+        {/* On This Day */}
+        <section className="dashboard-recent" style={{ animationDelay: '0.1s' }}>
           <div className="dashboard-recent-header">
             <h3 className="dashboard-section-title">
               <span className="dashboard-section-icon"><Hourglass size={20} /></span>
@@ -272,15 +294,20 @@ export default function Dashboard() {
             </Link>
           </div>
           <p className="dashboard-recent-subtitle">Entries completed on {formatTodayMD()}</p>
-          <div className="dashboard-recent-grid">
-            {onThisDay.map((entry, i) => (
-              <div key={entry.id} className="dashboard-recent-card" style={{ animationDelay: `${i * 0.05}s` }}>
-                <MediaCard entry={entry} />
-              </div>
-            ))}
-          </div>
+          {onThisDay.length > 0 ? (
+            <div className="dashboard-list-stack">
+              {onThisDay.slice(0, 6).map((entry, i) => (
+                <MediaListCard key={entry.id} entry={entry} onClick={handleCardClick} index={i} />
+              ))}
+            </div>
+          ) : (
+            <div className="dashboard-list-empty">
+              <Hourglass size={20} />
+              <span>Nothing completed on this day</span>
+            </div>
+          )}
         </section>
-      )}
+      </div>
     </div>
   );
 }

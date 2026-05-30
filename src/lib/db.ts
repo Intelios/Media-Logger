@@ -1,6 +1,65 @@
 import Database from '@tauri-apps/plugin-sql';
 import { join } from '@tauri-apps/api/path';
-import { getDataDirectory } from './settings';
+import { exists, copyFile, stat, remove } from '@tauri-apps/plugin-fs';
+import { getDataDirectory, isAdultMediaEnabled } from './settings';
+import { ADULT_ENTRY_TYPES, isAdultType } from './media-config';
+
+/**
+ * SQL fragment that excludes adult entries when the Adult Media setting is off.
+ * Returns '' when enabled. Designed to be appended inside an existing WHERE
+ * clause (note the leading ' AND '). Rows with a NULL entry_type are kept.
+ * The data is never deleted — this only hides it from queries.
+ */
+export function adultExclusionSql(): string {
+  if (isAdultMediaEnabled()) return '';
+  const list = ADULT_ENTRY_TYPES.map((t) => `'${t.replace(/'/g, "''")}'`).join(', ');
+  return ` AND (entry_type IS NULL OR entry_type NOT IN (${list}))`;
+}
+
+/**
+ * In-memory equivalent of adultExclusionSql for array-returning fetches that are
+ * simpler to post-filter than to splice into positional-parameter SQL.
+ */
+export function filterHiddenEntries<T extends { entry_type: string | null }>(rows: T[]): T[] {
+  if (isAdultMediaEnabled()) return rows;
+  return rows.filter((r) => !isAdultType(r.entry_type));
+}
+
+// Canonical database filename. Renamed from the legacy 'jav_log.db' in 3.0.
+export const DB_FILENAME = 'media_logger.db';
+// Legacy filename from the app's early days. Existing users are migrated off it
+// on first launch (see migrateLegacyDatabase). The legacy file is preserved as a
+// dormant backup and never opened again.
+export const LEGACY_DB_FILENAME = 'jav_log.db';
+// sqlx opens SQLite in WAL mode, so the main DB file may be accompanied by these
+// sidecar files carrying uncommitted data. They must be migrated as a consistent set.
+const DB_SIDECAR_SUFFIXES = ['', '-wal', '-shm'];
+// localStorage key set after a successful legacy migration; consumed once by the UI
+// to show a one-time banner.
+export const DB_MIGRATED_FLAG_KEY = 'media-logger-db-migrated';
+const ENTRY_SCHEMA_VERSION = 1;
+
+const mutationListeners: Array<() => void> = [];
+
+export function onEntriesMutated(fn: () => void): () => void {
+  mutationListeners.push(fn);
+  return () => {
+    const index = mutationListeners.indexOf(fn);
+    if (index !== -1) {
+      mutationListeners.splice(index, 1);
+    }
+  };
+}
+
+function notifyEntriesMutated(): void {
+  mutationListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch (error) {
+      console.error('Error in entry mutation listener:', error);
+    }
+  });
+}
 
 // 1. Define Interfaces matching your Python `database.py` schema
 export interface MediaEntry {
@@ -92,11 +151,92 @@ class DBService {
   private db: Database | null = null;
   private currentDbPath: string = '';
   private migrationsRun: boolean = false;
+  // Guards the one-time legacy file migration so concurrent connect() calls
+  // (multiple components mounting at once) only migrate once.
+  private legacyMigration: Map<string, Promise<void>> = new Map();
+
+  /**
+   * One-time migration of the legacy 'jav_log.db' to the canonical 'media_logger.db'.
+   *
+   * Strategy (zero data loss):
+   *  - If the new file already exists, do nothing (new user or already migrated).
+   *  - Otherwise, if the legacy file exists, COPY it (and its WAL/SHM sidecars) to
+   *    the new name, verify the copy, and leave the legacy file untouched as a backup.
+   *  - The legacy file is never modified or deleted here.
+   *
+   * Runs before any DB connection is opened, so the on-disk file set is consistent
+   * (the previous app instance is closed). If the copy fails verification, any
+   * partial copy is removed and we fall back to the legacy file (still no data loss).
+   */
+  private async migrateLegacyDatabase(dataDir: string): Promise<void> {
+    const newPath = await join(dataDir, DB_FILENAME);
+
+    // New file already present -> nothing to migrate.
+    if (await exists(newPath)) {
+      return;
+    }
+
+    const legacyPath = await join(dataDir, LEGACY_DB_FILENAME);
+    if (!(await exists(legacyPath))) {
+      // Brand-new user: no legacy file. Database.load will create the new file.
+      return;
+    }
+
+    console.log('[DB] Migrating legacy database', LEGACY_DB_FILENAME, '->', DB_FILENAME);
+
+    const copied: string[] = [];
+    try {
+      // Copy the main file plus any WAL/SHM sidecars as a consistent set.
+      for (const suffix of DB_SIDECAR_SUFFIXES) {
+        const src = await join(dataDir, `${LEGACY_DB_FILENAME}${suffix}`);
+        if (!(await exists(src))) continue;
+        const dest = await join(dataDir, `${DB_FILENAME}${suffix}`);
+        await copyFile(src, dest);
+        copied.push(dest);
+      }
+
+      // Verify the main DB file copied with a matching byte size.
+      const srcSize = (await stat(legacyPath)).size;
+      const destSize = (await stat(newPath)).size;
+      if (srcSize !== destSize) {
+        throw new Error(`Size mismatch after copy: legacy=${srcSize} new=${destSize}`);
+      }
+
+      // Success. Leave the legacy file in place as a backup; flag the UI banner.
+      localStorage.setItem(DB_MIGRATED_FLAG_KEY, LEGACY_DB_FILENAME);
+      console.log('[DB] Legacy database migrated successfully; original kept as backup.');
+    } catch (e) {
+      // Roll back any partial copy so we cleanly fall back to the legacy file.
+      console.error('[DB] Legacy migration failed; falling back to legacy file.', e);
+      for (const dest of copied) {
+        try {
+          if (await exists(dest)) await remove(dest);
+        } catch (cleanupErr) {
+          console.error('[DB] Failed to clean up partial copy:', dest, cleanupErr);
+        }
+      }
+      throw e;
+    }
+  }
 
   async connect() {
     // Get the current data directory
     const dataDir = await getDataDirectory();
-    const dbPath = await join(dataDir, 'jav_log.db');
+
+    // Run the one-time legacy migration (guarded per data directory). If it fails,
+    // fall back to opening the legacy file directly so the user never loses access.
+    let useLegacyFallback = false;
+    if (!this.legacyMigration.has(dataDir)) {
+      this.legacyMigration.set(dataDir, this.migrateLegacyDatabase(dataDir));
+    }
+    try {
+      await this.legacyMigration.get(dataDir);
+    } catch {
+      useLegacyFallback = true;
+    }
+
+    const dbFilename = useLegacyFallback ? LEGACY_DB_FILENAME : DB_FILENAME;
+    const dbPath = await join(dataDir, dbFilename);
 
     // If already connected to the same path, reuse connection
     if (this.db && this.currentDbPath === dbPath) {
@@ -146,8 +286,41 @@ class DBService {
     // Repair schema drift from older builds
     await this.runSchemaCompatibilityMigrations();
 
-    // Check if newer entry columns exist by querying table info
+    // Check newer entry columns once for migrated DBs, then skip this probing on future connects.
+    await this.runEntryColumnMigrations();
+
+    // Award templates migration
+    await this.runAwardTemplatesMigration();
+  }
+
+  private async getTableInfo(tableName: string): Promise<{ name: string; pk: number }[]> {
+    if (!this.db) return [];
+    return await this.db.select<{ name: string; pk: number }[]>(
+      `PRAGMA table_info(${tableName})`
+    );
+  }
+
+  private async runSchemaCompatibilityMigrations() {
+    if (!this.db) return;
+
     try {
+      await this.migrateAwardYearsTable();
+      await this.migrateCollectionItemsTable();
+      await this.migrateAwardCategoriesTable();
+      await this.migrateAwardWinnersTable();
+    } catch (error) {
+      console.error('[DB] Compatibility migration error:', error);
+    }
+  }
+
+  private async runEntryColumnMigrations() {
+    if (!this.db) return;
+
+    try {
+      const versionRows = await this.db.select<{ user_version: number }[]>("PRAGMA user_version");
+      const schemaVersion = versionRows[0]?.user_version ?? 0;
+      if (schemaVersion >= ENTRY_SCHEMA_VERSION) return;
+
       const columns = await this.db.select<{ name: string }[]>(
         "PRAGMA table_info(entries)"
       );
@@ -214,31 +387,9 @@ class DBService {
       await this.db.execute("UPDATE entries SET is_platinum = 0 WHERE is_platinum IS NULL");
       await this.db.execute("UPDATE entries SET is_completed = 0 WHERE is_completed IS NULL");
       await this.db.execute("UPDATE entries SET is_early_access = 0 WHERE is_early_access IS NULL");
+      await this.db.execute(`PRAGMA user_version = ${ENTRY_SCHEMA_VERSION}`);
     } catch (error) {
       console.error('[DB] Migration error:', error);
-    }
-
-    // Award templates migration
-    await this.runAwardTemplatesMigration();
-  }
-
-  private async getTableInfo(tableName: string): Promise<{ name: string; pk: number }[]> {
-    if (!this.db) return [];
-    return await this.db.select<{ name: string; pk: number }[]>(
-      `PRAGMA table_info(${tableName})`
-    );
-  }
-
-  private async runSchemaCompatibilityMigrations() {
-    if (!this.db) return;
-
-    try {
-      await this.migrateAwardYearsTable();
-      await this.migrateCollectionItemsTable();
-      await this.migrateAwardCategoriesTable();
-      await this.migrateAwardWinnersTable();
-    } catch (error) {
-      console.error('[DB] Compatibility migration error:', error);
     }
   }
 
@@ -593,9 +744,24 @@ class DBService {
 
   async getAllEntries(): Promise<MediaEntry[]> {
     const db = await this.connect();
-    return await db.select<MediaEntry[]>(
+    const rows = await db.select<MediaEntry[]>(
       "SELECT * FROM entries ORDER BY completion_date DESC, id DESC"
     );
+    return filterHiddenEntries(rows);
+  }
+
+  /**
+   * Count of adult entries, ignoring the Adult Media setting. Used by the
+   * Settings confirmation dialog to tell the user how many entries will be
+   * hidden (not deleted) when they turn the setting off.
+   */
+  async countAdultEntries(): Promise<number> {
+    const db = await this.connect();
+    const list = ADULT_ENTRY_TYPES.map((t) => `'${t.replace(/'/g, "''")}'`).join(', ');
+    const result = await db.select<{ count: number }[]>(
+      `SELECT COUNT(*) as count FROM entries WHERE entry_type IN (${list})`
+    );
+    return result[0]?.count ?? 0;
   }
 
   private escapeLike(value: string): string {
@@ -609,7 +775,7 @@ class DBService {
     const results = await db.select<{ value: string }[]>(
       `SELECT DISTINCT TRIM(${column}) as value
        FROM entries
-       WHERE ${column} IS NOT NULL AND TRIM(${column}) <> ''
+       WHERE ${column} IS NOT NULL AND TRIM(${column}) <> ''${adultExclusionSql()}
        ORDER BY value COLLATE NOCASE ASC`
     );
 
@@ -629,7 +795,7 @@ class DBService {
         `WITH RECURSIVE split(value, rest) AS (
            SELECT '', TRIM(actress) || ','
            FROM entries
-           WHERE actress IS NOT NULL AND TRIM(actress) <> ''
+           WHERE actress IS NOT NULL AND TRIM(actress) <> ''${adultExclusionSql()}
            UNION ALL
            SELECT
              TRIM(SUBSTR(rest, 0, INSTR(rest, ','))),
@@ -708,35 +874,23 @@ class DBService {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    return await db.select<MediaEntry[]>(
+    const rows = await db.select<MediaEntry[]>(
       `SELECT *
        FROM entries
        ${whereClause}
        ORDER BY completion_date DESC, id DESC`,
       params
     );
+    return filterHiddenEntries(rows);
   }
 
   async getEntriesByYear(year: string): Promise<MediaEntry[]> {
     const db = await this.connect();
-    return await db.select<MediaEntry[]>(
+    const rows = await db.select<MediaEntry[]>(
       "SELECT * FROM entries WHERE year_completed = $1 ORDER BY completion_date ASC",
       [year]
     );
-  }
-
-  async getStats() {
-    const db = await this.connect();
-    // We can run multiple queries in parallel for speed
-    const [totalResult, avgResult] = await Promise.all([
-      db.select<{ total: number }[]>("SELECT COUNT(*) as total FROM entries"),
-      db.select<{ avg_rating: number }[]>("SELECT AVG(review_score) as avg_rating FROM entries WHERE review_score IS NOT NULL")
-    ]);
-
-    return {
-      total_entries: totalResult[0].total,
-      average_rating: avgResult[0].avg_rating
-    };
+    return filterHiddenEntries(rows);
   }
 
   async addEntry(entry: Omit<MediaEntry, "id">): Promise<number> {
@@ -750,6 +904,7 @@ class DBService {
       `INSERT INTO entries (${keys.join(",")}) VALUES (${placeholders})`,
       values
     );
+    notifyEntriesMutated();
     return result.lastInsertId;
   }
 
@@ -767,11 +922,13 @@ class DBService {
       `UPDATE entries SET ${setString} WHERE id = $${values.length + 1}`,
       [...values, id]
     );
+    notifyEntriesMutated();
   }
 
   async deleteEntry(id: number): Promise<void> {
     const db = await this.connect();
     await db.execute("DELETE FROM entries WHERE id = $1", [id]);
+    notifyEntriesMutated();
   }
 
   /**
@@ -789,17 +946,19 @@ class DBService {
 
   async getAllBacklogItems(): Promise<BacklogItem[]> {
     const db = await this.connect();
-    return await db.select<BacklogItem[]>(
+    const rows = await db.select<BacklogItem[]>(
       "SELECT * FROM backlog_items ORDER BY CASE status WHEN 'in_progress' THEN 0 ELSE 1 END, sort_order ASC, id DESC"
     );
+    return filterHiddenEntries(rows);
   }
 
   async getBacklogItemsByStatus(status: BacklogItem['status']): Promise<BacklogItem[]> {
     const db = await this.connect();
-    return await db.select<BacklogItem[]>(
+    const rows = await db.select<BacklogItem[]>(
       "SELECT * FROM backlog_items WHERE status = $1 ORDER BY sort_order ASC, id DESC",
       [status]
     );
+    return filterHiddenEntries(rows);
   }
 
   async addBacklogItem(item: Omit<BacklogItem, 'id'>): Promise<number> {
@@ -874,7 +1033,7 @@ class DBService {
         `WITH RECURSIVE split(value, rest) AS (
            SELECT '', TRIM(genre) || ','
            FROM entries
-           WHERE genre IS NOT NULL AND TRIM(genre) <> ''
+           WHERE genre IS NOT NULL AND TRIM(genre) <> ''${adultExclusionSql()}
            UNION ALL
            SELECT
              TRIM(SUBSTR(rest, 0, INSTR(rest, ','))),
@@ -890,13 +1049,13 @@ class DBService {
       db.select<{ value: number }[]>(
         `SELECT DISTINCT year_completed as value
          FROM entries
-         WHERE year_completed IS NOT NULL
+         WHERE year_completed IS NOT NULL${adultExclusionSql()}
          ORDER BY year_completed DESC`
       ),
       db.select<{ value: string }[]>(
         `SELECT DISTINCT entry_type as value
          FROM entries
-         WHERE entry_type IS NOT NULL AND TRIM(entry_type) <> ''
+         WHERE entry_type IS NOT NULL AND TRIM(entry_type) <> ''${adultExclusionSql()}
          ORDER BY value COLLATE NOCASE ASC`
       ),
     ]);
@@ -976,6 +1135,13 @@ class DBService {
     addInFilter('platform', filters.platforms);
     addInFilter('franchise', filters.franchises);
     addInFilter('series', filters.series);
+
+    // Hide adult entries from random picks (count and result) when disabled,
+    // regardless of any stale entryTypes filter that might include them.
+    if (!isAdultMediaEnabled()) {
+      const list = ADULT_ENTRY_TYPES.map((t) => `'${t.replace(/'/g, "''")}'`).join(', ');
+      conditions.push(`(entry_type IS NULL OR entry_type NOT IN (${list}))`);
+    }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     return { whereClause, params };

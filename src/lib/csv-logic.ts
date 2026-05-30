@@ -20,7 +20,7 @@ function escapeCSV(value: unknown): string {
 /**
  * Parse a CSV string into array of objects
  */
-function parseCSV<T>(csvContent: string): T[] {
+function parseCSV<T>(csvContent: string, numericColumns?: Set<string>): T[] {
     const rows = parseCSVRows(csvContent);
     if (rows.length < 2) return [];
 
@@ -39,13 +39,19 @@ function parseCSV<T>(csvContent: string): T[] {
             const normalizedValue = rawValue.trim();
             let value: unknown = rawValue;
 
-            // Convert numeric strings to numbers where appropriate
+            // Empty cells become null. Numeric coercion is applied ONLY to
+            // columns known to be numeric; text columns are left as strings so
+            // numeric-looking values (titles like "1917", versions like "007")
+            // survive the round-trip without losing leading zeros or being
+            // mis-compared during duplicate detection.
             if (normalizedValue === "") {
                 value = null;
-            } else if (/^\d+$/.test(normalizedValue)) {
-                value = parseInt(normalizedValue, 10);
-            } else if (/^\d+\.\d+$/.test(normalizedValue)) {
-                value = parseFloat(normalizedValue);
+            } else if (numericColumns?.has(header)) {
+                if (/^\d+$/.test(normalizedValue)) {
+                    value = parseInt(normalizedValue, 10);
+                } else if (/^\d+\.\d+$/.test(normalizedValue)) {
+                    value = parseFloat(normalizedValue);
+                }
             }
             obj[header] = value;
         });
@@ -157,6 +163,8 @@ const MEDIA_COLUMNS = [
     "has_subtitles",
     "is_platinum",
     "is_completed",
+    "is_early_access",
+    "early_access_version",
     "image_url",
     "entry_type",
     "platform",
@@ -178,6 +186,22 @@ const AWARD_WINNER_COLUMNS = ["category_id", "media_id", "selected_date"];
 const PROFILE_COLUMNS = ["type", "name", "image_url"];
 const HIDDEN_PROFILE_COLUMNS = ["type", "name", "hidden_date"];
 const BACKLOG_COLUMNS = ["id", "name", "entry_type", "genre", "image_url", "status", "added_date", "sort_order"];
+
+// Columns that must be parsed as numbers on import. Everything else stays a
+// string (see parseCSV). ID and foreign-key columns MUST be listed here — they
+// are used as Map<number, number> keys for cross-table ID remapping during
+// import, so they cannot be left as strings.
+const MEDIA_NUMERIC_COLUMNS = new Set([
+    "id", "review_score", "year_completed", "is_rewatch", "own_local_copy",
+    "has_subtitles", "is_platinum", "is_completed", "is_early_access",
+]);
+const COLLECTION_NUMERIC_COLUMNS = new Set(["id"]);
+const COLLECTION_ITEM_NUMERIC_COLUMNS = new Set(["collection_id", "media_id", "sort_order"]);
+const AWARD_YEAR_NUMERIC_COLUMNS = new Set(["year"]);
+const AWARD_TEMPLATE_NUMERIC_COLUMNS = new Set(["id"]);
+const AWARD_CATEGORY_NUMERIC_COLUMNS = new Set(["id", "year", "sort_order", "template_id"]);
+const AWARD_WINNER_NUMERIC_COLUMNS = new Set(["category_id", "media_id"]);
+const BACKLOG_NUMERIC_COLUMNS = new Set(["id", "sort_order"]);
 
 /**
  * Export all data from the database as CSV strings
@@ -276,143 +300,6 @@ export interface ImportResult {
 }
 
 /**
- * Ensure all required tables exist in the database
- * This is needed when importing into a fresh/empty database
- */
-async function ensureTablesExist(): Promise<void> {
-    const db = await dbService.connect();
-
-    // Create entries (media entries) table
-    await db.execute(`
-        CREATE TABLE IF NOT EXISTS entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            genre TEXT,
-            completion_date TEXT,
-            review_score REAL,
-            description TEXT,
-            notes TEXT,
-            year_completed INTEGER,
-            is_rewatch INTEGER DEFAULT 0,
-            own_local_copy INTEGER DEFAULT 0,
-            has_subtitles INTEGER DEFAULT 0,
-            is_platinum INTEGER DEFAULT 0,
-            is_completed INTEGER DEFAULT 0,
-            is_early_access INTEGER DEFAULT 0,
-            early_access_version TEXT,
-            image_url TEXT,
-            entry_type TEXT,
-            platform TEXT,
-            author TEXT,
-            artist TEXT,
-            director TEXT,
-            actress TEXT,
-            update_version TEXT,
-            franchise TEXT
-        )
-    `);
-
-    // Create collections table
-    await db.execute(`
-        CREATE TABLE IF NOT EXISTS collections (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            description TEXT,
-            created_date TEXT NOT NULL
-        )
-    `);
-
-    // Create collection_items table
-    await db.execute(`
-        CREATE TABLE IF NOT EXISTS collection_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            collection_id INTEGER NOT NULL,
-            media_id INTEGER NOT NULL,
-            sort_order INTEGER DEFAULT 0,
-            FOREIGN KEY (collection_id) REFERENCES collections(id),
-            FOREIGN KEY (media_id) REFERENCES entries(id)
-        )
-    `);
-
-    // Create award_templates table
-    await db.execute(`
-        CREATE TABLE IF NOT EXISTS award_years (
-            year INTEGER PRIMARY KEY,
-            created_date TEXT NOT NULL
-        )
-    `);
-
-    // Create award_templates table
-    await db.execute(`
-        CREATE TABLE IF NOT EXISTS award_templates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            created_date TEXT NOT NULL
-        )
-    `);
-
-    // Create award_categories table
-    await db.execute(`
-        CREATE TABLE IF NOT EXISTS award_categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            year INTEGER NOT NULL,
-            created_date TEXT,
-            sort_order INTEGER DEFAULT 0,
-            template_id INTEGER,
-            FOREIGN KEY (template_id) REFERENCES award_templates(id)
-        )
-    `);
-
-    // Create award_winners table
-    await db.execute(`
-        CREATE TABLE IF NOT EXISTS award_winners (
-            category_id INTEGER PRIMARY KEY,
-            media_id INTEGER NOT NULL,
-            selected_date TEXT,
-            FOREIGN KEY (category_id) REFERENCES award_categories(id),
-            FOREIGN KEY (media_id) REFERENCES entries(id)
-        )
-    `);
-
-    // Create profiles table
-    await db.execute(`
-        CREATE TABLE IF NOT EXISTS profiles (
-            type TEXT NOT NULL,
-            name TEXT NOT NULL,
-            image_url TEXT NOT NULL,
-            PRIMARY KEY (type, name)
-        )
-    `);
-
-    // Create hidden_profiles table
-    await db.execute(`
-        CREATE TABLE IF NOT EXISTS hidden_profiles (
-            type TEXT NOT NULL,
-            name TEXT NOT NULL,
-            hidden_date TEXT NOT NULL,
-            PRIMARY KEY (type, name)
-        )
-    `);
-
-    // Create backlog_items table
-    await db.execute(`
-        CREATE TABLE IF NOT EXISTS backlog_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            entry_type TEXT NOT NULL,
-            genre TEXT,
-            image_url TEXT,
-            status TEXT NOT NULL DEFAULT 'planning',
-            added_date TEXT NOT NULL,
-            sort_order INTEGER DEFAULT 0
-        )
-    `);
-
-    console.log('[CSV] All tables ensured to exist');
-}
-
-/**
  * Import data from an export file
  * Uses Option A: Skip duplicates (match by name + completion_date for media)
  */
@@ -434,9 +321,9 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
     try {
         const data: ExportData = JSON.parse(fileContent);
 
-        // Ensure all required tables exist (for fresh databases)
-        await ensureTablesExist();
-
+        // dbService.connect() runs the canonical migrations / createTables(), so
+        // every required table is guaranteed to exist before any insert — even on
+        // a fresh database. (Replaces the old, schema-drifting ensureTablesExist.)
         const db = await dbService.connect();
 
         // Maps for ID remapping (old ID -> new ID)
@@ -447,8 +334,22 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
 
         // 1. Import media entries
         if (data.media_entries) {
-            const entries = parseCSV<MediaEntry>(data.media_entries);
+            const entries = parseCSV<MediaEntry>(data.media_entries, MEDIA_NUMERIC_COLUMNS);
             console.log(`[CSV] Parsed ${entries.length} media entries`);
+
+            // Preload existing (name, completion_date) keys so duplicates are
+            // detected with a single query instead of one SELECT per row. Note:
+            // tauri-sql runs each execute() on a pooled connection, so a JS-side
+            // BEGIN/COMMIT can't atomically wrap the import. Instead the import is
+            // idempotent (skip-duplicates), so a run that fails partway can be
+            // safely re-run to resume without creating duplicates.
+            const existingMediaKeys = new Map<string, number>();
+            const existingMediaRows = await db.select<{ id: number; name: string; completion_date: string | null }[]>(
+                "SELECT id, name, completion_date FROM entries"
+            );
+            for (const row of existingMediaRows) {
+                existingMediaKeys.set(JSON.stringify([row.name, row.completion_date ?? null]), row.id);
+            }
 
             for (const entry of entries) {
                 // Skip entries with missing required fields
@@ -459,15 +360,15 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
 
                 const oldId = entry.id;
 
-                // Check for duplicate by name + completion_date
-                const existing = await db.select<{ id: number }[]>(
-                    "SELECT id FROM entries WHERE name = $1 AND completion_date = $2",
-                    [entry.name, entry.completion_date]
-                );
+                // Check for duplicate by name + completion_date against the
+                // preloaded key set. The JSON key is null-safe, mirroring the
+                // previous `name = ? AND completion_date IS ?` matching semantics.
+                const dedupKey = JSON.stringify([entry.name, entry.completion_date ?? null]);
+                const existingId = existingMediaKeys.get(dedupKey);
 
-                if (existing.length > 0) {
+                if (existingId !== undefined) {
                     // Map to existing entry
-                    mediaIdMap.set(oldId, existing[0].id);
+                    mediaIdMap.set(oldId, existingId);
                     result.mediaEntriesSkipped++;
                     continue;
                 }
@@ -493,6 +394,9 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                     );
 
                     mediaIdMap.set(oldId, insertResult.lastInsertId);
+                    // Record the new key so duplicates within the same file are
+                    // also skipped (preserving the original per-row behavior).
+                    existingMediaKeys.set(dedupKey, insertResult.lastInsertId);
                     result.mediaEntriesImported++;
                 } catch (insertError) {
                     console.error('[CSV] Failed to insert entry:', entry.name, insertError);
@@ -508,7 +412,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                 name: string;
                 description: string | null;
                 created_date: string;
-            }>(data.collections);
+            }>(data.collections, COLLECTION_NUMERIC_COLUMNS);
 
             for (const col of collections) {
                 const oldId = col.id;
@@ -542,7 +446,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                 collection_id: number;
                 media_id: number;
                 sort_order: number;
-            }>(data.collection_items);
+            }>(data.collection_items, COLLECTION_ITEM_NUMERIC_COLUMNS);
 
             for (const item of items) {
                 const newCollectionId = collectionIdMap.get(item.collection_id);
@@ -570,7 +474,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
             const awardYears = parseCSV<{
                 year: number;
                 created_date: string | null;
-            }>(data.award_years);
+            }>(data.award_years, AWARD_YEAR_NUMERIC_COLUMNS);
 
             for (const awardYear of awardYears) {
                 if (awardYear.year === null || awardYear.year === undefined) continue;
@@ -588,7 +492,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                 id: number;
                 name: string;
                 created_date: string;
-            }>(data.award_templates);
+            }>(data.award_templates, AWARD_TEMPLATE_NUMERIC_COLUMNS);
 
             for (const template of templates) {
                 const oldId = template.id;
@@ -622,7 +526,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                 year: number;
                 sort_order: number;
                 template_id: number | null;
-            }>(data.award_categories);
+            }>(data.award_categories, AWARD_CATEGORY_NUMERIC_COLUMNS);
 
             for (const cat of categories) {
                 const oldId = cat.id;
@@ -661,7 +565,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                 category_id: number;
                 media_id: number;
                 selected_date: string;
-            }>(data.award_winners);
+            }>(data.award_winners, AWARD_WINNER_NUMERIC_COLUMNS);
 
             for (const winner of winners) {
                 const newCategoryId = categoryIdMap.get(winner.category_id);
@@ -739,7 +643,7 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
 
         // 9. Import backlog items
         if (data.backlog_items) {
-            const backlogItems = parseCSV<BacklogItem>(data.backlog_items);
+            const backlogItems = parseCSV<BacklogItem>(data.backlog_items, BACKLOG_NUMERIC_COLUMNS);
 
             for (const item of backlogItems) {
                 if (!item.name || !item.entry_type) continue;

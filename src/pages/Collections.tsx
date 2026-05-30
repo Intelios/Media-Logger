@@ -8,7 +8,7 @@ import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { CollectionModal } from "../components/CollectionModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { WinnerPicker } from "../components/WinnerPicker"; // Reusing the picker for adding items
-import { getImageUrl } from "../lib/utils";
+import { getImageUrl, releaseImageUrl } from "../lib/utils";
 import { ArrowUpDown } from "lucide-react"; // Import ArrowUpDown icon
 import { ReorderModal } from "../components/ReorderModal"; // Import Modal
 import { EntryForm } from "../components/EntryForm"; // Import EntryForm for editing
@@ -18,7 +18,32 @@ function CollectionThumbnails({ images }: { images: string[] }) {
   const [urls, setUrls] = useState<string[]>([]);
 
   useEffect(() => {
-    Promise.all(images.map(img => getImageUrl(img))).then(setUrls);
+    let cancelled = false;
+    const acquiredImages: string[] = [];
+
+    if (images.length === 0) {
+      setUrls([]);
+      return;
+    }
+
+    Promise.all(images.map(async (img) => {
+      const url = await getImageUrl(img);
+      if (cancelled) {
+        releaseImageUrl(img);
+      } else {
+        acquiredImages.push(img);
+      }
+      return url;
+    })).then((nextUrls) => {
+      if (!cancelled) {
+        setUrls(nextUrls);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      acquiredImages.forEach(releaseImageUrl);
+    };
   }, [images]);
 
   if (urls.length === 0) {

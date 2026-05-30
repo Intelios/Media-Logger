@@ -4,14 +4,14 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { appLocalDataDir } from '@tauri-apps/api/path';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
     FolderOpen,
     RotateCcw,
     Database,
     Image,
     CheckCircle2,
-    Sun,
-    Moon,
     User,
     Palette,
     Download,
@@ -20,9 +20,16 @@ import {
     Loader2,
     ExternalLink,
     Plus,
-    X
+    X,
+    Info,
+    Copy,
+    ScrollText,
+    ChevronDown,
+    ChevronRight
 } from 'lucide-react';
 import { exportToFile, importFromFile, getDataStats, type ImportResult } from '../lib/csv-logic';
+import { DB_FILENAME, dbService } from '../lib/db';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
     getDataDirectory,
     setDataDirectory,
@@ -34,14 +41,46 @@ import {
     hasCustomDisplayName,
     getNavigationYears,
     getRatingDisplayMode,
-    setRatingDisplayMode
+    setRatingDisplayMode,
+    isAdultMediaEnabled,
+    setAdultMediaEnabled
 } from '../lib/settings';
 import { useTheme } from '../lib/ThemeContext';
-import type { ColorTheme, GlassStyle, ThemeMode } from '../lib/themes';
+import type { ColorTheme, GlassStyle } from '../lib/themes';
 import { getCurrentYearString, updateNavigationYears } from '../lib/navigation-years';
+import changelogData from '../data/changelog.json';
+import packageJson from '../../package.json';
+import tauriConfig from '../../src-tauri/tauri.conf.json';
 
-type SettingsSection = 'general' | 'appearance' | 'data';
+type SettingsSection = 'general' | 'appearance' | 'data' | 'changelog' | 'about';
 type BackupFormat = 'json' | 'zip';
+
+type ChangelogRelease = {
+    version: string;
+    title: string;
+    date: string;
+    body: string;
+    prerelease: boolean;
+    url?: string;
+};
+
+type ChangelogData = {
+    generatedAt: string | null;
+    source: string;
+    repository: string | null;
+    releases: ChangelogRelease[];
+};
+
+type EnvironmentInfo = {
+    platform: string;
+    userAgent: string;
+    language: string;
+    timezone: string;
+    viewport: string;
+    screen: string;
+    devicePixelRatio: string;
+    hardwareConcurrency: string;
+};
 
 type BackupZipReadResult = {
     backupJson: string;
@@ -50,6 +89,85 @@ type BackupZipReadResult = {
 type ExtractBackupAssetsResult = {
     assetsRestored: number;
 };
+
+const appMetadata = {
+    appName: tauriConfig.productName,
+    appVersion: tauriConfig.version,
+    appIdentifier: tauriConfig.identifier,
+    packageName: packageJson.name,
+    packageVersion: packageJson.version,
+    tauriApiVersion: packageJson.dependencies['@tauri-apps/api'] ?? 'Unknown',
+    tauriCliVersion: packageJson.devDependencies['@tauri-apps/cli'] ?? 'Unknown',
+    reactVersion: packageJson.dependencies.react ?? 'Unknown',
+};
+
+const changelog = changelogData as ChangelogData;
+const markdownPlugins = [remarkGfm];
+
+function formatReleaseDate(value: string): string {
+    const [year, month, day] = value.split('-').map(Number);
+
+    if (!year || !month || !day) {
+        return value || 'Unknown date';
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+    }).format(new Date(year, month - 1, day));
+}
+
+function formatGeneratedAt(value: string | null): string {
+    if (!value) return 'Not synced yet';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    return new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    }).format(date);
+}
+
+function getEnvironmentInfo(): EnvironmentInfo {
+    return {
+        platform: navigator.platform || 'Unknown',
+        userAgent: navigator.userAgent || 'Unknown',
+        language: navigator.language || 'Unknown',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Unknown',
+        viewport: `${window.innerWidth} x ${window.innerHeight}`,
+        screen: `${window.screen.width} x ${window.screen.height}`,
+        devicePixelRatio: String(window.devicePixelRatio || 1),
+        hardwareConcurrency: navigator.hardwareConcurrency
+            ? `${navigator.hardwareConcurrency} logical processors`
+            : 'Unknown',
+    };
+}
+
+function AboutInfoRow({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
+    return (
+        <div className="settings-row">
+            <div className="settings-row-label">{label}</div>
+            <div
+                className="settings-row-value"
+                style={{
+                    textAlign: 'right',
+                    justifyContent: 'flex-end',
+                    fontFamily: mono ? "'SF Mono', 'Menlo', monospace" : undefined,
+                    fontSize: mono ? 12 : undefined,
+                    maxWidth: '70%',
+                    overflowWrap: 'anywhere'
+                }}
+            >
+                {value}
+            </div>
+        </div>
+    );
+}
 
 function createFailedImportResult(error: unknown): ImportResult {
     return {
@@ -69,11 +187,13 @@ function createFailedImportResult(error: unknown): ImportResult {
 
 export default function Settings() {
     const [activeSection, setActiveSection] = useState<SettingsSection>('general');
+    const [expandedReleaseVersion, setExpandedReleaseVersion] = useState<string | null>(() => changelog.releases[0]?.version ?? null);
     const [currentPath, setCurrentPath] = useState<string>('');
     const [defaultPath, setDefaultPath] = useState<string>('');
     const [isCustom, setIsCustom] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
+    const [environmentInfo, setEnvironmentInfo] = useState<EnvironmentInfo>(() => getEnvironmentInfo());
 
     // Display name state
     const [displayName, setDisplayNameState] = useState<string>('');
@@ -83,7 +203,12 @@ export default function Settings() {
     const [yearError, setYearError] = useState('');
     const [ratingDisplayMode, setRatingDisplayModeState] = useState<'pill' | 'thermometer'>(() => getRatingDisplayMode());
 
-    const { colorTheme, themeMode, glassStyle, setColorTheme, setThemeMode, setGlassStyle, colorThemes } = useTheme();
+    // Adult Media visibility toggle + its "hide existing entries" confirmation
+    const [adultMediaEnabled, setAdultMediaEnabledState] = useState<boolean>(() => isAdultMediaEnabled());
+    const [showAdultConfirm, setShowAdultConfirm] = useState(false);
+    const [adultCount, setAdultCount] = useState(0);
+
+    const { colorTheme, glassStyle, setColorTheme, setGlassStyle, colorThemes } = useTheme();
 
     // Data export/import state
     const [dataStats, setDataStats] = useState<{ mediaCount: number; collectionCount: number; awardCount: number } | null>(null);
@@ -107,9 +232,16 @@ export default function Settings() {
         setIsCustomName(hasCustomDisplayName());
         setNavigationYearsState(getNavigationYears());
         setRatingDisplayModeState(getRatingDisplayMode());
+        setAdultMediaEnabledState(isAdultMediaEnabled());
 
         // Load data stats
         getDataStats().then(setDataStats).catch(console.error);
+
+        const handleEnvironmentChange = () => setEnvironmentInfo(getEnvironmentInfo());
+        handleEnvironmentChange();
+        window.addEventListener('resize', handleEnvironmentChange);
+
+        return () => window.removeEventListener('resize', handleEnvironmentChange);
     }, []);
 
     const showToast = (message: string) => {
@@ -203,10 +335,6 @@ export default function Settings() {
         setColorTheme(theme);
     };
 
-    const handleThemeModeChange = (mode: ThemeMode) => {
-        setThemeMode(mode);
-    };
-
     const handleGlassStyleChange = (style: GlassStyle) => {
         if (style === glassStyle) return;
         setGlassStyle(style);
@@ -218,6 +346,26 @@ export default function Settings() {
         setRatingDisplayMode(mode);
         setRatingDisplayModeState(mode);
         showToast(`Rating display set to ${mode === 'pill' ? 'Pill' : 'Thermometer'}`);
+    };
+
+    const applyAdultMedia = (enabled: boolean) => {
+        setAdultMediaEnabled(enabled);
+        setAdultMediaEnabledState(enabled);
+        showToast(enabled ? 'Adult media shown' : 'Adult media hidden');
+    };
+
+    const handleAdultMediaToggle = async (enabled: boolean) => {
+        if (enabled === adultMediaEnabled) return;
+        // Turning off while adult entries exist: confirm they'll be hidden (not deleted).
+        if (!enabled) {
+            const count = await dbService.countAdultEntries();
+            if (count > 0) {
+                setAdultCount(count);
+                setShowAdultConfirm(true);
+                return;
+            }
+        }
+        applyAdultMedia(enabled);
     };
 
     const exportJsonBackup = async () => {
@@ -329,10 +477,57 @@ export default function Settings() {
         }
     };
 
+    const buildDebugInfo = () => JSON.stringify({
+        application: {
+            appName: appMetadata.appName,
+            appVersion: appMetadata.appVersion,
+            appIdentifier: appMetadata.appIdentifier,
+            packageName: appMetadata.packageName,
+            packageVersion: appMetadata.packageVersion,
+            tauriApiVersion: appMetadata.tauriApiVersion,
+            tauriCliVersion: appMetadata.tauriCliVersion,
+            reactVersion: appMetadata.reactVersion,
+            viteMode: import.meta.env.MODE,
+            buildType: import.meta.env.DEV ? 'development' : 'production',
+        },
+        data: {
+            currentDataDirectory: currentPath || 'Loading',
+            defaultDataDirectory: defaultPath || 'Loading',
+            storageMode: isCustom ? 'custom' : 'default',
+            databaseFile: DB_FILENAME,
+        },
+        library: {
+            mediaEntries: dataStats?.mediaCount ?? null,
+            collections: dataStats?.collectionCount ?? null,
+            awards: dataStats?.awardCount ?? null,
+        },
+        preferences: {
+            displayName,
+            colorTheme: colorTheme.name,
+            glassStyle,
+            navigationYears,
+        },
+        environment: environmentInfo,
+    }, null, 2);
+
+    const handleCopyDebugInfo = async () => {
+        try {
+            await navigator.clipboard.writeText(buildDebugInfo());
+            showToast('Debug info copied to clipboard');
+        } catch (error) {
+            console.error('Copy debug info error:', error);
+            showToast('Unable to copy debug info');
+        }
+    };
+
+    const latestRelease = changelog.releases[0];
+
     const navItems: { id: SettingsSection; label: string; icon: React.ReactNode }[] = [
         { id: 'general', label: 'General', icon: <User size={18} /> },
         { id: 'appearance', label: 'Appearance', icon: <Palette size={18} /> },
         { id: 'data', label: 'Data', icon: <Database size={18} /> },
+        { id: 'changelog', label: 'Changelog', icon: <ScrollText size={18} /> },
+        { id: 'about', label: 'About', icon: <Info size={18} /> },
     ];
 
     return (
@@ -495,6 +690,32 @@ export default function Settings() {
                                 </div>
                             </div>
                         </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Content</div>
+                            <div className="settings-row">
+                                <div>
+                                    <div className="settings-row-label">Adult Media</div>
+                                    <div className="settings-row-description">
+                                        Show JAV, Hentai, and Adult Visual Novel types and entries throughout the app. When off, existing adult entries are hidden everywhere — never deleted — and reappear when turned back on.
+                                    </div>
+                                </div>
+                                <div className="segmented-control">
+                                    <button
+                                        onClick={() => handleAdultMediaToggle(true)}
+                                        className={`segmented-control-item ${adultMediaEnabled ? 'active' : ''}`}
+                                    >
+                                        On
+                                    </button>
+                                    <button
+                                        onClick={() => handleAdultMediaToggle(false)}
+                                        className={`segmented-control-item ${!adultMediaEnabled ? 'active' : ''}`}
+                                    >
+                                        Off
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -502,32 +723,6 @@ export default function Settings() {
                 {activeSection === 'appearance' && (
                     <div className="settings-section-enter" key="appearance">
                         <h1 className="settings-section-title">Appearance</h1>
-
-                        <div className="settings-group">
-                            <div className="settings-group-label">Theme Mode</div>
-                            <div className="settings-row">
-                                <div>
-                                    <div className="settings-row-label">Interface Style</div>
-                                    <div className="settings-row-description">Choose light or dark mode</div>
-                                </div>
-                                <div className="segmented-control">
-                                    <button
-                                        onClick={() => handleThemeModeChange('light')}
-                                        className={`segmented-control-item ${themeMode === 'light' ? 'active' : ''}`}
-                                    >
-                                        <Sun size={16} />
-                                        Light
-                                    </button>
-                                    <button
-                                        onClick={() => handleThemeModeChange('dark')}
-                                        className={`segmented-control-item ${themeMode === 'dark' ? 'active' : ''}`}
-                                    >
-                                        <Moon size={16} />
-                                        Dark
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
 
                         <div className="settings-group">
                             <div className="settings-group-label">Accent Color</div>
@@ -686,7 +881,7 @@ export default function Settings() {
                                     </div>
                                     <div className="tree-item tree-indent-1">
                                         <Database size={14} style={{ color: 'var(--color-primary)' }} />
-                                        <span>jav_log.db</span>
+                                        <span>{DB_FILENAME}</span>
                                         <span className="tree-item-desc">— SQLite database</span>
                                     </div>
                                     <div className="tree-item tree-indent-1">
@@ -820,6 +1015,211 @@ export default function Settings() {
                         }}>
                             <AlertCircle size={16} style={{ color: '#3B82F6', flexShrink: 0, marginTop: 2 }} />
                             <span>JSON backups include all database data in JSON format with embedded CSVs but do not bundle local assets. ZIP backups include the same backup JSON plus the current <strong style={{ color: 'var(--color-text)' }}>assets/</strong> folder from your data directory.</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Changelog Section */}
+                {activeSection === 'changelog' && (
+                    <div className="settings-section-enter" key="changelog">
+                        <h1 className="settings-section-title">Changelog</h1>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Local Release Notes</div>
+                            <div className="settings-row changelog-summary-row">
+                                <div className="changelog-summary-header">
+                                    <div className="changelog-summary-icon">
+                                        <ScrollText size={24} />
+                                    </div>
+                                    <div>
+                                        <div className="settings-row-label">Published GitHub Releases</div>
+                                        <div className="settings-row-description">
+                                            Release notes are synced during development and bundled into the app for offline viewing.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="changelog-summary-grid">
+                                    <div className="changelog-summary-card">
+                                        <span className="changelog-summary-value">{appMetadata.appVersion}</span>
+                                        <span className="changelog-summary-label">Current Version</span>
+                                    </div>
+                                    <div className="changelog-summary-card">
+                                        <span className="changelog-summary-value">{changelog.releases.length}</span>
+                                        <span className="changelog-summary-label">Releases</span>
+                                    </div>
+                                    <div className="changelog-summary-card">
+                                        <span className="changelog-summary-value">{latestRelease?.version ?? 'None'}</span>
+                                        <span className="changelog-summary-label">Latest Synced</span>
+                                    </div>
+                                    <div className="changelog-summary-card">
+                                        <span className="changelog-summary-value changelog-summary-date">{formatGeneratedAt(changelog.generatedAt)}</span>
+                                        <span className="changelog-summary-label">Last Updated</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {changelog.releases.length > 0 ? (
+                            changelog.releases.map((release) => {
+                                const isExpanded = expandedReleaseVersion === release.version;
+
+                                return (
+                                    <div className="settings-group changelog-release" key={release.version}>
+                                        <button
+                                            type="button"
+                                            className="changelog-release-header"
+                                            onClick={() => setExpandedReleaseVersion(isExpanded ? null : release.version)}
+                                            aria-expanded={isExpanded}
+                                        >
+                                            <div className="changelog-release-heading">
+                                                <div className="changelog-release-meta">
+                                                    <span className="changelog-version-badge">{release.version}</span>
+                                                    {release.prerelease && (
+                                                        <span className="changelog-prerelease-badge">Prerelease</span>
+                                                    )}
+                                                </div>
+                                                <div className="changelog-release-title">{release.title}</div>
+                                                <div className="settings-row-description">{formatReleaseDate(release.date)}</div>
+                                            </div>
+                                            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                                        </button>
+
+                                        {isExpanded && (
+                                            <div className="changelog-release-body">
+                                                {release.body ? (
+                                                    <div className="changelog-markdown">
+                                                        <ReactMarkdown remarkPlugins={markdownPlugins}>
+                                                            {release.body}
+                                                        </ReactMarkdown>
+                                                    </div>
+                                                ) : (
+                                                    <p className="changelog-empty-note">No release notes were provided for this release.</p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="settings-group">
+                                <div className="settings-row changelog-empty-state">
+                                    <ScrollText size={28} />
+                                    <div>
+                                        <div className="settings-row-label">No changelog synced yet</div>
+                                        <div className="settings-row-description">
+                                            Run <code>npm run changelog:sync</code> before building the app to bundle published release notes.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* About Section */}
+                {activeSection === 'about' && (
+                    <div className="settings-section-enter" key="about">
+                        <h1 className="settings-section-title">About</h1>
+
+                        <div className="settings-group">
+                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 16 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                    <div style={{
+                                        width: 52,
+                                        height: 52,
+                                        borderRadius: 14,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))',
+                                        color: 'white',
+                                        flexShrink: 0
+                                    }}>
+                                        <Info size={26} />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)' }}>
+                                            {appMetadata.appName}
+                                        </div>
+                                        <div className="settings-row-description" style={{ fontSize: 13, marginTop: 4 }}>
+                                            A local-first desktop media journal for tracking completed media, collections, awards, profiles, and stats.
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleCopyDebugInfo}
+                                    className="settings-btn settings-btn-primary"
+                                    style={{ alignSelf: 'flex-start' }}
+                                >
+                                    <Copy size={14} />
+                                    Copy Debug Info
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Application</div>
+                            <AboutInfoRow label="App Name" value={appMetadata.appName} />
+                            <AboutInfoRow label="App Version" value={appMetadata.appVersion} />
+                            <AboutInfoRow label="App Identifier" value={appMetadata.appIdentifier} mono />
+                            <AboutInfoRow label="Package Name" value={appMetadata.packageName} mono />
+                            <AboutInfoRow label="Package Version" value={appMetadata.packageVersion} />
+                            <AboutInfoRow label="Build Mode" value={import.meta.env.MODE} />
+                            <AboutInfoRow label="Build Type" value={import.meta.env.DEV ? 'Development' : 'Production'} />
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Runtime</div>
+                            <AboutInfoRow label="Tauri API Package" value={appMetadata.tauriApiVersion} mono />
+                            <AboutInfoRow label="Tauri CLI Package" value={appMetadata.tauriCliVersion} mono />
+                            <AboutInfoRow label="React Package" value={appMetadata.reactVersion} mono />
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Data & Library</div>
+                            <AboutInfoRow label="Current Data Directory" value={currentPath || 'Loading...'} mono />
+                            <AboutInfoRow label="Default Data Directory" value={defaultPath || 'Loading...'} mono />
+                            <AboutInfoRow label="Storage Mode" value={isCustom ? 'Custom data directory' : 'Default app local data directory'} />
+                            <AboutInfoRow label="Database File" value={DB_FILENAME} mono />
+                            <AboutInfoRow label="Media Entries" value={dataStats?.mediaCount ?? 'Loading...'} />
+                            <AboutInfoRow label="Collections" value={dataStats?.collectionCount ?? 'Loading...'} />
+                            <AboutInfoRow label="Awards" value={dataStats?.awardCount ?? 'Loading...'} />
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Preferences</div>
+                            <AboutInfoRow label="Display Name" value={displayName || 'Collector'} />
+                            <AboutInfoRow label="Accent Theme" value={colorTheme.name} />
+                            <AboutInfoRow label="Glass Style" value={glassStyle} />
+                            <AboutInfoRow label="Navigation Years" value={navigationYears.join(', ')} />
+                        </div>
+
+                        <div className="settings-group">
+                            <div className="settings-group-label">Environment</div>
+                            <AboutInfoRow label="Platform" value={environmentInfo.platform} />
+                            <AboutInfoRow label="Language" value={environmentInfo.language} />
+                            <AboutInfoRow label="Timezone" value={environmentInfo.timezone} />
+                            <AboutInfoRow label="Viewport" value={environmentInfo.viewport} />
+                            <AboutInfoRow label="Screen" value={environmentInfo.screen} />
+                            <AboutInfoRow label="Device Pixel Ratio" value={environmentInfo.devicePixelRatio} />
+                            <AboutInfoRow label="CPU Threads" value={environmentInfo.hardwareConcurrency} />
+                            <AboutInfoRow label="WebView User Agent" value={environmentInfo.userAgent} mono />
+                        </div>
+
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 8,
+                            padding: '12px 16px',
+                            borderRadius: 8,
+                            background: 'rgba(59, 130, 246, 0.1)',
+                            border: '1px solid rgba(59, 130, 246, 0.2)',
+                            fontSize: 13,
+                            color: 'var(--color-text-muted)'
+                        }}>
+                            <AlertCircle size={16} style={{ color: '#3B82F6', flexShrink: 0, marginTop: 2 }} />
+                            <span>Copied debug info includes filesystem paths to help diagnose storage issues. It does not include media titles, notes, descriptions, or other entry-level content.</span>
                         </div>
                     </div>
                 )}
@@ -960,6 +1360,20 @@ export default function Settings() {
                         </div>
                     </div>
                 )}
+
+                <ConfirmDialog
+                    isOpen={showAdultConfirm}
+                    tone="default"
+                    title="Hide Adult Media?"
+                    subtitle="Nothing is deleted — this can be undone"
+                    confirmLabel="Hide"
+                    onClose={() => setShowAdultConfirm(false)}
+                    onConfirm={() => applyAdultMedia(false)}
+                >
+                    {adultCount} existing adult {adultCount === 1 ? 'entry' : 'entries'} will be hidden everywhere
+                    (collection, stats, search, backlog, random pick, and review). Nothing is deleted — turn this
+                    back on anytime to restore them.
+                </ConfirmDialog>
             </main>
         </div>
     );

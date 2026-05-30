@@ -80,11 +80,11 @@ Entries can include completion date, score, description, notes, local artwork, g
 | Collections | Creates custom shelves with drag-and-drop ordering for favorites, rankings, series rewatches, or themed picks. |
 | Backlog | Tracks upcoming media in planning and in-progress lanes, with type filters and quick completion into the main library. |
 | Review | Generates an animated year-in-review slideshow with themed slides, backdrop artwork, and preset filters for gaming, media, or adult content. |
-| Settings | Manages color themes, display mode, display name, navigation years, backup import/export, and storage location. |
+| Settings | Manages color themes, display mode, display name, navigation years, backup import/export, storage location, and About/debug information. |
 
 ## Data and Compatibility
 
-- Uses a local SQLite database named `jav_log.db`.
+- Uses a local SQLite database named `media_logger.db`. Installs from before 3.0 used `jav_log.db`; these are migrated automatically on first launch (the original file is kept as a backup).
 - Stores selected artwork inside an `assets/images` folder under the app data directory.
 - Supports a custom data directory if you want to keep the database somewhere specific.
 - Includes schema migrations for older installs, including legacy table compatibility and newer awards, profiles, collections, backlog, and series features.

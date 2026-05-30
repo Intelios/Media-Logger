@@ -1,6 +1,6 @@
 # Media Logger — Agent Guide
 
-**Tauri v2 + React 19 + TypeScript + Tailwind CSS** desktop app for tracking completed media.
+**Tauri v2 + React 19 + TypeScript + Tailwind CSS** desktop app for tracking completed media. This is a desktop app only, there are 0 plans for mobile or website usage.
 
 ## Commands
 
@@ -11,6 +11,7 @@
 | `npm run build` | `tsc && vite build` (type-check then frontend build) |
 | `npm run tauri build` | Production desktop app bundle |
 | `npm run tauri` | Tauri CLI passthrough |
+| `npm run changelog:sync` | Syncs changelog with Github Releases. This is intended for use by the user only.|
 
 There are no test, lint, formatter, or CI configs. Do not look for them.
 
@@ -44,8 +45,9 @@ There are no test, lint, formatter, or CI configs. Do not look for them.
 
 ## DB / Data Quirks
 
-- SQLite file is named `jav_log.db` (legacy name, do not rename).
-- Database path: `{appLocalDataDir}/jav_log.db` or user-configured custom path.
+- SQLite file is named `media_logger.db` (canonical filename `DB_FILENAME` in `src/lib/db.ts`).
+- Legacy installs used `jav_log.db`; `dbService.connect()` migrates them once by copying the file (plus any `-wal`/`-shm` sidecars) to `media_logger.db`, leaving the original in place as a dormant backup. Do not delete or reopen the legacy file.
+- Database path: `{appLocalDataDir}/media_logger.db` or user-configured custom path.
 - Migrations run automatically in `dbService.connect()` — schema evolves forward, no reset.
 - Legacy table renamed: `javs` → `entries`.
 - `is_rewatch`, `is_platinum`, `is_completed`, `own_local_copy` are stored as SQLite integers (0/1), not booleans.
@@ -55,9 +57,9 @@ There are no test, lint, formatter, or CI configs. Do not look for them.
 
 ## Theming
 
-- Theme info stored in `localStorage` keys: `media-logger-color-theme`, `media-logger-theme-mode`, `media-logger-glass-style`
+- Theme info stored in `localStorage` keys: `media-logger-color-theme`, `media-logger-glass-style`
 - CSS variables (`--color-primary`, `--color-surface`, etc.) drive all styling
-- Light mode uses `.light-mode` class overrides on dark-biased utility classes (see `src/index.css`)
+- Dark mode only — no light mode support
 - macOS native glass/vibrancy applied via Tauri command `apply_glass_style` (Rust backend)
 - `tauri-plugin-liquid-glass` requires macOS 26+; older macOS falls back to `window-vibrancy`
 
@@ -77,14 +79,7 @@ Defined in Rust (`lib.rs` setup hook). Sends Tauri events (`menu-navigate`, `men
 ## What NOT to Do
 
 - Do not add test/lint/formatter infrastructure — none exists and is intentionally absent.
-- Do not rename `jav_log.db` or the `entries` table.
+- Do not rename `media_logger.db` (use the `DB_FILENAME` constant) or the `entries` table.
 - Do not change the DB connection flow — migrations must run on every connect.
 - Do not assume booleans in SQLite — check for 0/1 integer pattern.
 - Do not assume `npm run dev` gives you a desktop app — use `npm run tauri dev` for that.
-
-## What NOT to Suggest
-
-- If asked for new features do not suggest the following:
-  - Web Browser version
-  - Mobile version
-- All of these are not wanted by the user!

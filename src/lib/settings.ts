@@ -4,6 +4,14 @@ const STORAGE_KEY = 'media-logger-data-directory';
 const DISPLAY_NAME_KEY = 'media-logger-display-name';
 const NAVIGATION_YEARS_KEY = 'media-logger-navigation-years';
 const RATING_DISPLAY_MODE_KEY = 'media-logger-rating-display-mode';
+const ADULT_MEDIA_ENABLED_KEY = 'media-logger-adult-media-enabled';
+
+/**
+ * Window event fired when the Adult Media visibility setting changes, so any
+ * mounted views can refresh without an app restart. Mirrors the existing
+ * navigation-years / entry-added event pattern.
+ */
+export const ADULT_MEDIA_VISIBILITY_CHANGED_EVENT = 'adult-media-visibility-changed';
 
 // Default display name for the dashboard greeting
 const DEFAULT_DISPLAY_NAME = 'Collector';
@@ -139,4 +147,22 @@ export function getRatingDisplayMode(): 'pill' | 'thermometer' {
  */
 export function setRatingDisplayMode(mode: 'pill' | 'thermometer'): void {
     localStorage.setItem(RATING_DISPLAY_MODE_KEY, mode);
+}
+
+/**
+ * Whether adult media types (JAV, Hentai, Adult Visual Novel) are shown across
+ * the app. Defaults to true so existing users and fresh installs behave exactly
+ * as before; only an explicit 'false' disables it.
+ */
+export function isAdultMediaEnabled(): boolean {
+    return localStorage.getItem(ADULT_MEDIA_ENABLED_KEY) !== 'false';
+}
+
+/**
+ * Show or hide adult media types and entries everywhere. Data is never deleted;
+ * disabling simply hides it. Dispatches an event so mounted views refresh live.
+ */
+export function setAdultMediaEnabled(enabled: boolean): void {
+    localStorage.setItem(ADULT_MEDIA_ENABLED_KEY, enabled ? 'true' : 'false');
+    window.dispatchEvent(new CustomEvent(ADULT_MEDIA_VISIBILITY_CHANGED_EVENT));
 }

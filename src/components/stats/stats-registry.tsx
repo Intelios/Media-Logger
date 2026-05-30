@@ -123,7 +123,14 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
   }),
   "monthly-activity": createStatsWidgetDefinition("monthly-activity", {
     isAvailable: (context) => context.activeYear !== "All Time",
-    render: (context) => <MonthlyActivityWidget monthlyCompletions={context.data.monthlyCompletions} />,
+    render: (context) => (
+      <MonthlyActivityWidget
+        monthlyCompletions={context.data.monthlyCompletions}
+        activeYear={context.activeYear}
+        selectedTypes={context.selectedTypes}
+        comparisonYearOptions={context.comparisonYearOptions}
+      />
+    ),
   }),
   "rating-distribution": createStatsWidgetDefinition("rating-distribution", {
     render: (context) => <RatingDistributionWidget ratings={context.data.ratings} />,
@@ -155,6 +162,9 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
       <ScoreTrendWidget
         timeline={context.data.scoreTimeline}
         granularity={context.data.scoreTimelineGranularity}
+        activeYear={context.activeYear}
+        selectedTypes={context.selectedTypes}
+        comparisonYearOptions={context.comparisonYearOptions}
       />
     ),
   }),

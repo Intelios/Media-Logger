@@ -1,14 +1,16 @@
+import * as React from "react";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus, Clock, Captions } from "lucide-react";
-import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, useImageUrl } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { getRatingDisplayMode } from "../lib/settings";
 
 // Type badge colors matching Flet version
-const getTypeBadgeStyle = (type: string | null) => {
+export const getTypeBadgeStyle = (type: string | null) => {
   const t = (type || "").toLowerCase();
   if (t.includes("album")) return { bg: "bg-emerald-600", icon: <Disc3 size={12} /> };
   if (t.includes("game")) return { bg: "bg-purple-600", icon: <Gamepad2 size={12} /> };
@@ -23,7 +25,7 @@ const getTypeBadgeStyle = (type: string | null) => {
 };
 
 // Rating badge colors
-const getRatingColor = (score: number | null) => {
+export const getRatingColor = (score: number | null) => {
   if (!score && score !== 0) return "bg-gray-700/80 text-gray-300";
   if (score >= 9) return "bg-emerald-500 text-white";
   if (score >= 7) return "bg-blue-500 text-white";
@@ -32,7 +34,7 @@ const getRatingColor = (score: number | null) => {
 };
 
 // Format date to "14th March 2026" style
-const formatDate = (dateString: string | null): string => {
+export const formatDate = (dateString: string | null): string => {
   if (!dateString) return "";
   try {
     const date = new Date(dateString);
@@ -91,7 +93,7 @@ const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon
 };
 
 // Parse genres from comma-separated string
-const parseGenres = (genre: string | null): string[] => {
+export const parseGenres = (genre: string | null): string[] => {
   if (!genre) return [];
   return genre.split(',').map(g => g.trim()).filter(g => g.length > 0);
 };
@@ -100,6 +102,12 @@ const parseGenres = (genre: string | null): string[] => {
 const isPerfectTen = (score: number | null | undefined): boolean => {
   return score === 10;
 };
+
+const cardLiftTransition = {
+  type: "spring",
+  stiffness: 380,
+  damping: 26,
+} as const;
 
 // Award type for badges
 export interface MediaAward {
@@ -116,9 +124,9 @@ interface MediaCardProps {
   onDuplicate?: (entry: MediaEntry) => void;
 }
 
-export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys }: MediaCardProps) {
+export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys }: MediaCardProps) {
   const navigate = useNavigate();
-  const [imgSrc, setImgSrc] = useState("");
+  const imgSrc = useImageUrl(entry.image_url);
   const [menuOpen, setMenuOpen] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [imageViewOpen, setImageViewOpen] = useState(false);
@@ -128,6 +136,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
   const [duplicatesLoading, setDuplicatesLoading] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuDropdownRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const contextInfo = getContextInfo(entry);
@@ -143,15 +152,18 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
   const isRewatch = entry.is_rewatch === 1;
   const hasLocalCopy = entry.own_local_copy === 1;
   const hasSubtitles = entry.has_subtitles === 1;
-
-  useEffect(() => {
-    getImageUrl(entry.image_url).then(setImgSrc);
-  }, [entry.image_url]);
+  const elevationShadow = hasPlatinum
+    ? "0 30px 60px rgba(0, 0, 0, 0.42), 0 12px 26px rgba(8, 47, 73, 0.28), 0 0 54px rgba(34, 211, 238, 0.22), 0 0 84px rgba(245, 158, 11, 0.14)"
+    : perfectTen
+      ? "0 30px 60px rgba(0, 0, 0, 0.42), 0 12px 26px rgba(6, 78, 59, 0.26), 0 0 58px rgba(52, 211, 153, 0.22)"
+      : "0 26px 54px rgba(0, 0, 0, 0.38), 0 10px 22px rgba(0, 0, 0, 0.24), 0 0 36px color-mix(in srgb, var(--color-primary) 18%, transparent)";
 
   // Click outside to close menu
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const insideButton = menuRef.current?.contains(e.target as Node);
+      const insideDropdown = menuDropdownRef.current?.contains(e.target as Node);
+      if (!insideButton && !insideDropdown) {
         setMenuOpen(false);
       }
     };
@@ -222,14 +234,22 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
 
   return (
     <>
-      <div className={cn(
-        "group relative bg-surface/80 backdrop-blur-md rounded-2xl hover:scale-[1.03] transition-all duration-300 cursor-pointer",
-        hasPlatinum
-          ? "border-2 border-cyan-300 shadow-[0_0_22px_rgba(34,211,238,0.35),0_0_44px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(34,211,238,0.45),0_0_60px_rgba(245,158,11,0.3)] hover:border-cyan-200 animate-platinum-glow"
-          : perfectTen
-            ? "border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4),0_0_40px_rgba(52,211,153,0.2)] hover:shadow-[0_0_25px_rgba(52,211,153,0.5),0_0_50px_rgba(52,211,153,0.3)] hover:border-emerald-300 animate-perfect-glow"
-            : "border border-white/10 hover:shadow-2xl hover:shadow-primary/20 hover:border-primary/40"
-      )}>
+      <motion.div
+        whileHover={{ y: -6, scale: 1.02 }}
+        transition={cardLiftTransition}
+        className={cn(
+          "group relative bg-surface/80 backdrop-blur-md rounded-2xl transition-[box-shadow,border-color,background-color] duration-300 ease-out cursor-pointer",
+          hasPlatinum
+            ? "border-2 border-cyan-300 shadow-[0_0_22px_rgba(34,211,238,0.35),0_0_44px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(34,211,238,0.45),0_0_60px_rgba(245,158,11,0.3)] hover:border-cyan-200 animate-platinum-glow"
+            : perfectTen
+              ? "border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4),0_0_40px_rgba(52,211,153,0.2)] hover:shadow-[0_0_25px_rgba(52,211,153,0.5),0_0_50px_rgba(52,211,153,0.3)] hover:border-emerald-300 animate-perfect-glow"
+              : "border border-white/10 hover:shadow-2xl hover:shadow-primary/20 hover:border-primary/40"
+        )}
+      >
+        <div
+          className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100"
+          style={{ boxShadow: elevationShadow }}
+        />
 
         {/* Image + Thermometer Wrapper */}
         <div className="relative">
@@ -240,7 +260,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
               alt={entry.name}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
               loading="lazy"
-              onError={() => setImgSrc(DEFAULT_COVER_IMAGE)}
+              onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; }}
             />
 
             {/* Gradient Overlay */}
@@ -340,7 +360,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
       {/* Dropdown Menu - rendered via Portal */}
         {menuOpen && createPortal(
           <div
-            ref={menuRef}
+            ref={menuDropdownRef}
             className="fixed w-44 rounded-xl border border-white/20 bg-transparent backdrop-blur-2xl shadow-2xl shadow-black/45 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[200]"
             style={{
               top: menuPosition.top,
@@ -703,7 +723,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
                 src={imgSrc}
                 alt={entry.name}
                 className="max-w-[90vw] max-h-[80vh] object-contain rounded-2xl shadow-2xl"
-                onError={() => setImgSrc(DEFAULT_COVER_IMAGE)}
+                onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; }}
               />
 
               {/* Title below image */}
@@ -918,7 +938,7 @@ export function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], p
           </div>,
           document.body
         )}
-      </div>
+      </motion.div>
     </>
   );
-}
+});

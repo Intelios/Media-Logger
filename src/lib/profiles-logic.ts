@@ -1,4 +1,5 @@
-import { dbService, type MediaEntry } from "./db";
+import { dbService, type MediaEntry, filterHiddenEntries, onEntriesMutated } from "./db";
+import { ADULT_MEDIA_VISIBILITY_CHANGED_EVENT, isAdultMediaEnabled } from "./settings";
 import { saveImage } from "./utils";
 
 export interface ProfileSummary {
@@ -11,9 +12,29 @@ export interface ProfileSummary {
 
 export const PROFILE_TYPES = ["director", "actress", "artist", "author", "franchise", "series"];
 
+let profileKeysCache: Set<string> | null = null;
+let profileKeysCacheAdultEnabled: boolean | null = null;
+let profileKeysPromise: Promise<Set<string>> | null = null;
+let profileKeysPromiseAdultEnabled: boolean | null = null;
+let profileKeysCacheVersion = 0;
+
+export function invalidateProfilesCache(): void {
+  profileKeysCacheVersion += 1;
+  profileKeysCache = null;
+  profileKeysCacheAdultEnabled = null;
+  profileKeysPromise = null;
+  profileKeysPromiseAdultEnabled = null;
+}
+
+onEntriesMutated(invalidateProfilesCache);
+
+if (typeof window !== "undefined") {
+  window.addEventListener(ADULT_MEDIA_VISIBILITY_CHANGED_EVENT, invalidateProfilesCache);
+}
+
 async function aggregateAllProfiles(): Promise<ProfileSummary[]> {
   const db = await dbService.connect();
-  const entries = await db.select<MediaEntry[]>("SELECT * FROM entries");
+  const entries = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
 
   const customImages = await db.select<{ type: string, name: string, image_url: string }[]>(
     "SELECT * FROM profiles"
@@ -39,7 +60,7 @@ async function aggregateAllProfiles(): Promise<ProfileSummary[]> {
 
         const data = profileMap.get(key)!;
         data.count++;
-        if (entry.review_score) {
+        if (entry.review_score != null) {
           data.totalScore += entry.review_score;
           data.scoreCount++;
         }
@@ -116,6 +137,7 @@ export const profilesLogic = {
       "INSERT OR IGNORE INTO hidden_profiles (type, name, hidden_date) VALUES ($1, $2, $3)",
       [type, name, new Date().toISOString()]
     );
+    invalidateProfilesCache();
   },
 
   async unhideProfile(type: string, name: string): Promise<void> {
@@ -124,11 +146,12 @@ export const profilesLogic = {
       "DELETE FROM hidden_profiles WHERE type = $1 AND name = $2",
       [type, name]
     );
+    invalidateProfilesCache();
   },
 
   async getProfileDetails(type: string, name: string, ascending: boolean = false): Promise<MediaEntry[]> {
     const db = await dbService.connect();
-    const allEntries = await db.select<MediaEntry[]>("SELECT * FROM entries");
+    const allEntries = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
 
     const filtered = allEntries.filter(e => {
       const column = type as keyof MediaEntry;
@@ -150,8 +173,41 @@ export const profilesLogic = {
   },
 
   async getProfileKeys(): Promise<Set<string>> {
-    const profiles = await this.getAllProfiles();
-    return new Set(profiles.map(p => `${p.type}:${p.name}`));
+    const adultMediaEnabled = isAdultMediaEnabled();
+
+    if (profileKeysCache && profileKeysCacheAdultEnabled === adultMediaEnabled) {
+      return profileKeysCache;
+    }
+
+    if (profileKeysPromise && profileKeysPromiseAdultEnabled === adultMediaEnabled) {
+      return profileKeysPromise;
+    }
+
+    profileKeysPromiseAdultEnabled = adultMediaEnabled;
+    const cacheVersion = profileKeysCacheVersion;
+    const promise = (async () => {
+      const profiles = await profilesLogic.getAllProfiles();
+      const keys = new Set(profiles.map(p => `${p.type}:${p.name}`));
+
+      if (profileKeysCacheVersion === cacheVersion && isAdultMediaEnabled() === adultMediaEnabled) {
+        profileKeysCache = keys;
+        profileKeysCacheAdultEnabled = adultMediaEnabled;
+      }
+
+      return keys;
+    })();
+
+    profileKeysPromise = promise;
+    promise
+      .finally(() => {
+        if (profileKeysPromise === promise) {
+          profileKeysPromise = null;
+          profileKeysPromiseAdultEnabled = null;
+        }
+      })
+      .catch(() => undefined);
+
+    return promise;
   },
 
   async setProfileImage(type: string, name: string, sysPath: string): Promise<string | null> {

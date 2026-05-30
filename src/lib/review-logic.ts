@@ -1,4 +1,4 @@
-import { dbService, type MediaEntry } from "./db";
+import { dbService, type MediaEntry, adultExclusionSql } from "./db";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -75,7 +75,8 @@ function buildWhereClause(params: ReviewParams): { where: string; values: any[] 
     values.push(...params.typeFilter);
   }
 
-  return { where: conditions.join(" AND "), values };
+  // Exclude adult entries from the annual review when the setting is off.
+  return { where: conditions.join(" AND ") + adultExclusionSql(), values };
 }
 
 // Count items by field with average scores (mirrors stats-logic.ts pattern)
@@ -91,7 +92,7 @@ function countByField(entries: MediaEntry[], fieldName: keyof MediaEntry): { nam
       if (!v) return;
       if (!stats[v]) stats[v] = { count: 0, totalScore: 0, scoreCount: 0, perfectCount: 0 };
       stats[v].count++;
-      if (e.review_score) {
+      if (e.review_score != null) {
         stats[v].totalScore += e.review_score;
         stats[v].scoreCount++;
         if (e.review_score === 10) stats[v].perfectCount++;
@@ -132,7 +133,7 @@ export async function generateReview(params: ReviewParams): Promise<ReviewData> 
   }
 
   // ── 1. Overview ──────────────────────────────────────────────────────────
-  const ratedEntries = entries.filter(e => e.review_score != null && e.review_score > 0);
+  const ratedEntries = entries.filter(e => e.review_score != null);
   const avgScore = ratedEntries.length > 0
     ? Math.round((ratedEntries.reduce((sum, e) => sum + (e.review_score || 0), 0) / ratedEntries.length) * 10) / 10
     : 0;
@@ -355,7 +356,7 @@ export async function generateReview(params: ReviewParams): Promise<ReviewData> 
 export async function getReviewYears(): Promise<number[]> {
   const db = await dbService.connect();
   const rows = await db.select<{ year_completed: number }[]>(
-    "SELECT DISTINCT year_completed FROM entries WHERE year_completed IS NOT NULL ORDER BY year_completed DESC"
+    `SELECT DISTINCT year_completed FROM entries WHERE year_completed IS NOT NULL${adultExclusionSql()} ORDER BY year_completed DESC`
   );
   return rows.map(r => r.year_completed);
 }

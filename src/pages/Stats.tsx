@@ -21,7 +21,7 @@ import {
 } from "../components/stats/stats-layout";
 import { getAvailableNavigationYears, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
 import { type MediaEntry } from "../lib/db";
-import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, type FilterPresetKey } from "../lib/media-config";
+import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, getVisibleEntryTypes, getVisiblePresetKeys, useAdultMediaEnabled, type FilterPresetKey } from "../lib/media-config";
 import { profilesLogic } from "../lib/profiles-logic";
 import { getNavigationYears } from "../lib/settings";
 import { statsLogic, type FullStats } from "../lib/stats-logic";
@@ -29,6 +29,14 @@ import { statsLogic, type FullStats } from "../lib/stats-logic";
 const STATS_YEAR_KEY = "stats-active-year";
 const STATS_TYPES_KEY = "stats-selected-types";
 const STATS_PRESET_KEY = "stats-active-preset";
+
+type StatsModalSource =
+  | { kind: "perfect10s" }
+  | { kind: "thisMonth" }
+  | { kind: "genre"; value: string }
+  | { kind: "loggedDate"; value: string }
+  | { kind: "completedDate"; value: string }
+  | null;
 
 const loadPersistedPreset = (): StatsPresetKey => {
   try {
@@ -62,17 +70,20 @@ const loadPersistedTypes = (): string[] => {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.every((type) => ENTRY_TYPES.includes(type))) {
-        return parsed;
+        // Drop any adult types when the setting is off (entries are filtered at the data layer).
+        const visible = getVisibleEntryTypes();
+        return parsed.filter((type) => visible.includes(type));
       }
     }
   } catch {
     // Fall back to the full type list.
   }
 
-  return [...ENTRY_TYPES];
+  return getVisibleEntryTypes();
 };
 
 export default function StatsPage() {
+  const adultEnabled = useAdultMediaEnabled();
   const [years, setYears] = useState<string[]>(() => getNavigationYears());
   const [activeYear, setActiveYear] = useState(loadPersistedYear);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedTypes);
@@ -85,6 +96,7 @@ export default function StatsPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState("");
+  const [modalSource, setModalSource] = useState<StatsModalSource>(null);
   const [modalEntries, setModalEntries] = useState<MediaEntry[]>([]);
   const [genreModalOpen, setGenreModalOpen] = useState(false);
 
@@ -96,7 +108,7 @@ export default function StatsPage() {
 
   const handleResetPreset = () => {
     setActivePreset(null);
-    setSelectedTypes([...ENTRY_TYPES]);
+    setSelectedTypes(getVisibleEntryTypes());
     localStorage.removeItem(STATS_PRESET_KEY);
   };
 
@@ -170,13 +182,22 @@ export default function StatsPage() {
     }
   }, [activeYear, years]);
 
+  // When Adult Media is toggled, drop hidden types from the selection and clear
+  // the adult preset so the stats UI and dataset stay consistent.
+  useEffect(() => {
+    const visible = getVisibleEntryTypes();
+    setSelectedTypes((prev) => (prev.every((t) => visible.includes(t)) ? prev : prev.filter((t) => visible.includes(t))));
+    setActivePreset((prev) => (prev === "adult" ? null : prev));
+  }, [adultEnabled]);
+
   useEffect(() => {
     void statsLogic.getStats(activeYear, selectedTypes).then(setData);
-  }, [activeYear, selectedTypes]);
+  }, [activeYear, selectedTypes, adultEnabled]);
 
   const handlePerfect10Click = async () => {
     const entries = await statsLogic.getPerfect10Entries(activeYear, selectedTypes);
     setModalTitle("Perfect 10s");
+    setModalSource({ kind: "perfect10s" });
     setModalEntries(entries);
     setModalOpen(true);
   };
@@ -184,6 +205,7 @@ export default function StatsPage() {
   const handleThisMonthClick = async () => {
     const entries = await statsLogic.getThisMonthEntries(activeYear, selectedTypes);
     setModalTitle("This Month");
+    setModalSource({ kind: "thisMonth" });
     setModalEntries(entries);
     setModalOpen(true);
   };
@@ -191,6 +213,7 @@ export default function StatsPage() {
   const handleGenreClick = async (genreName: string) => {
     const entries = await statsLogic.getEntriesByGenre(genreName, activeYear, selectedTypes);
     setModalTitle(`Genre: ${genreName}`);
+    setModalSource({ kind: "genre", value: genreName });
     setModalEntries(entries);
     setGenreModalOpen(false);
     setModalOpen(true);
@@ -199,6 +222,7 @@ export default function StatsPage() {
   const handleMultiLogDayClick = async (date: string) => {
     const entries = await statsLogic.getEntriesByCompletionDate(date, activeYear, selectedTypes);
     setModalTitle(`Logged on: ${date}`);
+    setModalSource({ kind: "loggedDate", value: date });
     setModalEntries(entries);
     setModalOpen(true);
   };
@@ -206,6 +230,7 @@ export default function StatsPage() {
   const handleHeatmapDateClick = async (date: string) => {
     const entries = await statsLogic.getEntriesByCompletionDate(date, activeYear, selectedTypes);
     setModalTitle(`Completed on: ${date}`);
+    setModalSource({ kind: "completedDate", value: date });
     setModalEntries(entries);
     setModalOpen(true);
   };
@@ -214,20 +239,20 @@ export default function StatsPage() {
     void statsLogic.getStats(activeYear, selectedTypes).then(setData);
     void profilesLogic.getProfileKeys().then(setProfileKeys);
 
-    if (modalTitle === "Perfect 10s") {
+    if (modalSource?.kind === "perfect10s") {
       void statsLogic.getPerfect10Entries(activeYear, selectedTypes).then(setModalEntries);
-    } else if (modalTitle === "This Month") {
+    } else if (modalSource?.kind === "thisMonth") {
       void statsLogic.getThisMonthEntries(activeYear, selectedTypes).then(setModalEntries);
-    } else if (modalTitle.startsWith("Genre: ")) {
-      const genreName = modalTitle.replace("Genre: ", "");
-      void statsLogic.getEntriesByGenre(genreName, activeYear, selectedTypes).then(setModalEntries);
-    } else if (modalTitle.startsWith("Logged on: ")) {
-      const date = modalTitle.replace("Logged on: ", "");
-      void statsLogic.getEntriesByCompletionDate(date, activeYear, selectedTypes).then(setModalEntries);
-    } else if (modalTitle.startsWith("Completed on: ")) {
-      const date = modalTitle.replace("Completed on: ", "");
-      void statsLogic.getEntriesByCompletionDate(date, activeYear, selectedTypes).then(setModalEntries);
+    } else if (modalSource?.kind === "genre") {
+      void statsLogic.getEntriesByGenre(modalSource.value, activeYear, selectedTypes).then(setModalEntries);
+    } else if (modalSource?.kind === "loggedDate" || modalSource?.kind === "completedDate") {
+      void statsLogic.getEntriesByCompletionDate(modalSource.value, activeYear, selectedTypes).then(setModalEntries);
     }
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    setModalSource(null);
   };
 
   const activeView = dashboardPreferences.activeView;
@@ -297,12 +322,12 @@ export default function StatsPage() {
       <StatsDashboard
         activeYear={activeYear}
         yearOptions={["All Time", ...years]}
-        entryTypes={ENTRY_TYPES}
+        entryTypes={getVisibleEntryTypes()}
         selectedTypes={selectedTypes}
         profileKeys={profileKeys}
         profileKeysReady={profileKeysReady}
         onSelectedTypesChange={handleTypesChange}
-        presets={FILTER_PRESET_KEYS.map((key) => FILTER_PRESETS[key])}
+        presets={getVisiblePresetKeys().map((key) => FILTER_PRESETS[key])}
         activePreset={activePreset}
         onPresetClick={handlePresetClick}
         onResetPreset={handleResetPreset}
@@ -337,7 +362,7 @@ export default function StatsPage() {
 
       <StatsEntriesModal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={handleModalClose}
         title={modalTitle}
         entries={modalEntries}
         onEntriesChange={handleModalEntriesChange}

@@ -6,13 +6,13 @@ import { EntryForm } from "../components/EntryForm";
 import { ReorderModal } from "../components/ReorderModal";
 import { backlogLogic, type BacklogItemsByStatus } from "../lib/backlog-logic";
 import { dbService, type BacklogItem, type MediaEntry } from "../lib/db";
-import { ENTRY_TYPES } from "../lib/media-config";
+import { getVisibleEntryTypes, useAdultMediaEnabled } from "../lib/media-config";
 import { saveImage } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 
-const TYPE_FILTERS = ["All", ...ENTRY_TYPES];
-
 export default function Backlog() {
+  const adultEnabled = useAdultMediaEnabled();
+  const TYPE_FILTERS = ["All", ...getVisibleEntryTypes()];
   const [items, setItems] = useState<BacklogItemsByStatus>({ inProgress: [], planning: [] });
   const [activeFilter, setActiveFilter] = useState("All");
   const [showForm, setShowForm] = useState(false);
@@ -35,6 +35,13 @@ export default function Backlog() {
   useEffect(() => {
     loadItems();
   }, [loadItems]);
+
+  // Re-fetch (now adult-filtered) and clear any stale adult filter when the
+  // Adult Media setting is toggled, so the backlog updates without a restart.
+  useEffect(() => {
+    setActiveFilter("All");
+    loadItems();
+  }, [adultEnabled, loadItems]);
 
   const availableTypes = (() => {
     const allItems = [...items.inProgress, ...items.planning];

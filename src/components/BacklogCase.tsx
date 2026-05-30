@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Play, Pause, Check, Pencil, Trash2, MoreVertical, Film, Tv, MonitorPlay, Gamepad2, BookOpen, Disc3, Heart, Monitor, Tag, Calendar } from "lucide-react";
-import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, useImageUrl } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 import type { BacklogItem } from "../lib/db";
 
@@ -58,17 +58,13 @@ interface BacklogCaseProps {
 }
 
 export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit, onRemove }: BacklogCaseProps) {
-  const [imageUrl, setImageUrl] = useState(DEFAULT_COVER_IMAGE);
+  const imageUrl = useImageUrl(item.image_url);
   const [showMenu, setShowMenu] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const caseRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const tooltipTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  useEffect(() => {
-    getImageUrl(item.image_url).then(setImageUrl);
-  }, [item.image_url]);
 
   useEffect(() => {
     if (!showMenu) return;

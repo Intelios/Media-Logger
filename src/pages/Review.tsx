@@ -8,9 +8,10 @@ import {
 import { forceSimulation, forceCollide, forceManyBody, forceX, forceY } from "d3-force";
 import { scaleLinear } from "d3-scale";
 import { cn } from "../lib/utils_ui";
-import { DEFAULT_COVER_IMAGE, getImageUrl } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, getImageUrl, releaseImageUrl, useImageUrl } from "../lib/utils";
 import { generateReview, getReviewYears, type ReviewData, type ReviewSlide } from "../lib/review-logic";
-import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
+import { FILTER_PRESETS, getVisibleEntryTypes, getVisiblePresetKeys, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
+import { AnimatedNumber } from "../components/AnimatedNumber";
 import type { MediaEntry } from "../lib/db";
 
 
@@ -51,43 +52,10 @@ const SLIDE_ICONS: Record<string, typeof Star> = {
   "empty": X,
 };
 
-// ─── Animated Number Counter ─────────────────────────────────────────────────
-
-function AnimatedNumber({ value, duration = 1200, className }: { value: number; duration?: number; className?: string }) {
-  const [display, setDisplay] = useState(0);
-  const ref = useRef<number>(0);
-
-  useEffect(() => {
-    const start = performance.now();
-    const from = 0;
-
-    function tick(now: number) {
-      const elapsed = now - start;
-      const progress = Math.min(elapsed / duration, 1);
-      // Ease out cubic
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const current = Math.round(from + (value - from) * eased);
-      setDisplay(current);
-      if (progress < 1) {
-        ref.current = requestAnimationFrame(tick);
-      }
-    }
-
-    ref.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(ref.current);
-  }, [value, duration]);
-
-  return <span className={className}>{display}</span>;
-}
-
 // ─── Entry Thumbnail ─────────────────────────────────────────────────────────
 
 function EntryThumb({ entry, size = "md", delay = 0 }: { entry: MediaEntry; size?: "sm" | "md" | "lg"; delay?: number }) {
-  const [imgSrc, setImgSrc] = useState("");
-
-  useEffect(() => {
-    getImageUrl(entry.image_url).then(setImgSrc);
-  }, [entry.image_url]);
+  const imgSrc = useImageUrl(entry.image_url);
 
   const sizeClasses = {
     sm: "w-16 h-20",
@@ -102,7 +70,7 @@ function EntryThumb({ entry, size = "md", delay = 0 }: { entry: MediaEntry; size
     >
       <img src={imgSrc} alt={entry.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-      {entry.review_score && (
+      {entry.review_score != null && (
         <div className="absolute bottom-1 right-1 bg-black/60 backdrop-blur-sm rounded-md px-1.5 py-0.5 text-xs font-bold text-white">
           {entry.review_score}
         </div>
@@ -642,6 +610,7 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
 
   useEffect(() => {
     let cancelled = false;
+    const acquiredPaths: string[] = [];
     const backgroundPaths = [...new Set(
       data.slides
         .map(reviewSlide => reviewSlide.backgroundImagePath)
@@ -658,6 +627,11 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
     Promise.all(
       backgroundPaths.map(async (path) => {
         const resolvedUrl = await getImageUrl(path);
+        if (cancelled) {
+          releaseImageUrl(path);
+        } else {
+          acquiredPaths.push(path);
+        }
         return [path, resolvedUrl] as const;
       })
     ).then((results) => {
@@ -675,6 +649,7 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
 
     return () => {
       cancelled = true;
+      acquiredPaths.forEach(releaseImageUrl);
     };
   }, [data]);
 
@@ -830,7 +805,7 @@ export default function ReviewPage() {
   const [years, setYears] = useState<number[]>([]);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // null = full year
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([...ENTRY_TYPES]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(getVisibleEntryTypes);
   const [activePreset, setActivePreset] = useState<ActiveFilterPresetKey>(null);
   const [loading, setLoading] = useState(false);
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
@@ -845,7 +820,7 @@ export default function ReviewPage() {
   const handlePreset = (key: FilterPresetKey) => {
     if (activePreset === key) {
       setActivePreset(null);
-      setSelectedTypes([...ENTRY_TYPES]);
+      setSelectedTypes(getVisibleEntryTypes());
     } else {
       setActivePreset(key);
       setSelectedTypes(FILTER_PRESETS[key].types);
@@ -949,7 +924,7 @@ export default function ReviewPage() {
 
         {/* Presets */}
         <div className="flex gap-2 mb-3">
-          {FILTER_PRESET_KEYS.map(key => {
+          {getVisiblePresetKeys().map(key => {
             const preset = FILTER_PRESETS[key];
             const Icon = preset.icon;
             const isActive = activePreset === key;
@@ -970,10 +945,10 @@ export default function ReviewPage() {
             );
           })}
           <button
-            onClick={() => { setActivePreset(null); setSelectedTypes([...ENTRY_TYPES]); }}
+            onClick={() => { setActivePreset(null); setSelectedTypes(getVisibleEntryTypes()); }}
             className={cn(
               "px-3 py-2 rounded-xl text-sm font-medium transition-all border",
-              selectedTypes.length === ENTRY_TYPES.length && !activePreset
+              selectedTypes.length === getVisibleEntryTypes().length && !activePreset
                 ? "bg-primary/20 border-primary/40 text-white scale-105"
                 : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
             )}
@@ -984,7 +959,7 @@ export default function ReviewPage() {
 
         {/* Individual type checkboxes */}
         <div className="flex flex-wrap gap-2">
-          {ENTRY_TYPES.map(type => {
+          {getVisibleEntryTypes().map(type => {
             const isSelected = selectedTypes.includes(type);
             return (
               <button

@@ -2,10 +2,10 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { saveImage, getImageUrl } from "../lib/utils";
+import { saveImage, getImageUrl, releaseImageUrl } from "../lib/utils";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
-import { ENTRY_TYPE_OPTIONS } from "../lib/media-config";
+import { getVisibleEntryTypeOptions } from "../lib/media-config";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { AutocompleteInput } from "./AutocompleteInput";
@@ -82,6 +82,9 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
   }, [allEntries]);
 
   useEffect(() => {
+    let cancelled = false;
+    let acquiredImagePath: string | null = null;
+
     if (isOpen) {
       setRawImagePath(null);
       setActiveTab("basic");
@@ -98,7 +101,16 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
           early_access_version: initialData.early_access_version ?? null,
         });
         if (initialData.image_url) {
-          getImageUrl(initialData.image_url).then(setPreviewImage);
+          const imagePath = initialData.image_url;
+          getImageUrl(imagePath).then((url) => {
+            if (cancelled) {
+              releaseImageUrl(imagePath);
+              return;
+            }
+
+            acquiredImagePath = imagePath;
+            setPreviewImage(url);
+          });
         } else {
           setPreviewImage("");
         }
@@ -118,6 +130,11 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
         setPreviewImage("");
       }
     }
+
+    return () => {
+      cancelled = true;
+      releaseImageUrl(acquiredImagePath);
+    };
   }, [isOpen, initialData]);
 
   const handleImagePick = async () => {
@@ -174,13 +191,9 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
     setFormData(prev => {
       const next = { ...prev, [key]: value } as Partial<MediaEntry>;
 
-      // Platinum applies only to games.
+      // Platinum and Early Access apply only to games.
       if (key === "entry_type" && value !== "Game") {
         next.is_platinum = 0;
-      }
-
-      // Early Access applies only to games.
-      if (key === "entry_type" && value !== "Game") {
         next.is_early_access = 0;
         next.early_access_version = null;
       }
@@ -223,7 +236,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
       <div className="space-y-2">
         <label className="text-sm font-medium text-gray-300">Type</label>
         <div className="grid grid-cols-3 gap-2">
-            {ENTRY_TYPE_OPTIONS.map(type => (
+            {getVisibleEntryTypeOptions().map(type => (
             <button
               key={type.value}
               type="button"

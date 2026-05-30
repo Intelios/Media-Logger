@@ -1,0 +1,471 @@
+{
+  "generatedAt": "2026-05-28T21:40:57.389Z",
+  "source": "github-releases",
+  "repository": "Intelios/Media-Logger",
+  "releases": [
+    {
+      "version": "2.18",
+      "title": "Media Logger - 2.18",
+      "date": "2026-05-28",
+      "body": "New Content/Features:\n- Random Pick feature added into Search. Can choose lots of variables like within score boundaries, release year, local copy etc. Very detailed.\n- Backlog now has drag & drop reordering.\n\nBug Fixes:\n- Can now delete years in Awards page\n- Search has duplicate code removed.\n- All pages uses native browser confirm dialogs now use custom built media logger ones.\n\nPerformance Optimizations:\n- Types of Media (Games, Movies, Books etc) now uses a centeralised config instead of needed to be configured in every new script/page.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.18"
+    },
+    {
+      "version": "2.17",
+      "title": "Media Logger - 2.17",
+      "date": "2026-05-27",
+      "body": "New Content/Features:\n- Can now choose to delete/hide profiles you no longer want or did not wanted in the first place.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.17"
+    },
+    {
+      "version": "2.16",
+      "title": "Media Logger - 2.16",
+      "date": "2026-05-22",
+      "body": "New Content/Features:\n- Backlog Feature added. Can now view and manage backlog items of all media/content types. Visually looks like a shelf of cases kind of like looking at rows of games/movies/tv shows, I think it's distinct enough so you know your in backlog and not your year view.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.16"
+    },
+    {
+      "version": "2.15",
+      "title": "Media Logger - 2.15",
+      "date": "2026-05-20",
+      "body": "Support for Windows 11 added. Now supports MacOS & Windows 11.\n\nOn Windows 11 Liquid Glass is replaced by Windows Mica effects.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.15"
+    },
+    {
+      "version": "2.14",
+      "title": "Media Logger - 2.14",
+      "date": "2026-05-03",
+      "body": "New Content/Features:\n- 'Game' entries can now be marked as Early Access\n- 'Subtitles' is now a new option beside 'Rewatch' & 'Local Copy'\n- New 'Genre Cloud' added to Review page. A bubble cloud but for genres.\n\nBug Fixes:\n- Fix Stats page occasionaly not showing full doughnut chart.\n- Fix stats page not updating to doughnut or bars view and needing app restart.\n- Fixed issue where donut tooltip would get covered by 'Total X' text.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.14"
+    },
+    {
+      "version": "2.13.1",
+      "title": "Media Logger - 2.13.1",
+      "date": "2026-04-29",
+      "body": "New Content/Features:\n- New 'Most Replayed' widget added to Stats page.\n\nBug Fixes:\n- Recent Entries content shelf on dashboard now shows 15 entries, instead of 6 using your full widescreen display.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.13.1"
+    },
+    {
+      "version": "2.13",
+      "title": "Media Logger - 2.13",
+      "date": "2026-04-27",
+      "body": "New Content/Features:\n- New rating visual style 'Thermometer' which adds a horizontal bar to the bottom as a thermometer rating display option instead of the standard pill option. It's a little more creative and unique, but 100% optional.\n- Recent Completions on Dashboard updated to now have a 'Media Shelf' apperance to look like Blu Ray / DVD cases on a shelf. Adding a little personality to the dashboard.\n- Added new 'On This Day' widget to main dashboard below recent completions.\n- On dashboard featured entry now returns the replay/rewatch icon alongside rating/date.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.13"
+    },
+    {
+      "version": "2.12.2",
+      "title": "Media Logger - 2.12.2",
+      "date": "2026-04-15",
+      "body": "- Profile Sort Order now works when leaving/entering the page, it used to break and only show newest, now should work with your chosen sort order per profile.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.12.2"
+    },
+    {
+      "version": "2.12.1",
+      "title": "Media Logger 2.12.1",
+      "date": "2026-04-09",
+      "body": "- Fixed the Heatmap widget from disappearing after every page reload. Now correctly stays if toggled to visible.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.12.1"
+    },
+    {
+      "version": "2.12",
+      "title": "Media Logger - 2.12",
+      "date": "2026-04-08",
+      "body": "- Github like Heatmap Stat Widget added to view your entire year on the stats page.\n- Can click any entry in the Heatmap to display a pop up (According to your currently chosen filtered content types) of the content logged that day\n- Series now added as a Conditional Data entry for Anime, TV Show & K-Drama\n- Profile View now lets you order Oldest - Newest OR Newest-Oldest. This applies per profile so you can set it per profile to your preferences.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.12"
+    },
+    {
+      "version": "2.11.4.1",
+      "title": "Media Logger - 2.11.4.1",
+      "date": "2026-04-04",
+      "body": "- Multi Day Stat Widget can now click the date and it'll pop up with a window so you can see the exact entry in more detail such as view description/notes, images etc.\n\nForgot to merge request so this is a quick fix for that.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.11.4.1"
+    },
+    {
+      "version": "2.11.3",
+      "title": "Media Logger - 2.11.3",
+      "date": "2026-04-04",
+      "body": "- Added brand new stats widget: Multiple Logs Per Day widget. It groups the current filtered entries and if you have added multiple of the selected content type in a single day in your log. For example if you watched 2 movies on 1 January 2026 it'll show that, and only shows the days that happened.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.11.3"
+    },
+    {
+      "version": "2.11.2",
+      "title": "Media Logger - 2.11.2",
+      "date": "2026-03-13",
+      "body": "- Profiles now have a 'awards' tab displaying if that profile has had any award winning entries and displays what they are in the UI.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.11.2"
+    },
+    {
+      "version": "2.11.1",
+      "title": "Media Logger 2.11.1 - Hotfix",
+      "date": "2026-03-12",
+      "body": "- a conditional tag/entry with only 1 entry in the selected year but an existing global profile should now show again\n\nbroke with the stats rebuild but fixed quickly",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.11.1"
+    },
+    {
+      "version": "2.11",
+      "title": "Media Logger 2.11",
+      "date": "2026-03-12",
+      "body": "New Content/Features:\n- Stats Page has been entirely rebuilt from scratch:\n    - Now fully modular with widgets and fully customisable with what YOU want\n    - Overview & Dashboard, with dashboard being slightly wider. Overview tighter in size and for more 'causal' use compared to Dashboard for 'power' users. Separate saved widgets between them\n    - Fully customisable and saves locally to keep your designs even between reboots\n    - New stats added (Score Trend & Average Score by Type)\n    - Conditional breakdowns can now be either bar charts or donut charts instead of just bar charts\n- Yearly/Monthly reviews will now use a random background from your yearly/monthly and chosen type filters instead of a generic gradient. \n\nQoL Improvements:\n- Yearly/Monthly review system updated, now shows up to 10 thumbnails for biggest month, removed surprise favoruite & hidden gem as just didn't make sense and the finale page now shows up to 20 top rated entries.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.11"
+    },
+    {
+      "version": "2.10",
+      "title": "Media Logger 2.10",
+      "date": "2026-03-11",
+      "body": "New Content/Features:\n- Brand new page has been added 'Review' it's like a 'Spotify Wrapped' but for your own personal Media Logger database. Multiple slideshow pages to go through and can be tuned to exact months/years and genres.\n- Description updated with a specific 'Notes' catagory so you can have a general description about what the entry is and specific notes about your personal thoughts about the entry.\n- Autocomplete added, now auto suggests previous entries data such as previously used genres, authors, artists, actresses etc.\n- When Exporting can now choose a zip file, including your json export alongside the folder with all images you have used in the app for use elsewhere or to reimport into the app another time.\n\nQoL Improvements:\n- Collections now allow you to add multiple items at once. Previously was one at a time, now upgraded to a multi select picker.\n- When making an 'award year' it now creates the year and saves it even without any award catagories added. Before it only created the 'year' if there was catagories.\n\nBug Fixes:\n- Backup/import now exports/imports notes and is_completed status correctly.\n- Missing cover art now falls back to a bundled local asset instead of a remote placeholder. The new asset lives at cover-fallback.svg.\n\nPerformance Optimizations:\n- Routes are now lazy-loaded in App.tsx, so pages are split into separate chunks instead of being pulled into one large app bundle.\n- Search is now DB-backed instead of loading the whole library into memory.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.10"
+    },
+    {
+      "version": "2.9.4",
+      "title": "Media Logger 2.9.4",
+      "date": "2026-03-08",
+      "body": "- Visual Novels can now be marked as 'Complete' for it's version instead of having to input a version number if the Visual Novel is already a finished project and is not a WIP.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.9.4"
+    },
+    {
+      "version": "2.9.3",
+      "title": "Media Logger 2.9.3",
+      "date": "2026-03-04",
+      "body": "New Content/Features:\n- Added franchises to stats data and now displays year by year a small table showing you the franchises that were most popular that year.\n\nQoL Improvements:\n- Pressing Escape now closes most pop ups / menus\n- Most pop ups and menus now correctly trap focus so if you use the TAB key can't access stuff behind the menu",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.9.3"
+    },
+    {
+      "version": "2.9.2",
+      "title": "Media Logger 2.9.2",
+      "date": "2026-02-24",
+      "body": "- New Platinum/100% feature specifically for game entries, to show games you have 100% completed OR achieved all achievements/trophies. Has custom light up border and icon to signify it's importance in your year view.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.9.2"
+    },
+    {
+      "version": "2.9.1",
+      "title": "Media Logger 2.9.1",
+      "date": "2026-02-16",
+      "body": "New Content/Features:\n- Tauri Update - Tauri updated from Tauri 2.0 to 2.10.1 & countless Cargo modules updated to their newest version.\n- Added Liquid Glass - On devices running MacOS 26.0 or higher existing transparency effects are replaced with MacOS26's liquid glass effect. On older MacOS versions uses same transparency effects with no change. This applies to the side bar and drop down menu on an entry (when clicking three dots). \n- Background Setting Added - Can now choose to have Default, standard dark/light background or brand new 'Clear' which uses either Liquid Glass or Transparency to make the background 'clear'. (This actually is surprisingly really beautiful surprised me quite a bit)",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.9.1"
+    },
+    {
+      "version": "2.9.0",
+      "title": "Media Logger 2.9",
+      "date": "2026-02-15",
+      "body": "This is a update fully focused on cleanup. Added so much and big changes over recent updates, so focused on bug fixing and QOL for this one.\n\nNew Features:\n- Dynamic years with Settings management (no hard-coded year lists in nav/stats anymore), with backward compatibility fallback for existing users.\n\nQuality of Life:\n- Dashboard's featured entry is now truly 100% random no weighting or anything now.\n- Dashboard 2025 links removed; quick links now resolve dynamically from available/recent years.\n- Light-mode QoL improved by removing key hard-coded dark assumptions in layout, honouring system mode fallback, and adding light-mode compatibility overrides for common dark-biased utility classes.\n- Backup/import now includes profiles mappings so personalisation is portable.\n\nBug Fixes:\n- Fixed schema/query key mismatch for collections and awards by standardising on media_id in base schema and adding compatibility migrations that rebuild legacy tables using entry_id/added_date/old winner shapes into the new format.\n- Added missing created_date support for award_categories in both fresh schema and migration path (including backfill for existing rows).\n- Added creation of the profiles table for clean installs, so profile reads/writes no longer fail on new DBs.\n- Rewrote CSV import parsing to handle quoted multiline fields correctly by tokenising full CSV rows with quote-state tracking instead of splitting on newline first.\n- Added missing modal style classes used by the Settings import result modal (modal-overlay, modal-content) so styling/behaviour is now defined and stable.\n\nPerformance Improvements:\n- Replaced expensive ORDER BY RANDOM() featured-entry query with a two-step random offset strategy\n- Removed N+1 in collections & awards. Thumbnail candidates now loaded in one query and grouped in memory (first 4 per collection).",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.9.0"
+    },
+    {
+      "version": "2.8",
+      "title": "Media Logger 2.8",
+      "date": "2026-02-11",
+      "body": "- Default Database Table for entries is now called 'Entries' instead of the old legacy name of 'javs'. Automatically migrates old versions with 'javs' to 'entries' with 0 data loss.\n- On the data tab on settings, now has a 'open directory' to easily access your data file path on your local machine\n- Awards & Profiles now have a animation upon opening the page showing the buttons pop into the page. \n- Stats UI has a console error cleared with a small bug fix\n- Top Genres on Stats page has been fully redesigned.  Now shows more on default view, has a pop up window to see all genres, can click a genre to see specific entries with that genre attached to it and even more.\n- Rating Distribution is now taller and uses it's full card size instead of a fixed size\n- New Custom Tooltips added to Rating Distribution & Top Genres, new details and UI to match the current UI design as it previously was basic tooltips.\n- On the year view can now click a conditional field to take you directly to it's profile, and can click back to take you back to exactly where you were. This applies to all conditional fields like Author, Platform, Director etc\n- Collections UI has been changed to adapt to your chosen theme colouring instead of generic gradient\n- Collections can now have their titles and descriptions edited and changed.\n- Collections now have a more faster and nicer animation, previously looked a little janky and like it was struggling to load, much faster and subdued now.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.8"
+    },
+    {
+      "version": "2.7.1",
+      "title": "Media Logger 2.7.1",
+      "date": "2026-02-06",
+      "body": "- 6 new colour themes added",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.7.1"
+    },
+    {
+      "version": "2.7",
+      "title": "Media Logger 2.7",
+      "date": "2026-01-29",
+      "body": "- In the three dot drop down menu in the Year View page you can now easily click 'Find Duplicates' to find rewatches/replays much easier.\n- Viewing the full image now displays the full path location on your local device to find the file easier\n- New Duplicate feature added to the three dot drop down in year view page, one click to easily duplicate an existing entry for replays/rewatches, no longer manually needing to redo it every time.\n- On the Stats page can now click the 'Perfect 10' and 'This Month' widgets, opening a pop up displaying your perfect 10s and content consumed this month. This works with your chosen filters as well.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.7"
+    },
+    {
+      "version": "2.6.1",
+      "title": "Media Logger 2.6.1",
+      "date": "2026-01-28",
+      "body": "- Can now filter by Local Copy and Rewatch status in the year view, either filtering JUST by local copy status or by things you do not have a local copy of.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.6.1"
+    },
+    {
+      "version": "2.6",
+      "title": "Media Logger 2.6",
+      "date": "2026-01-27",
+      "body": "- New Home Dashboard added, entirely brand new design stepping away from the old legacy flet design to a new smaller design focusing on the random featured entry\n- New User Experience / Welcome added, now welcomes users to the app and teaches them the basics of the app\n- Databases can now properly be created by the Tauri app (Previously only allowed Migrations from old Flet app)\n- In the profiles section Director is now correctly named Studio\n- Quick Filters in the year view have a new UI design and are now collapsable and hidden for a cleaner UI presentation.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.6"
+    },
+    {
+      "version": "2.5.5",
+      "title": "Media Logger 2.5.5",
+      "date": "2026-01-24",
+      "body": "- In the Profiles section the timeline feature now has a replay badge for replays to correctly identify a replay \n- When adding a new entry the yearview page automatically refreshes so you can instantly see the new entry no need to manually refresh or change page and come back.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.5.5"
+    },
+    {
+      "version": "2.5.4",
+      "title": "Media Logger 2.5.4",
+      "date": "2026-01-16",
+      "body": "- Storage Section in Settings Merged into Data Section as they were similar enough\n- Add Entry button removed in year view to now only be in Sidebar to clean up UI",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.5.4"
+    },
+    {
+      "version": "2.5.3",
+      "title": "Media Logger 2.5.3",
+      "date": "2026-01-16",
+      "body": "- JSON Importing & Exporting added for local backups of your entire log. \n- Unlike the old Python Flet version's CSV export/import version this Export contains Collections, Awards and Profiles intact. Making it a full snapshot of the entire app.\n- New 'Data' section added to Settings",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.5.3"
+    },
+    {
+      "version": "2.5.2",
+      "title": "Media Logger 2.5.2",
+      "date": "2026-01-14",
+      "body": "- Hovering over Awards now displays the year in amber instead of grey to improve readability, main text is still white.\n- Year View updated, the top '(Year) collection' or for example 2024 collection updated with new style, the year being highlighted with your chosen theme colour and collection in white. No longer the mix of chosen theme colour & generic gradient.\n- Hovering over an entry in year view now highlights the title in your chosen theme colour no longer the generic gradient.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.5.2"
+    },
+    {
+      "version": "2.5.1",
+      "title": "Media Logger 2.5.1",
+      "date": "2026-01-13",
+      "body": "- Profiles page now displays awards on the media card.\n- Collections page now displays awards on the media card.\n- Search page now displays awards on the media card.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.5.1"
+    },
+    {
+      "version": "2.5",
+      "title": "Media Logger 2.5",
+      "date": "2026-01-13",
+      "body": "- Awards page completely redesigned\n- Award by Award view\n- Reuse old award categories no need to reinput each time\n- UI tweaks to fit new design\n- Can now choose any year to add awards for that year \n- and more, quite a huge overhaul and database changes to make this work",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.5"
+    },
+    {
+      "version": "2.4.1",
+      "title": "Media Logger 2.4.1",
+      "date": "2026-01-12",
+      "body": "- Updated collections UI with new animations, header and colouring.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.4.1"
+    },
+    {
+      "version": "2.4.0",
+      "title": "Media Logger 2.4",
+      "date": "2026-01-09",
+      "body": "## What's Changed\n- Franchise Tag Added to Game Entries, database should auto update to add this to existing DBs.\n- JAV entries now display their Studio & Actress on year view cards.\n- Profiles now match their filter colour to feel more unique\n- Search updated with altered UI and proper searching for all conditional tags\n- Collections deleting bug fixed, properly waits for confirmation now\n- Tauri Plugin Dialog fixed\n- Build issue fixed",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.4.0"
+    },
+    {
+      "version": "2.3",
+      "title": "Media Logger 2.3",
+      "date": "2026-01-07",
+      "body": "- MacOS Menu Bar now has functions to jump between pages and open the Add New Entry form\n- Colour Themes added into Settings & (Very Early) Light mode added\n- Setting added allowing to choose a custom name for dashboard instead of default \"Collector\"\n- Settings UI redesigned to be more vertical to accommodate the new settings additions\n- Profiles section updated to add a new 'Timeline' feature, showing from in chronologically vertical order from the first entry to your most recent with facts at the bottom such as first 'log' and most recent 'log' and other stuff.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.3"
+    },
+    {
+      "version": "2.2.1",
+      "title": "Media Logger 2.2.1",
+      "date": "2026-01-06",
+      "body": "- Stats Page now has Quick Filters just like the year view page\n- Profiles page updated with new animation upon opening, new bigger 'hero' design and a blurred background to make it stand out compared to old design.\n- Dashboard updated with bolder text, new animations on hover and small rearrangements and improvements",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.2.1"
+    },
+    {
+      "version": "2.2",
+      "title": "Media Logger 2.2",
+      "date": "2026-01-05",
+      "body": "- Icon Overlap with 'trash' and 'three dot menu' fixed. Moved to top left for trash\n- Delete Function now works correctly and waits for confirmation before deleting. Now has new pop up too.\n- MacOS transparency added for side bar, is transparent and slightly see through.\n- MacOS Menu Bar now has basic functions, I aim to expand this in future with proper functionality just getting it implemented for now.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.2"
+    },
+    {
+      "version": "2.1",
+      "title": "Media Logger 2.1",
+      "date": "2026-01-04",
+      "body": "Focus on bug fixes and improvements with some new features too. \n\n- Improved the layout of cards in Year View to better utilize available space, reducing wasted empty areas and allowing content to breathe more naturally.\n\n- Overhauled the Stats section to be more detailed and visually engaging. Simple lists (Top Authors, Studios, etc.) have been replaced with charts and visual representations.\n\n- Added a dedicated Actresses stats section, including a visual chart.\n\n- Stats are now organized into dropdown sections to provide deeper insights without cluttering the interface.\n\n- Fixed an issue where long descriptions could be cut off in Year View. Descriptions now properly support larger amounts of text, ensuring all information remains accessible.\n\n- Added a “View Image” option to the Year View entry dropdown, allowing full-size images to be viewed for any entry.\n\n- Genre overflow indicators (e.g. “+2”) now display the remaining genres in a hover popup, making all genres easily visible.\n\n- Fixed an issue where multiple actresses were displayed as a single combined tag; actresses now appear as separate, individual tags.\n\n- Fixed an issue where the selected stats filter did not persist; filter selections now remain saved after reloads or reboots.\n\n- Improved readability of stats tooltips by fixing text contrast issues (previously black text on dark backgrounds).\n\n- Fixed the Add Entry button in the left panel, which previously did not function. Both add entry buttons now work as expected.\n\n- Hovering over the Rewatch and Local Copy icons now displays tooltips explaining their meaning, improving clarity for new users.\n\n- Fixed an issue in Collections & Search where selecting Edit from an entry’s dropdown menu had no effect.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.1"
+    },
+    {
+      "version": "2.0",
+      "title": "Media Logger 2.0 / V20",
+      "date": "2026-01-03",
+      "body": "This is an entire project remake from Python & Flet into Tauri + React + TypeScript. Completely rebuilt from the ground up with a new UI design, new features and backward compatibility. The same assets/images & .db file will work on both Python & Tauri versions.\n\nGoing forward it will be Media Logger 2.0 > 2.1 and so on. The Python era has ended, though is preserved through a legacy branch on the repo, swap to it and any time with all updates up to V19 (and a small 2026 update I did not turn into it's own release)\n\n- Entirely rebuilt from the ground up in Tauri\n- Same year view, stats, profiles, search, collections, awards are all functioning\n- Everything works almost entirely the same as it did in the Flet/Python version.\n\n- For new additions:\n- Customisable data path, can store your .db/Images folder anywhere now\n- Completely new UI design language\n- A icon for the app no longer using default Flet/Tauri\n- Now a standalone app file provided no longer needing to just run the raw 'main.py' just run the app\n- Uses less RAM about 10-20% on average\n- Image loading is faster and more system resource efficient. \n- And so much more stuff behind the scenes changed, it's a more modern, better designed and modular app compared to the Python version. Taken a ton of work but it's here.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/2.0"
+    },
+    {
+      "version": "v19",
+      "title": "V19",
+      "date": "2025-12-13",
+      "body": "- Entries in the logger can now win multiple 'awards'\n- Award section's 'reorder' feature is redesigned to now match the collections reorder feature\n- Collections can now properly be deleted, finally.\n- Stats Screen Updated, improved animations, Pie chart's list of items redesigned and other small visual tweaks",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v19"
+    },
+    {
+      "version": "v18",
+      "title": "V18",
+      "date": "2025-12-08",
+      "body": "- Profiles section has had it's UI completely redesigned, filters, sort options and visual makeover.\n- Profiles filters are persistent with the database ensuring even on reboot of app it remembers what filter you last used.\n- Collections Page's new 'Add Item' picker has been ported back to the 'Awards' section so both now share the same UI for that which is cleaner, faster and usable.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v18"
+    },
+    {
+      "version": "v17",
+      "title": "V17",
+      "date": "2025-12-07",
+      "body": "- The date at the bottom of the cards is now stuck there and can't be pushed off by too many genres/conditional tags. You can now click to hide/view the date if it's crowded card.\n- The Awards UI has been completely remade a more modern and sleek design\n- Collections UI as well has been redesigned to look more appealing and feel less 'prototype' \n- Ghost Box bugs in Collections/Awards UI which put a empty box on screen and required a restart to fix are (finally) fixed took ages but the cause was found and fixed!",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v17"
+    },
+    {
+      "version": "v16",
+      "title": "V16",
+      "date": "2025-11-13",
+      "body": "Updated to move from Flet 0.27.6 to 0.28.3\n\n- Updated color API: ft.colors. → ft.Colors.\n- Updated icons API: ft.icons. → ft.Icons.\n-  Fixed animation API: ft.animation.Animation() → ft.Animation()\n-  Replaced removed color: SURFACE_VARIANT → SURFACE",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v16"
+    },
+    {
+      "version": "v15",
+      "title": "V15",
+      "date": "2025-11-07",
+      "body": "- Stats code in UI.py was moved to it's own file 'stats.py' to make it easier to work on. 537 line reduction in UI.py.\n- Stats screen now has new rating distribution bar graph to visualise the distribution of ratings. \n- Stats UI completely revamped with the following:\n- Enhanced stat cards with hover animation, updated icons, rounded corners and larger bolder text\n- New modern header design for the year selection and title of page\n- Genre & Rating distribution cards updated with new gradients and icons.\n- Expandable breakdown cards, now have unique colour associated with them improving their look\n- Settings at bottom now also updated to look cleaner\n- and much more!!!\n\nComparison of main UI:\n\nV1:\n<img width=\"1275\" height=\"710\" alt=\"image\" src=\"https://github.com/user-attachments/assets/4603a97f-1970-451d-92cd-7bcf509fd5ac\" />\nV7:\n<img width=\"1272\" height=\"718\" alt=\"image\" src=\"https://github.com/user-attachments/assets/6b30398a-1114-441f-b93e-b9d445f8483a\" />\nV15:\n<img width=\"1680\" height=\"1050\" alt=\"image\" src=\"https://github.com/user-attachments/assets/d09f2c14-e5d1-4f5c-9c07-3c1caa199010\" />\n\nStats Screen:\nV1:\n<img width=\"1680\" height=\"1050\" alt=\"image\" src=\"https://github.com/user-attachments/assets/db8b4a21-1711-47b8-ac14-62b15e313e7b\" />\nV7:\n<img width=\"1680\" height=\"1050\" alt=\"image\" src=\"https://github.com/user-attachments/assets/87293741-3524-437f-84e5-8d9ad16eced3\" />\nV15:\n<img width=\"1680\" height=\"1050\" alt=\"image\" src=\"https://github.com/user-attachments/assets/ca75b304-196b-4a79-8037-6c71392ce436\" />",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v15"
+    },
+    {
+      "version": "v14",
+      "title": "V14",
+      "date": "2025-11-06",
+      "body": "- Quick Filter added, to quickly click a button and swap between gaming, media etc\n- Dashboard's random featured entry now shows tags\n- Can now click and view images directly in the app with the associated image of the entry\n- UI refresh adding animation on hover, new bolder text, new design, glow on all ratings, improved 10/10 border glow and much more.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v14"
+    },
+    {
+      "version": "v13",
+      "title": "V13",
+      "date": "2025-09-10",
+      "body": "- Collections features added letting you make your own lists\n- Profile page has minor UI tweaks",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v13"
+    },
+    {
+      "version": "v12",
+      "title": "V12",
+      "date": "2025-08-30",
+      "body": "- Profiles added, if have more than 3 entries (With a conditional field) creates a profile for\n- Steam Deck added as platform again\n- Removed old / no longer used code.\n- Backlog feature removed as I did not use it\n- Can now filter by score such as showing only 7-9s, just replays etc",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v12"
+    },
+    {
+      "version": "v11",
+      "title": "V11",
+      "date": "2025-07-21",
+      "body": "- Added awards feature\n- Added badge for award winners inside year specific gallery's\n- Added glassmorphism to awards\n- Removed pagination\n- Added new home dashboard\n- Added glassmorphism design to dashboard",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v11"
+    },
+    {
+      "version": "v10",
+      "title": "V10",
+      "date": "2025-07-14",
+      "body": "- Backlog updated with progress  tracker\n- Rating badge enahnced now glows for a 10/10\n- Stats screen rebuilt UI from the ground up\n- Albums now a media type to add",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v10"
+    },
+    {
+      "version": "v9",
+      "title": "V9",
+      "date": "2025-06-30",
+      "body": "- Refactor split the app into multiple files to make codebase easier to manage.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v9"
+    },
+    {
+      "version": "v8",
+      "title": "V8",
+      "date": "2025-06-26",
+      "body": "- CSV Exporting added\n- Description UI remade\n- Added markdown support for descriptions\n- Add/Edit entry UI completely remade to look less placeholder and more modern and fancy",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v8"
+    },
+    {
+      "version": "v7",
+      "title": "V7",
+      "date": "2025-06-23",
+      "body": "- Redesigned gallery cards entirely\n- Added searching \n- Director in JAV changed to Studio\n- Platform specific colours for games\n\njust to show how far the app has come:\n\nV1: \n![image](https://github.com/user-attachments/assets/ca0c5af5-cf6f-4d2c-9c70-259947fd104c)\nV7:\n![image](https://github.com/user-attachments/assets/4369d28f-93b4-4dcb-b096-951b81552c74)",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v7"
+    },
+    {
+      "version": "v6",
+      "title": "V6",
+      "date": "2025-06-19",
+      "body": "New stats for new conditional/type based tags\n\nslight change to size of gallery cards",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v6"
+    },
+    {
+      "version": "v5",
+      "title": "V5",
+      "date": "2025-06-19",
+      "body": "- Conditional Fields (if you pick specific types they have their own extra field)",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v5"
+    },
+    {
+      "version": "v4",
+      "title": "V4",
+      "date": "2025-05-29",
+      "body": "- Removed H badge it's no longer needed\n- Card Design overhauled completely, different colour badge based on type of content\n- other stuffs",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v4"
+    },
+    {
+      "version": "v3",
+      "title": "V3 - Game Logger > Media Logger",
+      "date": "2025-05-26",
+      "body": "basically a brand new app lo\n\nl",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v3"
+    },
+    {
+      "version": "V2",
+      "title": "V2",
+      "date": "2025-04-14",
+      "body": "Newest version with lots of new additions and shi",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/V2"
+    },
+    {
+      "version": "v1",
+      "title": "V1",
+      "date": "2025-04-05",
+      "body": "Fully works all features seem to work",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/v1"
+    }
+  ]
+}
