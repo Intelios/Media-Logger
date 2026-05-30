@@ -55,7 +55,7 @@ Every row is inserted with its own awaited `db.execute`, inside several sequenti
 
 `/^\d+$/` converts any all-digit cell to a number. So a title like `"1917"`, `"2001"`, or `"007"` round-trips as a number — `"007"` becomes `7` (leading zeros lost), and numeric-named entries can mis-compare against the TEXT `name` column during duplicate detection. Only coerce columns you know are numeric, or keep `name`/text fields as strings.
 
-### M7. StrictMode + Tauri `listen()` can double-register menu listeners
+### M6. StrictMode + Tauri `listen()` can double-register menu listeners
 **`src/components/Layout.tsx:107`**
 
 `listen()` returns a promise; the cleanup does `unlisten.then(fn => fn())`. Under React 19 StrictMode (enabled in `main.tsx:7`), the effect mounts→unmounts→mounts in dev, and the unlisten promise may not have resolved before the second registration. Result: `menu-navigate` / `menu-new-entry` can fire twice in dev (e.g., double navigation, two entry forms). Production is unaffected, but guard with an `isMounted`/cancel flag to be safe.
