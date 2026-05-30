@@ -10,7 +10,7 @@ import { cn } from "../lib/utils_ui";
 import { getRatingDisplayMode } from "../lib/settings";
 
 // Type badge colors matching Flet version
-const getTypeBadgeStyle = (type: string | null) => {
+export const getTypeBadgeStyle = (type: string | null) => {
   const t = (type || "").toLowerCase();
   if (t.includes("album")) return { bg: "bg-emerald-600", icon: <Disc3 size={12} /> };
   if (t.includes("game")) return { bg: "bg-purple-600", icon: <Gamepad2 size={12} /> };
@@ -25,7 +25,7 @@ const getTypeBadgeStyle = (type: string | null) => {
 };
 
 // Rating badge colors
-const getRatingColor = (score: number | null) => {
+export const getRatingColor = (score: number | null) => {
   if (!score && score !== 0) return "bg-gray-700/80 text-gray-300";
   if (score >= 9) return "bg-emerald-500 text-white";
   if (score >= 7) return "bg-blue-500 text-white";
@@ -34,7 +34,7 @@ const getRatingColor = (score: number | null) => {
 };
 
 // Format date to "14th March 2026" style
-const formatDate = (dateString: string | null): string => {
+export const formatDate = (dateString: string | null): string => {
   if (!dateString) return "";
   try {
     const date = new Date(dateString);
@@ -93,7 +93,7 @@ const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon
 };
 
 // Parse genres from comma-separated string
-const parseGenres = (genre: string | null): string[] => {
+export const parseGenres = (genre: string | null): string[] => {
   if (!genre) return [];
   return genre.split(',').map(g => g.trim()).filter(g => g.length > 0);
 };
