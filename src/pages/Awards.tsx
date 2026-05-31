@@ -483,21 +483,23 @@ export default function AwardsPage() {
             key={cat.id}
             style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
             className={cn(
-              "relative rounded-2xl p-6 transition-all border overflow-hidden group award-item-enter",
+              "relative overflow-visible rounded-2xl p-6 transition-all border group award-item-enter",
               cat.winner
                 ? "bg-gradient-to-br from-amber-500/10 via-white/5 to-yellow-500/5 border-amber-500/20 hover:border-amber-400/40"
                 : "bg-white/5 border-white/10 hover:border-white/20"
             )}
           >
-            {/* Position indicator */}
-            <div className="absolute top-4 right-4 text-6xl font-black text-white/[0.03] leading-none select-none">
-              #{index + 1}
-            </div>
+            <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+              {/* Position indicator */}
+              <div className="absolute top-4 right-4 text-6xl font-black text-white/[0.03] leading-none select-none">
+                #{index + 1}
+              </div>
 
-            {/* Glow effect for winners */}
-            {cat.winner && (
-              <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl" />
-            )}
+              {/* Glow effect for winners */}
+              {cat.winner && (
+                <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl" />
+              )}
+            </div>
 
             <div className="relative z-10">
               <div className="flex items-start justify-between mb-4">

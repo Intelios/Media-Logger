@@ -571,13 +571,17 @@ export default function YearView() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-20">
           {deferredEntries.map(entry => {
             const isHighlighted = entry.id === highlightedId;
+            const isGameEntry = (entry.entry_type || "").toLowerCase().includes("game");
+            const hasCardGlow = entry.review_score === 10 || (isGameEntry && entry.is_platinum === 1);
             return (
               <div
                 key={entry.id}
                 ref={isHighlighted ? highlightRef : null}
                 className={`transition-all duration-300 ${isHighlighted
                   ? 'ring-4 ring-amber-400 ring-offset-2 ring-offset-gray-900 rounded-2xl animate-pulse'
-                  : 'cv-auto'
+                  : hasCardGlow
+                    ? 'overflow-visible'
+                    : 'cv-auto'
                   }`}
               >
                 <MediaCard

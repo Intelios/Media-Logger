@@ -302,7 +302,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
         whileHover={{ y: -6, scale: 1.02 }}
         transition={cardLiftTransition}
         className={cn(
-          "group relative bg-surface/80 backdrop-blur-md rounded-2xl transition-[box-shadow,border-color,background-color] duration-300 ease-out cursor-pointer",
+          "group relative overflow-visible bg-surface/80 backdrop-blur-md rounded-2xl transition-[box-shadow,border-color,background-color] duration-300 ease-out cursor-pointer",
           hasPlatinum
             ? "border-2 border-cyan-300 hover:border-cyan-200"
             : perfectTen
@@ -329,17 +329,20 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
         {/* Image + Thermometer Wrapper */}
         <div className="relative">
           {/* Image Container */}
-          <div className="h-52 w-full relative overflow-hidden rounded-t-2xl">
+          <div
+            className="h-52 w-full relative overflow-hidden rounded-t-2xl"
+            style={{ WebkitMaskImage: "-webkit-radial-gradient(white, black)" }}
+          >
             <img
               src={imgSrc}
               alt={entry.name}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+              className="w-full h-full rounded-t-2xl object-cover transition-transform duration-500 group-hover:scale-110"
               loading="lazy"
               onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; }}
             />
 
             {/* Gradient Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="absolute inset-0 rounded-t-2xl bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
             {/* Platinum Badge */}
             {hasPlatinum && (
