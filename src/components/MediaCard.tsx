@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -124,6 +124,62 @@ interface MediaCardProps {
   onDuplicate?: (entry: MediaEntry) => void;
 }
 
+function PortalTooltip({ children, anchorRef }: { children: React.ReactNode; anchorRef: React.RefObject<HTMLElement | null> }) {
+  const [visible, setVisible] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const tooltipRef = useRef<HTMLDivElement>(null);
+
+  const updatePos = useCallback(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setPos({ top: rect.top, left: rect.left + rect.width / 2 });
+  }, [anchorRef]);
+
+  const show = useCallback(() => {
+    updatePos();
+    setVisible(true);
+  }, [updatePos]);
+
+  const hide = useCallback(() => {
+    setVisible(false);
+  }, []);
+
+  useEffect(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    el.addEventListener("mouseenter", show);
+    el.addEventListener("mouseleave", hide);
+    return () => {
+      el.removeEventListener("mouseenter", show);
+      el.removeEventListener("mouseleave", hide);
+    };
+  }, [anchorRef, show, hide]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const handleScroll = () => updatePos();
+    window.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, [visible, updatePos]);
+
+  if (!visible) return null;
+
+  return createPortal(
+    <div
+      ref={tooltipRef}
+      style={{ position: "fixed", top: pos.top, left: pos.left, transform: "translate(-50%, -100%)", marginTop: -8, zIndex: 9999 }}
+    >
+      {children}
+    </div>,
+    document.body
+  );
+}
+
 export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys }: MediaCardProps) {
   const navigate = useNavigate();
   const imgSrc = useImageUrl(entry.image_url);
@@ -137,6 +193,14 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const menuDropdownRef = useRef<HTMLDivElement>(null);
+  const platinumBadgeRef = useRef<HTMLDivElement>(null);
+  const awardBadgeRef = useRef<HTMLDivElement>(null);
+  const rewatchBadgeRef = useRef<HTMLDivElement>(null);
+  const localBadgeRef = useRef<HTMLDivElement>(null);
+  const subtitlesBadgeRef = useRef<HTMLDivElement>(null);
+  const earlyAccessBadgeRef = useRef<HTMLDivElement>(null);
+  const platinumStatusBadgeRef = useRef<HTMLDivElement>(null);
+  const genreOverflowRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const contextInfo = getContextInfo(entry);
@@ -240,12 +304,23 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
         className={cn(
           "group relative bg-surface/80 backdrop-blur-md rounded-2xl transition-[box-shadow,border-color,background-color] duration-300 ease-out cursor-pointer",
           hasPlatinum
-            ? "border-2 border-cyan-300 shadow-[0_0_22px_rgba(34,211,238,0.35),0_0_44px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(34,211,238,0.45),0_0_60px_rgba(245,158,11,0.3)] hover:border-cyan-200 animate-platinum-glow"
+            ? "border-2 border-cyan-300 hover:border-cyan-200"
             : perfectTen
-              ? "border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4),0_0_40px_rgba(52,211,153,0.2)] hover:shadow-[0_0_25px_rgba(52,211,153,0.5),0_0_50px_rgba(52,211,153,0.3)] hover:border-emerald-300 animate-perfect-glow"
+              ? "border-2 border-emerald-400 hover:border-emerald-300"
               : "border border-white/10 hover:shadow-2xl hover:shadow-primary/20 hover:border-primary/40"
         )}
       >
+        {/* Dedicated glow element behind the card (avoids backdrop-blur destroying box-shadow) */}
+        {(hasPlatinum || perfectTen) && (
+          <div
+            className={cn(
+              "absolute -inset-[3px] rounded-[20px] -z-10 pointer-events-none",
+              hasPlatinum && "animate-platinum-glow",
+              perfectTen && "animate-perfect-glow"
+            )}
+          />
+        )}
+
         <div
           className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100"
           style={{ boxShadow: elevationShadow }}
@@ -268,16 +343,16 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
 
             {/* Platinum Badge */}
             {hasPlatinum && (
-              <div className="absolute top-2 left-2 group/platinum z-20">
+              <div className="absolute top-2 left-2 z-20" ref={platinumBadgeRef}>
                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-amber-400/95 via-yellow-300/95 to-cyan-300/95 rounded-full shadow-lg shadow-cyan-500/25 border border-white/30">
                   <Trophy size={12} className="text-slate-900" />
                   <span className="text-[10px] font-black tracking-wide text-slate-900">PLATINUM 100%</span>
                 </div>
-                <div className="absolute bottom-full left-0 mb-2 opacity-0 invisible group-hover/platinum:opacity-100 group-hover/platinum:visible transition-all duration-200 z-30">
+                <PortalTooltip anchorRef={platinumBadgeRef}>
                   <div className="bg-surface/95 backdrop-blur-xl border border-cyan-300/40 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
                     <span className="text-xs font-medium text-cyan-200">Platinum / 100% Completed</span>
                   </div>
-                </div>
+                </PortalTooltip>
               </div>
             )}
 
@@ -309,16 +384,15 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
 
             {/* Award Badge */}
             {hasAwards && (
-              <div className="absolute bottom-2 left-2 group/award z-20">
+              <div className="absolute bottom-2 left-2 z-20" ref={awardBadgeRef}>
               <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full shadow-lg shadow-amber-500/30 cursor-pointer">
                 <Trophy size={14} className="text-white fill-white/20" />
                 {awards.length > 1 && (
                   <span className="text-xs font-bold text-white">{awards.length}</span>
                 )}
               </div>
-              {/* Tooltip */}
-              <div className="absolute bottom-full left-0 mb-2 w-48 opacity-0 invisible group-hover/award:opacity-100 group-hover/award:visible transition-all duration-200 z-30">
-                <div className="bg-surface/95 backdrop-blur-xl border border-amber-500/30 rounded-xl p-3 shadow-2xl shadow-black/50">
+              <PortalTooltip anchorRef={awardBadgeRef}>
+                <div className="bg-surface/95 backdrop-blur-xl border border-amber-500/30 rounded-xl p-3 shadow-2xl shadow-black/50 w-48">
                   <div className="text-xs font-semibold text-amber-400 mb-2 flex items-center gap-1.5">
                     <Trophy size={12} />
                     <span>Awards Won</span>
@@ -332,7 +406,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                     ))}
                   </ul>
                 </div>
-              </div>
+              </PortalTooltip>
             </div>
           )}
         </div>
@@ -504,12 +578,11 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                 </span>
               ))}
               {genres.length > 3 && (
-                <div className="relative group/genres">
+                <div ref={genreOverflowRef}>
                   <span className="px-2 py-0.5 bg-white/5 rounded-md text-[10px] text-gray-500 font-medium cursor-pointer hover:bg-white/10 hover:text-gray-300 transition-colors">
                     +{genres.length - 3}
                   </span>
-                  {/* Genres Overflow Tooltip */}
-                  <div className="absolute bottom-full left-0 mb-2 opacity-0 invisible group-hover/genres:opacity-100 group-hover/genres:visible transition-all duration-200 z-[100]">
+                  <PortalTooltip anchorRef={genreOverflowRef}>
                     <div className="bg-surface/95 backdrop-blur-xl border border-white/15 rounded-xl p-3 shadow-2xl shadow-black/50 min-w-[120px]">
                       <div className="text-xs font-semibold text-gray-400 mb-2">More Genres</div>
                       <div className="flex flex-wrap gap-1.5">
@@ -523,7 +596,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                         ))}
                       </div>
                     </div>
-                  </div>
+                  </PortalTooltip>
                 </div>
               )}
             </div>
@@ -533,67 +606,63 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
           {(isRewatch || hasLocalCopy || hasSubtitles || hasPlatinum || isEarlyAccess) && (
             <div className="flex items-center gap-1.5">
               {isRewatch && (
-                <div className="relative group/rewatch">
+                <div ref={rewatchBadgeRef}>
                   <div className="w-7 h-7 rounded-full bg-amber-500/20 border border-amber-500 flex items-center justify-center cursor-pointer">
                     <RotateCcw size={12} className="text-amber-500" />
                   </div>
-                  {/* Rewatch Tooltip */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/rewatch:opacity-100 group-hover/rewatch:visible transition-all duration-200 z-[100]">
+                  <PortalTooltip anchorRef={rewatchBadgeRef}>
                     <div className="bg-surface/95 backdrop-blur-xl border border-amber-500/30 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
                       <span className="text-xs font-medium text-amber-400">Replay / Rewatch</span>
                     </div>
-                  </div>
+                  </PortalTooltip>
                 </div>
               )}
               {hasLocalCopy && (
-                <div className="relative group/local">
+                <div ref={localBadgeRef}>
                   <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center cursor-pointer">
                     <Check size={12} className="text-emerald-500" />
                   </div>
-                  {/* Local Copy Tooltip */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/local:opacity-100 group-hover/local:visible transition-all duration-200 z-[100]">
+                  <PortalTooltip anchorRef={localBadgeRef}>
                     <div className="bg-surface/95 backdrop-blur-xl border border-emerald-500/30 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
                       <span className="text-xs font-medium text-emerald-400">Own Local Copy</span>
                     </div>
-                  </div>
+                  </PortalTooltip>
                 </div>
               )}
               {hasSubtitles && (
-                <div className="relative group/subtitles">
+                <div ref={subtitlesBadgeRef}>
                   <div className="w-7 h-7 rounded-full bg-orange-500/20 border border-orange-500 flex items-center justify-center cursor-pointer">
                     <Captions size={12} className="text-orange-400" />
                   </div>
-                  {/* Subtitles Tooltip */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/subtitles:opacity-100 group-hover/subtitles:visible transition-all duration-200 z-[100]">
+                  <PortalTooltip anchorRef={subtitlesBadgeRef}>
                     <div className="bg-surface/95 backdrop-blur-xl border border-orange-500/30 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
                       <span className="text-xs font-medium text-orange-400">Subtitles</span>
                     </div>
-                  </div>
+                  </PortalTooltip>
                 </div>
               )}
               {isEarlyAccess && (
-                <div className="relative group/early-access">
+                <div ref={earlyAccessBadgeRef}>
                   <div className="w-7 h-7 rounded-full bg-violet-500/20 border border-violet-500 flex items-center justify-center cursor-pointer">
                     <Clock size={12} className="text-violet-400" />
                   </div>
-                  {/* Early Access Tooltip */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/early-access:opacity-100 group-hover/early-access:visible transition-all duration-200 z-[100]">
+                  <PortalTooltip anchorRef={earlyAccessBadgeRef}>
                     <div className="bg-surface/95 backdrop-blur-xl border border-violet-500/30 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
                       <span className="text-xs font-medium text-violet-400">Early Access{entry.early_access_version ? `: ${entry.early_access_version}` : ''}</span>
                     </div>
-                  </div>
+                  </PortalTooltip>
                 </div>
               )}
               {hasPlatinum && (
-                <div className="relative group/platinum-status">
+                <div ref={platinumStatusBadgeRef}>
                   <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-400/30 to-cyan-400/30 border border-cyan-300 flex items-center justify-center cursor-pointer">
                     <Trophy size={12} className="text-cyan-100" />
                   </div>
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/platinum-status:opacity-100 group-hover/platinum-status:visible transition-all duration-200 z-[100]">
+                  <PortalTooltip anchorRef={platinumStatusBadgeRef}>
                     <div className="bg-surface/95 backdrop-blur-xl border border-cyan-300/40 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
                       <span className="text-xs font-medium text-cyan-200">Platinum / 100%</span>
                     </div>
-                  </div>
+                  </PortalTooltip>
                 </div>
               )}
             </div>
