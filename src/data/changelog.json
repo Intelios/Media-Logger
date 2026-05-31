@@ -1,8 +1,24 @@
 {
-  "generatedAt": "2026-05-28T21:40:57.389Z",
+  "generatedAt": "2026-05-31T21:20:04.516Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "3.0.1",
+      "title": "Media Logger - 3.0.1",
+      "date": "2026-05-31",
+      "body": "Bug Fixes:\n- When hovering over a card in the top of the image/card went boxy and square and lost it's roundiness this is fixed.\n- The 10/10 and Platinum glow effect was reduced, this is fixed to normal.\n- The replay/early access/subtitle etc badge was being cut off and not displaying over the top of the card, like before. This is fixed.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.0.1"
+    },
+    {
+      "version": "3.0.0",
+      "title": "Media Logger 3 - 3.0",
+      "date": "2026-05-30",
+      "body": "This is the biggest update since 2.0's big remake of the app. Not as big of course but tons of work done to improve the app into the best state I can get it (right now). Tons of work here.\n\nMajor Changes with 3.0:\n- Major changes to Year View rendering: Caching added, progressive loading added, deferred grid rendering and many more changes. Less stutters and way better performance on big libraries.\n- You can now choose to turn Adult Media types on or off, turning them off hides the options entirely from the application.\n- By default all database files are now called media_logger.db, old databases automatically convert to new name and without loss of data.\n- The 'Monthly Activity' and 'Score Trend' stat widgets in Stats now have a 'Compare' button allowing you to directly visually compare those two stats against another year (of your choosing). Making it much easier to compare stats instead of having to flip back and forth between years. Lots of changes in stats rendering to make this happen.\n- All System-Font & SF Pro usage is now replaced with Inter to make MacOS & Windows versions look closer in visuals.\n- Dashboard UI full redesign. Featured Entry takes up more space, stats are below the featured entry letting the featured entries image take up the space. Quick Action buttons removed. Recent Completions & On This Day now both sport a visual card UI design below. Also upgraded with new animations. Animated Stat Counters, Featured Card now has small animated image effect and Greeting Text is now word by word fade in.\n\nNew Content/Features:\n- Tauri upgraded from 2.10.1 to 2.11.2\n- On sidebar the years in your library now have little dots linking them together, like a little timeline.\n- Settings & Library sections on sidebar can now be collapsed.\n- Media Logger title and icon on top left removed entirely as redundant.\n- Settings now has an About section showcasing the version and other important information.\n- Settings now has a in-app change log so it's easy to see changes from the very beginning to now without need to access the development repo.\n- Light Mode removed as not used & also did not function.\n- Indicator for which page you are on is now animated and slides up/down to the next page you click on.\n- Sidebar Years Timeline now animated. The ball animates between the different years you click on.\n- Added Framer Motion dependency to project to enable more complex animation work.\n- Nav Item hover is now animated with spring physics and glow trail.\n- Year Timeline Dot now has a trailing blur / light streak on swap.\n- Collapsible sections now are animated.\n- When hovering over a card in the year view, the card now does a vertical lift and has a shadow that is coloured based on your theme.\n- Media Shelf visuals and rendering removed as no longer used.\n\nBug Fixes:\n- Fixed an issue in backups where exports silently drops Early Access fields\n- Fixed an issue in which re-importing a backup duplicates every entry that has no completion date\n- Fixed a bug which makes the open/close toggle and outside-click dismissal unreliable.\n- Fixed an issue where a rating of `0` is treated as \"no score\" in JS-side averages\n- Removed a ensureTablesExist function to use correct db script file function. \n- Removed dbService.getStats() as no longer used.\n- Import are now fixed to use one transaction instead of many. Improving some performance in some areas.\n- CSV exports/imports no longer coerces numeric-looking text into numbers\n- Double-register menu listeners issue fixed for better feeling UI.\n- 50ms delays to database actions removed as app now awaits for DB functions to finish so no extra waiting time needed.\n- Collapsible sidebar sections clipping fixed.\n- Image blob URL cache is now revoked when swapping pages, stopping a possible memory leak.\n- Minor duplicates throughout the app removed to remove stale & old code that can be done in one function and not across 5 duplicates.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.0.0"
+    },
     {
       "version": "2.18",
       "title": "Media Logger - 2.18",
