@@ -15,6 +15,14 @@
   contain-intrinsic-size: auto 420px;
 }
 
+/* content-visibility: auto implies paint containment, which clips the card's
+   hover lift/scale (rounded corners, border, shadow). Drop containment while
+   hovered so the hover effect can overflow; off-screen skipping is preserved
+   for every non-hovered card. */
+.cv-auto:hover {
+  content-visibility: visible;
+}
+
 /* Theme CSS Variables - defaults set here, overridden by ThemeContext */
 :root {
   /* Color theme */
