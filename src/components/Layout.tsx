@@ -237,10 +237,6 @@ export function Layout() {
         {/* Navigation Items */}
         <nav className="flex-1 space-y-1 overflow-y-auto pr-1 custom-scrollbar">
 
-          {/* Overview Section */}
-          <AnimatePresence initial={false}>
-            {!isCompact && <SectionLabel key="overview-label" label="Overview" />}
-          </AnimatePresence>
           <NavItem to="/" icon={<Home size={18} />} label="Home" shortcut={getShortcutLabel("1")} isCompact={isCompact} />
 
           {/* Years Section - vertical timeline rail */}
