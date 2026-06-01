@@ -462,6 +462,20 @@ export default function SearchPage() {
       <RandomPickModal
         isOpen={showRandomPick}
         onClose={() => setShowRandomPick(false)}
+        initialSearchContext={
+          hasActiveSearch
+            ? {
+                query,
+                entryTypes: filters.entryTypes,
+                platforms: filters.platforms,
+                actresses: filters.actresses,
+                directors: filters.directors,
+                authors: filters.authors,
+                franchises: filters.franchises,
+                series: filters.series,
+              }
+            : null
+        }
       />
     </div>
   );
