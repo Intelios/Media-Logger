@@ -383,23 +383,6 @@ export function Layout() {
   );
 }
 
-// Section label component
-function SectionLabel({ label }: { label: string }) {
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, x: -6 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -6 }}
-      transition={labelTransition}
-      className="flex items-center gap-2 px-2 py-3"
-    >
-      <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)]">{label}</span>
-      <div className="flex-1 h-px" style={{ backgroundColor: "var(--color-border-subtle)" }} />
-    </motion.div>
-  );
-}
-
 function AnimatedSidebarText({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <motion.span

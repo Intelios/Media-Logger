@@ -9,6 +9,7 @@ import {
     getDefaultColorTheme,
     getDefaultGlassStyle,
     getColorThemeById,
+    hexToRgb,
 } from './themes';
 
 interface ThemeContextType {
@@ -56,6 +57,8 @@ function applyTheme(colorTheme: ColorTheme, glassStyle: GlassStyle): void {
 
     root.style.setProperty('--color-primary', colorTheme.primary);
     root.style.setProperty('--color-secondary', colorTheme.secondary);
+    root.style.setProperty('--color-primary-rgb', hexToRgb(colorTheme.primary));
+    root.style.setProperty('--color-secondary-rgb', hexToRgb(colorTheme.secondary));
 
     root.style.setProperty('--color-background', modeColors.background);
     root.style.setProperty('--color-background-alt', modeColors.backgroundAlt);

@@ -97,6 +97,76 @@ export const COLOR_THEMES: ColorTheme[] = [
         secondary: '#FB923C',
         previewGradient: 'linear-gradient(135deg, #F43F5E, #FB923C)',
     },
+    {
+        id: 'sapphire',
+        name: 'Sapphire',
+        primary: '#2563EB',
+        secondary: '#3B82F6',
+        previewGradient: 'linear-gradient(135deg, #2563EB, #3B82F6)',
+    },
+    {
+        id: 'teal',
+        name: 'Teal',
+        primary: '#0D9488',
+        secondary: '#06B6D4',
+        previewGradient: 'linear-gradient(135deg, #0D9488, #06B6D4)',
+    },
+    {
+        id: 'forest',
+        name: 'Forest',
+        primary: '#16A34A',
+        secondary: '#15803D',
+        previewGradient: 'linear-gradient(135deg, #16A34A, #15803D)',
+    },
+    {
+        id: 'lime',
+        name: 'Lime',
+        primary: '#65A30D',
+        secondary: '#A3E635',
+        previewGradient: 'linear-gradient(135deg, #65A30D, #A3E635)',
+    },
+    {
+        id: 'gold',
+        name: 'Gold',
+        primary: '#EAB308',
+        secondary: '#FBBF24',
+        previewGradient: 'linear-gradient(135deg, #EAB308, #FBBF24)',
+    },
+    {
+        id: 'mocha',
+        name: 'Mocha',
+        primary: '#8B5E3C',
+        secondary: '#A97155',
+        previewGradient: 'linear-gradient(135deg, #8B5E3C, #A97155)',
+    },
+    {
+        id: 'fuchsia',
+        name: 'Fuchsia',
+        primary: '#D946EF',
+        secondary: '#C026D3',
+        previewGradient: 'linear-gradient(135deg, #D946EF, #C026D3)',
+    },
+    {
+        id: 'galaxy',
+        name: 'Galaxy',
+        primary: '#8B5CF6',
+        secondary: '#EC4899',
+        previewGradient: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
+    },
+    {
+        id: 'ruby',
+        name: 'Ruby',
+        primary: '#E11D48',
+        secondary: '#9F1239',
+        previewGradient: 'linear-gradient(135deg, #E11D48, #9F1239)',
+    },
+    {
+        id: 'cyber',
+        name: 'Cyber',
+        primary: '#22D3EE',
+        secondary: '#A855F7',
+        previewGradient: 'linear-gradient(135deg, #22D3EE, #A855F7)',
+    },
 ];
 
 // Dark mode colors (used by ThemeContext)
@@ -132,4 +202,17 @@ export function getDefaultGlassStyle(): GlassStyle {
 // Find theme by ID
 export function getColorThemeById(id: string): ColorTheme {
     return COLOR_THEMES.find(t => t.id === id) || getDefaultColorTheme();
+}
+
+// Convert a hex color (#RGB or #RRGGBB) to a comma-separated "r, g, b" string
+// for use in rgba(var(--color-primary-rgb), alpha) CSS expressions.
+export function hexToRgb(hex: string): string {
+    const normalized = hex.replace('#', '');
+    const full = normalized.length === 3
+        ? normalized.split('').map(c => c + c).join('')
+        : normalized;
+    const r = parseInt(full.slice(0, 2), 16);
+    const g = parseInt(full.slice(2, 4), 16);
+    const b = parseInt(full.slice(4, 6), 16);
+    return `${r}, ${g}, ${b}`;
 }

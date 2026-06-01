@@ -28,6 +28,8 @@
   /* Color theme */
   --color-primary: #5E35B1;
   --color-secondary: #1E88E5;
+  --color-primary-rgb: 94, 53, 177;
+  --color-secondary-rgb: 30, 136, 229;
 
   /* Mode theme - dark mode defaults */
   --color-background: #121212;
