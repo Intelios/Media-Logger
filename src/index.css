@@ -1385,11 +1385,15 @@ body {
 }
 
 /* Featured Entry - Hero Card */
+.dashboard-featured-wrap {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
 .dashboard-featured {
   display: block;
   position: relative;
   height: 360px;
-  margin-bottom: 1.5rem;
   border-radius: 24px;
   overflow: hidden;
   text-decoration: none;
@@ -1442,6 +1446,13 @@ body {
   flex-direction: column;
   justify-content: flex-end;
   padding: 2rem;
+}
+
+/* Wraps badge/title/meta so it can slide in as one unit on reroll */
+.dashboard-featured-content-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .dashboard-featured-badge {
@@ -1505,6 +1516,49 @@ body {
   gap: 0.35rem;
   color: #fbbf24;
   font-weight: 600;
+}
+
+/* Reroll button - right-center-middle of the featured card */
+.dashboard-reroll-btn {
+  position: absolute;
+  top: 50%;
+  right: 1.5rem;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.dashboard-reroll-btn:hover {
+  transform: translateY(-50%) scale(1.1);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--color-primary) 45%, transparent);
+}
+
+.dashboard-reroll-btn:active {
+  transform: translateY(-50%) scale(0.92);
+}
+
+.dashboard-reroll-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.dashboard-reroll-icon {
+  display: inline-flex;
 }
 
 /* Stats Row Boxes */

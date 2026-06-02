@@ -1,7 +1,7 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion, type Variants } from "framer-motion";
-import { Library, Star, Calendar, Folder, ArrowRight, Sparkles, Hourglass, RotateCcw, Captions } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion, type Variants } from "framer-motion";
+import { Library, Star, Calendar, Folder, ArrowRight, Sparkles, Hourglass, RotateCcw, Captions, Shuffle } from "lucide-react";
 import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { MediaListCard } from "../components/MediaListCard";
@@ -31,8 +31,12 @@ const greetingWordVariants: Variants = {
   },
 };
 
+const prefersReducedMotion = (): boolean =>
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
 export default function Dashboard() {
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recent, setRecent] = useState<MediaEntry[]>([]);
   const [featured, setFeatured] = useState<{ entry: MediaEntry; imageUrl: string } | null>(null);
@@ -40,13 +44,43 @@ export default function Dashboard() {
   const [displayName, setDisplayName] = useState("Collector");
   const [recentYear, setRecentYear] = useState(getCurrentYearString());
   const [onThisDay, setOnThisDay] = useState<MediaEntry[]>([]);
+  const [isRerolling, setIsRerolling] = useState(false);
+  const [spinKey, setSpinKey] = useState(0);
 
   // Track the current load operation to prevent stale updates
   const loadIdRef = useRef(0);
+  // Path of the image currently held for the featured card, so reroll/unmount
+  // release exactly what's displayed (image URLs are refcounted by path).
+  const featuredImagePathRef = useRef<string | null>(null);
+
+  // Fetch a (possibly fresh) featured entry, swap its image in, and release the
+  // previous one. Guarded by loadIdRef so stale async results never win.
+  const loadFeatured = useCallback(async (excludeId?: number) => {
+    const id = ++loadIdRef.current;
+    const feat = await dashboardLogic.getFeaturedEntry(excludeId);
+    if (loadIdRef.current !== id) return;
+
+    const imageUrl = feat ? await getImageUrl(feat.image_url) : null;
+    if (loadIdRef.current !== id) {
+      if (feat) releaseImageUrl(feat.image_url);
+      return;
+    }
+
+    releaseImageUrl(featuredImagePathRef.current);
+    featuredImagePathRef.current = feat ? feat.image_url : null;
+    setFeatured(feat && imageUrl ? { entry: feat, imageUrl } : null);
+  }, []);
+
+  const handleReroll = useCallback(async () => {
+    if (isRerolling) return;
+    if (!prefersReducedMotion()) setSpinKey((k) => k + 1);
+    setIsRerolling(true);
+    await loadFeatured(featured?.entry.id);
+    setIsRerolling(false);
+  }, [isRerolling, featured?.entry.id, loadFeatured]);
 
   useEffect(() => {
     let cancelled = false;
-    let featuredImagePath: string | null = null;
 
     // Time based greeting
     const hour = new Date().getHours();
@@ -57,15 +91,11 @@ export default function Dashboard() {
     // Load custom display name
     setDisplayName(getDisplayName());
 
-    // Increment load ID to invalidate any in-flight requests
-    const currentLoadId = ++loadIdRef.current;
-
-    // Load Data
+    // Load Data (the featured entry + its image are owned by loadFeatured)
     const load = async () => {
-      const [statsData, recentEntries, feat, availableYears, onThisDayEntries] = await Promise.all([
+      const [statsData, recentEntries, availableYears, onThisDayEntries] = await Promise.all([
         dashboardLogic.getStats(),
         dashboardLogic.getRecentEntries(),
-        dashboardLogic.getFeaturedEntry(),
         getAvailableNavigationYears(),
         dashboardLogic.getOnThisDayEntries(),
       ]);
@@ -73,31 +103,24 @@ export default function Dashboard() {
       const fallbackYear = availableYears[availableYears.length - 1] || getCurrentYearString();
       const recentWithYear = recentEntries.find(entry => entry.year_completed);
 
-      if (loadIdRef.current === currentLoadId) {
+      if (!cancelled) {
         setStats(statsData);
         setRecent(recentEntries);
         setRecentYear(recentWithYear?.year_completed ? String(recentWithYear.year_completed) : fallbackYear);
         setOnThisDay(onThisDayEntries);
       }
-
-      if (feat) {
-        const imageUrl = await getImageUrl(feat.image_url);
-        // Only update state if this is still the current load operation
-        if (!cancelled && loadIdRef.current === currentLoadId) {
-          featuredImagePath = feat.image_url;
-          setFeatured({ entry: feat, imageUrl });
-        } else {
-          releaseImageUrl(feat.image_url);
-        }
-      }
     };
     load();
+    loadFeatured();
 
     return () => {
       cancelled = true;
-      releaseImageUrl(featuredImagePath);
+      // Invalidate any in-flight featured load and release the displayed image.
+      loadIdRef.current++;
+      releaseImageUrl(featuredImagePathRef.current);
+      featuredImagePathRef.current = null;
     };
-  }, []);
+  }, [loadFeatured]);
 
   const handleCardClick = (entry: MediaEntry) => {
     if (entry.year_completed) {
@@ -168,46 +191,86 @@ export default function Dashboard() {
 
       {/* Featured Entry - Large Hero Card (full width) */}
       {featured && (
-        <Link
-          to={`/year/${featured.entry.year_completed}?highlight=${featured.entry.id}&type=${encodeURIComponent(featured.entry.entry_type || '')}`}
-          className="dashboard-featured"
-        >
-          <div className="dashboard-featured-bg">
-            <img src={featured.imageUrl} alt="" />
-          </div>
-          <div className="dashboard-featured-content">
-            <div className="dashboard-featured-badge">
-              <Star size={12} className="fill-current" />
-              <span>Featured</span>
+        <div className="dashboard-featured-wrap">
+          <Link
+            to={`/year/${featured.entry.year_completed}?highlight=${featured.entry.id}&type=${encodeURIComponent(featured.entry.entry_type || '')}`}
+            className="dashboard-featured"
+          >
+            <div className="dashboard-featured-bg">
+              <AnimatePresence>
+                <motion.img
+                  key={featured.entry.id}
+                  src={featured.imageUrl}
+                  alt=""
+                  style={{ position: "absolute", inset: 0 }}
+                  initial={reduceMotion ? false : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.5, ease: "easeOut" }}
+                />
+              </AnimatePresence>
             </div>
-            <h2 className="dashboard-featured-title">{featured.entry.name}</h2>
-            <div className="dashboard-featured-meta">
-              <span className="dashboard-featured-type">{featured.entry.entry_type}</span>
-              <span className="dashboard-featured-dot">•</span>
-              <span className="dashboard-featured-score">{featured.entry.review_score}/10</span>
-              <span className="dashboard-featured-dot">•</span>
-              <span>{featured.entry.completion_date || featured.entry.year_completed}</span>
-              {featured.entry.is_rewatch === 1 && (
-                <>
-                  <span className="dashboard-featured-dot">•</span>
-                  <span className="dashboard-featured-rewatch">
-                    <RotateCcw size={14} />
-                    Replay
-                  </span>
-                </>
-              )}
-              {featured.entry.has_subtitles === 1 && (
-                <>
-                  <span className="dashboard-featured-dot">•</span>
-                  <span className="dashboard-featured-rewatch" style={{ color: '#fb923c' }}>
-                    <Captions size={14} />
-                    Subtitles
-                  </span>
-                </>
-              )}
+            <div className="dashboard-featured-content">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={featured.entry.id}
+                  className="dashboard-featured-content-inner"
+                  initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -16 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.35, ease: "easeOut" }}
+                >
+                  <div className="dashboard-featured-badge">
+                    <Star size={12} className="fill-current" />
+                    <span>Featured</span>
+                  </div>
+                  <h2 className="dashboard-featured-title">{featured.entry.name}</h2>
+                  <div className="dashboard-featured-meta">
+                    <span className="dashboard-featured-type">{featured.entry.entry_type}</span>
+                    <span className="dashboard-featured-dot">•</span>
+                    <span className="dashboard-featured-score">{featured.entry.review_score}/10</span>
+                    <span className="dashboard-featured-dot">•</span>
+                    <span>{featured.entry.completion_date || featured.entry.year_completed}</span>
+                    {featured.entry.is_rewatch === 1 && (
+                      <>
+                        <span className="dashboard-featured-dot">•</span>
+                        <span className="dashboard-featured-rewatch">
+                          <RotateCcw size={14} />
+                          Replay
+                        </span>
+                      </>
+                    )}
+                    {featured.entry.has_subtitles === 1 && (
+                      <>
+                        <span className="dashboard-featured-dot">•</span>
+                        <span className="dashboard-featured-rewatch" style={{ color: '#fb923c' }}>
+                          <Captions size={14} />
+                          Subtitles
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              </AnimatePresence>
             </div>
-          </div>
-        </Link>
+          </Link>
+          <button
+            type="button"
+            className="dashboard-reroll-btn"
+            onClick={handleReroll}
+            disabled={isRerolling}
+            aria-label="Reroll featured entry"
+            title="Reroll"
+          >
+            <motion.span
+              className="dashboard-reroll-icon"
+              animate={{ rotate: spinKey * 360 }}
+              transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            >
+              <Shuffle size={18} />
+            </motion.span>
+          </button>
+        </div>
       )}
 
       {/* Stats Row */}

@@ -50,18 +50,32 @@ export const dashboardLogic = {
     };
   },
 
-  async getFeaturedEntry(): Promise<MediaEntry | null> {
+  async getFeaturedEntry(excludeId?: number): Promise<MediaEntry | null> {
     const db = await dbService.connect();
     // Pick from all visible entries so every (shown) item can be featured.
-    const totalCountResult = await db.select<{ count: number }[]>(
-      `SELECT COUNT(*) as count FROM entries WHERE 1=1${adultExclusionSql()}`
-    );
-    const totalCount = totalCountResult[0]?.count || 0;
+    const baseWhere = `WHERE 1=1${adultExclusionSql()}`;
+    // On a reroll, skip the entry that's already showing so it never repeats
+    // back-to-back — unless it's the only match, in which case we keep it.
+    const exclusion =
+      excludeId != null && Number.isFinite(excludeId) ? ` AND id != ${Math.trunc(excludeId)}` : '';
+
+    let where = baseWhere + exclusion;
+    let totalCount =
+      (await db.select<{ count: number }[]>(`SELECT COUNT(*) as count FROM entries ${where}`))[0]
+        ?.count || 0;
+
+    if (totalCount === 0 && exclusion) {
+      // Excluding the current entry left nothing — fall back to the full pool.
+      where = baseWhere;
+      totalCount =
+        (await db.select<{ count: number }[]>(`SELECT COUNT(*) as count FROM entries ${where}`))[0]
+          ?.count || 0;
+    }
     if (totalCount === 0) return null;
 
     const randomOffset = Math.floor(Math.random() * totalCount);
     const result = await db.select<MediaEntry[]>(
-      `SELECT * FROM entries WHERE 1=1${adultExclusionSql()} ORDER BY id ASC LIMIT 1 OFFSET $1`,
+      `SELECT * FROM entries ${where} ORDER BY id ASC LIMIT 1 OFFSET $1`,
       [randomOffset]
     );
     return result[0] || null;
