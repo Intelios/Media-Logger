@@ -900,20 +900,24 @@ export default function ProfilesPage() {
               </>
             )}
 
-            {/* Hover actions: Replace + Adjust (image present, not editing) */}
+            {/* Edit controls: compact corner cluster — no full-image scrim, image stays visible */}
             {!isCropEditing && headerImgSrc && (
-              <div className="absolute inset-0 z-10 bg-black/60 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm">
+              <div className="absolute top-4 right-4 z-10 flex items-center gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
                 <button
                   onClick={handleUpdateImage}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-sm font-medium transition-colors"
+                  title="Replace image"
+                  className="p-2.5 rounded-full bg-black/55 hover:bg-black/75 backdrop-blur-md border border-white/15 hover:border-white/30 text-white shadow-lg transition-colors"
                 >
-                  <Camera size={18} /> Replace
+                  <Camera size={18} />
+                  <span className="sr-only">Replace image</span>
                 </button>
                 <button
                   onClick={handleEnterCropEdit}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-sm font-medium transition-colors"
+                  title="Adjust crop"
+                  className="p-2.5 rounded-full bg-black/55 hover:bg-black/75 backdrop-blur-md border border-white/15 hover:border-white/30 text-white shadow-lg transition-colors"
                 >
-                  <Crop size={18} /> Adjust
+                  <Crop size={18} />
+                  <span className="sr-only">Adjust crop</span>
                 </button>
               </div>
             )}
