@@ -2,12 +2,42 @@ import { dbService, type MediaEntry, filterHiddenEntries, onEntriesMutated } fro
 import { ADULT_MEDIA_VISIBILITY_CHANGED_EVENT, isAdultMediaEnabled } from "./settings";
 import { saveImage } from "./utils";
 
+// Non-destructive crop/reframe descriptor for a profile's cover image.
+// Stored as JSON in the profiles.crop_data column; applied at render via CSS.
+export interface CropData {
+  x: number;      // focal point X, 0-100 (object-position / transform-origin)
+  y: number;      // focal point Y, 0-100
+  scale: number;  // zoom, >= 1 (transform: scale)
+  fit: "cover" | "contain";
+}
+
+// Defaults reproduce plain object-cover (today's behavior) — unedited profiles look identical.
+export const DEFAULT_CROP: CropData = { x: 50, y: 50, scale: 1, fit: "cover" };
+
 export interface ProfileSummary {
   type: string;
   name: string;
   count: number;
   average_score: number;
   image_url?: string;
+  crop?: CropData;
+}
+
+// Parse a crop_data JSON string into a CropData, falling back to undefined on any problem.
+function parseCropData(raw: string | null | undefined): CropData | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (
+      parsed && typeof parsed.x === "number" && typeof parsed.y === "number" &&
+      typeof parsed.scale === "number" && (parsed.fit === "cover" || parsed.fit === "contain")
+    ) {
+      return { x: parsed.x, y: parsed.y, scale: parsed.scale, fit: parsed.fit };
+    }
+  } catch {
+    // Ignore malformed crop data → treat as no crop.
+  }
+  return undefined;
 }
 
 export const PROFILE_TYPES = ["director", "actress", "artist", "author", "franchise", "series"];
@@ -36,13 +66,17 @@ async function aggregateAllProfiles(): Promise<ProfileSummary[]> {
   const db = await dbService.connect();
   const entries = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
 
-  const customImages = await db.select<{ type: string, name: string, image_url: string }[]>(
+  const customImages = await db.select<{ type: string, name: string, image_url: string, crop_data?: string | null }[]>(
     "SELECT * FROM profiles"
   );
 
   const imageMap = new Map<string, string>();
+  const cropMap = new Map<string, CropData>();
   customImages.forEach(img => {
-    imageMap.set(`${img.type}:${img.name}`, img.image_url);
+    const key = `${img.type}:${img.name}`;
+    imageMap.set(key, img.image_url);
+    const crop = parseCropData(img.crop_data);
+    if (crop) cropMap.set(key, crop);
   });
 
   const profileMap = new Map<string, { count: number; totalScore: number; scoreCount: number }>();
@@ -97,7 +131,8 @@ async function aggregateAllProfiles(): Promise<ProfileSummary[]> {
         name,
         count: data.count,
         average_score: data.scoreCount > 0 ? parseFloat((data.totalScore / data.scoreCount).toFixed(1)) : 0,
-        image_url: imageMap.get(key)
+        image_url: imageMap.get(key),
+        crop: cropMap.get(key)
       });
     }
   });
@@ -222,5 +257,19 @@ export const profilesLogic = {
     );
 
     return relativePath;
+  },
+
+  async setProfileCrop(type: string, name: string, crop: CropData): Promise<void> {
+    const db = await dbService.connect();
+
+    // Upsert crop while preserving any existing image_url for this profile.
+    await db.execute(
+      `INSERT INTO profiles (type, name, image_url, crop_data)
+       VALUES ($1, $2, COALESCE((SELECT image_url FROM profiles WHERE type = $1 AND name = $2), ''), $3)
+       ON CONFLICT(type, name) DO UPDATE SET crop_data = excluded.crop_data`,
+      [type, name, JSON.stringify(crop)]
+    );
+
+    invalidateProfilesCache();
   }
 };

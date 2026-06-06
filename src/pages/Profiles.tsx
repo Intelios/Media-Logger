@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw, Trophy, Tv, ArrowUp, ArrowDown, Captions, MoreVertical, EyeOff, Eye } from "lucide-react";
+import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw, Trophy, Tv, ArrowUp, ArrowDown, Captions, MoreVertical, EyeOff, Eye, Crop, Check, X, Maximize } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
-import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
+import { profilesLogic, type ProfileSummary, type CropData, DEFAULT_CROP } from "../lib/profiles-logic";
 import { awardsLogic } from "../lib/awards-logic";
 import type { MediaEntry } from "../lib/db";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
@@ -181,6 +181,8 @@ const getSortOrderForProfile = (profileKey: string, map: Record<string, "oldest"
 const getTypeConfig = (type: string) => {
   return PROFILE_TYPES.find(t => t.key === type) || PROFILE_TYPES[0];
 };
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 // Format date for timeline
 const formatTimelineDate = (dateString: string | null): string => {
@@ -447,6 +449,7 @@ function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
             src={imgSrc}
             alt={profile.name}
             className="relative z-[2] w-28 h-full min-h-0 flex-shrink-0 self-stretch object-cover object-center"
+            style={profile.crop ? { objectPosition: `${profile.crop.x}% ${profile.crop.y}%` } : undefined}
           />
         ) : (
           <div className={`relative z-[2] w-28 flex-shrink-0 self-stretch flex items-center justify-center bg-gradient-to-br ${typeConfig.placeholderGradient}`}>
@@ -541,6 +544,12 @@ export default function ProfilesPage() {
 
   // View Mode State
   const [viewMode, setViewMode] = useState<ViewMode>('collection');
+
+  // Cover crop editor state (non-destructive reframe of the hero image)
+  const [isCropEditing, setIsCropEditing] = useState(false);
+  const [draftCrop, setDraftCrop] = useState<CropData>(DEFAULT_CROP);
+  const cropFrameRef = useRef<HTMLDivElement>(null);
+  const dragStateRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number; width: number; height: number } | null>(null);
 
   // Sort Order State (per-profile, persisted)
   const [sortOrderMap, setSortOrderMap] = useState<Record<string, "oldest" | "newest">>(loadSortOrderMap);
@@ -690,6 +699,7 @@ export default function ProfilesPage() {
   // Handle drill-down
   const handleProfileClick = async (profile: ProfileSummary) => {
     setSelectedProfile(profile);
+    setIsCropEditing(false); // Never open a profile mid-edit
     setViewMode('collection'); // Reset to collection view when opening a new profile
     // Clear stale entries immediately so old profile's items don't flash during animation
     setProfileEntries([]);
@@ -756,10 +766,66 @@ export default function ProfilesPage() {
     }
   };
 
+  // --- Crop editor handlers ---
+  const handleEnterCropEdit = () => {
+    setDraftCrop(selectedProfile?.crop ?? DEFAULT_CROP);
+    setIsCropEditing(true);
+  };
+
+  const handleCancelCrop = () => setIsCropEditing(false);
+
+  const handleResetCrop = () => setDraftCrop(DEFAULT_CROP);
+
+  const handleSaveCrop = async () => {
+    if (!selectedProfile) return;
+    await profilesLogic.setProfileCrop(selectedProfile.type, selectedProfile.name, draftCrop);
+    setSelectedProfile({ ...selectedProfile, crop: draftCrop });
+
+    // Refresh the list so the crop persists when going back (mirrors handleUpdateImage)
+    const newProfiles = await profilesLogic.getAllProfiles();
+    setProfiles(newProfiles);
+    const updated = newProfiles.find(p => p.name === selectedProfile.name && p.type === selectedProfile.type);
+    if (updated) setSelectedProfile(updated);
+
+    setIsCropEditing(false);
+  };
+
+  // Drag to reposition the focal point (only in edit mode, cover fit)
+  const beginCropDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isCropEditing || draftCrop.fit !== "cover") return;
+    const frame = cropFrameRef.current;
+    if (!frame) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragStateRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      baseX: draftCrop.x,
+      baseY: draftCrop.y,
+      width: frame.clientWidth || 1,
+      height: frame.clientHeight || 1,
+    };
+  };
+
+  const moveCropDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const st = dragStateRef.current;
+    if (!st) return;
+    // Invert delta so the image follows the cursor.
+    const nextX = clamp(st.baseX - ((e.clientX - st.startX) / st.width) * 100, 0, 100);
+    const nextY = clamp(st.baseY - ((e.clientY - st.startY) / st.height) * 100, 0, 100);
+    setDraftCrop(c => ({ ...c, x: nextX, y: nextY }));
+  };
+
+  const endCropDrag = () => {
+    dragStateRef.current = null;
+  };
+
   const selectedProfileConfig = selectedProfile ? getTypeConfig(selectedProfile.type) : null;
 
   // --- VIEW 1: DETAILS (Drill Down) - Magazine/Portfolio Layout ---
   if (selectedProfile && selectedProfileConfig) {
+    // Crop applied to the hero cover — live draft while editing, otherwise the saved value.
+    const activeCrop = isCropEditing ? draftCrop : (selectedProfile.crop ?? DEFAULT_CROP);
     return (
       <div className="animate-in fade-in duration-500 -mx-6 -mt-6">
         {/* Split Hero - Cover-focused header */}
@@ -782,6 +848,7 @@ export default function ProfilesPage() {
           {/* Back Button - Floating over cover */}
           <button
             onClick={() => {
+              setIsCropEditing(false);
               if (returnTo) {
                 // Navigate back to the year view, highlighting the entry they came from
                 const params = new URLSearchParams({ highlight: returnTo.entryId });
@@ -798,11 +865,25 @@ export default function ProfilesPage() {
           </button>
 
           {/* LEFT: Large sharp cover (the focal point) */}
-          <div className="relative group w-full md:w-[40%] lg:w-[36%] min-h-[260px] md:min-h-[340px] flex-shrink-0 z-10">
+          <div
+            ref={cropFrameRef}
+            onPointerDown={beginCropDrag}
+            onPointerMove={moveCropDrag}
+            onPointerUp={endCropDrag}
+            onPointerCancel={endCropDrag}
+            className={`relative group w-full md:w-[40%] lg:w-[36%] min-h-[260px] md:min-h-[340px] flex-shrink-0 z-10 overflow-hidden ${isCropEditing && activeCrop.fit === 'cover' ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
+          >
             {headerImgSrc ? (
               <img
                 src={headerImgSrc}
-                className="absolute inset-0 h-full w-full object-cover"
+                draggable={false}
+                className="absolute inset-0 h-full w-full"
+                style={{
+                  objectFit: activeCrop.fit,
+                  objectPosition: `${activeCrop.x}% ${activeCrop.y}%`,
+                  transform: activeCrop.fit === 'cover' ? `scale(${activeCrop.scale})` : undefined,
+                  transformOrigin: `${activeCrop.x}% ${activeCrop.y}%`,
+                }}
                 alt={selectedProfile.name}
               />
             ) : (
@@ -811,18 +892,106 @@ export default function ProfilesPage() {
               </div>
             )}
 
-            {/* Blend cover into the info panel */}
-            <div className="absolute inset-0 hidden md:block bg-gradient-to-r from-transparent via-transparent to-[#0d0d0d]/70" />
-            <div className="absolute inset-x-0 bottom-0 h-24 md:hidden bg-gradient-to-t from-[#0d0d0d]/80 to-transparent" />
+            {/* Blend cover into the info panel (hidden while editing for an honest preview) */}
+            {!isCropEditing && (
+              <>
+                <div className="absolute inset-0 hidden md:block bg-gradient-to-r from-transparent via-transparent to-[#0d0d0d]/70 pointer-events-none" />
+                <div className="absolute inset-x-0 bottom-0 h-24 md:hidden bg-gradient-to-t from-[#0d0d0d]/80 to-transparent pointer-events-none" />
+              </>
+            )}
 
-            {/* Edit Overlay */}
-            <button
-              onClick={handleUpdateImage}
-              className="absolute inset-0 z-10 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer backdrop-blur-sm"
-            >
-              <Camera size={36} className="text-white" />
-              <span className="sr-only">Change profile image</span>
-            </button>
+            {/* Hover actions: Replace + Adjust (image present, not editing) */}
+            {!isCropEditing && headerImgSrc && (
+              <div className="absolute inset-0 z-10 bg-black/60 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm">
+                <button
+                  onClick={handleUpdateImage}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-sm font-medium transition-colors"
+                >
+                  <Camera size={18} /> Replace
+                </button>
+                <button
+                  onClick={handleEnterCropEdit}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-sm font-medium transition-colors"
+                >
+                  <Crop size={18} /> Adjust
+                </button>
+              </div>
+            )}
+
+            {/* No image yet: hover to add */}
+            {!isCropEditing && !headerImgSrc && (
+              <button
+                onClick={handleUpdateImage}
+                className="absolute inset-0 z-10 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer backdrop-blur-sm"
+              >
+                <Camera size={36} className="text-white" />
+                <span className="sr-only">Add profile image</span>
+              </button>
+            )}
+
+            {/* Drag hint */}
+            {isCropEditing && activeCrop.fit === 'cover' && (
+              <div className="absolute top-4 right-4 z-20 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-[11px] text-white/90 font-medium pointer-events-none">
+                Drag to reposition
+              </div>
+            )}
+
+            {/* Edit-mode toolbar */}
+            {isCropEditing && (
+              <div
+                onPointerDown={(e) => e.stopPropagation()}
+                className="absolute inset-x-0 bottom-0 z-20 p-4 flex flex-col gap-3 bg-gradient-to-t from-black/90 via-black/70 to-transparent"
+              >
+                {activeCrop.fit === 'cover' && (
+                  <div className="flex items-center gap-3">
+                    <span className="w-12 text-[11px] uppercase tracking-wider text-gray-300 font-semibold">Zoom</span>
+                    <input
+                      type="range"
+                      min={1}
+                      max={3}
+                      step={0.05}
+                      value={draftCrop.scale}
+                      onChange={(e) => setDraftCrop(c => ({ ...c, scale: parseFloat(e.target.value) }))}
+                      className="flex-1 accent-white cursor-pointer"
+                    />
+                    <span className="w-10 text-right text-xs text-gray-200 font-medium">{draftCrop.scale.toFixed(1)}x</span>
+                  </div>
+                )}
+
+                <label className="flex items-center gap-2 text-sm text-gray-200 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={draftCrop.fit === 'contain'}
+                    onChange={(e) => setDraftCrop(c => ({ ...c, fit: e.target.checked ? 'contain' : 'cover' }))}
+                    className="accent-white cursor-pointer"
+                  />
+                  <Maximize size={14} /> Fit whole image (no crop)
+                </label>
+
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    onClick={handleResetCrop}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-medium transition-colors"
+                  >
+                    <RotateCcw size={14} /> Reset
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleCancelCrop}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-medium transition-colors"
+                    >
+                      <X size={14} /> Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveCrop}
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white text-xs font-bold shadow-lg ${selectedProfileConfig.badgeShadow} transition-transform hover:scale-105`}
+                    >
+                      <Check size={14} /> Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* RIGHT: Info panel */}

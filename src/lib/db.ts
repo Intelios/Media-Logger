@@ -308,6 +308,7 @@ class DBService {
       await this.migrateCollectionItemsTable();
       await this.migrateAwardCategoriesTable();
       await this.migrateAwardWinnersTable();
+      await this.migrateProfilesTable();
     } catch (error) {
       console.error('[DB] Compatibility migration error:', error);
     }
@@ -525,6 +526,21 @@ class DBService {
     console.log('[DB] award_winners schema migration complete');
   }
 
+  private async migrateProfilesTable() {
+    if (!this.db) return;
+
+    const columns = await this.getTableInfo('profiles');
+    if (columns.length === 0) return;
+
+    const columnNames = columns.map(c => c.name);
+
+    // Non-destructive per-profile crop/reframe metadata (JSON in crop_data).
+    if (!columnNames.includes('crop_data')) {
+      console.log('[DB] Adding crop_data to profiles...');
+      await this.db.execute("ALTER TABLE profiles ADD COLUMN crop_data TEXT");
+    }
+  }
+
   /**
    * Create base tables if they don't exist (for new users)
    */
@@ -621,6 +637,7 @@ class DBService {
           type TEXT NOT NULL,
           name TEXT NOT NULL,
           image_url TEXT NOT NULL,
+          crop_data TEXT,
           PRIMARY KEY (type, name)
         )
       `);
