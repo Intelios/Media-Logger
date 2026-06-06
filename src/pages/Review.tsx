@@ -9,9 +9,10 @@ import { forceSimulation, forceCollide, forceManyBody, forceX, forceY } from "d3
 import { scaleLinear } from "d3-scale";
 import { cn } from "../lib/utils_ui";
 import { DEFAULT_COVER_IMAGE, getImageUrl, releaseImageUrl, useImageUrl } from "../lib/utils";
-import { generateReview, getReviewYears, type ReviewData, type ReviewSlide } from "../lib/review-logic";
+import { generateReview, getReviewYearStats, type ReviewData, type ReviewSlide } from "../lib/review-logic";
 import { FILTER_PRESETS, getVisibleEntryTypes, getVisiblePresetKeys, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 import { AnimatedNumber } from "../components/AnimatedNumber";
+import { getTypeBadgeStyle } from "../components/MediaCard";
 import type { MediaEntry } from "../lib/db";
 
 
@@ -802,7 +803,7 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
 // ─── Setup Screen ────────────────────────────────────────────────────────────
 
 export default function ReviewPage() {
-  const [years, setYears] = useState<number[]>([]);
+  const [years, setYears] = useState<{ year: number; count: number }[]>([]);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // null = full year
   const [selectedTypes, setSelectedTypes] = useState<string[]>(getVisibleEntryTypes);
@@ -811,9 +812,9 @@ export default function ReviewPage() {
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
 
   useEffect(() => {
-    getReviewYears().then(y => {
-      setYears(y);
-      if (y.length > 0 && !selectedYear) setSelectedYear(y[0]);
+    getReviewYearStats().then(stats => {
+      setYears(stats);
+      if (stats.length > 0 && !selectedYear) setSelectedYear(stats[0].year);
     });
   }, []);
 
@@ -849,159 +850,210 @@ export default function ReviewPage() {
     }
   };
 
+  const periodLabel = selectedMonth ? MONTH_NAMES[selectedMonth - 1] : "Full Year";
+  const visibleTypes = getVisibleEntryTypes();
+  const selectedYearCount = years.find(y => y.year === selectedYear)?.count ?? 0;
+  const canGenerate = !!selectedYear && selectedTypes.length > 0 && !loading;
+
   return (
-    <div className="p-8 max-w-2xl mx-auto" style={{ animation: "fadeIn 0.5s ease-out" }}>
+    <div className="max-w-7xl mx-auto p-6 pb-20" style={{ animation: "fadeIn 0.5s ease-out" }}>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-          <Sparkles size={20} className="text-white" />
+      <header className="flex items-center gap-4 mb-8">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+          <Sparkles size={24} className="text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-white">Year in Review</h1>
-          <p className="text-sm text-gray-400">Generate your personalized media wrapped</p>
+          <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400">
+            Year in Review
+          </h2>
+          <p className="text-gray-400 mt-1">Generate your personalized media wrapped</p>
         </div>
-      </div>
+      </header>
 
-      {/* Year Selector */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-400 mb-2">Year</label>
-        <div className="flex flex-wrap gap-2">
-          {years.map(year => (
-            <button
-              key={year}
-              onClick={() => setSelectedYear(year)}
-              className={cn(
-                "px-4 py-2 rounded-xl text-sm font-semibold transition-all",
-                selectedYear === year
-                  ? "bg-primary text-white shadow-lg shadow-primary/25 scale-105"
-                  : "bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10"
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ─── Left: configuration ─────────────────────────────────────── */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Year */}
+          <section className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-sm">
+            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-4">Year</h3>
+            <div className="flex flex-wrap gap-2.5">
+              {years.map(({ year, count }) => {
+                const isSelected = selectedYear === year;
+                return (
+                  <button
+                    key={year}
+                    onClick={() => setSelectedYear(year)}
+                    className={cn(
+                      "px-4 py-2.5 rounded-xl text-left transition-all border",
+                      isSelected
+                        ? "bg-primary text-white border-primary shadow-lg shadow-primary/25 scale-105"
+                        : "bg-white/5 text-gray-300 border-white/10 hover:bg-white/10"
+                    )}
+                  >
+                    <div className="text-base font-bold leading-tight">{year}</div>
+                    <div className={cn("text-xs", isSelected ? "text-white/70" : "text-gray-500")}>
+                      {count} {count === 1 ? "entry" : "entries"}
+                    </div>
+                  </button>
+                );
+              })}
+              {years.length === 0 && (
+                <p className="text-gray-500 text-sm">No years with entries found</p>
               )}
-            >
-              {year}
-            </button>
-          ))}
-          {years.length === 0 && (
-            <p className="text-gray-500 text-sm">No years with entries found</p>
-          )}
-        </div>
-      </div>
+            </div>
+          </section>
 
-      {/* Month Selector */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-400 mb-2">Period</label>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setSelectedMonth(null)}
-            className={cn(
-              "px-4 py-2 rounded-xl text-sm font-semibold transition-all",
-              selectedMonth === null
-                ? "bg-primary text-white shadow-lg shadow-primary/25 scale-105"
-                : "bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10"
-            )}
-          >
-            Full Year
-          </button>
-          {MONTH_NAMES.map((name, i) => (
-            <button
-              key={i}
-              onClick={() => setSelectedMonth(i + 1)}
-              className={cn(
-                "px-3 py-2 rounded-xl text-sm font-medium transition-all",
-                selectedMonth === i + 1
-                  ? "bg-primary text-white shadow-lg shadow-primary/25 scale-105"
-                  : "bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10"
-              )}
-            >
-              {name.slice(0, 3)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Type Filter */}
-      <div className="mb-8">
-        <label className="block text-sm font-medium text-gray-400 mb-2">Media Types</label>
-
-        {/* Presets */}
-        <div className="flex gap-2 mb-3">
-          {getVisiblePresetKeys().map(key => {
-            const preset = FILTER_PRESETS[key];
-            const Icon = preset.icon;
-            const isActive = activePreset === key;
-            return (
+          {/* Period */}
+          <section className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-sm">
+            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-4">Period</h3>
+            <div className="flex flex-wrap gap-2">
               <button
-                key={key}
-                onClick={() => handlePreset(key)}
+                onClick={() => setSelectedMonth(null)}
                 className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all border",
-                  isActive
+                  "px-4 py-2 rounded-xl text-sm font-semibold transition-all border",
+                  selectedMonth === null
+                    ? "bg-primary text-white border-primary shadow-lg shadow-primary/25 scale-105"
+                    : "bg-white/5 text-gray-300 border-white/10 hover:bg-white/10"
+                )}
+              >
+                Full Year
+              </button>
+              {MONTH_NAMES.map((name, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSelectedMonth(i + 1)}
+                  className={cn(
+                    "px-3.5 py-2 rounded-xl text-sm font-medium transition-all border",
+                    selectedMonth === i + 1
+                      ? "bg-primary text-white border-primary shadow-lg shadow-primary/25 scale-105"
+                      : "bg-white/5 text-gray-300 border-white/10 hover:bg-white/10"
+                  )}
+                >
+                  {name.slice(0, 3)}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* Media Types */}
+          <section className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-sm">
+            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-4">Media Types</h3>
+
+            {/* Presets */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {getVisiblePresetKeys().map(key => {
+                const preset = FILTER_PRESETS[key];
+                const Icon = preset.icon;
+                const isActive = activePreset === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => handlePreset(key)}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all border",
+                      isActive
+                        ? "bg-primary/20 border-primary/40 text-white scale-105"
+                        : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
+                    )}
+                  >
+                    <Icon size={16} />
+                    {preset.label}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => { setActivePreset(null); setSelectedTypes(visibleTypes); }}
+                className={cn(
+                  "px-3 py-2 rounded-xl text-sm font-medium transition-all border",
+                  selectedTypes.length === visibleTypes.length && !activePreset
                     ? "bg-primary/20 border-primary/40 text-white scale-105"
                     : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
                 )}
               >
-                <Icon size={16} />
-                {preset.label}
+                All
               </button>
-            );
-          })}
-          <button
-            onClick={() => { setActivePreset(null); setSelectedTypes(getVisibleEntryTypes()); }}
-            className={cn(
-              "px-3 py-2 rounded-xl text-sm font-medium transition-all border",
-              selectedTypes.length === getVisibleEntryTypes().length && !activePreset
-                ? "bg-primary/20 border-primary/40 text-white scale-105"
-                : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
-            )}
-          >
-            All
-          </button>
+            </div>
+
+            <div className="h-px bg-white/5 mb-4" />
+
+            {/* Individual types with icon + color accent */}
+            <div className="flex flex-wrap gap-2">
+              {visibleTypes.map(type => {
+                const isSelected = selectedTypes.includes(type);
+                const style = getTypeBadgeStyle(type);
+                return (
+                  <button
+                    key={type}
+                    onClick={() => toggleType(type)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all border",
+                      isSelected
+                        ? cn(style.bg, "text-white border-transparent shadow-sm font-medium")
+                        : "bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-gray-200"
+                    )}
+                  >
+                    {style.icon}
+                    {type}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         </div>
 
-        {/* Individual type checkboxes */}
-        <div className="flex flex-wrap gap-2">
-          {getVisibleEntryTypes().map(type => {
-            const isSelected = selectedTypes.includes(type);
-            return (
-              <button
-                key={type}
-                onClick={() => toggleType(type)}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-sm transition-all",
-                  isSelected
-                    ? "bg-white/15 text-white font-medium"
-                    : "bg-white/5 text-gray-500 hover:text-gray-300"
-                )}
-              >
-                {type}
-              </button>
-            );
-          })}
+        {/* ─── Right: summary + CTA ────────────────────────────────────── */}
+        <div className="lg:col-span-1">
+          <div className="lg:sticky lg:top-6 bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
+            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-5">Your Review</h3>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-400">Year</span>
+                <span className="text-sm font-semibold text-white">{selectedYear ?? "—"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-400">Period</span>
+                <span className="text-sm font-semibold text-white">{periodLabel}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-400">Media types</span>
+                <span className="text-sm font-semibold text-white">{selectedTypes.length} selected</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-400">Entries</span>
+                <span className="text-sm font-semibold text-white">{selectedYearCount}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleGenerate}
+              disabled={!canGenerate}
+              className={cn(
+                "w-full py-4 rounded-2xl text-base font-bold transition-all flex items-center justify-center gap-3",
+                !canGenerate
+                  ? "bg-white/5 text-gray-500 cursor-not-allowed"
+                  : "bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98]"
+              )}
+            >
+              {loading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Play size={20} className="fill-current" />
+                  Generate Review
+                </>
+              )}
+            </button>
+
+            {selectedTypes.length === 0 && (
+              <p className="text-xs text-gray-500 text-center mt-3">Select at least one media type</p>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* Generate Button */}
-      <button
-        onClick={handleGenerate}
-        disabled={!selectedYear || selectedTypes.length === 0 || loading}
-        className={cn(
-          "w-full py-4 rounded-2xl text-lg font-bold transition-all flex items-center justify-center gap-3",
-          !selectedYear || selectedTypes.length === 0 || loading
-            ? "bg-white/5 text-gray-500 cursor-not-allowed"
-            : "bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98]"
-        )}
-      >
-        {loading ? (
-          <>
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Generating...
-          </>
-        ) : (
-          <>
-            <Play size={20} className="fill-current" />
-            Generate My {selectedMonth ? MONTH_NAMES[selectedMonth - 1] : selectedYear} Review
-          </>
-        )}
-      </button>
 
       {/* Presentation overlay */}
       {reviewData && (

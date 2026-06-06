@@ -360,3 +360,13 @@ export async function getReviewYears(): Promise<number[]> {
   );
   return rows.map(r => r.year_completed);
 }
+
+export async function getReviewYearStats(): Promise<{ year: number; count: number }[]> {
+  const db = await dbService.connect();
+  const rows = await db.select<{ year_completed: number; count: number }[]>(
+    `SELECT year_completed, COUNT(*) as count FROM entries
+     WHERE year_completed IS NOT NULL${adultExclusionSql()}
+     GROUP BY year_completed ORDER BY year_completed DESC`
+  );
+  return rows.map(r => ({ year: r.year_completed, count: Number(r.count) }));
+}
