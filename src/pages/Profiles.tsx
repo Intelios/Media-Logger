@@ -394,6 +394,7 @@ function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
 }) {
   const imgSrc = useImageUrl(profile.image_url, "");
   const typeConfig = getTypeConfig(profile.type);
+  const TypeIcon = typeConfig.icon;
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
@@ -430,7 +431,7 @@ function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
     <div className="group relative h-full">
       <button
         onClick={() => onClick(profile)}
-        className={`relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-sm border ${typeConfig.borderColor} rounded-2xl overflow-hidden hover:border-white/25 transition-all duration-300 text-left h-full min-h-[7rem] w-full flex items-stretch hover:scale-[1.02] hover:shadow-2xl ${typeConfig.shadowColor}`}
+        className={`relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-sm border ${typeConfig.borderColor} rounded-2xl overflow-hidden hover:border-white/25 transition-all duration-300 text-left h-32 w-full flex items-stretch hover:scale-[1.02] hover:shadow-2xl ${typeConfig.shadowColor}`}
       >
         {/* Ambient blurred wash of the image, fading out across the card */}
         {imgSrc && (
@@ -445,7 +446,7 @@ function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
           <img
             src={imgSrc}
             alt={profile.name}
-            className="relative z-[2] w-28 h-full flex-shrink-0 self-stretch object-cover object-center"
+            className="relative z-[2] w-28 h-full min-h-0 flex-shrink-0 self-stretch object-cover object-center"
           />
         ) : (
           <div className={`relative z-[2] w-28 flex-shrink-0 self-stretch flex items-center justify-center bg-gradient-to-br ${typeConfig.placeholderGradient}`}>
@@ -458,7 +459,8 @@ function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
             {profile.name}
           </h4>
           <div className="flex items-center gap-3 mt-1.5">
-            <span className={`text-xs font-medium capitalize ${typeConfig.color}`}>
+            <span className={`flex items-center gap-1 text-xs font-medium capitalize ${typeConfig.color}`}>
+              <TypeIcon size={13} />
               {profile.type}
             </span>
             <div className="flex items-center gap-1.5 text-gray-400">
