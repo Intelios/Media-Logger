@@ -430,23 +430,30 @@ function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
     <div className="group relative h-full">
       <button
         onClick={() => onClick(profile)}
-        className="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden hover:border-white/25 transition-all duration-300 text-left h-full min-h-[7rem] w-full flex items-center p-4 gap-4 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/40"
+        className={`relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-sm border ${typeConfig.borderColor} rounded-2xl overflow-hidden hover:border-white/25 transition-all duration-300 text-left h-full min-h-[7rem] w-full flex items-stretch hover:scale-[1.02] hover:shadow-2xl ${typeConfig.shadowColor}`}
       >
-        {/* Gradient accent bar */}
-        <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${typeConfig.gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
+        {/* Ambient blurred wash of the image, fading out across the card */}
+        {imgSrc && (
+          <>
+            <div className="media-list-card-blur" style={{ backgroundImage: `url("${imgSrc}")` }} />
+            <div className="media-list-card-overlay" />
+          </>
+        )}
 
-        {/* Avatar / Image */}
-        <div className={`h-16 w-16 rounded-xl bg-black/40 flex-shrink-0 overflow-hidden border border-white/10 group-hover:border-white/25 transition-colors shadow-lg`}>
-          {imgSrc ? (
-            <img src={imgSrc} className="h-full w-full object-cover" alt={profile.name} />
-          ) : (
-            <div className={`h-full w-full flex items-center justify-center bg-gradient-to-br ${typeConfig.gradient} opacity-20`}>
-              <span className="text-2xl font-bold opacity-80 uppercase">{profile.name[0]}</span>
-            </div>
-          )}
-        </div>
+        {/* Crisp image / initials — uniform left section, full card height */}
+        {imgSrc ? (
+          <img
+            src={imgSrc}
+            alt={profile.name}
+            className="relative z-[2] w-28 h-full flex-shrink-0 self-stretch object-cover object-center"
+          />
+        ) : (
+          <div className={`relative z-[2] w-28 flex-shrink-0 self-stretch flex items-center justify-center bg-gradient-to-br ${typeConfig.placeholderGradient}`}>
+            <span className="text-3xl font-bold uppercase text-white/90">{profile.name[0]}</span>
+          </div>
+        )}
 
-        <div className="flex-1 min-w-0 pl-1">
+        <div className="relative z-[2] flex-1 min-w-0 flex flex-col justify-center px-4 py-3 pr-8">
           <h4 className="font-semibold text-lg group-hover:text-white transition-colors truncate">
             {profile.name}
           </h4>
@@ -468,7 +475,7 @@ function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
         </div>
 
         {/* Hover glow effect */}
-        <div className={`absolute inset-0 bg-gradient-to-r ${typeConfig.gradient} opacity-0 group-hover:opacity-5 transition-opacity pointer-events-none`} />
+        <div className={`absolute inset-0 z-[3] bg-gradient-to-r ${typeConfig.gradient} opacity-0 group-hover:opacity-5 transition-opacity pointer-events-none`} />
       </button>
 
       {/* Action menu button */}
