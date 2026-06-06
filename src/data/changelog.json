@@ -1,8 +1,32 @@
 {
-  "generatedAt": "2026-05-31T21:20:04.516Z",
+  "generatedAt": "2026-06-06T16:47:40.195Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "3.2",
+      "title": "Media Logger - 3.2",
+      "date": "2026-06-06",
+      "body": "New Content/Features:\n- Profile Sections Buttons/Cards images now expand to take the entire left side & a blurred background over the card. Looks way better and more modern.\n- Profile Buttons now contain a icon beside their type for easier indetification as the colour strip is removed for new design.\n- Profile Page (when clicked into profile) has an entirely new design focusing on more focus on the profile's image and stats than empty space.\n- Profile Page now has a 'crop' function to help get the perfect crop for the profile's hero image, instead of having to manually edit your photo or try different ones. This doesn't touch the image, just affects it's in app apperance.\n- Redesigned the Create Review page with entirely new UI. It previously felt very out of place so should now feel more in line with rest of the application.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.2"
+    },
+    {
+      "version": "3.1.1",
+      "title": "Media Logger - 3.1.1",
+      "date": "2026-06-02",
+      "body": "- Added reroll to dashboard's featured entries. Can reroll for a new random one.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.1.1"
+    },
+    {
+      "version": "3.1",
+      "title": "Media Logger - 3.1",
+      "date": "2026-06-01",
+      "body": "New Content/Features:\n- Random Picker in Search has had a full UI rebuild to fit the app. It looked a bit out of place, so it looks right now.\n- Removed the Overview section label above home as I found it redundant since Home is the only option there.\n- 10 New Colour Themes added.\n\nBug Fixes:\n- Fixed cards losing their rounded corners and rating pills getting cut off on hover due to new animation. Should now hopefully work fine.\n- Dashboard view now correctly uses the correct themeing function to show colouring properly. \n- Removed unused section label to clean up code.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.1"
+    },
     {
       "version": "3.0.1",
       "title": "Media Logger - 3.0.1",
