@@ -762,24 +762,24 @@ export default function ProfilesPage() {
   if (selectedProfile && selectedProfileConfig) {
     return (
       <div className="animate-in fade-in duration-500 -mx-6 -mt-6">
-        {/* Full-Width Hero Section with Blurred Background */}
-        <div className="relative h-72 overflow-hidden">
-          {/* Blurred Background Image */}
+        {/* Split Hero - Cover-focused header */}
+        <div className="relative flex flex-col md:flex-row min-h-[340px] overflow-hidden rounded-b-3xl profile-header-enter">
+          {/* Ambient blurred wash of the cover (cohesion layer behind everything) */}
           {headerImgSrc ? (
             <img
               src={headerImgSrc}
-              className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-40"
+              className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-25"
               alt=""
             />
           ) : (
             <div className={`absolute inset-0 bg-gradient-to-br ${selectedProfileConfig.bgGradient}`} />
           )}
 
-          {/* Gradient Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-[#0d0d0d]/80 to-transparent" />
+          {/* Scrims for legibility */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-[#0d0d0d]/70 to-[#0d0d0d]/30" />
           <div className={`absolute inset-0 bg-gradient-to-r ${selectedProfileConfig.overlayGradient}`} />
 
-          {/* Back Button - Floating */}
+          {/* Back Button - Floating over cover */}
           <button
             onClick={() => {
               if (returnTo) {
@@ -792,97 +792,91 @@ export default function ProfilesPage() {
                 setSelectedProfile(null);
               }
             }}
-            className="absolute top-6 left-6 p-3 bg-black/40 backdrop-blur-md hover:bg-black/60 rounded-full transition-all border border-white/10 hover:border-white/30 hover:scale-105 z-10"
+            className="absolute top-6 left-6 p-3 bg-black/40 backdrop-blur-md hover:bg-black/60 rounded-full transition-all border border-white/10 hover:border-white/30 hover:scale-105 z-20"
           >
             <ChevronLeft size={24} />
           </button>
-        </div>
 
-        {/* Floating Profile Card - Overlapping Hero */}
-        <div className="relative px-6 -mt-32 z-10">
-          <div className="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl shadow-black/50">
-            <div className="flex flex-col md:flex-row gap-8">
-              {/* Large Profile Image */}
-              <div className="relative group flex-shrink-0 self-start">
-                <div className={`h-40 w-40 rounded-2xl bg-black/50 overflow-hidden border-2 ${selectedProfileConfig.borderColor} shadow-2xl ${selectedProfileConfig.shadowColor} ring-4 ${selectedProfileConfig.ringColor}`}>
-                  {headerImgSrc ? (
-                    <img src={headerImgSrc} className="h-full w-full object-cover" alt={selectedProfile.name} />
-                  ) : (
-                    <div className={`h-full w-full flex items-center justify-center bg-gradient-to-br ${selectedProfileConfig.placeholderGradient} opacity-60`}>
-                      <span className="text-5xl font-bold uppercase text-white/80">{selectedProfile.name[0]}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Edit Overlay */}
-                <button
-                  onClick={handleUpdateImage}
-                  className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer backdrop-blur-sm"
-                >
-                  <Camera size={32} className="text-white" />
-                </button>
+          {/* LEFT: Large sharp cover (the focal point) */}
+          <div className="relative group w-full md:w-[40%] lg:w-[36%] min-h-[260px] md:min-h-[340px] flex-shrink-0 z-10">
+            {headerImgSrc ? (
+              <img
+                src={headerImgSrc}
+                className="absolute inset-0 h-full w-full object-cover"
+                alt={selectedProfile.name}
+              />
+            ) : (
+              <div className={`absolute inset-0 flex items-center justify-center bg-gradient-to-br ${selectedProfileConfig.placeholderGradient}`}>
+                <span className="text-8xl font-bold uppercase text-white/80">{selectedProfile.name[0]}</span>
               </div>
+            )}
 
-              {/* Profile Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-300">
-                      {selectedProfile.name}
-                    </h1>
-                    <div className="flex items-center gap-3 mt-4">
-                      <span className={`capitalize bg-gradient-to-r ${selectedProfileConfig.badgeGradient} px-5 py-2 rounded-full text-sm font-bold text-white shadow-lg ${selectedProfileConfig.badgeShadow}`}>
-                        {selectedProfile.type}
-                      </span>
-                      <span className={`${selectedProfileConfig.accentColor} text-sm font-medium`}>Profile</span>
-                    </div>
-                  </div>
-                </div>
+            {/* Blend cover into the info panel */}
+            <div className="absolute inset-0 hidden md:block bg-gradient-to-r from-transparent via-transparent to-[#0d0d0d]/70" />
+            <div className="absolute inset-x-0 bottom-0 h-24 md:hidden bg-gradient-to-t from-[#0d0d0d]/80 to-transparent" />
 
-                {/* Stats Row */}
-                <div className="flex flex-wrap gap-4 mt-6">
-                  {/* Entry Count */}
-                  <div className={`bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl px-6 py-4 flex items-center gap-4 hover:${selectedProfileConfig.borderColor} transition-colors`}>
-                    <div className={`p-3 rounded-xl ${selectedProfileConfig.bgIconColor}`}>
-                      <Hash size={20} className={selectedProfileConfig.iconColor} />
-                    </div>
-                    <div>
-                      <div className="text-3xl font-bold text-white">{selectedProfile.count}</div>
-                      <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Entries</div>
-                    </div>
-                  </div>
+            {/* Edit Overlay */}
+            <button
+              onClick={handleUpdateImage}
+              className="absolute inset-0 z-10 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer backdrop-blur-sm"
+            >
+              <Camera size={36} className="text-white" />
+              <span className="sr-only">Change profile image</span>
+            </button>
+          </div>
 
-                  {/* Average Score */}
-                  {selectedProfile.average_score > 0 && (
-                    <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl px-6 py-4 flex items-center gap-4 hover:border-yellow-500/30 transition-colors">
-                      <div className="p-3 rounded-xl bg-yellow-500/10">
-                        <Star size={20} className="text-yellow-400" fill="currentColor" />
-                      </div>
-                      <div>
-                        <div className="text-3xl font-bold text-white">{selectedProfile.average_score}</div>
-                        <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Avg Score</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Visual Score Bar */}
-                  {selectedProfile.average_score > 0 && (
-                    <div className="flex-1 min-w-[200px] bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl px-6 py-4 flex flex-col justify-center">
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="text-gray-400">Rating</span>
-                        <span className="text-white font-medium">{selectedProfile.average_score}/10</span>
-                      </div>
-                      <div className="h-2 bg-black/40 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full bg-gradient-to-r ${selectedProfileConfig.barGradient} rounded-full transition-all duration-1000`}
-                          style={{ width: `${(selectedProfile.average_score / 10) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+          {/* RIGHT: Info panel */}
+          <div className="relative z-10 flex-1 min-w-0 p-8 md:p-10 flex flex-col justify-center gap-4">
+            {/* Eyebrow */}
+            <div className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] ${selectedProfileConfig.accentColor}`}>
+              <span>Profile</span>
+              <span className="opacity-50">·</span>
+              <span>{selectedProfileConfig.label}</span>
             </div>
+
+            {/* Name */}
+            <h1 className="text-5xl md:text-6xl font-bold leading-[1.05] break-words bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-300">
+              {selectedProfile.name}
+            </h1>
+
+            {/* Type badge */}
+            <div>
+              <span className={`inline-block capitalize bg-gradient-to-r ${selectedProfileConfig.badgeGradient} px-4 py-1.5 rounded-full text-sm font-bold text-white shadow-lg ${selectedProfileConfig.badgeShadow}`}>
+                {selectedProfile.type}
+              </span>
+            </div>
+
+            {/* Compact inline stats */}
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="inline-flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3.5 py-1.5 text-sm font-medium text-white">
+                <Hash size={15} className={selectedProfileConfig.iconColor} />
+                {selectedProfile.count}
+                <span className="text-gray-400">entries</span>
+              </span>
+              {selectedProfile.average_score > 0 && (
+                <span className="inline-flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3.5 py-1.5 text-sm font-medium text-white">
+                  <Star size={15} className="text-yellow-400" fill="currentColor" />
+                  {selectedProfile.average_score}
+                  <span className="text-gray-400">avg</span>
+                </span>
+              )}
+            </div>
+
+            {/* Slim rating bar */}
+            {selectedProfile.average_score > 0 && (
+              <div className="max-w-sm mt-1">
+                <div className="flex justify-between text-xs mb-1.5">
+                  <span className="text-gray-400">Rating</span>
+                  <span className="text-white font-medium">{selectedProfile.average_score}/10</span>
+                </div>
+                <div className="h-1.5 bg-black/40 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full bg-gradient-to-r ${selectedProfileConfig.barGradient} rounded-full transition-all duration-1000`}
+                    style={{ width: `${(selectedProfile.average_score / 10) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
