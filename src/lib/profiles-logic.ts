@@ -84,7 +84,10 @@ async function aggregateAllProfiles(): Promise<ProfileSummary[]> {
   const processField = (entry: MediaEntry, field: keyof MediaEntry, type: string) => {
     const value = entry[field];
     if (typeof value === 'string' && value) {
-      const names = value.split(/[,;/]/).map(s => s.trim()).filter(s => s);
+      // Only commas delimit multi-value fields (matching EntryForm, MediaCard
+      // and the SQL actress matching) — titles like "Fate/Stay Night" or
+      // "Steins;Gate" must stay intact.
+      const names = value.split(',').map(s => s.trim()).filter(s => s);
 
       names.forEach(name => {
         const key = `${type}:${name}`;
@@ -124,7 +127,11 @@ async function aggregateAllProfiles(): Promise<ProfileSummary[]> {
 
   const results: ProfileSummary[] = [];
   profileMap.forEach((data, key) => {
-    const [type, name] = key.split(':');
+    // Split on the first colon only — the type never contains one, but
+    // profile names can (e.g. a "Re:Zero" series).
+    const sep = key.indexOf(':');
+    const type = key.slice(0, sep);
+    const name = key.slice(sep + 1);
     if (data.count >= 3) {
       results.push({
         type,
@@ -192,7 +199,7 @@ export const profilesLogic = {
       const column = type as keyof MediaEntry;
       const val = e[column];
       if (typeof val === 'string') {
-        const parts = val.split(/[,;/]/).map(s => s.trim());
+        const parts = val.split(',').map(s => s.trim());
         return parts.includes(name);
       }
       return false;

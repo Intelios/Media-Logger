@@ -60,3 +60,4 @@ patchnote.md
 !/.github/workflows/
 !/.github/workflows/*.yml
 !/.github/workflows/*.yaml
+CODEBASE-ANALYSIS.md

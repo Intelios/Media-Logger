@@ -135,12 +135,10 @@ function isTvEntry(entry: MediaEntry) {
 }
 
 function getMonthFromDate(dateStr: string) {
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleString("default", { month: "short" });
-  } catch {
-    return "Unknown";
-  }
+  // completion_date is stored as "YYYY-MM-DD"; parse the month directly so the
+  // label is locale-independent and always matches MONTH_KEYS.
+  const monthIndex = Number(dateStr.slice(5, 7)) - 1;
+  return MONTH_KEYS[monthIndex] ?? "Unknown";
 }
 
 function getDelimitedValues(value: string | null | undefined) {
