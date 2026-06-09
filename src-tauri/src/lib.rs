@@ -470,6 +470,14 @@ pub fn run() {
                     .id("go_collections")
                     .accelerator("CmdOrCtrl+7")
                     .build(app)?;
+                let go_backlog = MenuItemBuilder::new("Backlog")
+                    .id("go_backlog")
+                    .accelerator("CmdOrCtrl+8")
+                    .build(app)?;
+                let go_review = MenuItemBuilder::new("Review")
+                    .id("go_review")
+                    .accelerator("CmdOrCtrl+9")
+                    .build(app)?;
                 let go_settings = MenuItemBuilder::new("Settings")
                     .id("go_settings")
                     .accelerator("CmdOrCtrl+,")
@@ -488,6 +496,8 @@ pub fn run() {
                         &go_profiles,
                         &go_awards,
                         &go_collections,
+                        &go_backlog,
+                        &go_review,
                         &PredefinedMenuItem::separator(app)?,
                         &go_settings,
                     ],
@@ -550,6 +560,12 @@ pub fn run() {
                 }
                 "go_collections" => {
                     let _ = app.emit("menu-navigate", "/collections");
+                }
+                "go_backlog" => {
+                    let _ = app.emit("menu-navigate", "/backlog");
+                }
+                "go_review" => {
+                    let _ = app.emit("menu-navigate", "/review");
                 }
                 "go_settings" => {
                     let _ = app.emit("menu-navigate", "/settings");

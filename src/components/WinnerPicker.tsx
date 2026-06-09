@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Search, X, Plus } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { MediaCard } from "./MediaCard"; // Reuse the card!
@@ -37,38 +37,44 @@ export function WinnerPicker({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const isMultiSelect = mode === "multiple";
-  const excludedIdSet = new Set(excludedIds);
+  const excludedIdSet = useMemo(() => new Set(excludedIds), [excludedIds]);
 
   useEscapeToClose(isOpen, onClose);
   useFocusTrap(isOpen, modalRef);
 
+  // Fetch + reset only when the picker opens (or the year changes) — excludedIds
+  // is a fresh array on every parent render, so it must not retrigger this effect
+  // or query/selection get wiped mid-use. Exclusion is applied below instead.
   useEffect(() => {
     if (isOpen) {
       setQuery("");
       setSelectedIds([]);
       setIsSubmitting(false);
       dbService.getAllEntries().then(entries => {
-        // Optional: Filter by the award year automatically? 
-        // Usually awards are given to things from that year, but sometimes "Late entries" apply.
-        // Let's keep it open for now, or filter if year is provided.
-        let filteredEntries = entries.filter((entry) => !excludedIdSet.has(entry.id));
-        if (year) {
-            filteredEntries = filteredEntries.filter(e => e.year_completed === year);
-        }
-
-        setAllEntries(filteredEntries);
+        setAllEntries(entries);
       });
     }
-  }, [isOpen, year, excludedIds]);
+  }, [isOpen, year]);
+
+  const filteredEntries = useMemo(() => {
+    // Optional: Filter by the award year automatically?
+    // Usually awards are given to things from that year, but sometimes "Late entries" apply.
+    // Let's keep it open for now, or filter if year is provided.
+    let entries = allEntries.filter((entry) => !excludedIdSet.has(entry.id));
+    if (year) {
+      entries = entries.filter(e => e.year_completed === year);
+    }
+    return entries;
+  }, [allEntries, excludedIdSet, year]);
 
   useEffect(() => {
     if (!query) {
-        setResults(allEntries.slice(0, 8)); // Show some recent ones
+        setResults(filteredEntries.slice(0, 8)); // Show some recent ones
         return;
     }
     const q = query.toLowerCase();
-    setResults(allEntries.filter(e => e.name.toLowerCase().includes(q)));
-  }, [query, allEntries]);
+    setResults(filteredEntries.filter(e => e.name.toLowerCase().includes(q)));
+  }, [query, filteredEntries]);
 
   const toggleSelection = (mediaId: number) => {
     setSelectedIds((current) => (
@@ -171,7 +177,7 @@ export function WinnerPicker({
           </div>
           {results.length === 0 && (
             <div className="text-center py-20 text-gray-500">
-              {allEntries.length === 0 && excludedIds.length > 0
+              {filteredEntries.length === 0 && excludedIds.length > 0
                 ? "All available items are already in this collection"
                 : "No media found"}
             </div>

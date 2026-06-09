@@ -191,21 +191,40 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
     setFormData(prev => {
       const next = { ...prev, [key]: value } as Partial<MediaEntry>;
 
-      // Platinum and Early Access apply only to games.
+      // Platform, Franchise, Platinum, and Early Access apply only to games.
       if (key === "entry_type" && value !== "Game") {
+        next.platform = null;
+        next.franchise = null;
         next.is_platinum = 0;
         next.is_early_access = 0;
         next.early_access_version = null;
       }
 
-      // Completed applies only to Adult Visual Novels.
+      // Completed and Update Version apply only to Adult Visual Novels.
       if (key === "entry_type" && value !== "Adult Visual Novel") {
         next.is_completed = 0;
+        next.update_version = null;
       }
 
       // Series applies only to Show, K-Drama, and Anime.
       if (key === "entry_type" && !["Show", "K-Drama", "Anime"].includes(value as string)) {
         next.series = null;
+      }
+
+      // Author applies only to books.
+      if (key === "entry_type" && value !== "Book") {
+        next.author = null;
+      }
+
+      // Artist applies only to albums.
+      if (key === "entry_type" && value !== "Album") {
+        next.artist = null;
+      }
+
+      // Studio (director) and Actress apply only to JAV.
+      if (key === "entry_type" && value !== "JAV") {
+        next.director = null;
+        next.actress = null;
       }
 
       return next;
@@ -652,7 +671,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [
               )}
               <div>
                 <h3 className="text-xl font-bold text-white">
-                  {initialData ? "Edit Entry" : "Add New Entry"}
+                  {initialData?.id ? "Edit Entry" : "Add New Entry"}
                 </h3>
                 <p className="text-gray-400 text-sm mt-0.5 line-clamp-1">
                   {formData.name || "Untitled"}

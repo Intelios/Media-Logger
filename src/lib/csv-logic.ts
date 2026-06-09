@@ -183,7 +183,7 @@ const AWARD_YEAR_COLUMNS = ["year", "created_date"];
 const AWARD_TEMPLATE_COLUMNS = ["id", "name", "created_date"];
 const AWARD_CATEGORY_COLUMNS = ["id", "name", "year", "sort_order", "template_id"];
 const AWARD_WINNER_COLUMNS = ["category_id", "media_id", "selected_date"];
-const PROFILE_COLUMNS = ["type", "name", "image_url"];
+const PROFILE_COLUMNS = ["type", "name", "image_url", "crop_data"];
 const HIDDEN_PROFILE_COLUMNS = ["type", "name", "hidden_date"];
 const BACKLOG_COLUMNS = ["id", "name", "entry_type", "genre", "image_url", "status", "added_date", "sort_order"];
 
@@ -246,7 +246,7 @@ export async function exportAllData(): Promise<ExportData> {
 
     // Export profile image mappings
     const profiles = await db.select<
-        { type: string; name: string; image_url: string }[]
+        { type: string; name: string; image_url: string; crop_data: string | null }[]
     >("SELECT * FROM profiles ORDER BY type ASC, name ASC");
 
     // Export hidden profiles
@@ -596,29 +596,33 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                 type: string;
                 name: string;
                 image_url: string;
+                crop_data: string | null;
             }>(data.profiles);
 
             for (const profile of profiles) {
                 if (!profile.type || !profile.name || !profile.image_url) continue;
 
-                const existing = await db.select<{ image_url: string }[]>(
-                    "SELECT image_url FROM profiles WHERE type = $1 AND name = $2",
+                // Old backups predate the crop_data column; treat missing as null.
+                const cropData = profile.crop_data ?? null;
+
+                const existing = await db.select<{ image_url: string; crop_data: string | null }[]>(
+                    "SELECT image_url, crop_data FROM profiles WHERE type = $1 AND name = $2",
                     [profile.type, profile.name]
                 );
 
                 if (existing.length === 0) {
                     await db.execute(
-                        "INSERT INTO profiles (type, name, image_url) VALUES ($1, $2, $3)",
-                        [profile.type, profile.name, profile.image_url]
+                        "INSERT INTO profiles (type, name, image_url, crop_data) VALUES ($1, $2, $3, $4)",
+                        [profile.type, profile.name, profile.image_url, cropData]
                     );
                     result.profilesImported++;
                     continue;
                 }
 
-                if (existing[0].image_url !== profile.image_url) {
+                if (existing[0].image_url !== profile.image_url || existing[0].crop_data !== cropData) {
                     await db.execute(
-                        "UPDATE profiles SET image_url = $1 WHERE type = $2 AND name = $3",
-                        [profile.image_url, profile.type, profile.name]
+                        "UPDATE profiles SET image_url = $1, crop_data = $2 WHERE type = $3 AND name = $4",
+                        [profile.image_url, cropData, profile.type, profile.name]
                     );
                     result.profilesImported++;
                 }

@@ -7,6 +7,7 @@ import { profilesLogic, type ProfileSummary, type CropData, DEFAULT_CROP } from 
 import { awardsLogic } from "../lib/awards-logic";
 import type { MediaEntry } from "../lib/db";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
+import { formatShortDate } from "../lib/dates";
 import { useImageUrl } from "../lib/utils";
 
 type ViewMode = 'collection' | 'timeline' | 'awards';
@@ -184,17 +185,6 @@ const getTypeConfig = (type: string) => {
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-// Format date for timeline
-const formatTimelineDate = (dateString: string | null): string => {
-  if (!dateString) return 'Unknown Date';
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch {
-    return dateString;
-  }
-};
-
 // --- SUB-COMPONENT: Timeline Entry Card ---
 function TimelineCard({
   entry,
@@ -308,7 +298,7 @@ function TimelineCard({
 
               <div className="flex items-center gap-1.5 mt-2 text-gray-400">
                 <Calendar size={11} />
-                <span className="text-xs">{formatTimelineDate(entry.completion_date)}</span>
+                <span className="text-xs">{formatShortDate(entry.completion_date)}</span>
               </div>
             </div>
 
@@ -1179,12 +1169,12 @@ export default function ProfilesPage() {
                 <div className="inline-flex items-center gap-3 px-6 py-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl">
                   <div className="flex items-center gap-1 text-green-400">
                     <Flag size={14} />
-                    <span className="text-xs font-medium">{formatTimelineDate(timelineEntries[0]?.completion_date)}</span>
+                    <span className="text-xs font-medium">{formatShortDate(timelineEntries[0]?.completion_date)}</span>
                   </div>
                   <span className="text-gray-500">→</span>
                   <div className="flex items-center gap-1 text-rose-400">
                     <Flame size={14} />
-                    <span className="text-xs font-medium">{formatTimelineDate(timelineEntries[timelineEntries.length - 1]?.completion_date)}</span>
+                    <span className="text-xs font-medium">{formatShortDate(timelineEntries[timelineEntries.length - 1]?.completion_date)}</span>
                   </div>
                   <span className="text-gray-500 mx-2">|</span>
                   <span className="text-gray-400 text-xs">{timelineEntries.length} entries total</span>

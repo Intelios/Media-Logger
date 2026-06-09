@@ -33,7 +33,8 @@ const computeFiltered = (
   }
 
   if (types.length !== getVisibleEntryTypes().length) {
-    result = result.filter(e => e.entry_type && types.includes(e.entry_type));
+    // Entries with no type can't be matched by any type filter, so always keep them visible.
+    result = result.filter(e => !e.entry_type || types.includes(e.entry_type));
   }
 
   if (localCopy !== null) {

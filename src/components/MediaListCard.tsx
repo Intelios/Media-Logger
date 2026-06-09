@@ -3,7 +3,8 @@ import { Star, Calendar, RotateCcw, Captions, Trophy, Clock } from "lucide-react
 import type { MediaEntry } from "../lib/db";
 import { DEFAULT_COVER_IMAGE, useImageUrl } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
-import { getTypeBadgeStyle, getRatingColor, formatDate, parseGenres } from "./MediaCard";
+import { getTypeBadgeStyle, getRatingColor, parseGenres } from "./MediaCard";
+import { formatDate } from "../lib/dates";
 
 const cardLiftTransition = {
   type: "spring",

@@ -153,6 +153,7 @@ export function Layout() {
         "6": "/awards",
         "7": "/collections",
         "8": "/backlog",
+        "9": "/review",
         ",": "/settings",
       };
 

@@ -2,6 +2,7 @@ import { Calendar } from "lucide-react";
 import { StatsWidgetShell } from "../StatsWidgetShell";
 import { STATS_WIDGET_META } from "../stats-config";
 import type { DailyCompletion } from "../../../lib/stats-logic";
+import { formatShortDate } from "../../../lib/dates";
 
 interface CompletionHeatmapWidgetProps {
   dailyCompletions: DailyCompletion[];
@@ -28,11 +29,6 @@ function getColorForCount(count: number): string {
   if (count === 3) return HEATMAP_COLORS[3];
   if (count === 4) return HEATMAP_COLORS[4];
   return HEATMAP_COLORS[5];
-}
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 function buildHeatmapData(dailyCompletions: DailyCompletion[], activeYear: string) {
@@ -166,7 +162,7 @@ export function CompletionHeatmapWidget({ dailyCompletions, activeYear, onDateCl
                     } disabled:opacity-50`}
                     title={
                       day.date
-                        ? `${formatDate(day.date)}: ${day.count} ${day.count === 1 ? "entry" : "entries"}`
+                        ? `${formatShortDate(day.date)}: ${day.count} ${day.count === 1 ? "entry" : "entries"}`
                         : undefined
                     }
                   />

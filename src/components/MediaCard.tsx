@@ -8,6 +8,9 @@ import { DEFAULT_COVER_IMAGE, useImageUrl } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { getRatingDisplayMode } from "../lib/settings";
+import { formatDate } from "../lib/dates";
+import { useEscapeToClose } from "../lib/useEscapeToClose";
+import { useFocusTrap } from "../lib/useFocusTrap";
 
 // Type badge colors matching Flet version
 export const getTypeBadgeStyle = (type: string | null) => {
@@ -31,32 +34,6 @@ export const getRatingColor = (score: number | null) => {
   if (score >= 7) return "bg-blue-500 text-white";
   if (score >= 5) return "bg-yellow-500 text-white";
   return "bg-red-500 text-white";
-};
-
-// Format date to "14th March 2026" style
-export const formatDate = (dateString: string | null): string => {
-  if (!dateString) return "";
-  try {
-    const date = new Date(dateString);
-    const day = date.getDate();
-    const month = date.toLocaleString('en-US', { month: 'long' });
-    const year = date.getFullYear();
-
-    // Add ordinal suffix
-    const suffix = (d: number) => {
-      if (d > 3 && d < 21) return 'th';
-      switch (d % 10) {
-        case 1: return 'st';
-        case 2: return 'nd';
-        case 3: return 'rd';
-        default: return 'th';
-      }
-    };
-
-    return `${day}${suffix(day)} ${month} ${year}`;
-  } catch {
-    return dateString;
-  }
 };
 
 // Get context info based on entry type - returns an array for entries with multiple fields
@@ -201,6 +178,10 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
   const earlyAccessBadgeRef = useRef<HTMLDivElement>(null);
   const platinumStatusBadgeRef = useRef<HTMLDivElement>(null);
   const genreOverflowRef = useRef<HTMLDivElement>(null);
+  const detailsModalRef = useRef<HTMLDivElement>(null);
+  const imageModalRef = useRef<HTMLDivElement>(null);
+  const deleteModalRef = useRef<HTMLDivElement>(null);
+  const duplicatesModalRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const contextInfo = getContextInfo(entry);
@@ -221,6 +202,16 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
     : perfectTen
       ? "0 30px 60px rgba(0, 0, 0, 0.42), 0 12px 26px rgba(6, 78, 59, 0.26), 0 0 58px rgba(52, 211, 153, 0.22)"
       : "0 26px 54px rgba(0, 0, 0, 0.38), 0 10px 22px rgba(0, 0, 0, 0.24), 0 0 36px color-mix(in srgb, var(--color-primary) 18%, transparent)";
+
+  useEscapeToClose(descriptionOpen, () => setDescriptionOpen(false));
+  useEscapeToClose(imageViewOpen, () => setImageViewOpen(false));
+  useEscapeToClose(deleteConfirmOpen, () => setDeleteConfirmOpen(false));
+  useEscapeToClose(duplicatesModalOpen, () => setDuplicatesModalOpen(false));
+
+  useFocusTrap(descriptionOpen, detailsModalRef);
+  useFocusTrap(imageViewOpen, imageModalRef);
+  useFocusTrap(deleteConfirmOpen, deleteModalRef);
+  useFocusTrap(duplicatesModalOpen, duplicatesModalRef);
 
   // Click outside to close menu
   useEffect(() => {
@@ -690,6 +681,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
             }}
           >
             <div
+              ref={detailsModalRef}
               className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-lg rounded-2xl shadow-2xl shadow-primary/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
@@ -787,6 +779,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
             </button>
 
             <div
+              ref={imageModalRef}
               className="relative flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
@@ -823,6 +816,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
             }}
           >
             <div
+              ref={deleteModalRef}
               className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl shadow-red-500/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
@@ -883,6 +877,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
             }}
           >
             <div
+              ref={duplicatesModalRef}
               className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-2xl rounded-2xl shadow-2xl shadow-amber-500/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >

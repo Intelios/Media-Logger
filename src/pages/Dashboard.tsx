@@ -8,6 +8,7 @@ import { MediaListCard } from "../components/MediaListCard";
 import type { MediaEntry } from "../lib/db";
 import { getImageUrl, releaseImageUrl } from "../lib/utils";
 import { getDisplayName } from "../lib/settings";
+import { formatTodayMD } from "../lib/dates";
 import { getAvailableNavigationYears, getCurrentYearString } from "../lib/navigation-years";
 
 const greetingContainerVariants: Variants = {
@@ -128,18 +129,6 @@ export default function Dashboard() {
         `/year/${entry.year_completed}?highlight=${entry.id}&type=${encodeURIComponent(entry.entry_type || "")}`
       );
     }
-  };
-
-  // Format today's month+day for the "On This Day" subheader (e.g. "April 27th")
-  const formatTodayMD = (): string => {
-    const today = new Date();
-    const day = today.getDate();
-    const month = today.toLocaleString('en-US', { month: 'long' });
-    const suffix = (d: number) => {
-      if (d > 3 && d < 21) return 'th';
-      switch (d % 10) { case 1: return 'st'; case 2: return 'nd'; case 3: return 'rd'; default: return 'th'; }
-    };
-    return `${month} ${day}${suffix(day)}`;
   };
 
   if (!stats) return (

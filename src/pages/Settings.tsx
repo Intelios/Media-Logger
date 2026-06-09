@@ -279,7 +279,7 @@ export default function Settings() {
 
     const handleDisplayNameSave = () => {
         setDisplayName(displayName);
-        setIsCustomName(displayName.trim() !== '' && displayName.trim() !== 'Collector');
+        setIsCustomName(hasCustomDisplayName());
         showToast('Display name saved');
     };
 

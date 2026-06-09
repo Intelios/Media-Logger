@@ -35,11 +35,13 @@ export function getDisplayName(): string {
 }
 
 /**
- * Set a custom display name.
+ * Set a custom display name. Saving the default name (or an empty value)
+ * clears the override so hasCustomDisplayName() stays accurate.
  */
 export function setDisplayName(name: string): void {
-    if (name.trim()) {
-        localStorage.setItem(DISPLAY_NAME_KEY, name.trim());
+    const trimmed = name.trim();
+    if (trimmed && trimmed !== DEFAULT_DISPLAY_NAME) {
+        localStorage.setItem(DISPLAY_NAME_KEY, trimmed);
     } else {
         localStorage.removeItem(DISPLAY_NAME_KEY);
     }
