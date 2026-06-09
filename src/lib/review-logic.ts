@@ -278,6 +278,10 @@ export async function generateReview(params: ReviewParams): Promise<ReviewData> 
   for (let i = 10; i >= 1; i--) {
     ratingBars.push({ rating: i, count: ratingDist[i] || 0 });
   }
+  // Zero is a selectable score; show its bar only when someone actually used it.
+  if (ratingDist[0] > 0) {
+    ratingBars.push({ rating: 0, count: ratingDist[0] });
+  }
 
   if (ratedEntries.length > 0) {
     // Find most common rating
@@ -298,7 +302,7 @@ export async function generateReview(params: ReviewParams): Promise<ReviewData> 
          FROM award_categories c
          JOIN award_winners w ON w.category_id = c.id
          JOIN entries m ON w.media_id = m.id
-         WHERE c.year = $1
+         WHERE c.year = $1${adultExclusionSql()}
          ORDER BY c.sort_order ASC`,
         [params.year]
       );

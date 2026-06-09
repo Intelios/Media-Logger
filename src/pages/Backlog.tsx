@@ -7,7 +7,6 @@ import { ReorderModal } from "../components/ReorderModal";
 import { backlogLogic, type BacklogItemsByStatus } from "../lib/backlog-logic";
 import { dbService, type BacklogItem, type MediaEntry } from "../lib/db";
 import { getVisibleEntryTypes, useAdultMediaEnabled } from "../lib/media-config";
-import { saveImage } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 
 export default function Backlog() {
@@ -99,13 +98,8 @@ export default function Backlog() {
     if (!completingItem) return;
 
     try {
-      let finalImageUrl = entryData.image_url;
-
-      if (finalImageUrl && !finalImageUrl.startsWith("assets/")) {
-        const saved = await saveImage(finalImageUrl);
-        if (saved) finalImageUrl = saved;
-      }
-
+      // EntryForm has already persisted any newly picked image via saveImage()
+      // before onSave fires, so image_url is final here.
       let yearCompleted = entryData.year_completed;
       if (entryData.completion_date) {
         const year = parseInt(entryData.completion_date.split("-")[0], 10);
@@ -114,7 +108,7 @@ export default function Backlog() {
 
       await dbService.addEntry({
         ...entryData,
-        image_url: finalImageUrl ?? null,
+        image_url: entryData.image_url ?? null,
         year_completed: yearCompleted ?? null,
       } as Omit<MediaEntry, "id">);
 

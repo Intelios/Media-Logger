@@ -235,8 +235,11 @@ export function selectRatingDistribution(dataset: StatsDataset): StatItem[] {
   const ratingMap = new Array(11).fill(0);
 
   for (const entry of dataset.ratedEntries) {
-    if (entry.review_score >= 1 && entry.review_score <= 10) {
-      ratingMap[entry.review_score] += 1;
+    // review_score is REAL in the schema; round fractional scores into integer
+    // buckets (matching the Review slide) instead of silently dropping them.
+    const score = Math.round(entry.review_score);
+    if (score >= 0 && score <= 10) {
+      ratingMap[score] += 1;
     }
   }
 
@@ -246,6 +249,15 @@ export function selectRatingDistribution(dataset: StatsDataset): StatItem[] {
       name: score.toString(),
       count: ratingMap[score],
       value: ratingMap[score],
+    });
+  }
+
+  // Zero is a selectable score; show its bar only when someone actually used it.
+  if (ratingMap[0] > 0) {
+    ratings.push({
+      name: "0",
+      count: ratingMap[0],
+      value: ratingMap[0],
     });
   }
 

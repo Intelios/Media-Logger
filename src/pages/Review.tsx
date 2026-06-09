@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   Sparkles, ChevronLeft, ChevronRight, X, Play,
-  Star, Trophy, Flame, Heart, Zap, Crown, Gem, BarChart3,
-  Eye, Globe,
+  Star, Trophy, Flame, Heart, Zap, Crown, BarChart3,
+  Globe,
 } from "lucide-react";
 import { forceSimulation, forceCollide, forceManyBody, forceX, forceY } from "d3-force";
 import { scaleLinear } from "d3-scale";
@@ -29,8 +29,6 @@ const SLIDE_THEMES: Record<string, { gradient: string; accent: string }> = {
   "top-genre":         { gradient: "from-pink-500 via-rose-500 to-fuchsia-600", accent: "pink" },
   "genre-cloud":       { gradient: "from-indigo-500 via-violet-500 to-fuchsia-600", accent: "indigo" },
   "top-franchise":     { gradient: "from-sky-500 via-blue-500 to-indigo-600", accent: "blue" },
-  "surprise-favorite": { gradient: "from-purple-500 via-fuchsia-500 to-pink-500", accent: "purple" },
-  "hidden-gem":        { gradient: "from-teal-500 via-emerald-500 to-cyan-500", accent: "teal" },
   "rating-breakdown":  { gradient: "from-indigo-500 via-violet-500 to-purple-600", accent: "indigo" },
   "award-winners":     { gradient: "from-yellow-500 via-amber-500 to-orange-500", accent: "amber" },
   "finale":            { gradient: "from-rose-500 via-purple-500 to-indigo-600", accent: "rose" },
@@ -45,8 +43,6 @@ const SLIDE_ICONS: Record<string, typeof Star> = {
   "top-genre": Heart,
   "genre-cloud": Globe,
   "top-franchise": Zap,
-  "surprise-favorite": Eye,
-  "hidden-gem": Gem,
   "rating-breakdown": BarChart3,
   "award-winners": Trophy,
   "finale": Sparkles,

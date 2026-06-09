@@ -154,6 +154,10 @@ class DBService {
   // Guards the one-time legacy file migration so concurrent connect() calls
   // (multiple components mounting at once) only migrate once.
   private legacyMigration: Map<string, Promise<void>> = new Map();
+  // In-flight connect() promise so concurrent callers share one Database.load
+  // + runMigrations() instead of racing. Cleared once settled so later calls
+  // still re-check the data directory (custom data dir can change at runtime).
+  private connectPromise: Promise<Database> | null = null;
 
   /**
    * One-time migration of the legacy 'jav_log.db' to the canonical 'media_logger.db'.
@@ -219,7 +223,15 @@ class DBService {
     }
   }
 
-  async connect() {
+  async connect(): Promise<Database> {
+    if (this.connectPromise) return this.connectPromise;
+    this.connectPromise = this.doConnect().finally(() => {
+      this.connectPromise = null;
+    });
+    return this.connectPromise;
+  }
+
+  private async doConnect(): Promise<Database> {
     // Get the current data directory
     const dataDir = await getDataDirectory();
 
@@ -252,7 +264,8 @@ class DBService {
 
     // Connect to the database
     console.log('[DB] Connecting to:', dbPath);
-    this.db = await Database.load(`sqlite:${dbPath}`);
+    const db = await Database.load(`sqlite:${dbPath}`);
+    this.db = db;
     this.currentDbPath = dbPath;
 
     // Run migrations if not already done for this connection
@@ -261,7 +274,7 @@ class DBService {
       this.migrationsRun = true;
     }
 
-    return this.db;
+    return db;
   }
 
   /**
@@ -953,10 +966,11 @@ class DBService {
    */
   async getEntriesByName(name: string): Promise<MediaEntry[]> {
     const db = await this.connect();
-    return await db.select<MediaEntry[]>(
+    const rows = await db.select<MediaEntry[]>(
       "SELECT * FROM entries WHERE name = $1 ORDER BY completion_date ASC",
       [name]
     );
+    return filterHiddenEntries(rows);
   }
 
   // --- Backlog ---
