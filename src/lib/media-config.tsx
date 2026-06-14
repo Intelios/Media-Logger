@@ -49,14 +49,14 @@ export const FILTER_PRESETS: Record<FilterPresetKey, MediaFilterPreset> = {
     label: "Gaming",
     icon: Gamepad2,
     types: ["Game"],
-    gradient: "from-green-500 to-emerald-600",
+    gradient: "from-purple-500 to-indigo-600",
   },
   media: {
     key: "media",
     label: "Media",
     icon: Film,
     types: ["K-Drama", "Anime", "Show", "Movie", "Book", "Album"],
-    gradient: "from-blue-500 to-purple-600",
+    gradient: "from-blue-500 via-cyan-500 to-amber-500",
   },
   adult: {
     key: "adult",
