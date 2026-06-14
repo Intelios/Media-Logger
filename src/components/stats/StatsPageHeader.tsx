@@ -51,7 +51,10 @@ export function StatsPageHeader({
     <header className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <h2 className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-3xl font-bold text-transparent">
+          <h2
+            className="bg-clip-text text-3xl font-bold text-transparent"
+            style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}
+          >
             {title}
           </h2>
           <p className="text-gray-400">{subtitle}</p>

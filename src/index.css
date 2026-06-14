@@ -1369,12 +1369,12 @@ body {
   width: 48px;
   height: 48px;
   border-radius: 14px;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.1));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 10%, transparent));
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgb(251, 191, 36);
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.1);
+  color: var(--color-primary);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 .dashboard-title {

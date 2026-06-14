@@ -210,14 +210,26 @@ export default function SearchPage() {
     <div className="space-y-6 max-w-7xl mx-auto pb-20">
       <header className="space-y-6">
         <div>
-          <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
+          <h2
+            className="text-3xl font-bold bg-clip-text text-transparent inline-flex items-center gap-3"
+            style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}
+          >
+            <div
+              className="p-2 rounded-xl"
+              style={{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 20%, transparent))` }}
+            >
+              <SearchIcon style={{ color: 'var(--color-primary)' }} size={24} />
+            </div>
             Search Collection
           </h2>
           <p className="text-gray-400 mt-1">Find entries across your entire collection</p>
         </div>
 
         <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-2xl blur-xl opacity-50" />
+          <div
+            className="absolute inset-0 rounded-2xl blur-xl opacity-50"
+            style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 20%, transparent))` }}
+          />
           <div className="relative bg-white/5 border border-white/10 rounded-2xl p-1 backdrop-blur-sm">
             <div className="relative flex items-center">
               <SearchIcon className="absolute left-4 text-gray-400" size={20} />
@@ -351,7 +363,7 @@ export default function SearchPage() {
 
         {hasActiveSearch && (
           <div className="flex items-center gap-3 text-sm">
-            <Sparkles className="text-cyan-400" size={16} />
+            <Sparkles style={{ color: 'var(--color-primary)' }} size={16} />
             <span className="text-gray-400">
               {isLoadingResults ? (
                 <>
@@ -391,11 +403,11 @@ export default function SearchPage() {
           ))}
         </div>
       ) : isLoadingResults && hasActiveSearch ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 animate-pulse">
-            <SearchIcon className="text-cyan-400/60" size={32} />
-          </div>
-          <h3 className="text-xl font-semibold text-gray-300 mb-2">Searching your collection</h3>
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 animate-pulse">
+              <SearchIcon style={{ color: 'var(--color-primary)', opacity: 0.6 }} size={32} />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-300 mb-2">Searching your collection</h3>
           <p className="text-gray-500 max-w-md">
             Updating results for "{query}".
           </p>
@@ -418,8 +430,11 @@ export default function SearchPage() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-cyan-500/10 to-blue-500/10 flex items-center justify-center mb-6 animate-pulse">
-            <SearchIcon className="text-cyan-400/60" size={40} />
+          <div
+            className="w-24 h-24 rounded-full flex items-center justify-center mb-6 animate-pulse"
+            style={{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--color-primary) 10%, transparent), color-mix(in srgb, var(--color-secondary) 10%, transparent))` }}
+          >
+            <SearchIcon style={{ color: 'var(--color-primary)', opacity: 0.6 }} size={40} />
           </div>
           <h3 className="text-xl font-semibold text-gray-300 mb-2">Search your collection</h3>
           <p className="text-gray-500 max-w-md">

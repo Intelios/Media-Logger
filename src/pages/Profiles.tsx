@@ -1253,15 +1253,29 @@ export default function ProfilesPage() {
     <div className="space-y-6">
       {/* Header with gradient background effect */}
       <header className="relative profile-header-enter">
-        <div className="absolute inset-0 bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-blue-500/10 blur-3xl -z-10 opacity-50" />
+        <div
+          className="absolute inset-0 blur-3xl -z-10 opacity-50"
+          style={{
+            background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 10%, transparent), color-mix(in srgb, var(--color-secondary) 10%, transparent))`,
+          }}
+        />
 
         <div className="flex flex-col gap-6">
           {/* Title and search row */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h2 className="text-3xl font-bold flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-pink-500 to-purple-600 rounded-xl shadow-lg shadow-pink-500/20">
-                  <Users size={24} />
+              <h2
+                className="text-3xl font-bold bg-clip-text text-transparent flex items-center gap-3"
+                style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}
+              >
+                <div
+                  className="p-2 rounded-xl shadow-lg"
+                  style={{
+                    background: `linear-gradient(to bottom right, var(--color-primary), var(--color-secondary))`,
+                    boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)`,
+                  }}
+                >
+                  <Users size={24} style={{ color: 'white' }} />
                 </div>
                 Profiles
               </h2>

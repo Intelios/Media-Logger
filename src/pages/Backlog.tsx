@@ -155,11 +155,22 @@ export default function Backlog() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20">
-            <Bookmark size={24} className="text-white" />
+          <div
+            className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
+            style={{
+              background: `linear-gradient(to bottom right, var(--color-primary), var(--color-secondary))`,
+              boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)`,
+            }}
+          >
+            <Bookmark size={24} style={{ color: 'white' }} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">Backlog</h1>
+            <h1
+              className="text-2xl font-bold bg-clip-text text-transparent"
+              style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}
+            >
+              Backlog
+            </h1>
             <p className="text-sm text-[var(--color-text-muted)]">
               Your watchlist, playlist, and reading queue
             </p>
@@ -168,7 +179,16 @@ export default function Backlog() {
 
         <button
           onClick={() => { setEditingItem(null); setShowForm(true); }}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-lg hover:shadow-amber-500/25 hover:scale-[1.02] active:scale-[0.98]"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+          style={{
+            background: `linear-gradient(to right, var(--color-primary), var(--color-secondary))`,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.boxShadow = `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 25%, transparent)`;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.boxShadow = '';
+          }}
         >
           <Plus size={16} />
           <span>Add to Backlog</span>

@@ -855,11 +855,20 @@ export default function ReviewPage() {
     <div className="max-w-7xl mx-auto p-6 pb-20" style={{ animation: "fadeIn 0.5s ease-out" }}>
       {/* Header */}
       <header className="flex items-center gap-4 mb-8">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-          <Sparkles size={24} className="text-white" />
+        <div
+          className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
+          style={{
+            background: `linear-gradient(to bottom right, var(--color-primary), var(--color-secondary))`,
+            boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)`,
+          }}
+        >
+          <Sparkles size={24} style={{ color: 'white' }} />
         </div>
         <div>
-          <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400">
+          <h2
+            className="text-3xl font-bold bg-clip-text text-transparent"
+            style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}
+          >
             Year in Review
           </h2>
           <p className="text-gray-400 mt-1">Generate your personalized media wrapped</p>
