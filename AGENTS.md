@@ -51,7 +51,7 @@ No tests, lint, formatter, or CI configs exist and none should be added.
 
 - Theme keys in `localStorage`: `media-logger-color-theme`, `media-logger-glass-style`.
 - CSS variables (`--color-primary`, `--color-surface`, etc.) drive all styling.
-- Both light and dark modes are supported; the setting key is `media-logger-dark-mode`.
+- Only dark modes are supported.
 - macOS native glass/vibrancy applied via Tauri command `apply_glass_style` in Rust.
 - `tauri-plugin-liquid-glass` requires macOS 26+; older macOS falls back to `window-vibrancy`. Windows uses Mica/blur.
 
