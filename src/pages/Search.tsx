@@ -68,7 +68,6 @@ export default function SearchPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showRandomPick, setShowRandomPick] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
-  const [formEntries, setFormEntries] = useState<MediaEntry[]>([]);
   const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
 
   useEffect(() => {
@@ -174,28 +173,6 @@ export default function SearchPage() {
       isActive = false;
     };
   }, [results]);
-
-  useEffect(() => {
-    if (!isModalOpen) {
-      return;
-    }
-
-    let isActive = true;
-
-    dbService.getAllEntries()
-      .then((entries) => {
-        if (isActive) {
-          setFormEntries(entries);
-        }
-      })
-      .catch((error) => {
-        console.error("Failed to load entries for the editor:", error);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [isModalOpen, refreshToken]);
 
   const activeFilterCount = getActiveFilterCount(filters);
 
@@ -456,7 +433,6 @@ export default function SearchPage() {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
         initialData={editingEntry}
-        allEntries={formEntries}
       />
 
       <RandomPickModal

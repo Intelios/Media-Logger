@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { saveImage, getImageUrl, releaseImageUrl } from "../lib/utils";
-import type { MediaEntry } from "../lib/db";
+import type { MediaEntry, AutocompleteOptions } from "../lib/db";
+import { dbService } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { getVisibleEntryTypeOptions } from "../lib/media-config";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
@@ -15,7 +16,6 @@ interface EntryFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Partial<MediaEntry>) => void;
-  allEntries?: MediaEntry[];
 }
 
 type TabId = "basic" | "details" | "media";
@@ -26,60 +26,48 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "media", label: "Media", icon: <ImageIcon size={15} /> },
 ];
 
-export function EntryForm({ initialData, isOpen, onClose, onSave, allEntries = [] }: EntryFormProps) {
+export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormProps) {
   const [formData, setFormData] = useState<Partial<MediaEntry>>({});
   const [previewImage, setPreviewImage] = useState<string>("");
   const [rawImagePath, setRawImagePath] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("basic");
+  const [suggestions, setSuggestions] = useState<AutocompleteOptions>({
+    platforms: [],
+    franchises: [],
+    series: [],
+    authors: [],
+    artists: [],
+    directors: [],
+    actresses: [],
+    genres: [],
+  });
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEscapeToClose(isOpen, onClose);
   useFocusTrap(isOpen, modalRef);
 
-  // Extract distinct values from existing entries for autocomplete suggestions
-  const suggestions = useMemo(() => {
-    const platforms = new Set<string>();
-    const franchises = new Set<string>();
-    const series = new Set<string>();
-    const authors = new Set<string>();
-    const artists = new Set<string>();
-    const directors = new Set<string>();
-    const actresses = new Set<string>();
-    const genres = new Set<string>();
+  // Load lightweight autocomplete suggestions from the DB instead of fetching
+  // the entire entries table.
+  useEffect(() => {
+    if (!isOpen) return;
 
-    allEntries.forEach(e => {
-      if (e.platform) platforms.add(e.platform);
-      if (e.franchise) franchises.add(e.franchise);
-      if (e.series) series.add(e.series);
-      if (e.author) authors.add(e.author);
-      if (e.artist) artists.add(e.artist);
-      if (e.director) directors.add(e.director);
-      if (e.actress) {
-        e.actress.split(',').forEach(a => {
-          const trimmed = a.trim();
-          if (trimmed) actresses.add(trimmed);
-        });
-      }
-      if (e.genre) {
-        e.genre.split(',').forEach(g => {
-          const trimmed = g.trim();
-          if (trimmed) genres.add(trimmed);
-        });
-      }
-    });
+    let cancelled = false;
 
-    return {
-      platforms: Array.from(platforms).sort(),
-      franchises: Array.from(franchises).sort(),
-      series: Array.from(series).sort(),
-      authors: Array.from(authors).sort(),
-      artists: Array.from(artists).sort(),
-      directors: Array.from(directors).sort(),
-      actresses: Array.from(actresses).sort(),
-      genres: Array.from(genres).sort(),
+    dbService.getAutocompleteOptions()
+      .then((options) => {
+        if (!cancelled) {
+          setSuggestions(options);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load autocomplete options:", error);
+      });
+
+    return () => {
+      cancelled = true;
     };
-  }, [allEntries]);
+  }, [isOpen]);
 
   useEffect(() => {
     let cancelled = false;

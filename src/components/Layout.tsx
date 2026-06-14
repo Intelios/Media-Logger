@@ -73,7 +73,6 @@ export function Layout() {
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showDbMigratedBanner, setShowDbMigratedBanner] = useState(false);
-  const [allEntries, setAllEntries] = useState<MediaEntry[]>([]);
   const navigate = useNavigate();
   const currentYear = getCurrentYearString();
 
@@ -173,13 +172,6 @@ export function Layout() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [currentYear, navigate]);
-
-  // Fetch all entries for autocomplete when the entry form opens
-  useEffect(() => {
-    if (showEntryForm) {
-      dbService.getAllEntries().then(setAllEntries).catch(console.error);
-    }
-  }, [showEntryForm]);
 
   // Check if we should show welcome screen. This awaits a DB query, which runs the
   // lazy connect() (and thus any one-time legacy DB migration) — so afterwards we can
@@ -372,7 +364,6 @@ export function Layout() {
           isOpen={showEntryForm}
           onClose={() => setShowEntryForm(false)}
           onSave={handleEntryCreated}
-          allEntries={allEntries}
         />
       )}
 

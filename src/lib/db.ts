@@ -59,6 +59,7 @@ function notifyEntriesMutated(): void {
       console.error('Error in entry mutation listener:', error);
     }
   });
+  dbService.invalidateAutocompleteCache();
 }
 
 // 1. Define Interfaces matching your Python `database.py` schema
@@ -146,6 +147,17 @@ export interface RandomPickFilterOptions {
   entryTypes: string[];
 }
 
+export interface AutocompleteOptions {
+  platforms: string[];
+  franchises: string[];
+  series: string[];
+  authors: string[];
+  artists: string[];
+  directors: string[];
+  actresses: string[];
+  genres: string[];
+}
+
 // 2. Database Service
 class DBService {
   private db: Database | null = null;
@@ -158,6 +170,9 @@ class DBService {
   // + runMigrations() instead of racing. Cleared once settled so later calls
   // still re-check the data directory (custom data dir can change at runtime).
   private connectPromise: Promise<Database> | null = null;
+  // Cached autocomplete options to avoid recomputing distinct values on every
+  // form open. Invalidated whenever entries are mutated.
+  private autocompleteOptionsCache: AutocompleteOptions | null = null;
 
   /**
    * One-time migration of the legacy 'jav_log.db' to the canonical 'media_logger.db'.
@@ -800,7 +815,7 @@ class DBService {
 
   private async getDistinctColumnValues(
     db: Database,
-    column: 'platform' | 'director' | 'author' | 'franchise' | 'series'
+    column: 'platform' | 'director' | 'author' | 'artist' | 'franchise' | 'series'
   ): Promise<string[]> {
     const results = await db.select<{ value: string }[]>(
       `SELECT DISTINCT TRIM(${column}) as value
@@ -821,33 +836,80 @@ class DBService {
       this.getDistinctColumnValues(db, 'author'),
       this.getDistinctColumnValues(db, 'franchise'),
       this.getDistinctColumnValues(db, 'series'),
-      db.select<{ value: string }[]>(
-        `WITH RECURSIVE split(value, rest) AS (
-           SELECT '', TRIM(actress) || ','
-           FROM entries
-           WHERE actress IS NOT NULL AND TRIM(actress) <> ''${adultExclusionSql()}
-           UNION ALL
-           SELECT
-             TRIM(SUBSTR(rest, 0, INSTR(rest, ','))),
-             LTRIM(SUBSTR(rest, INSTR(rest, ',') + 1))
-           FROM split
-           WHERE rest <> ''
-         )
-         SELECT DISTINCT value
-         FROM split
-         WHERE value <> ''
-         ORDER BY value COLLATE NOCASE ASC`
-      ),
+      this.getDistinctSplitValues(db, 'actress'),
     ]);
 
     return {
       platforms,
-      actresses: actresses.map(({ value }) => value),
+      actresses,
       directors,
       authors,
       franchises,
       series,
     };
+  }
+
+  private async getDistinctSplitValues(
+    db: Database,
+    column: 'actress' | 'genre'
+  ): Promise<string[]> {
+    const results = await db.select<{ value: string }[]>(
+      `WITH RECURSIVE split(value, rest) AS (
+         SELECT '', TRIM(${column}) || ','
+         FROM entries
+         WHERE ${column} IS NOT NULL AND TRIM(${column}) <> ''${adultExclusionSql()}
+         UNION ALL
+         SELECT
+           TRIM(SUBSTR(rest, 0, INSTR(rest, ','))),
+           LTRIM(SUBSTR(rest, INSTR(rest, ',') + 1))
+         FROM split
+         WHERE rest <> ''
+       )
+       SELECT DISTINCT value
+       FROM split
+       WHERE value <> ''
+       ORDER BY value COLLATE NOCASE ASC`
+    );
+
+    return results.map(({ value }) => value);
+  }
+
+  async getAutocompleteOptions(): Promise<AutocompleteOptions> {
+    if (this.autocompleteOptionsCache) {
+      return this.autocompleteOptionsCache;
+    }
+
+    const db = await this.connect();
+
+    const [platforms, franchises, series, authors, artists, directors, actresses, genres] =
+      await Promise.all([
+        this.getDistinctColumnValues(db, 'platform'),
+        this.getDistinctColumnValues(db, 'franchise'),
+        this.getDistinctColumnValues(db, 'series'),
+        this.getDistinctColumnValues(db, 'author'),
+        this.getDistinctColumnValues(db, 'artist'),
+        this.getDistinctColumnValues(db, 'director'),
+        this.getDistinctSplitValues(db, 'actress'),
+        this.getDistinctSplitValues(db, 'genre'),
+      ]);
+
+    const options: AutocompleteOptions = {
+      platforms,
+      franchises,
+      series,
+      authors,
+      artists,
+      directors,
+      actresses,
+      genres,
+    };
+
+    this.autocompleteOptionsCache = options;
+    return options;
+  }
+
+  invalidateAutocompleteCache(): void {
+    this.autocompleteOptionsCache = null;
   }
 
   async searchEntries(filters: EntrySearchFilters): Promise<MediaEntry[]> {

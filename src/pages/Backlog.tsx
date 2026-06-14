@@ -18,7 +18,6 @@ export default function Backlog() {
   const [editingItem, setEditingItem] = useState<BacklogItem | null>(null);
   const [completingItem, setCompletingItem] = useState<BacklogItem | null>(null);
   const [completionInitialData, setCompletionInitialData] = useState<Partial<MediaEntry> | null>(null);
-  const [allEntries, setAllEntries] = useState<MediaEntry[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [reorderStatus, setReorderStatus] = useState<BacklogItem['status'] | null>(null);
   const loadIdRef = useRef(0);
@@ -91,7 +90,6 @@ export default function Backlog() {
     const prefilled = backlogLogic.prepareForCompletion(item);
     setCompletingItem(item);
     setCompletionInitialData(prefilled);
-    dbService.getAllEntries().then(setAllEntries).catch(console.error);
   };
 
   const handleCompletionSave = async (entryData: Partial<MediaEntry>) => {
@@ -342,7 +340,6 @@ export default function Backlog() {
           onClose={() => { setCompletingItem(null); setCompletionInitialData(null); }}
           onSave={handleCompletionSave}
           initialData={completionInitialData as MediaEntry}
-          allEntries={allEntries}
         />
       )}
 

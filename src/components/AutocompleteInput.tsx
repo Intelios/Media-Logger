@@ -55,6 +55,14 @@ export function AutocompleteInput({
     });
   })();
 
+  // For multi-value fields, show the dropdown immediately after selecting a
+  // suggestion so the user can add another token without refocusing the input.
+  useEffect(() => {
+    if (multiValue && inputRef.current && inputRef.current === document.activeElement) {
+      setIsFocused(true);
+    }
+  }, [value, multiValue]);
+
   const isOpen = isFocused && filtered.length > 0;
 
   // Close on click outside
