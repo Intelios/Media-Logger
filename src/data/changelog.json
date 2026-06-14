@@ -1,8 +1,24 @@
 {
-  "generatedAt": "2026-06-06T16:47:40.195Z",
+  "generatedAt": "2026-06-14T21:24:29.098Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "3.3",
+      "title": "Media Logger - 3.3",
+      "date": "2026-06-14",
+      "body": "New Content/Features:\n- Quick Filters 'Gaming' and 'Media' updated the colours of the buttons to now reflect their actual colour of their media type.\n- Rewrote the autocomplete function when adding a new entry. Now uses less database queries, faster and is also easier on performance for the app. \n- Changelog now displays bullet points and small changes to headings, subheadings and visual seperation to be easier to read.\n- Review, Profiles, Dashboard and Backlog pages now have their title and icon on the top left (when on the page) to use your correct theme colour for their title colour and icon. Collections already had this.\n- Search now uses your theme colour for it's icons, gradiants and colouring.\n- Backlog's 'Add to Backlog' now correctly uses your theme colour for the button like the normal 'add entry' button does.\n- The 'Add Entry' button's Plus (+) symbol now does a little animated spin when hovering over the button.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.3"
+    },
+    {
+      "version": "3.2.1",
+      "title": "Media Logger - 3.2.1",
+      "date": "2026-06-09",
+      "body": "Bug Fixes:\n- Profile Names no longer get corrupted by `/`, `;` and `:`.\n- Monthly stats have been fixed to no longer break on non-English locales\n- Backlog custom images is now more robust.\n- Fixed an issue where \"Find Duplicates\" leaks hidden adult entries with the same name as an adult entry when adult entries are hidden.\n- Adult-media toggle is now honored in the Review page\n- Fixed an issue where rating distribution silently drops zero scores\n- Review Slide has dead code removed that was bloating the file.\n- Fixed issue where entries with no type vanish under filters\n- macOS menu was missing Backlog and Review, now fixed.\n- Profile crops are lost in backups, now fixed.\n- Fixed a performance issue where `WinnerPicker` refetches on every parent render.\n- Invalid dates render as \"Invalid Date\", this is now handled better.\n- Duplicating an entry shows the \"Edit Entry\" header, this now is handled better.\n- Fixed an issue where stale type-specific metadata survives type changes.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.2.1"
+    },
     {
       "version": "3.2",
       "title": "Media Logger - 3.2",
