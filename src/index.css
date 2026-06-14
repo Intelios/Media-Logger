@@ -795,21 +795,35 @@ body {
 .changelog-markdown h2,
 .changelog-markdown h3,
 .changelog-markdown h4 {
-  margin: 20px 0 8px;
+  margin: 24px 0 10px;
   color: var(--color-text);
-  line-height: 1.25;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.changelog-markdown h1:first-child,
+.changelog-markdown h2:first-child,
+.changelog-markdown h3:first-child,
+.changelog-markdown h4:first-child {
+  margin-top: 0;
 }
 
 .changelog-markdown h1 {
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .changelog-markdown h2 {
-  font-size: 18px;
+  font-size: 16px;
+  color: var(--color-primary);
 }
 
 .changelog-markdown h3 {
-  font-size: 15px;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 650;
 }
 
 .changelog-markdown p,
@@ -821,13 +835,35 @@ body {
   margin: 0 0 12px;
 }
 
+.changelog-markdown strong {
+  color: var(--color-text);
+  font-weight: 650;
+}
+
 .changelog-markdown ul,
 .changelog-markdown ol {
   padding-left: 22px;
 }
 
+.changelog-markdown ul {
+  list-style-type: disc;
+}
+
+.changelog-markdown ol {
+  list-style-type: decimal;
+}
+
+.changelog-markdown li {
+  display: list-item;
+  padding-left: 2px;
+}
+
 .changelog-markdown li + li {
-  margin-top: 4px;
+  margin-top: 6px;
+}
+
+.changelog-markdown li > p {
+  margin: 0;
 }
 
 .changelog-markdown a {
