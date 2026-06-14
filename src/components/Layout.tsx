@@ -291,13 +291,15 @@ export function Layout() {
           <button
             onClick={() => setShowEntryForm(true)}
             className={cn(
-              "w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold transition-all duration-200",
+              "group w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold transition-all duration-200",
               "bg-gradient-to-r from-primary to-secondary hover:shadow-lg hover:shadow-primary/25 hover:scale-[1.02] active:scale-[0.98]",
               isCompact ? "px-2" : "px-4"
             )}
           >
             <motion.span layout transition={iconLayoutTransition} className="flex h-5 w-5 items-center justify-center">
-              <Plus size={18} />
+              <span className="flex h-5 w-5 items-center justify-center motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-out motion-safe:group-hover:rotate-[360deg]">
+                <Plus size={18} />
+              </span>
             </motion.span>
             <AnimatePresence initial={false}>
               {!isCompact && (
