@@ -3,7 +3,7 @@ import { Star, Calendar, RotateCcw, Captions, Trophy, Clock } from "lucide-react
 import type { MediaEntry } from "../lib/db";
 import { DEFAULT_COVER_IMAGE, useImageUrl } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
-import { getTypeBadgeStyle, getRatingColor, parseGenres } from "./MediaCard";
+import { getTypeBadgeStyle, getRatingColor, parseGenres, formatCardRating } from "./MediaCard";
 import { formatDate } from "../lib/dates";
 
 const cardLiftTransition = {
@@ -74,7 +74,7 @@ export function MediaListCard({ entry, onClick, index = 0 }: MediaListCardProps)
               )}
             >
               <Star size={9} className="fill-current" />
-              {entry.review_score!.toFixed(1)}
+              {formatCardRating(entry.review_score!)}
             </span>
           )}
         </div>

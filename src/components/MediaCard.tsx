@@ -36,6 +36,8 @@ export const getRatingColor = (score: number | null) => {
   return "bg-red-500 text-white";
 };
 
+export const formatCardRating = (score: number) => Math.round(score).toString();
+
 // Get context info based on entry type - returns an array for entries with multiple fields
 // profileType maps to the profile system's type key (null means no profile possible)
 const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon: React.ReactNode; profileType: string | null; badgeClass?: string }[] => {
@@ -372,7 +374,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                 getRatingColor(entry.review_score)
               )}>
                 <Star size={11} className="fill-current" />
-                <span>{entry.review_score.toFixed(1)}</span>
+                <span>{formatCardRating(entry.review_score)}</span>
               </div>
             )}
 
@@ -417,7 +419,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                   "absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 flex items-center justify-center min-w-[26px] h-4 px-1 rounded-full shadow-md border border-white/20 text-[9px] font-bold",
                   getRatingColor(entry.review_score)
                 )}>
-                  {entry.review_score.toFixed(1)}
+                  {formatCardRating(entry.review_score)}
                 </div>
               </div>
             </div>
@@ -937,7 +939,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                                   : "bg-red-500/20 text-red-400 border border-red-500/30"
                             : "bg-gray-500/20 text-gray-400 border border-gray-500/30"
                         )}>
-                          {dup.review_score !== null ? dup.review_score.toFixed(1) : "—"}
+                          {dup.review_score !== null ? formatCardRating(dup.review_score) : "—"}
                         </div>
 
                         {/* Info */}
