@@ -1,8 +1,24 @@
 {
-  "generatedAt": "2026-06-14T21:24:29.098Z",
+  "generatedAt": "2026-06-16T19:50:23.800Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "3.3.2",
+      "title": "Media Logger - 3.3.2",
+      "date": "2026-06-16",
+      "body": "- Settings UI redesigned: New Horizontal Top bar for navigation, grid based layout for options and the settings cards now have a new hover effect that includes the title now (which it did not before). \n- Updated Vite from 7.0.4 to 8.0.16\n- Updated Browserslist dependancy to address potential security issue.\n- Updated countless other smaller dependencies.\n- Removed 40 dependencies no longer needed in the app.\n- Solved possible secruity vulnerabilites in the dependancies used.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.3.2"
+    },
+    {
+      "version": "3.3.1",
+      "title": "Media Logger - 3.3.1",
+      "date": "2026-06-15",
+      "body": "New Content/Features:\n- Media Cards no longer display ratings as '7.0' now just displayed as '7'.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.3.1"
+    },
     {
       "version": "3.3",
       "title": "Media Logger - 3.3",
