@@ -540,15 +540,16 @@ export default function Settings() {
                 </div>
             )}
 
-            {/* Sidebar Navigation */}
-            <nav className="settings-sidebar">
+            {/* Horizontal Navigation Bar */}
+            <nav className="settings-top-bar" aria-label="Settings sections">
                 {navItems.map((item) => (
                     <button
                         key={item.id}
                         onClick={() => setActiveSection(item.id)}
-                        className={`settings-nav-item ${activeSection === item.id ? 'active' : ''}`}
+                        className={`settings-tab ${activeSection === item.id ? 'active' : ''}`}
+                        aria-current={activeSection === item.id ? 'page' : undefined}
                     >
-                        <span className="nav-icon">{item.icon}</span>
+                        <span className="settings-tab-icon">{item.icon}</span>
                         <span>{item.label}</span>
                     </button>
                 ))}
@@ -559,11 +560,7 @@ export default function Settings() {
                 {/* General Section */}
                 {activeSection === 'general' && (
                     <div className="settings-section-enter" key="general">
-                        <h1 className="settings-section-title">General</h1>
-
-                        <div className="settings-group">
-                            <div className="settings-group-label">Personalization</div>
-
+                        <section className="settings-card">
                             <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
                                 <div>
                                     <div className="settings-row-label">Display Name</div>
@@ -603,10 +600,9 @@ export default function Settings() {
                                     )}
                                 </div>
                             </div>
-                        </div>
+                        </section>
 
-                        <div className="settings-group">
-                            <div className="settings-group-label">Year Navigation</div>
+                        <section className="settings-card">
                             <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
                                 <div>
                                     <div className="settings-row-label">Available Years</div>
@@ -689,10 +685,9 @@ export default function Settings() {
                                     ))}
                                 </div>
                             </div>
-                        </div>
+                        </section>
 
-                        <div className="settings-group">
-                            <div className="settings-group-label">Content</div>
+                        <section className="settings-card">
                             <div className="settings-row">
                                 <div>
                                     <div className="settings-row-label">Adult Media</div>
@@ -715,17 +710,14 @@ export default function Settings() {
                                     </button>
                                 </div>
                             </div>
-                        </div>
+                        </section>
                     </div>
                 )}
 
                 {/* Appearance Section */}
                 {activeSection === 'appearance' && (
                     <div className="settings-section-enter" key="appearance">
-                        <h1 className="settings-section-title">Appearance</h1>
-
-                        <div className="settings-group">
-                            <div className="settings-group-label">Accent Color</div>
+                        <section className="settings-card">
                             <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 16 }}>
                                 <div>
                                     <div className="settings-row-label">Color Theme</div>
@@ -747,10 +739,9 @@ export default function Settings() {
                                     Selected: <strong style={{ color: 'var(--color-text)' }}>{colorTheme.name}</strong>
                                 </div>
                             </div>
-                        </div>
+                        </section>
 
-                        <div className="settings-group">
-                            <div className="settings-group-label">Window Background</div>
+                        <section className="settings-card">
                             <div className="settings-row">
                                 <div>
                                     <div className="settings-row-label">Native Backdrop</div>
@@ -773,10 +764,9 @@ export default function Settings() {
                                     </button>
                                 </div>
                             </div>
-                        </div>
+                        </section>
 
-                        <div className="settings-group">
-                            <div className="settings-group-label">Rating Display</div>
+                        <section className="settings-card">
                             <div className="settings-row">
                                 <div>
                                     <div className="settings-row-label">Card Rating Style</div>
@@ -797,18 +787,14 @@ export default function Settings() {
                                     </button>
                                 </div>
                             </div>
-                        </div>
+                        </section>
                     </div>
                 )}
 
                 {/* Data Section */}
                 {activeSection === 'data' && (
                     <div className="settings-section-enter" key="data">
-                        <h1 className="settings-section-title">Data</h1>
-
-                        <div className="settings-group">
-                            <div className="settings-group-label">Storage Location</div>
-
+                        <section className="settings-card">
                             <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                     <div>
@@ -863,10 +849,9 @@ export default function Settings() {
                                     </div>
                                 </div>
                             )}
-                        </div>
+                        </section>
 
-                        <div className="settings-group">
-                            <div className="settings-group-label">File Structure</div>
+                        <section className="settings-card">
                             <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
                                 <div>
                                     <div className="settings-row-label">Expected Directory Layout</div>
@@ -898,10 +883,9 @@ export default function Settings() {
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </section>
 
-                        <div className="settings-group">
-                            <div className="settings-group-label">Overview</div>
+                        <section className="settings-card">
                             <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
                                 <div style={{
                                     display: 'grid',
@@ -952,10 +936,9 @@ export default function Settings() {
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </section>
 
-                        <div className="settings-group">
-                            <div className="settings-group-label">Export</div>
+                        <section className="settings-card">
                             <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
                                 <div>
                                     <div className="settings-row-label">Export All Data</div>
@@ -976,10 +959,9 @@ export default function Settings() {
                                     )}
                                 </button>
                             </div>
-                        </div>
+                        </section>
 
-                        <div className="settings-group">
-                            <div className="settings-group-label">Import</div>
+                        <section className="settings-card">
                             <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
                                 <div>
                                     <div className="settings-row-label">Import Data</div>
@@ -1000,7 +982,7 @@ export default function Settings() {
                                     )}
                                 </button>
                             </div>
-                        </div>
+                        </section>
 
                         <div style={{
                             display: 'flex',
@@ -1022,10 +1004,7 @@ export default function Settings() {
                 {/* Changelog Section */}
                 {activeSection === 'changelog' && (
                     <div className="settings-section-enter" key="changelog">
-                        <h1 className="settings-section-title">Changelog</h1>
-
-                        <div className="settings-group">
-                            <div className="settings-group-label">Local Release Notes</div>
+                        <section className="settings-card changelog-summary">
                             <div className="settings-row changelog-summary-row">
                                 <div className="changelog-summary-header">
                                     <div className="changelog-summary-icon">
@@ -1058,14 +1037,14 @@ export default function Settings() {
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </section>
 
                         {changelog.releases.length > 0 ? (
                             changelog.releases.map((release) => {
                                 const isExpanded = expandedReleaseVersion === release.version;
 
                                 return (
-                                    <div className="settings-group changelog-release" key={release.version}>
+                                    <section className="settings-card changelog-release" key={release.version}>
                                         <button
                                             type="button"
                                             className="changelog-release-header"
@@ -1098,11 +1077,11 @@ export default function Settings() {
                                                 )}
                                             </div>
                                         )}
-                                    </div>
+                                    </section>
                                 );
                             })
                         ) : (
-                            <div className="settings-group">
+                            <section className="settings-card">
                                 <div className="settings-row changelog-empty-state">
                                     <ScrollText size={28} />
                                     <div>
@@ -1112,7 +1091,7 @@ export default function Settings() {
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </section>
                         )}
                     </div>
                 )}
@@ -1120,9 +1099,7 @@ export default function Settings() {
                 {/* About Section */}
                 {activeSection === 'about' && (
                     <div className="settings-section-enter" key="about">
-                        <h1 className="settings-section-title">About</h1>
-
-                        <div className="settings-group">
+                        <section className="settings-card">
                             <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 16 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                                     <div style={{
@@ -1156,10 +1133,10 @@ export default function Settings() {
                                     Copy Debug Info
                                 </button>
                             </div>
-                        </div>
+                        </section>
 
-                        <div className="settings-group">
-                            <div className="settings-group-label">Application</div>
+                        <section className="settings-card">
+                            <div className="settings-card-header">Application</div>
                             <AboutInfoRow label="App Name" value={appMetadata.appName} />
                             <AboutInfoRow label="App Version" value={appMetadata.appVersion} />
                             <AboutInfoRow label="App Identifier" value={appMetadata.appIdentifier} mono />
@@ -1167,17 +1144,17 @@ export default function Settings() {
                             <AboutInfoRow label="Package Version" value={appMetadata.packageVersion} />
                             <AboutInfoRow label="Build Mode" value={import.meta.env.MODE} />
                             <AboutInfoRow label="Build Type" value={import.meta.env.DEV ? 'Development' : 'Production'} />
-                        </div>
+                        </section>
 
-                        <div className="settings-group">
-                            <div className="settings-group-label">Runtime</div>
+                        <section className="settings-card">
+                            <div className="settings-card-header">Runtime</div>
                             <AboutInfoRow label="Tauri API Package" value={appMetadata.tauriApiVersion} mono />
                             <AboutInfoRow label="Tauri CLI Package" value={appMetadata.tauriCliVersion} mono />
                             <AboutInfoRow label="React Package" value={appMetadata.reactVersion} mono />
-                        </div>
+                        </section>
 
-                        <div className="settings-group">
-                            <div className="settings-group-label">Data & Library</div>
+                        <section className="settings-card">
+                            <div className="settings-card-header">Data & Library</div>
                             <AboutInfoRow label="Current Data Directory" value={currentPath || 'Loading...'} mono />
                             <AboutInfoRow label="Default Data Directory" value={defaultPath || 'Loading...'} mono />
                             <AboutInfoRow label="Storage Mode" value={isCustom ? 'Custom data directory' : 'Default app local data directory'} />
@@ -1185,18 +1162,18 @@ export default function Settings() {
                             <AboutInfoRow label="Media Entries" value={dataStats?.mediaCount ?? 'Loading...'} />
                             <AboutInfoRow label="Collections" value={dataStats?.collectionCount ?? 'Loading...'} />
                             <AboutInfoRow label="Awards" value={dataStats?.awardCount ?? 'Loading...'} />
-                        </div>
+                        </section>
 
-                        <div className="settings-group">
-                            <div className="settings-group-label">Preferences</div>
+                        <section className="settings-card">
+                            <div className="settings-card-header">Preferences</div>
                             <AboutInfoRow label="Display Name" value={displayName || 'Collector'} />
                             <AboutInfoRow label="Accent Theme" value={colorTheme.name} />
                             <AboutInfoRow label="Glass Style" value={glassStyle} />
                             <AboutInfoRow label="Navigation Years" value={navigationYears.join(', ')} />
-                        </div>
+                        </section>
 
-                        <div className="settings-group">
-                            <div className="settings-group-label">Environment</div>
+                        <section className="settings-card">
+                            <div className="settings-card-header">Environment</div>
                             <AboutInfoRow label="Platform" value={environmentInfo.platform} />
                             <AboutInfoRow label="Language" value={environmentInfo.language} />
                             <AboutInfoRow label="Timezone" value={environmentInfo.timezone} />
@@ -1205,7 +1182,7 @@ export default function Settings() {
                             <AboutInfoRow label="Device Pixel Ratio" value={environmentInfo.devicePixelRatio} />
                             <AboutInfoRow label="CPU Threads" value={environmentInfo.hardwareConcurrency} />
                             <AboutInfoRow label="WebView User Agent" value={environmentInfo.userAgent} mono />
-                        </div>
+                        </section>
 
                         <div style={{
                             display: 'flex',
