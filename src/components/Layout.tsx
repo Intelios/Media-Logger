@@ -228,7 +228,7 @@ export function Layout() {
         style={{ borderColor: "var(--color-border)" }}
       >
         {/* Navigation Items */}
-        <nav className="flex-1 space-y-1 overflow-y-auto pr-1 custom-scrollbar">
+        <nav className="flex-1 -ml-3 space-y-1 overflow-y-auto pl-3 pr-1 custom-scrollbar">
 
           <NavItem to="/" icon={<Home size={18} />} label="Home" shortcut={getShortcutLabel("1")} isCompact={isCompact} />
 
@@ -470,7 +470,10 @@ function CollapsibleSection({
         "grid transition-[grid-template-rows,opacity] duration-200",
         isContentCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
       )}>
-        <div className="min-h-0 overflow-hidden space-y-1">
+        <div className={cn(
+          "min-h-0 space-y-1",
+          isContentCollapsed ? "overflow-hidden" : "overflow-visible"
+        )}>
           {content}
         </div>
       </div>
