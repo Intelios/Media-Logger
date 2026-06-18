@@ -343,5 +343,31 @@ export const profilesLogic = {
 
   async getAvgHistory(type: string, name: string): Promise<AvgHistoryPoint[]> {
     return dbService.getAvgHistory(type, name);
+  },
+
+  /**
+   * Entries that belong to a profile, with a completion_date AND a review_score
+   * (only rated, dated entries can move the average — and only those make sense
+   * as markers on the avg history chart). Sorted ascending by completion_date so
+   * they line up left→right with the chart's x-axis. Respects the adult-media
+   * visibility filter via filterHiddenEntries.
+   */
+  async getProfileEntriesForChart(type: string, name: string): Promise<MediaEntry[]> {
+    const db = await dbService.connect();
+    const allEntries = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
+
+    const filtered = allEntries.filter(e => {
+      if (!e.completion_date || e.review_score == null) return false;
+      const column = type as keyof MediaEntry;
+      const val = e[column];
+      if (typeof val !== 'string' || !val) return false;
+      return val.split(',').map(s => s.trim()).includes(name);
+    });
+
+    return filtered.sort((a, b) => {
+      const dateA = a.completion_date || '';
+      const dateB = b.completion_date || '';
+      return dateA.localeCompare(dateB);
+    });
   }
 };
