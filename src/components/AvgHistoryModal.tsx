@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { LineChart as LineChartIcon, X } from "lucide-react";
 import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
 import type { AvgHistoryPoint, MediaEntry } from "../lib/db";
@@ -21,7 +21,6 @@ interface ChartRow {
   rated_count: number;
   total_count: number;
   source: string;
-  _markerY: number | null;        // interpolated avg at this date (entry rows only)
   markers: MarkerInfo[];
 }
 
@@ -36,8 +35,13 @@ interface MarkerInfo {
 // until the user hovers the chart, so dense profiles don't clutter the line.
 const DENSE_THRESHOLD = 25;
 
-const MARKER_SIZE = 24;
-const MARKER_GAP = 4;
+const MARKER_SIZE = 56;
+const MARKER_STACK_OFFSET = 8;
+const MAX_STACKED_MARKERS = 3;
+const CHART_Y_AXIS_WIDTH = 28;
+const CHART_RIGHT_MARGIN = 18;
+const CHART_MARKER_TOP = 8;
+const CHART_TOP_MARGIN = MARKER_SIZE + 24;
 
 function AvgHistoryTooltip({ active, payload }: {
   active?: boolean;
@@ -85,9 +89,26 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
   const [imageMap, setImageMap] = useState<Record<number, string>>({});
   const [hovering, setHovering] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
 
   useEscapeToClose(isOpen, onClose);
   useFocusTrap(isOpen, modalRef);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const el = chartRef.current;
+    if (!el) return;
+
+    const updateSize = () => {
+      setChartSize({ width: el.clientWidth, height: el.clientHeight });
+    };
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !profile) return;
@@ -163,18 +184,14 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
         rated_count: snap?.rated_count ?? 0,
         total_count: snap?.total_count ?? 0,
         source: snap?.source ?? "",
-        // Anchored at y=10 (chart top) so markers float above the avg line,
-        // not on it. The renderDot function offsets them upward from there.
-        _markerY: markers.length > 0 ? 10 : null,
         markers,
       };
     });
   }, [points, entries]);
 
-  // Unique entry dates that get a dotted vertical guide.
-  const entryDates = useMemo(
-    () => [...new Set(entries.map(e => e.completion_date!).filter(Boolean))].sort(),
-    [entries]
+  const markerRows = useMemo(
+    () => chartData.filter(row => row.markers.length > 0),
+    [chartData]
   );
 
   if (!isOpen || !profile) return null;
@@ -188,47 +205,6 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
   const guideOpacity = !dense ? 0.15 : (hovering ? 0.25 : 0.06);
   const guideColor = `rgba(255,255,255,${guideOpacity})`;
 
-  const renderMarkerDot = (props: any) => {
-    const { cx, cy, payload } = props;
-    if (!payload?.markers || payload.markers.length === 0) return null;
-    return (
-      <g opacity={markerOpacity}>
-        {payload.markers.map((m: MarkerInfo, i: number) => {
-          const url = imageMap[m.entryId];
-          // Stack downward from the top anchor (cy ≈ chart top) so multiple
-          // same-day entries fan out vertically just under the chart's top edge,
-          // floating above the avg line.
-          const cyOffset = cy + MARKER_SIZE / 2 + i * (MARKER_SIZE + MARKER_GAP);
-          return (
-            <g key={m.entryId}>
-              <rect
-                x={cx - MARKER_SIZE / 2}
-                y={cyOffset - MARKER_SIZE / 2}
-                width={MARKER_SIZE}
-                height={MARKER_SIZE}
-                rx={4}
-                ry={4}
-                fill="rgba(10,10,12,0.85)"
-                stroke="rgba(255,255,255,0.3)"
-                strokeWidth={1}
-              />
-              {url && (
-                <image
-                  href={url}
-                  x={cx - MARKER_SIZE / 2 + 2}
-                  y={cyOffset - MARKER_SIZE / 2 + 2}
-                  width={MARKER_SIZE - 4}
-                  height={MARKER_SIZE - 4}
-                  preserveAspectRatio="xMidYMid slice"
-                />
-              )}
-            </g>
-          );
-        })}
-      </g>
-    );
-  };
-
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
@@ -236,7 +212,7 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
     >
       <div
         ref={modalRef}
-        className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-2xl rounded-2xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-4xl rounded-2xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 p-5 border-b border-white/5 bg-gradient-to-r from-yellow-500/10 via-transparent to-transparent">
@@ -286,21 +262,13 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
             </div>
           ) : hasData ? (
             <div
-              className="h-[300px] w-full"
+              ref={chartRef}
+              className="relative h-[390px] w-full overflow-visible"
               onMouseEnter={() => setHovering(true)}
               onMouseLeave={() => setHovering(false)}
             >
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <LineChart data={chartData} margin={{ left: 0, right: 18, top: 28, bottom: 0 }}>
-                  {entryDates.map(d => (
-                    <ReferenceLine
-                      key={`guide-${d}`}
-                      x={d}
-                      stroke={guideColor}
-                      strokeDasharray="2 4"
-                      ifOverflow="extendDomain"
-                    />
-                  ))}
+                <LineChart data={chartData} margin={{ left: 0, right: 18, top: CHART_TOP_MARGIN, bottom: 0 }}>
                   <XAxis
                     dataKey="captured_at"
                     tickFormatter={(v: string) => formatShortDate(v).split(",")[0]}
@@ -322,16 +290,6 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
                   />
                   <Line
                     type="monotone"
-                    dataKey="_markerY"
-                    stroke="transparent"
-                    strokeWidth={0}
-                    dot={renderMarkerDot}
-                    activeDot={false}
-                    isAnimationActive={false}
-                    connectNulls={false}
-                  />
-                  <Line
-                    type="monotone"
                     dataKey="average_score"
                     stroke="#facc15"
                     strokeWidth={2.5}
@@ -341,6 +299,81 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
                   />
                 </LineChart>
               </ResponsiveContainer>
+              {markerRows.length > 0 && chartSize.width > 0 && (
+                <div className="pointer-events-none absolute inset-0 z-10 overflow-visible">
+                  {markerRows.map(row => {
+                    const index = chartData.findIndex(point => point.captured_at === row.captured_at);
+                    const plotLeft = CHART_Y_AXIS_WIDTH;
+                    const plotRight = Math.max(plotLeft, chartSize.width - CHART_RIGHT_MARGIN);
+                    const plotWidth = plotRight - plotLeft;
+                    const x = chartData.length <= 1
+                      ? plotLeft + plotWidth / 2
+                      : plotLeft + (index / (chartData.length - 1)) * plotWidth;
+                    const visibleMarkers = row.markers.slice(0, MAX_STACKED_MARKERS);
+                    const extraCount = row.markers.length - visibleMarkers.length;
+                    const lineTop = CHART_MARKER_TOP + MARKER_SIZE + 7;
+                    const lineHeight = Math.max(0, chartSize.height - lineTop - 28);
+
+                    return (
+                      <div
+                        key={`entry-overlay-${row.captured_at}`}
+                        className="absolute top-0"
+                        style={{ left: x }}
+                      >
+                        <div
+                          className="absolute border-l"
+                          style={{
+                            top: lineTop,
+                            height: lineHeight,
+                            borderColor: guideColor,
+                            borderLeftStyle: "dashed",
+                          }}
+                        />
+                        <div style={{ opacity: markerOpacity }}>
+                          {visibleMarkers.map((m, i) => {
+                            const url = imageMap[m.entryId];
+                            const shift = i * MARKER_STACK_OFFSET;
+                            return (
+                              <div
+                                key={m.entryId}
+                                className="absolute overflow-hidden rounded-xl border border-white/40 bg-[#0a0a0c]/90 shadow-2xl shadow-black/60 ring-1 ring-black/40"
+                                style={{
+                                  left: -MARKER_SIZE / 2 + shift,
+                                  top: CHART_MARKER_TOP + shift,
+                                  width: MARKER_SIZE,
+                                  height: MARKER_SIZE,
+                                }}
+                              >
+                                {url ? (
+                                  <img
+                                    src={url}
+                                    alt=""
+                                    className="h-full w-full object-cover p-1"
+                                    draggable={false}
+                                  />
+                                ) : (
+                                  <div className="h-full w-full bg-white/10" />
+                                )}
+                              </div>
+                            );
+                          })}
+                          {extraCount > 0 && (
+                            <div
+                              className="absolute flex h-5 min-w-5 items-center justify-center rounded-full border border-white/35 bg-gray-950/95 px-1 text-[10px] font-bold text-yellow-300 shadow-lg"
+                              style={{
+                                left: MARKER_SIZE / 2 + 8,
+                                top: CHART_MARKER_TOP + 7,
+                              }}
+                            >
+                              +{extraCount}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : (
             <div className="h-[300px] flex items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/10 px-6 text-center">
