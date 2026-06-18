@@ -1,4 +1,4 @@
-import { dbService, type MediaEntry, filterHiddenEntries, onEntriesMutated } from "./db";
+import { dbService, type MediaEntry, type AvgHistoryPoint, filterHiddenEntries, onEntriesMutated } from "./db";
 import { ADULT_MEDIA_VISIBILITY_CHANGED_EVENT, isAdultMediaEnabled } from "./settings";
 import { saveImage } from "./utils";
 
@@ -21,6 +21,7 @@ export interface ProfileSummary {
   average_score: number;
   image_url?: string;
   crop?: CropData;
+  track_avg_history?: boolean;
 }
 
 // Parse a crop_data JSON string into a CropData, falling back to undefined on any problem.
@@ -59,24 +60,68 @@ export function invalidateProfilesCache(): void {
 onEntriesMutated(invalidateProfilesCache);
 
 if (typeof window !== "undefined") {
-  window.addEventListener(ADULT_MEDIA_VISIBILITY_CHANGED_EVENT, invalidateProfilesCache);
+  window.addEventListener(ADULT_MEDIA_VISIBILITY_CHANGED_EVENT, () => {
+    invalidateProfilesCache();
+    // Append a snapshot for every tracked profile so the chart visibly reflects
+    // the rule change (which entries count toward the average).
+    void snapshotTrackedProfiles();
+  });
+}
+
+/**
+ * Recompute and append a current-state AVG snapshot for every profile that has
+ * tracking enabled. Used when the Adult Media visibility setting flips.
+ */
+async function snapshotTrackedProfiles(): Promise<void> {
+  const db = await dbService.connect();
+  const tracked = await db.select<{ type: string; name: string }[]>(
+    "SELECT type, name FROM profiles WHERE track_avg_history = 1"
+  );
+  if (tracked.length === 0) return;
+
+  const allRows = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
+  const matchesProfile = (type: string, name: string, e: MediaEntry): boolean => {
+    const field = type as keyof MediaEntry;
+    const val = e[field];
+    if (typeof val !== 'string' || !val) return false;
+    return val.split(',').map(s => s.trim()).includes(name);
+  };
+
+  for (const { type, name } of tracked) {
+    let totalCount = 0;
+    let totalScore = 0;
+    let ratedCount = 0;
+    for (const e of allRows) {
+      if (!matchesProfile(type, name, e)) continue;
+      totalCount++;
+      if (e.review_score != null) {
+        totalScore += e.review_score;
+        ratedCount++;
+      }
+    }
+    if (ratedCount === 0) continue;
+    const avg = parseFloat((totalScore / ratedCount).toFixed(1));
+    await dbService.appendAvgHistoryPoint(type, name, avg, ratedCount, totalCount, 'mutation');
+  }
 }
 
 async function aggregateAllProfiles(): Promise<ProfileSummary[]> {
   const db = await dbService.connect();
   const entries = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
 
-  const customImages = await db.select<{ type: string, name: string, image_url: string, crop_data?: string | null }[]>(
+  const customImages = await db.select<{ type: string, name: string, image_url: string, crop_data?: string | null, track_avg_history?: number }[]>(
     "SELECT * FROM profiles"
   );
 
   const imageMap = new Map<string, string>();
   const cropMap = new Map<string, CropData>();
+  const trackingMap = new Map<string, boolean>();
   customImages.forEach(img => {
     const key = `${img.type}:${img.name}`;
     imageMap.set(key, img.image_url);
     const crop = parseCropData(img.crop_data);
     if (crop) cropMap.set(key, crop);
+    trackingMap.set(key, img.track_avg_history === 1);
   });
 
   const profileMap = new Map<string, { count: number; totalScore: number; scoreCount: number }>();
@@ -139,7 +184,8 @@ async function aggregateAllProfiles(): Promise<ProfileSummary[]> {
         count: data.count,
         average_score: data.scoreCount > 0 ? parseFloat((data.totalScore / data.scoreCount).toFixed(1)) : 0,
         image_url: imageMap.get(key),
-        crop: cropMap.get(key)
+        crop: cropMap.get(key),
+        track_avg_history: trackingMap.get(key) === true
       });
     }
   });
@@ -278,5 +324,24 @@ export const profilesLogic = {
     );
 
     invalidateProfilesCache();
+  },
+
+  // --- AVG history tracking ---
+
+  async isAvgHistoryEnabled(type: string, name: string): Promise<boolean> {
+    return dbService.isAvgHistoryEnabled(type, name);
+  },
+
+  async setAvgHistoryEnabled(type: string, name: string, enabled: boolean): Promise<void> {
+    await dbService.setAvgHistoryEnabled(type, name, enabled);
+    if (enabled) {
+      // Backfill from existing entries so the chart has immediate value.
+      await dbService.backfillAvgHistory(type, name);
+    }
+    invalidateProfilesCache();
+  },
+
+  async getAvgHistory(type: string, name: string): Promise<AvgHistoryPoint[]> {
+    return dbService.getAvgHistory(type, name);
   }
 };

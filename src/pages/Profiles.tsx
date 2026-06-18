@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw, Trophy, Tv, ArrowUp, ArrowDown, Captions, MoreVertical, EyeOff, Eye, Crop, Check, X, Maximize } from "lucide-react";
+import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw, Trophy, Tv, ArrowUp, ArrowDown, Captions, MoreVertical, EyeOff, Eye, Crop, Check, X, Maximize, Activity } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { profilesLogic, type ProfileSummary, type CropData, DEFAULT_CROP } from "../lib/profiles-logic";
 import { awardsLogic } from "../lib/awards-logic";
@@ -9,6 +9,7 @@ import type { MediaEntry } from "../lib/db";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { formatShortDate } from "../lib/dates";
 import { useImageUrl } from "../lib/utils";
+import { AvgHistoryModal } from "../components/AvgHistoryModal";
 
 type ViewMode = 'collection' | 'timeline' | 'awards';
 
@@ -464,6 +465,9 @@ function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
               <div className="flex items-center gap-1 text-yellow-500">
                 <Star size={12} fill="currentColor" />
                 <span className="text-xs font-medium">{profile.average_score}</span>
+                {profile.track_avg_history && (
+                  <Activity size={10} className="text-yellow-400/70" />
+                )}
               </div>
             )}
           </div>
@@ -583,6 +587,17 @@ export default function ProfilesPage() {
   // Return-to info: where the user came from (e.g., year view)
   const [returnTo, setReturnTo] = useState<{ year: string; entryId: string; entryType: string } | null>(null);
 
+  // AVG rating history modal (opened by clicking the AVG pill when tracking is on)
+  const [avgHistoryOpen, setAvgHistoryOpen] = useState(false);
+
+  // Detail-header context menu (subtle access to per-profile settings like AVG tracking)
+  const [detailMenuOpen, setDetailMenuOpen] = useState(false);
+  const [detailMenuPosition, setDetailMenuPosition] = useState({ top: 0, right: 0 });
+  const detailMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const detailMenuWrapperRef = useRef<HTMLDivElement>(null);
+  const detailMenuDropdownRef = useRef<HTMLDivElement>(null);
+  const [avgTrackingBusy, setAvgTrackingBusy] = useState(false);
+
   // Initial Load
   useEffect(() => {
     loadProfiles();
@@ -616,6 +631,50 @@ export default function ProfilesPage() {
     await profilesLogic.unhideProfile(profile.type, profile.name);
     await loadProfiles();
     await loadHiddenProfiles();
+  };
+
+  // --- Detail-header context menu (subtle per-profile settings) ---
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const insideButton = detailMenuButtonRef.current?.contains(e.target as Node);
+      const insideDropdown = detailMenuDropdownRef.current?.contains(e.target as Node);
+      if (!insideButton && !insideDropdown) {
+        setDetailMenuOpen(false);
+      }
+    };
+    if (detailMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [detailMenuOpen]);
+
+  const handleDetailMenuClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!detailMenuOpen && detailMenuButtonRef.current) {
+      const rect = detailMenuButtonRef.current.getBoundingClientRect();
+      setDetailMenuPosition({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    }
+    setDetailMenuOpen(!detailMenuOpen);
+  };
+
+  const handleToggleAvgTracking = async () => {
+    if (!selectedProfile) return;
+    setDetailMenuOpen(false);
+    setAvgTrackingBusy(true);
+    try {
+      const newEnabled = !selectedProfile.track_avg_history;
+      await profilesLogic.setAvgHistoryEnabled(selectedProfile.type, selectedProfile.name, newEnabled);
+      const updated = { ...selectedProfile, track_avg_history: newEnabled };
+      setSelectedProfile(updated);
+      // Reflect in the grid list too.
+      setProfiles(prev => prev.map(p =>
+        p.type === selectedProfile.type && p.name === selectedProfile.name
+          ? { ...p, track_avg_history: newEnabled }
+          : p
+      ));
+    } finally {
+      setAvgTrackingBusy(false);
+    }
   };
 
   // Handle deep-link URL params (e.g., /profiles?type=artist&name=SomeName)
@@ -817,6 +876,7 @@ export default function ProfilesPage() {
     // Crop applied to the hero cover — live draft while editing, otherwise the saved value.
     const activeCrop = isCropEditing ? draftCrop : (selectedProfile.crop ?? DEFAULT_CROP);
     return (
+      <>
       <div className="animate-in fade-in duration-500 -mx-6 -mt-6">
         {/* Split Hero - Cover-focused header */}
         <div className="relative flex flex-col md:flex-row min-h-[340px] overflow-hidden rounded-b-3xl profile-header-enter">
@@ -853,6 +913,49 @@ export default function ProfilesPage() {
           >
             <ChevronLeft size={24} />
           </button>
+
+          {/* Subtle settings menu — per-profile AVG history tracking toggle.
+              Out of sight unless opened, matches the not-always-visible requirement. */}
+          <div className="absolute top-6 right-6 z-20" ref={detailMenuWrapperRef}>
+            <button
+              ref={detailMenuButtonRef}
+              onClick={handleDetailMenuClick}
+              className="p-3 bg-black/40 backdrop-blur-md hover:bg-black/60 rounded-full transition-all border border-white/10 hover:border-white/30"
+              title="Profile settings"
+            >
+              <MoreVertical size={20} className="text-white" />
+            </button>
+          </div>
+
+          {detailMenuOpen && createPortal(
+            <div
+              ref={detailMenuDropdownRef}
+              className="fixed w-52 rounded-xl border border-white/20 bg-transparent backdrop-blur-2xl shadow-2xl shadow-black/45 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[200]"
+              style={{
+                top: detailMenuPosition.top,
+                right: detailMenuPosition.right,
+                background: "color-mix(in srgb, var(--color-surface) 42%, transparent)",
+                backdropFilter: "blur(24px) saturate(170%)",
+                WebkitBackdropFilter: "blur(24px) saturate(170%)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={handleToggleAvgTracking}
+                disabled={avgTrackingBusy}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-yellow-500/20 hover:text-yellow-400 transition-colors disabled:opacity-50"
+              >
+                <Activity size={14} />
+                <span className="flex-1 text-left">
+                  {selectedProfile?.track_avg_history ? "Stop tracking AVG" : "Track AVG history"}
+                </span>
+                {selectedProfile?.track_avg_history && (
+                  <Check size={14} className="text-yellow-400" />
+                )}
+              </button>
+            </div>,
+            document.body
+          )}
 
           {/* LEFT: Large sharp cover (the focal point) */}
           <div
@@ -1017,11 +1120,24 @@ export default function ProfilesPage() {
                 <span className="text-gray-400">entries</span>
               </span>
               {selectedProfile.average_score > 0 && (
-                <span className="inline-flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3.5 py-1.5 text-sm font-medium text-white">
-                  <Star size={15} className="text-yellow-400" fill="currentColor" />
-                  {selectedProfile.average_score}
-                  <span className="text-gray-400">avg</span>
-                </span>
+                selectedProfile.track_avg_history ? (
+                  <button
+                    onClick={() => setAvgHistoryOpen(true)}
+                    className="group inline-flex items-center gap-1.5 bg-white/5 border border-yellow-400/40 hover:border-yellow-400/80 hover:bg-yellow-400/10 rounded-full px-3.5 py-1.5 text-sm font-medium text-white transition-all"
+                    title="View AVG rating history"
+                  >
+                    <Star size={15} className="text-yellow-400" fill="currentColor" />
+                    {selectedProfile.average_score}
+                    <span className="text-gray-400">avg</span>
+                    <Activity size={13} className="text-yellow-400/80 group-hover:text-yellow-400 transition-colors" />
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3.5 py-1.5 text-sm font-medium text-white">
+                    <Star size={15} className="text-yellow-400" fill="currentColor" />
+                    {selectedProfile.average_score}
+                    <span className="text-gray-400">avg</span>
+                  </span>
+                )
               )}
             </div>
 
@@ -1245,8 +1361,16 @@ export default function ProfilesPage() {
           }
         `}</style>
       </div>
-    );
-  }
+
+      {/* AVG rating history viewer — opened by clicking the AVG pill when tracking is on */}
+      <AvgHistoryModal
+        isOpen={avgHistoryOpen}
+        profile={selectedProfile}
+        onClose={() => setAvgHistoryOpen(false)}
+      />
+    </>
+  );
+}
 
   // --- VIEW 2: MAIN LIST ---
   return (

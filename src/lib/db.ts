@@ -102,6 +102,17 @@ export interface BacklogItem {
   sort_order: number;
 }
 
+// A single snapshot of a profile's average rating at a point in time.
+// Captured on entry mutation (source='mutation') for tracked profiles, or
+// backfilled (source='backfill') when tracking is first enabled.
+export interface AvgHistoryPoint {
+  captured_at: string;
+  average_score: number;
+  rated_count: number;
+  total_count: number;
+  source: string;
+}
+
 export interface EntrySearchFilters {
   query?: string;
   entryTypes: string[];
@@ -567,6 +578,12 @@ class DBService {
       console.log('[DB] Adding crop_data to profiles...');
       await this.db.execute("ALTER TABLE profiles ADD COLUMN crop_data TEXT");
     }
+
+    // Per-profile opt-in toggle for AVG rating history tracking (0/1 integer).
+    if (!columnNames.includes('track_avg_history')) {
+      console.log('[DB] Adding track_avg_history to profiles...');
+      await this.db.execute("ALTER TABLE profiles ADD COLUMN track_avg_history INTEGER NOT NULL DEFAULT 0");
+    }
   }
 
   /**
@@ -666,6 +683,7 @@ class DBService {
           name TEXT NOT NULL,
           image_url TEXT NOT NULL,
           crop_data TEXT,
+          track_avg_history INTEGER NOT NULL DEFAULT 0,
           PRIMARY KEY (type, name)
         )
       `);
@@ -677,6 +695,22 @@ class DBService {
           name TEXT NOT NULL,
           hidden_date TEXT NOT NULL,
           PRIMARY KEY (type, name)
+        )
+      `);
+
+      // Opt-in per-profile history of average rating over time. Rows are appended
+      // whenever an entry affecting a tracked profile is added/updated/deleted, plus
+      // a one-time backfill (source='backfill') when tracking is first enabled.
+      await this.db.execute(`
+        CREATE TABLE IF NOT EXISTS profile_avg_history (
+          type TEXT NOT NULL,
+          name TEXT NOT NULL,
+          captured_at TEXT NOT NULL,
+          average_score REAL NOT NULL,
+          rated_count INTEGER NOT NULL,
+          total_count INTEGER NOT NULL,
+          source TEXT NOT NULL,
+          PRIMARY KEY (type, name, captured_at)
         )
       `);
 
@@ -997,6 +1031,7 @@ class DBService {
       values
     );
     notifyEntriesMutated();
+    await this.appendAvgHistoryForAffectedProfiles(entry as MediaEntry);
     return result.lastInsertId;
   }
 
@@ -1010,17 +1045,33 @@ class DBService {
 
     const setString = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
 
+    // Fetch the row before update so profile membership changes (e.g. an
+    // entry's actress field being edited to a different name) append points
+    // for BOTH the old and new affected profiles.
+    const oldRows = await db.select<MediaEntry[]>("SELECT * FROM entries WHERE id = $1", [id]);
+    const oldEntry = oldRows[0];
+
     await db.execute(
       `UPDATE entries SET ${setString} WHERE id = $${values.length + 1}`,
       [...values, id]
     );
     notifyEntriesMutated();
+
+    if (oldEntry) {
+      await this.appendAvgHistoryForAffectedProfiles(oldEntry);
+    }
+    await this.appendAvgHistoryForAffectedProfiles(entry);
   }
 
   async deleteEntry(id: number): Promise<void> {
     const db = await this.connect();
+    const rows = await db.select<MediaEntry[]>("SELECT * FROM entries WHERE id = $1", [id]);
+    const entry = rows[0];
     await db.execute("DELETE FROM entries WHERE id = $1", [id]);
     notifyEntriesMutated();
+    if (entry) {
+      await this.appendAvgHistoryForAffectedProfiles(entry);
+    }
   }
 
   /**
@@ -1258,6 +1309,202 @@ class DBService {
       params
     );
     return results[0] ?? null;
+  }
+
+  // --- Profile AVG history ---
+
+  async isAvgHistoryEnabled(type: string, name: string): Promise<boolean> {
+    const db = await this.connect();
+    const rows = await db.select<{ track_avg_history: number }[]>(
+      "SELECT track_avg_history FROM profiles WHERE type = $1 AND name = $2",
+      [type, name]
+    );
+    return rows.length > 0 && rows[0].track_avg_history === 1;
+  }
+
+  async setAvgHistoryEnabled(type: string, name: string, enabled: boolean): Promise<void> {
+    const db = await this.connect();
+    // Upsert the toggle while preserving any existing image_url/crop_data.
+    await db.execute(
+      `INSERT INTO profiles (type, name, image_url, track_avg_history)
+       VALUES ($1, $2, COALESCE((SELECT image_url FROM profiles WHERE type = $1 AND name = $2), ''), $3)
+       ON CONFLICT(type, name) DO UPDATE SET track_avg_history = excluded.track_avg_history`,
+      [type, name, enabled ? 1 : 0]
+    );
+  }
+
+  async getAvgHistory(type: string, name: string): Promise<AvgHistoryPoint[]> {
+    const db = await this.connect();
+    return await db.select<AvgHistoryPoint[]>(
+      `SELECT captured_at, average_score, rated_count, total_count, source
+       FROM profile_avg_history
+       WHERE type = $1 AND name = $2
+       ORDER BY captured_at ASC`,
+      [type, name]
+    );
+  }
+
+  async appendAvgHistoryPoint(
+    type: string,
+    name: string,
+    averageScore: number,
+    ratedCount: number,
+    totalCount: number,
+    source: 'mutation' | 'backfill'
+  ): Promise<void> {
+    if (ratedCount === 0) return; // don't pollute chart with unrated-only snapshots
+    const db = await this.connect();
+    // Use millisecond ISO timestamps; on rare collision, bump by 1ms until unique.
+    let capturedAt = new Date().toISOString();
+    let attempts = 0;
+    while (attempts < 20) {
+      try {
+        await db.execute(
+          `INSERT OR IGNORE INTO profile_avg_history
+           (type, name, captured_at, average_score, rated_count, total_count, source)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [type, name, capturedAt, averageScore, ratedCount, totalCount, source]
+        );
+        return;
+      } catch {
+        // Fall through and retry with bumped timestamp.
+      }
+      const bumped = new Date(Date.parse(capturedAt) + 1).toISOString();
+      capturedAt = bumped;
+      attempts += 1;
+    }
+  }
+
+  /**
+   * Append AVG history points for every tracked profile affected by an entry
+   * mutation. Determined by comma-splitting the entry's seven profile fields
+   * (matching profiles-logic.ts processField). Called from add/update/delete
+   * AFTER the write so the recomputed AVG reflects the new state.
+   */
+  private async appendAvgHistoryForAffectedProfiles(entry: MediaEntry): Promise<void> {
+    const db = await this.connect();
+    const pairs: Array<[string, string]> = [];
+    const collect = (field: keyof MediaEntry, type: string, allow: boolean) => {
+      if (!allow) return;
+      const value = entry[field];
+      if (typeof value === 'string' && value) {
+        value.split(',').map(s => s.trim()).filter(s => s).forEach(name => {
+          pairs.push([type, name]);
+        });
+      }
+    };
+    collect('director', 'director', true);
+    collect('actress', 'actress', true);
+    collect('artist', 'artist', true);
+    collect('author', 'author', true);
+    collect('platform', 'platform', entry.entry_type === 'Game');
+    collect('franchise', 'franchise', entry.entry_type === 'Game');
+    collect('series', 'series', ['Show', 'K-Drama', 'Anime'].includes(entry.entry_type || ''));
+
+    if (pairs.length === 0) return;
+
+    // Which of the affected profiles have tracking enabled?
+    const placeholders = pairs.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(', ');
+    const trackedRows = await db.select<{ type: string; name: string }[]>(
+      `SELECT type, name FROM profiles WHERE track_avg_history = 1 AND (type, name) IN (${placeholders})`,
+      pairs.flat()
+    );
+    if (trackedRows.length === 0) return;
+
+    // Fetch all entries once to compute per-profile AVGs (mirrors profiles-logic
+    // aggregation, but scoped to each tracked profile key).
+    const allRows = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
+    const matchesProfile = (type: string, name: string, e: MediaEntry): boolean => {
+      const field = type as keyof MediaEntry;
+      const val = e[field];
+      if (typeof val !== 'string' || !val) return false;
+      return val.split(',').map(s => s.trim()).includes(name);
+    };
+
+    for (const { type, name } of trackedRows) {
+      let totalCount = 0;
+      let totalScore = 0;
+      let ratedCount = 0;
+      for (const e of allRows) {
+        if (!matchesProfile(type, name, e)) continue;
+        totalCount++;
+        if (e.review_score != null) {
+          totalScore += e.review_score;
+          ratedCount++;
+        }
+      }
+      if (ratedCount === 0) continue;
+      const avg = parseFloat((totalScore / ratedCount).toFixed(1));
+      await this.appendAvgHistoryPoint(type, name, avg, ratedCount, totalCount, 'mutation');
+    }
+  }
+
+  /**
+   * Retroactively populate AVG history for a profile by replaying its entries
+   * in completion_date (fallback id) order. Called once when tracking is enabled.
+   */
+  async backfillAvgHistory(type: string, name: string): Promise<void> {
+    const db = await this.connect();
+    const allRows = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
+    const field = type as keyof MediaEntry;
+    const matching = allRows
+      .filter(e => {
+        const val = e[field];
+        if (typeof val !== 'string' || !val) return false;
+        return val.split(',').map(s => s.trim()).includes(name);
+      })
+      .sort((a, b) => {
+        const da = a.completion_date || '';
+        const db2 = b.completion_date || '';
+        if (da && db2) return da.localeCompare(db2);
+        if (da) return -1;
+        if (db2) return 1;
+        return (a.id ?? 0) - (b.id ?? 0);
+      });
+
+    if (matching.length === 0) return;
+
+    let totalScore = 0;
+    let ratedCount = 0;
+    let totalCount = 0;
+    let lastTs: string | null = null;
+    // Walk in chronological order, emitting one point per entry. Use the entry's
+    // completion_date as the timestamp when available; otherwise synthesize an
+    // increasing timestamp so PK ordering stays stable.
+    for (const entry of matching) {
+      totalCount++;
+      if (entry.review_score != null) {
+        totalScore += entry.review_score;
+        ratedCount++;
+      }
+      if (ratedCount === 0) continue;
+      let ts: string | null = entry.completion_date;
+      if (!ts) {
+        // Synthesize a strictly-increasing timestamp after the last one used,
+        // anchored at the Unix epoch so null-dated entries cluster before any
+        // real date. Each step adds 1 second.
+        const base: number = lastTs ? Date.parse(lastTs) : 0;
+        ts = new Date(base + 1000).toISOString();
+      }
+      const avg = parseFloat((totalScore / ratedCount).toFixed(1));
+      try {
+        await db.execute(
+          `INSERT OR IGNORE INTO profile_avg_history
+           (type, name, captured_at, average_score, rated_count, total_count, source)
+           VALUES ($1, $2, $3, $4, $5, $6, 'backfill')`,
+          [type, name, ts, avg, ratedCount, totalCount]
+        );
+      } catch {
+        // Ignore collisions during backfill.
+      }
+      lastTs = ts;
+    }
+
+    // Append a final point at the current AVG so the chart starts current.
+    const finalAvg = ratedCount > 0 ? parseFloat((totalScore / ratedCount).toFixed(1)) : 0;
+    if (ratedCount > 0) {
+      await this.appendAvgHistoryPoint(type, name, finalAvg, ratedCount, totalCount, 'backfill');
+    }
   }
 }
 
