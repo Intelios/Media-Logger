@@ -1,8 +1,16 @@
 {
-  "generatedAt": "2026-06-16T19:50:23.800Z",
+  "generatedAt": "2026-06-18T20:43:30.552Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "3.3.3",
+      "title": "Media Logger - 3.3.3",
+      "date": "2026-06-18",
+      "body": "New Content/Features:\n- Profile page now tracks the average rating per profile (this can be toggled on/off, off by default) can click the button to see a chart of how the average rating has changed over time.\n- Backlog page now animates on first open of the page like most other pages.\n\nBug Fixes:\n- Fixed an issue where the glow on the timeline 'ball' could be cut off by the invisible in the sidebar's border and look jarring.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.3.3"
+    },
     {
       "version": "3.3.2",
       "title": "Media Logger - 3.3.2",
