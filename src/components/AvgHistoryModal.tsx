@@ -198,8 +198,12 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
 
   const hasData = points.length > 0;
   const currentAvg = points.length > 0 ? points[points.length - 1].average_score : profile.average_score;
-  const firstAvg = points.length > 0 ? points[0].average_score : null;
-  const delta = firstAvg != null ? currentAvg - firstAvg : null;
+  const recentWindowSize = 5;
+  const baselineEntries = entries.length > recentWindowSize ? entries.slice(0, -recentWindowSize) : [];
+  const baselineAvg = baselineEntries.length > 0
+    ? baselineEntries.reduce((sum, e) => sum + (e.review_score ?? 0), 0) / baselineEntries.length
+    : null;
+  const recentDelta = baselineAvg != null ? currentAvg - baselineAvg : null;
   const dense = entries.length >= DENSE_THRESHOLD;
   const markerOpacity = !dense ? 0.9 : (hovering ? 0.9 : 0);
   const guideOpacity = !dense ? 0.15 : (hovering ? 0.25 : 0.06);
@@ -240,11 +244,11 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
               <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Current</p>
               <p className="text-3xl font-bold text-white">{currentAvg.toFixed(1)}</p>
             </div>
-            {delta != null && (
+            {recentDelta != null && (
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Change</p>
-                <p className={`text-2xl font-bold ${delta > 0 ? "text-emerald-400" : delta < 0 ? "text-rose-400" : "text-gray-300"}`}>
-                  {delta > 0 ? "+" : ""}{delta.toFixed(1)}
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Last 5 Entries</p>
+                <p className={`text-2xl font-bold ${recentDelta > 0 ? "text-emerald-400" : recentDelta < 0 ? "text-rose-400" : "text-gray-300"}`}>
+                  {recentDelta > 0 ? "+" : ""}{recentDelta.toFixed(1)}
                 </p>
               </div>
             )}
@@ -336,7 +340,7 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
                             return (
                               <div
                                 key={m.entryId}
-                                className="absolute overflow-hidden rounded-xl border border-white/40 bg-[#0a0a0c]/90 shadow-2xl shadow-black/60 ring-1 ring-black/40"
+                                className="absolute overflow-hidden rounded-xl bg-[#0a0a0c]/80 shadow-lg shadow-black/45 ring-1 ring-white/25"
                                 style={{
                                   left: -MARKER_SIZE / 2 + shift,
                                   top: CHART_MARKER_TOP + shift,
@@ -348,7 +352,7 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
                                   <img
                                     src={url}
                                     alt=""
-                                    className="h-full w-full object-cover p-1"
+                                    className="h-full w-full object-cover"
                                     draggable={false}
                                   />
                                 ) : (
