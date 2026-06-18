@@ -153,7 +153,7 @@ export default function Backlog() {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between backlog-header-enter">
         <div className="flex items-center gap-4">
           <div
             className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
@@ -217,7 +217,7 @@ export default function Backlog() {
 
       {/* Empty State */}
       {isEmpty && (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="flex flex-col items-center justify-center py-24 text-center backlog-header-enter" style={{ animationDelay: '80ms' }}>
           <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 flex items-center justify-center mb-6">
             <Package size={36} className="text-amber-500/50" />
           </div>
@@ -237,7 +237,7 @@ export default function Backlog() {
 
       {/* In Progress Section */}
       {!isEmpty && (
-        <section>
+        <section className="backlog-section-enter" style={{ animationDelay: '120ms' }}>
           <div className="flex items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
@@ -292,7 +292,7 @@ export default function Backlog() {
 
       {/* Planning Section */}
       {!isEmpty && (
-        <section>
+        <section className="backlog-section-enter" style={{ animationDelay: '220ms' }}>
           <div className="flex items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">

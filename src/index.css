@@ -1371,6 +1371,57 @@ body {
   animation: award-header-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Backlog header entrance */
+.backlog-header-enter {
+  animation: award-header-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Backlog section entrance (In Progress / Planning columns) */
+@keyframes backlog-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.backlog-section-enter {
+  opacity: 0;
+  animation: backlog-section-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Backlog case entrance — shelves slide/fade in with stagger */
+@keyframes backlog-case-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.backlog-case-enter {
+  opacity: 0;
+  animation: backlog-case-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Backlog case resting shadow + hover lift shadow */
+.backlog-case-shadow {
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
+  transition: filter 0.3s ease-out;
+}
+
+.backlog-case-shadow-hover {
+  filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.5));
+}
+
 /* Item count ring indicator */
 .collection-ring-indicator {
   position: relative;
