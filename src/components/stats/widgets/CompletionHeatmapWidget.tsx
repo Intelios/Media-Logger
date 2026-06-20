@@ -21,6 +21,10 @@ const HEATMAP_COLORS = [
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const HEATMAP_COLUMN_WIDTH = 16;
+const HEATMAP_COLUMN_GAP = 4;
+
+type HeatmapDay = { date: string | null; count: number };
 
 function getColorForCount(count: number): string {
   if (count === 0) return HEATMAP_COLORS[0];
@@ -31,18 +35,37 @@ function getColorForCount(count: number): string {
   return HEATMAP_COLORS[5];
 }
 
+function parseCalendarDate(date: string): Date {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatCalendarDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getMonthIndex(date: string): number {
+  return Number(date.slice(5, 7)) - 1;
+}
+
 function buildHeatmapData(dailyCompletions: DailyCompletion[], activeYear: string) {
   // Determine date range
   let startDate: Date;
   let endDate: Date;
 
   if (activeYear !== "All Time") {
-    startDate = new Date(`${activeYear}-01-01`);
-    endDate = new Date(`${activeYear}-12-31`);
+    const year = Number(activeYear);
+    startDate = new Date(year, 0, 1);
+    endDate = new Date(year, 11, 31);
   } else {
     // Show last 365 days of data
-    const dates = dailyCompletions.map((d) => new Date(d.date));
-    const maxDate = dates.length > 0 ? new Date(Math.max(...dates.map((d) => d.getTime()))) : new Date();
+    const timestamps = dailyCompletions
+      .map((d) => parseCalendarDate(d.date).getTime())
+      .filter(Number.isFinite);
+    const maxDate = timestamps.length > 0 ? new Date(Math.max(...timestamps)) : new Date();
     endDate = maxDate;
     startDate = new Date(maxDate);
     startDate.setDate(startDate.getDate() - 364);
@@ -52,30 +75,29 @@ function buildHeatmapData(dailyCompletions: DailyCompletion[], activeYear: strin
   const completionMap = new Map(dailyCompletions.map((d) => [d.date, d.count]));
 
   // Build weeks array (each week is an array of 7 days)
-  const weeks: Array<{ date: string | null; count: number; dayOfWeek: number }> = [];
+  const weeks: HeatmapDay[] = [];
   const currentDate = new Date(startDate);
 
   // Pad start to align with Sunday
   const startDayOfWeek = currentDate.getDay();
   for (let i = 0; i < startDayOfWeek; i++) {
-    weeks.push({ date: null, count: 0, dayOfWeek: i });
+    weeks.push({ date: null, count: 0 });
   }
 
   // Fill in actual dates
   while (currentDate <= endDate) {
-    const dateStr = currentDate.toISOString().split("T")[0];
+    const dateStr = formatCalendarDate(currentDate);
     weeks.push({
       date: dateStr,
       count: completionMap.get(dateStr) ?? 0,
-      dayOfWeek: currentDate.getDay(),
     });
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
   // Group into columns (weeks)
-  const columns: Array<Array<{ date: string | null; count: number }>> = [];
+  const columns: HeatmapDay[][] = [];
   for (let i = 0; i < weeks.length; i += 7) {
-    columns.push(weeks.slice(i, i + 7).map((day) => ({ date: day.date, count: day.count })));
+    columns.push(weeks.slice(i, i + 7));
   }
 
   // Calculate month positions for labels
@@ -85,8 +107,8 @@ function buildHeatmapData(dailyCompletions: DailyCompletion[], activeYear: strin
   columns.forEach((column, index) => {
     const firstDayWithDate = column.find((day) => day.date);
     if (firstDayWithDate?.date) {
-      const month = new Date(firstDayWithDate.date).getMonth();
-      if (month !== currentMonth) {
+      const month = getMonthIndex(firstDayWithDate.date);
+      if (month >= 0 && month < MONTH_LABELS.length && month !== currentMonth) {
         currentMonth = month;
         monthPositions.push({ label: MONTH_LABELS[month], columnIndex: index });
       }
@@ -102,6 +124,7 @@ export function CompletionHeatmapWidget({ dailyCompletions, activeYear, onDateCl
 
   const hasData = dailyCompletions.length > 0;
   const maxCount = hasData ? Math.max(...dailyCompletions.map((d) => d.count)) : 0;
+  const heatmapWidth = columns.length > 0 ? columns.length * HEATMAP_COLUMN_WIDTH - HEATMAP_COLUMN_GAP : 0;
 
   return (
     <StatsWidgetShell
@@ -121,23 +144,10 @@ export function CompletionHeatmapWidget({ dailyCompletions, activeYear, onDateCl
       }
     >
       <div className="flex flex-col gap-4">
-        {/* Month labels */}
-        <div className="relative h-5">
-          {monthPositions.map(({ label, columnIndex }) => (
-            <div
-              key={`${label}-${columnIndex}`}
-              className="absolute text-xs text-gray-400"
-              style={{ left: `${columnIndex * 16}px` }}
-            >
-              {label}
-            </div>
-          ))}
-        </div>
-
         {/* Heatmap grid */}
         <div className="flex gap-1">
           {/* Weekday labels */}
-          <div className="flex flex-col gap-1 pr-2">
+          <div className="flex shrink-0 flex-col gap-1 pr-2 pt-9">
             {WEEKDAY_LABELS.map((day, index) => (
               <div key={day} className="h-3 text-[10px] leading-3 text-gray-500">
                 {index % 2 === 0 ? day : ""}
@@ -145,30 +155,47 @@ export function CompletionHeatmapWidget({ dailyCompletions, activeYear, onDateCl
             ))}
           </div>
 
-          {/* Heatmap columns */}
-          <div className="flex gap-1 overflow-x-auto pb-2">
-            {columns.map((column, colIndex) => (
-              <div key={colIndex} className="flex flex-col gap-1">
-                {column.map((day, dayIndex) => (
-                  <button
-                    key={dayIndex}
-                    type="button"
-                    disabled={!day.date || day.count === 0}
-                    onClick={() => day.date && onDateClick(day.date)}
-                    className={`h-3 w-3 rounded-sm ${day.date ? getColorForCount(day.count) : "bg-transparent"} ${
-                      day.date && day.count > 0
-                        ? "cursor-pointer transition-all hover:ring-1 hover:ring-white/30"
-                        : "cursor-default"
-                    } disabled:opacity-50`}
-                    title={
-                      day.date
-                        ? `${formatShortDate(day.date)}: ${day.count} ${day.count === 1 ? "entry" : "entries"}`
-                        : undefined
-                    }
-                  />
+          <div className="min-w-0 overflow-x-auto pb-2">
+            <div style={{ width: `${heatmapWidth}px` }}>
+              {/* Month labels */}
+              <div className="relative mb-4 h-5">
+                {monthPositions.map(({ label, columnIndex }) => (
+                  <div
+                    key={`${label}-${columnIndex}`}
+                    className="absolute text-xs text-gray-400"
+                    style={{ left: `${columnIndex * HEATMAP_COLUMN_WIDTH}px` }}
+                  >
+                    {label}
+                  </div>
                 ))}
               </div>
-            ))}
+
+              {/* Heatmap columns */}
+              <div className="flex gap-1">
+                {columns.map((column, colIndex) => (
+                  <div key={colIndex} className="flex flex-col gap-1">
+                    {column.map((day, dayIndex) => (
+                      <button
+                        key={dayIndex}
+                        type="button"
+                        disabled={!day.date || day.count === 0}
+                        onClick={() => day.date && onDateClick(day.date)}
+                        className={`h-3 w-3 rounded-sm ${day.date ? getColorForCount(day.count) : "bg-transparent"} ${
+                          day.date && day.count > 0
+                            ? "cursor-pointer transition-all hover:ring-1 hover:ring-white/30"
+                            : "cursor-default"
+                        } disabled:opacity-50`}
+                        title={
+                          day.date
+                            ? `${formatShortDate(day.date)}: ${day.count} ${day.count === 1 ? "entry" : "entries"}`
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
