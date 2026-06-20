@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion, type Variants } from "framer-motion";
-import { Library, Star, Calendar, Folder, ArrowRight, Sparkles, Hourglass, RotateCcw, Captions, Shuffle } from "lucide-react";
+import { Library, Star, Calendar, Folder, ArrowRight, Sparkles, Hourglass, RotateCcw, Captions, Shuffle, Clock } from "lucide-react";
 import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { MediaListCard } from "../components/MediaListCard";
@@ -311,13 +311,9 @@ export default function Dashboard() {
         <section className="dashboard-recent">
           <div className="dashboard-recent-header">
             <h3 className="dashboard-section-title">
-              <span className="dashboard-section-icon">📅</span>
+              <span className="dashboard-section-icon"><Clock size={20} /></span>
               Recent Completions
             </h3>
-            <Link to={`/year/${recentYear}`} className="dashboard-view-all">
-              View All
-              <ArrowRight size={14} />
-            </Link>
           </div>
           <p className="dashboard-recent-subtitle">Your latest completions</p>
           {recent.length > 0 ? (
@@ -331,6 +327,10 @@ export default function Dashboard() {
               <span>No recent completions</span>
             </div>
           )}
+          <Link to={`/year/${recentYear}`} className="dashboard-view-all">
+            View All
+            <ArrowRight size={16} />
+          </Link>
         </section>
 
         {/* On This Day */}
@@ -340,10 +340,6 @@ export default function Dashboard() {
               <span className="dashboard-section-icon"><Hourglass size={20} /></span>
               On This Day
             </h3>
-            <Link to="/search" className="dashboard-view-all">
-              View All
-              <ArrowRight size={14} />
-            </Link>
           </div>
           <p className="dashboard-recent-subtitle">Entries completed on {formatTodayMD()}</p>
           {onThisDay.length > 0 ? (
@@ -358,6 +354,10 @@ export default function Dashboard() {
               <span>Nothing completed on this day</span>
             </div>
           )}
+          <Link to="/search" className="dashboard-view-all">
+            View All
+            <ArrowRight size={16} />
+          </Link>
         </section>
       </div>
     </div>

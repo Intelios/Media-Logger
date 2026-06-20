@@ -1804,13 +1804,15 @@ body {
 
 /* Recent Section */
 .dashboard-recent {
+  display: flex;
+  flex-direction: column;
   animation: slideUp 0.6s ease-out 0.2s backwards;
 }
 
 .dashboard-recent-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   margin-bottom: 0.5rem;
   padding: 0 0.5rem;
 }
@@ -1837,22 +1839,52 @@ body {
 }
 
 .dashboard-view-all {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-primary);
   text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  background: rgba(var(--color-primary-rgb), 0.1);
+  padding: 0.6rem 1.1rem;
+  margin-top: 1.25rem;
+  margin-left: auto;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.25);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--color-primary-rgb), 0.08),
+    rgba(var(--color-primary-rgb), 0.18)
+  );
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 4px 14px -6px rgba(var(--color-primary-rgb), 0.4);
   transition: all 0.2s ease;
 }
 
+.dashboard-view-all svg {
+  transition: transform 0.2s ease;
+}
+
 .dashboard-view-all:hover {
-  background: rgba(var(--color-primary-rgb), 0.15);
-  transform: translateX(2px);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--color-primary-rgb), 0.18),
+    rgba(var(--color-primary-rgb), 0.28)
+  );
+  border-color: rgba(var(--color-primary-rgb), 0.45);
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 8px 20px -6px rgba(var(--color-primary-rgb), 0.55);
+}
+
+.dashboard-view-all:hover svg {
+  transform: translateX(3px);
+}
+
+.dashboard-view-all:active {
+  transform: translateY(0);
 }
 
 /* Dashboard side-by-side lists (Recent Completions + On This Day) */
