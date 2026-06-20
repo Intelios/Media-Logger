@@ -1534,6 +1534,11 @@ body {
 .dashboard-featured-wrap {
   position: relative;
   margin-bottom: 1.5rem;
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.dashboard-featured-wrap:hover {
+  transform: translateY(-4px) scale(1.01);
 }
 
 .dashboard-featured {
@@ -1545,11 +1550,10 @@ body {
   text-decoration: none;
   background: #000;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-  transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: box-shadow 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.dashboard-featured:hover {
-  transform: translateY(-4px) scale(1.01);
+.dashboard-featured-wrap:hover .dashboard-featured {
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
 }
 
