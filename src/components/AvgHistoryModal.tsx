@@ -95,8 +95,13 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
   useEscapeToClose(isOpen, onClose);
   useFocusTrap(isOpen, modalRef);
 
+  // Re-run when the chart div actually mounts. On first open the data is still
+  // loading so the chart div is absent (chartRef is null); we must retry once
+  // loading flips to false with data, otherwise chartSize stays {0,0} and the
+  // marker overlay (which depends on chartSize.width > 0) never renders.
+  const chartReady = isOpen && !loading && points.length > 0;
   useEffect(() => {
-    if (!isOpen) return;
+    if (!chartReady) return;
     const el = chartRef.current;
     if (!el) return;
 
@@ -108,7 +113,7 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
     const observer = new ResizeObserver(updateSize);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [isOpen]);
+  }, [chartReady]);
 
   useEffect(() => {
     if (!isOpen || !profile) return;
