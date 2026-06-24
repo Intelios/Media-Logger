@@ -1,4 +1,5 @@
 import { Check, SlidersHorizontal } from "lucide-react";
+import { motion } from "framer-motion";
 import { cn } from "../../lib/utils_ui";
 import { MultiSelectFilter } from "../MultiSelectFilter";
 import type {
@@ -136,22 +137,30 @@ export function StatsPageHeader({
         ) : null}
       </div>
 
-      <div className="flex w-fit overflow-x-auto rounded-xl border border-white/10 bg-white/5 p-1">
-        {yearOptions.map((year) => (
-          <button
-            key={year}
-            type="button"
-            onClick={() => onActiveYearChange(year)}
-            className={cn(
-              "whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all",
-              activeYear === year
-                ? "bg-primary text-white shadow-lg"
-                : "text-gray-400 hover:bg-white/5 hover:text-white"
-            )}
-          >
-            {year}
-          </button>
-        ))}
+      <div className="relative flex w-fit overflow-x-auto rounded-xl border border-white/10 bg-white/5 p-1">
+        {yearOptions.map((year) => {
+          const isActive = activeYear === year;
+          return (
+            <button
+              key={year}
+              type="button"
+              onClick={() => onActiveYearChange(year)}
+              className={cn(
+                "relative whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                isActive ? "text-white" : "text-gray-400 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              {isActive && (
+                <motion.span
+                  layoutId="stats-year-active"
+                  className="absolute inset-0 rounded-lg bg-primary shadow-lg"
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10">{year}</span>
+            </button>
+          );
+        })}
       </div>
     </header>
   );
