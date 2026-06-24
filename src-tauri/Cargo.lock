@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "Media-Logger"
-version = "3.3.4"
+version = "3.3.6"
 dependencies = [
  "chrono",
  "serde",
