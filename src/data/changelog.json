@@ -1,8 +1,32 @@
 {
-  "generatedAt": "2026-06-18T20:43:30.552Z",
+  "generatedAt": "2026-06-24T17:04:23.301Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "3.4",
+      "title": "Media Logger - 3.4",
+      "date": "2026-06-24",
+      "body": "New Content/Features:\n- Award Cards in the Awards page have been updated with a new layout and visual design to take more full advantage of the space as there was a lot of 'dead space' in those cards.\n- Replaced 12 instances of emoji usage in the app with proper icons to ensure less differences between platforms.\n- The content pop out modal for various features such as 'Perfect 10s' or 'This month' and many other pop out modals has been updated to a new visual look that uses your chosen colour theme instead of a generic blue.\n- The tooltip used in various locations when hovering over things has also been updated to take advantage of your theme instead of a generic blue.\n- All tooltips are unified into the same class instead of being duplicated over and over with same methods, reducing code and providing slight improvements to optimisation.\n- The year selector in the Stats page is now animated when clicking between the years.\n- Collapisble Stat Sections now properly expand to take up full space and no longer feel as cramped and compact as they used to.\n\nBug Fixes:\n- Fixed an issue where the tooltip could be covered by the dotted lines and thumbanils in profile's average rating chart.\n- Average Rating History for profile's name is now set correctly previously was not displayed correctly.\n- Fixed an issue where the Stats pages 'This Month' included entries from the 31st of the previous month.\n- Conditional Field stats widgets (Authors, Franchises etc) fixed to now take advantage of full space avaliable, not leaving blank space at the bottom.\n- Fixed critical bug that stopped you from navigating using the sidebar when inside a year in the awards page.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.4"
+    },
+    {
+      "version": "3.3.5",
+      "title": "Media Logger - 3.3.5",
+      "date": "2026-06-22",
+      "body": "- Fixed issue where thumbnails in Profile Average charts did not display until you reopened it.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.3.5"
+    },
+    {
+      "version": "3.3.4",
+      "title": "Media Logger - 3.3.4",
+      "date": "2026-06-20",
+      "body": "New Content/Features:\n- Moved the 'View All' buttons for Dashboard's recent completions & On This Day to the bottom of their lists.\n- Featured Entry on Dashboard's 'Shuffle'  button now animates when hovering over the featured entry card, not just when on the shuffle button to add more polish to the visuals of the app.\n\nBug Fixes:\n- Fixed misalligenment issue in the Completion Heatmap widget on Stats Page.\n- Fixed an issue when hovering over the 'Featured Entry' on the dashboard/home where a small slice/line could appear without darkened overlay.\n- Fixed an issue where the 'Recent Completions' on the dashboard used an emoji and not built in icon causing platform differences.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.3.4"
+    },
     {
       "version": "3.3.3",
       "title": "Media Logger - 3.3.3",
