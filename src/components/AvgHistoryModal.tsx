@@ -229,7 +229,7 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
             <LineChartIcon size={20} className="text-yellow-400" />
           </div>
           <div className="min-w-0">
-            <h3 className="font-bold text-white text-lg truncate">AVG rating history</h3>
+            <h3 className="font-bold text-white text-lg truncate">Average Rating History</h3>
             <p className="text-xs text-gray-400 truncate">
               {profile.name} · <span className="capitalize">{profile.type}</span>
             </p>
@@ -296,6 +296,7 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
                   <Tooltip
                     content={<AvgHistoryTooltip />}
                     cursor={{ stroke: "rgba(255,255,255,0.08)" }}
+                    wrapperStyle={{ zIndex: 50 }}
                   />
                   <Line
                     type="monotone"
