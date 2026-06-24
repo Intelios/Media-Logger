@@ -548,11 +548,21 @@ async function getEntriesByCompletionDate(date: string, filters: StatsFilters): 
   return db.select<MediaEntry[]>(query, params);
 }
 
+function formatLocalDate(year: number, monthIndex: number, day: number): string {
+  // Build a "YYYY-MM-DD" string directly from local components so the range
+  // bounds are not shifted by toISOString()'s UTC conversion (which can pull
+  // the start of a local month into the previous day/previous month in
+  // timezones ahead of UTC, leaking the last day of the prior month in).
+  const mm = String(monthIndex + 1).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  return `${year}-${mm}-${dd}`;
+}
+
 async function getThisMonthEntries(filters: StatsFilters): Promise<MediaEntry[]> {
   const db = await dbService.connect();
   const now = new Date();
-  const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
-  const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().split("T")[0];
+  const startDate = formatLocalDate(now.getFullYear(), now.getMonth(), 1);
+  const endDate = formatLocalDate(now.getFullYear(), now.getMonth() + 1, 1);
   const params: Array<string | number> = [startDate, endDate];
   let query = "SELECT * FROM entries WHERE completion_date >= $1 AND completion_date < $2";
 
