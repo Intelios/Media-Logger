@@ -249,14 +249,13 @@ function BacklogTooltip({ item, genres, anchorEl }: { item: BacklogItem; genres:
   return (
     <div
       ref={tooltipRef}
-      className="fixed z-[9998] w-[220px] rounded-xl p-3 shadow-2xl border border-white/10 backdrop-blur-md"
+      className="glass-tooltip fixed z-[9998] w-[220px] rounded-xl p-3"
       style={{
         top: pos.top,
         left: pos.left,
-        backgroundColor: "var(--color-surface)",
       }}
     >
-      <p className="text-sm font-semibold text-white leading-tight mb-1.5">{item.name}</p>
+      <p className="text-sm font-semibold text-text leading-tight mb-1.5">{item.name}</p>
 
       <div className="flex items-center gap-1.5 mb-2">
         <span className={cn(
@@ -275,19 +274,19 @@ function BacklogTooltip({ item, genres, anchorEl }: { item: BacklogItem; genres:
       {genres.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
           {genres.slice(0, 4).map(g => (
-            <span key={g} className="px-1.5 py-0.5 text-[9px] rounded-full bg-white/10 text-gray-300">
+            <span key={g} className="px-1.5 py-0.5 text-[9px] rounded-full bg-primary/10 text-text">
               {g}
             </span>
           ))}
           {genres.length > 4 && (
-            <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-white/5 text-gray-500">
+            <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-primary/5 text-text-muted">
               +{genres.length - 4}
             </span>
           )}
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
+      <div className="flex items-center gap-1.5 text-[10px] text-text-muted">
         <Calendar size={10} />
         <span>Added {item.added_date}</span>
       </div>

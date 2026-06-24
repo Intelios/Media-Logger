@@ -53,18 +53,18 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, onEntriesCh
             />
 
             {/* Modal */}
-            <div ref={modalRef} className="fixed inset-4 md:inset-10 lg:inset-16 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-3xl z-50 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            <div ref={modalRef} className="glass-surface fixed inset-4 md:inset-10 lg:inset-16 rounded-3xl z-50 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-200">
                 {/* Header */}
-                <header className="flex items-center justify-between p-6 border-b border-white/10 shrink-0">
+                <header className="flex items-center justify-between p-6 border-b border-primary/15 shrink-0">
                     <div>
-                        <h2 className="text-2xl font-bold text-white">{title}</h2>
-                        <p className="text-gray-400 text-sm mt-1">
+                        <h2 className="text-2xl font-bold text-text">{title}</h2>
+                        <p className="text-text-muted text-sm mt-1">
                             {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
                         </p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 rounded-xl hover:bg-white/10 transition-colors text-gray-400 hover:text-white"
+                        className="p-2 rounded-xl hover:bg-primary/10 transition-colors text-text-muted hover:text-primary"
                     >
                         <X size={24} />
                     </button>
@@ -84,7 +84,7 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, onEntriesCh
                             ))}
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+                        <div className="flex flex-col items-center justify-center py-20 text-text-subtle">
                             <p className="text-lg">No entries found.</p>
                         </div>
                     )}

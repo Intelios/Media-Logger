@@ -41,29 +41,29 @@ export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onG
             />
 
             {/* Modal */}
-            <div ref={modalRef} className="fixed inset-4 md:inset-10 lg:inset-16 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-3xl z-50 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            <div ref={modalRef} className="glass-surface fixed inset-4 md:inset-10 lg:inset-16 rounded-3xl z-50 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-200">
                 {/* Header */}
-                <header className="flex items-center justify-between p-6 border-b border-white/10 shrink-0">
+                <header className="flex items-center justify-between p-6 border-b border-primary/15 shrink-0">
                     <div>
-                        <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                            <BarChart3 className="text-purple-400" size={24} />
+                        <h2 className="text-2xl font-bold text-text flex items-center gap-3">
+                            <BarChart3 className="text-primary" size={24} />
                             Genre Breakdown
                         </h2>
-                        <p className="text-gray-400 text-sm mt-1">
+                        <p className="text-text-muted text-sm mt-1">
                             {genres.length} genres across {totalEntries} entries — click a genre to view its entries
                         </p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 rounded-xl hover:bg-white/10 transition-colors text-gray-400 hover:text-white"
+                        className="p-2 rounded-xl hover:bg-primary/10 transition-colors text-text-muted hover:text-primary"
                     >
                         <X size={24} />
                     </button>
                 </header>
 
                 {/* Sort Controls */}
-                <div className="flex items-center gap-2 px-6 py-3 border-b border-white/5 shrink-0">
-                    <span className="text-xs text-gray-500 uppercase tracking-wide font-semibold mr-2">Sort by</span>
+                <div className="flex items-center gap-2 px-6 py-3 border-b border-primary/5 shrink-0">
+                    <span className="text-xs text-text-subtle uppercase tracking-wide font-semibold mr-2">Sort by</span>
                     {([
                         { key: "count", label: "Most Entries" },
                         { key: "avgScore", label: "Highest Rated" },
@@ -75,8 +75,8 @@ export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onG
                             className={cn(
                                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                                 sortBy === opt.key
-                                    ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
-                                    : "text-gray-400 hover:text-white hover:bg-white/5 border border-transparent"
+                                    ? "bg-primary/20 text-primary border border-primary/30"
+                                    : "text-text-muted hover:text-text hover:bg-primary/5 border border-transparent"
                             )}
                         >
                             {opt.label}
@@ -97,13 +97,13 @@ export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onG
                                 <button
                                     key={genre.name}
                                     onClick={() => onGenreClick(genre.name)}
-                                    className="w-full text-left group rounded-xl p-4 transition-all duration-200 hover:bg-white/5 border border-transparent hover:border-white/10"
+                                    className="w-full text-left group rounded-xl p-4 transition-all duration-200 hover:bg-primary/5 border border-transparent hover:border-primary/10"
                                 >
                                     <div className="flex items-center gap-4">
                                         {/* Rank */}
                                         <div className={cn(
                                             "w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0",
-                                            rank <= 3 ? "bg-purple-500/20 text-purple-300" : "bg-white/5 text-gray-500"
+                                            rank <= 3 ? "bg-primary/20 text-primary" : "bg-white/5 text-text-subtle"
                                         )}>
                                             {rank}
                                         </div>
@@ -114,7 +114,7 @@ export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onG
                                                 className="w-3 h-3 rounded-full shrink-0"
                                                 style={{ backgroundColor: COLORS[colorIndex % COLORS.length] }}
                                             />
-                                            <span className="text-white font-medium truncate group-hover:text-purple-300 transition-colors">
+                                            <span className="text-text font-medium truncate group-hover:text-primary transition-colors">
                                                 {genre.name}
                                             </span>
                                         </div>
@@ -139,16 +139,16 @@ export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onG
 
                                             {/* Count + Percentage */}
                                             <div className="text-right min-w-[70px]">
-                                                <span className="font-bold text-white">{genre.count}</span>
-                                                <span className="text-gray-500 text-xs ml-1.5">({percentage.toFixed(1)}%)</span>
+                                                <span className="font-bold text-text">{genre.count}</span>
+                                                <span className="text-text-subtle text-xs ml-1.5">({percentage.toFixed(1)}%)</span>
                                             </div>
 
-                                            <ChevronRight size={16} className="text-gray-600 group-hover:text-purple-400 transition-colors" />
+                                            <ChevronRight size={16} className="text-text-subtle group-hover:text-primary transition-colors" />
                                         </div>
                                     </div>
 
                                     {/* Bar */}
-                                    <div className="mt-2.5 ml-12 h-1.5 w-full rounded-full bg-purple-500/10">
+                                    <div className="mt-2.5 ml-12 h-1.5 w-full rounded-full bg-primary/10">
                                         <div
                                             className="h-full rounded-full transition-all duration-500"
                                             style={{

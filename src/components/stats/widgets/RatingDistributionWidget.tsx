@@ -14,10 +14,10 @@ function RatingTooltip({ active, payload }: any) {
   const { name, count } = payload[0].payload;
 
   return (
-    <div className="rounded-xl border border-white/10 bg-gray-900/95 px-4 py-3 shadow-2xl backdrop-blur-xl">
+    <div className="glass-tooltip rounded-xl px-4 py-3">
       <div className="mb-1 flex items-center gap-2">
         <Star size={14} className="text-amber-400" />
-        <span className="font-semibold text-white">{name}/10</span>
+        <span className="font-semibold text-text">{name}/10</span>
       </div>
       <p className="text-sm text-gray-300">
         <span className="font-bold text-amber-300">{count}</span> {count === 1 ? "entry" : "entries"}

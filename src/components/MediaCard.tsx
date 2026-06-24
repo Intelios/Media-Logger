@@ -345,7 +345,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                   <span className="text-[10px] font-black tracking-wide text-slate-900">PLATINUM 100%</span>
                 </div>
                 <PortalTooltip anchorRef={platinumBadgeRef}>
-                  <div className="bg-surface/95 backdrop-blur-xl border border-cyan-300/40 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
+                  <div className="glass-tooltip rounded-lg px-3 py-1.5 whitespace-nowrap" style={{ borderColor: "color-mix(in srgb, #67e8f9 40%, var(--color-border))" }}>
                     <span className="text-xs font-medium text-cyan-200">Platinum / 100% Completed</span>
                   </div>
                 </PortalTooltip>
@@ -388,7 +388,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                 )}
               </div>
               <PortalTooltip anchorRef={awardBadgeRef}>
-                <div className="bg-surface/95 backdrop-blur-xl border border-amber-500/30 rounded-xl p-3 shadow-2xl shadow-black/50 w-48">
+                <div className="glass-tooltip rounded-xl p-3 w-48" style={{ borderColor: "color-mix(in srgb, #f59e0b 30%, var(--color-border))" }}>
                   <div className="text-xs font-semibold text-amber-400 mb-2 flex items-center gap-1.5">
                     <Trophy size={12} />
                     <span>Awards Won</span>
@@ -579,13 +579,13 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                     +{genres.length - 3}
                   </span>
                   <PortalTooltip anchorRef={genreOverflowRef}>
-                    <div className="bg-surface/95 backdrop-blur-xl border border-white/15 rounded-xl p-3 shadow-2xl shadow-black/50 min-w-[120px]">
-                      <div className="text-xs font-semibold text-gray-400 mb-2">More Genres</div>
+                    <div className="glass-tooltip rounded-xl p-3 min-w-[120px]">
+                      <div className="text-xs font-semibold text-text-muted mb-2">More Genres</div>
                       <div className="flex flex-wrap gap-1.5">
                         {genres.slice(3).map((genre, i) => (
                           <span
                             key={i}
-                            className="px-2 py-0.5 bg-white/10 rounded-md text-[10px] text-gray-300 font-medium"
+                            className="px-2 py-0.5 bg-primary/10 rounded-md text-[10px] text-text font-medium"
                           >
                             {genre}
                           </span>
@@ -607,7 +607,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                     <RotateCcw size={12} className="text-amber-500" />
                   </div>
                   <PortalTooltip anchorRef={rewatchBadgeRef}>
-                    <div className="bg-surface/95 backdrop-blur-xl border border-amber-500/30 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
+                    <div className="glass-tooltip rounded-lg px-3 py-1.5 whitespace-nowrap" style={{ borderColor: "color-mix(in srgb, #f59e0b 30%, var(--color-border))" }}>
                       <span className="text-xs font-medium text-amber-400">Replay / Rewatch</span>
                     </div>
                   </PortalTooltip>
@@ -619,7 +619,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                     <Check size={12} className="text-emerald-500" />
                   </div>
                   <PortalTooltip anchorRef={localBadgeRef}>
-                    <div className="bg-surface/95 backdrop-blur-xl border border-emerald-500/30 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
+                    <div className="glass-tooltip rounded-lg px-3 py-1.5 whitespace-nowrap" style={{ borderColor: "color-mix(in srgb, #10b981 30%, var(--color-border))" }}>
                       <span className="text-xs font-medium text-emerald-400">Own Local Copy</span>
                     </div>
                   </PortalTooltip>
@@ -631,7 +631,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                     <Captions size={12} className="text-orange-400" />
                   </div>
                   <PortalTooltip anchorRef={subtitlesBadgeRef}>
-                    <div className="bg-surface/95 backdrop-blur-xl border border-orange-500/30 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
+                    <div className="glass-tooltip rounded-lg px-3 py-1.5 whitespace-nowrap" style={{ borderColor: "color-mix(in srgb, #f97316 30%, var(--color-border))" }}>
                       <span className="text-xs font-medium text-orange-400">Subtitles</span>
                     </div>
                   </PortalTooltip>
@@ -643,7 +643,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                     <Clock size={12} className="text-violet-400" />
                   </div>
                   <PortalTooltip anchorRef={earlyAccessBadgeRef}>
-                    <div className="bg-surface/95 backdrop-blur-xl border border-violet-500/30 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
+                    <div className="glass-tooltip rounded-lg px-3 py-1.5 whitespace-nowrap" style={{ borderColor: "color-mix(in srgb, #8b5cf6 30%, var(--color-border))" }}>
                       <span className="text-xs font-medium text-violet-400">Early Access{entry.early_access_version ? `: ${entry.early_access_version}` : ''}</span>
                     </div>
                   </PortalTooltip>
@@ -655,7 +655,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                     <Trophy size={12} className="text-cyan-100" />
                   </div>
                   <PortalTooltip anchorRef={platinumStatusBadgeRef}>
-                    <div className="bg-surface/95 backdrop-blur-xl border border-cyan-300/40 rounded-lg px-3 py-1.5 shadow-2xl shadow-black/50 whitespace-nowrap">
+                    <div className="glass-tooltip rounded-lg px-3 py-1.5 whitespace-nowrap" style={{ borderColor: "color-mix(in srgb, #67e8f9 40%, var(--color-border))" }}>
                       <span className="text-xs font-medium text-cyan-200">Platinum / 100%</span>
                     </div>
                   </PortalTooltip>

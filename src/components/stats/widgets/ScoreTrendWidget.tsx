@@ -53,15 +53,15 @@ function ScoreTrendTooltip({ active, payload, label, activeYear, comparisonYear 
   const primaryLabel = comparisonYear !== null ? `${activeYear} avg` : "Avg score";
 
   return (
-    <div className="rounded-xl border border-white/10 bg-gray-900/95 px-4 py-3 shadow-2xl backdrop-blur-xl">
-      <div className="mb-1 text-sm font-semibold text-white">{label}</div>
+    <div className="glass-tooltip rounded-xl px-4 py-3">
+      <div className="mb-1 text-sm font-semibold text-text">{label}</div>
       <div className="space-y-1 text-sm">
         {hasPrimary ? (
           <>
             <p className="text-emerald-300">
               {primaryLabel} <span className="font-bold">{point.averageScore!.toFixed(1)}</span>
             </p>
-            <p className="text-gray-400">
+            <p className="text-text-muted">
               {point.count} rated {point.count === 1 ? "entry" : "entries"}
             </p>
           </>
@@ -71,7 +71,7 @@ function ScoreTrendTooltip({ active, payload, label, activeYear, comparisonYear 
             <p className="text-amber-300">
               {comparisonYear} avg <span className="font-bold">{point.comparisonScore!.toFixed(1)}</span>
             </p>
-            <p className="text-gray-400">
+            <p className="text-text-muted">
               {point.comparisonCount} rated {point.comparisonCount === 1 ? "entry" : "entries"}
             </p>
           </>

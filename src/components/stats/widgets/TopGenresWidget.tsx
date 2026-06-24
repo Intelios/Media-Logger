@@ -20,26 +20,26 @@ function GenreTooltip({ active, payload }: any) {
   const { name, count, avgScore, perfectCount } = payload[0].payload;
 
   return (
-    <div className="min-w-[140px] rounded-xl border border-white/10 bg-gray-900/95 px-4 py-3 shadow-2xl backdrop-blur-xl">
+    <div className="glass-tooltip min-w-[140px] rounded-xl px-4 py-3">
       <div className="mb-2 flex items-center gap-2">
         <div
           className="h-2.5 w-2.5 rounded-full"
           style={{ backgroundColor: payload[0].payload.fill || payload[0].color }}
         />
-        <span className="font-semibold text-white">{name}</span>
+        <span className="font-semibold text-text">{name}</span>
       </div>
       <div className="space-y-1 text-sm">
         <p className="text-gray-300">
-          <span className="font-bold text-purple-300">{count}</span> {count === 1 ? "entry" : "entries"}
+          <span className="font-bold text-primary">{count}</span> {count === 1 ? "entry" : "entries"}
         </p>
         {avgScore !== undefined ? (
-          <p className="flex items-center gap-1 text-gray-400">
+          <p className="flex items-center gap-1 text-text-muted">
             <Star size={12} className="text-amber-400" />
             <span className="font-medium text-amber-300">{avgScore.toFixed(1)}</span> avg
           </p>
         ) : null}
         {(perfectCount ?? 0) > 0 ? (
-          <p className="text-gray-400">
+          <p className="text-text-muted">
             <span className="font-medium text-pink-300">💎 {perfectCount}</span> perfect
           </p>
         ) : null}

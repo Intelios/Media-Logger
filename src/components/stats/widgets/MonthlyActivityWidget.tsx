@@ -94,9 +94,15 @@ export function MonthlyActivityWidget({
             <XAxis dataKey="month" tick={{ fill: "#9CA3AF", fontSize: 12 }} axisLine={false} tickLine={false} />
             <YAxis hide />
             <Tooltip
-              contentStyle={{ backgroundColor: "#1f1f1f", borderColor: "#333", borderRadius: 8 }}
-              itemStyle={{ color: "#fff" }}
-              labelStyle={{ color: "#9CA3AF" }}
+              contentStyle={{
+                backgroundColor: "color-mix(in srgb, var(--color-surface) 96%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--color-primary) 14%, var(--color-border))",
+                borderRadius: 12,
+                boxShadow: "0 12px 32px -8px rgba(0,0,0,0.55)",
+                backdropFilter: "blur(14px)",
+              }}
+              itemStyle={{ color: "var(--color-text)" }}
+              labelStyle={{ color: "var(--color-text-muted)" }}
             />
             {hasComparison ? (
               <Area

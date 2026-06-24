@@ -52,27 +52,27 @@ function AvgHistoryTooltip({ active, payload }: {
   if (!row) return null;
   const hasSnap = row.average_score != null;
   return (
-    <div className="rounded-xl border border-white/10 bg-gray-900/95 px-4 py-3 shadow-2xl backdrop-blur-xl max-w-[240px]">
-      <div className="mb-1 text-sm font-semibold text-white">{formatShortDate(row.captured_at)}</div>
+    <div className="glass-tooltip rounded-xl px-4 py-3 max-w-[240px]">
+      <div className="mb-1 text-sm font-semibold text-text">{formatShortDate(row.captured_at)}</div>
       {hasSnap && (
         <>
           <p className="text-yellow-300 text-sm">
             Avg <span className="font-bold">{row.average_score!.toFixed(1)}</span>
           </p>
-          <p className="text-gray-400 text-xs">
+          <p className="text-text-muted text-xs">
             {row.rated_count} rated / {row.total_count} {row.total_count === 1 ? "entry" : "entries"}
           </p>
         </>
       )}
       {row.markers.length > 0 && (
-        <div className="mt-1.5 pt-1.5 border-t border-white/10 space-y-1">
-          <p className="text-gray-500 text-[10px] uppercase tracking-wider">
+        <div className="mt-1.5 pt-1.5 border-t border-primary/15 space-y-1">
+          <p className="text-text-subtle text-[10px] uppercase tracking-wider">
             {row.markers.length === 1 ? "Entry logged" : `${row.markers.length} entries logged`}
           </p>
           {row.markers.map(m => (
-            <p key={m.entryId} className="text-xs text-gray-200 truncate">
-              <span className="text-gray-400">{m.name}</span>
-              <span className="text-gray-500"> · </span>
+            <p key={m.entryId} className="text-xs text-text truncate">
+              <span className="text-text-muted">{m.name}</span>
+              <span className="text-text-subtle"> · </span>
               <span className="text-amber-300 font-semibold">{m.reviewScore.toFixed(1)}</span>
             </p>
           ))}

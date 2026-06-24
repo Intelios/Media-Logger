@@ -87,6 +87,50 @@ body {
   border-radius: 3px;
 }
 
+/* ── Glass surfaces — themed modal & tooltip chrome ─────────────────────────
+   Reusable glass treatments driven by --color-* theme variables. Declared in
+   the components layer so individual Tailwind utilities (e.g. an accent
+   `border-cyan-300/40`) can still override specific sub-properties such as
+   border-color while inheriting the themed background + shadow.
+
+   The fill combines a faint radial primary glow near the top with a flat
+   surface body, giving modals & tooltips subtle theme cohesion without the
+   glare of a saturated primary fill. */
+
+@layer components {
+  .glass-surface {
+    background:
+      radial-gradient(
+        ellipse 120% 80% at 50% -20%,
+        color-mix(in srgb, var(--color-primary) 9%, transparent) 0%,
+        transparent 60%
+      ),
+      color-mix(in srgb, var(--color-surface) 95%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 16%, var(--color-border));
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    box-shadow:
+      0 24px 70px -12px rgba(0, 0, 0, 0.6),
+      0 0 0 1px color-mix(in srgb, var(--color-primary) 6%, transparent);
+  }
+
+  .glass-tooltip {
+    background:
+      radial-gradient(
+        ellipse 140% 100% at 50% -25%,
+        color-mix(in srgb, var(--color-primary) 8%, transparent) 0%,
+        transparent 65%
+      ),
+      color-mix(in srgb, var(--color-surface) 96%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 14%, var(--color-border));
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    box-shadow:
+      0 12px 32px -8px rgba(0, 0, 0, 0.55),
+      0 0 0 1px color-mix(in srgb, var(--color-primary) 5%, transparent);
+  }
+}
+
 /* Perfect 10 glow animation — 3-layer emerald aura */
 @keyframes perfect-glow {
 

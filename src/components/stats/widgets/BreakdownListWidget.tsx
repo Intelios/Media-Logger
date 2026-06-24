@@ -137,9 +137,9 @@ function BreakdownDonutTooltip({
   const percentage = totalCount > 0 ? (item.count / totalCount) * 100 : 0;
 
   return (
-    <div className="rounded-xl border border-white/10 bg-[#111318]/95 px-3 py-2 shadow-xl backdrop-blur">
-      <p className="text-sm font-semibold text-white">{item.name}</p>
-      <p className="mt-1 text-xs text-gray-400">
+    <div className="glass-tooltip rounded-xl px-3 py-2">
+      <p className="text-sm font-semibold text-text">{item.name}</p>
+      <p className="mt-1 text-xs text-text-muted">
         {item.count} entries • {percentage.toFixed(1)}%
       </p>
       {item.avgScore !== undefined ? (

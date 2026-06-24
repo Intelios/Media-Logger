@@ -17,13 +17,13 @@ function AverageScoreTooltip({ active, payload }: any) {
   }
 
   return (
-    <div className="rounded-xl border border-white/10 bg-gray-900/95 px-4 py-3 shadow-2xl backdrop-blur-xl">
-      <div className="mb-1 text-sm font-semibold text-white">{item.name}</div>
+    <div className="glass-tooltip rounded-xl px-4 py-3">
+      <div className="mb-1 text-sm font-semibold text-text">{item.name}</div>
       <div className="space-y-1 text-sm">
         <p className="text-sky-300">
           Avg score <span className="font-bold">{item.avgScore.toFixed(1)}</span>
         </p>
-        <p className="text-gray-400">
+        <p className="text-text-muted">
           {item.count} {item.count === 1 ? "entry" : "entries"}
         </p>
       </div>
