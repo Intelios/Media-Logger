@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Award, ChevronLeft, Plus, Trash2, Trophy, ArrowUpDown, Sparkles, History } from "lucide-react";
+import { Award, ChevronLeft, Plus, Trash2, Trophy, ArrowUpDown, Sparkles, History, Star, Calendar } from "lucide-react";
 import { awardsLogic, type AwardYearSummary, type AwardCategory, type AwardTemplate, type TemplateWinnerHistory } from "../lib/awards-logic";
-import { MediaCard } from "../components/MediaCard";
+import { MediaCard, getTypeBadgeStyle, getRatingColor, formatCardRating, parseGenres } from "../components/MediaCard";
 import { WinnerPicker } from "../components/WinnerPicker";
 import { InputModal } from "../components/InputModal";
 import { ReorderModal, type ReorderItem } from "../components/ReorderModal";
@@ -10,6 +10,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { useImageUrl } from "../lib/utils";
+import { formatDate } from "../lib/dates";
 
 // Small helper component for loading images asynchronously (required for Tauri)
 function WinnerThumbnail({ entry }: { entry: MediaEntry }) {
@@ -25,6 +26,20 @@ function WinnerThumbnail({ entry }: { entry: MediaEntry }) {
         />
       )}
     </div>
+  );
+}
+
+// Full-size cover image for award winner cards
+function WinnerCoverImage({ entry }: { entry: MediaEntry }) {
+  const imgSrc = useImageUrl(entry.image_url);
+
+  return (
+    <img
+      src={imgSrc}
+      alt={entry.name}
+      className="w-full h-full object-cover"
+      loading="lazy"
+    />
   );
 }
 
@@ -478,90 +493,205 @@ export default function AwardsPage() {
         )}
 
         {/* Category Cards */}
-        {categories.map((cat, index) => (
-          <div
-            key={cat.id}
-            style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
-            className={cn(
-              "relative overflow-visible rounded-2xl p-6 transition-all border group award-item-enter",
-              cat.winner
-                ? "bg-gradient-to-br from-amber-500/10 via-white/5 to-yellow-500/5 border-amber-500/20 hover:border-amber-400/40"
-                : "bg-white/5 border-white/10 hover:border-white/20"
-            )}
-          >
-            <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
-              {/* Position indicator */}
-              <div className="absolute top-4 right-4 text-6xl font-black text-white/[0.03] leading-none select-none">
-                #{index + 1}
-              </div>
+        {categories.map((cat, index) => {
+          const winner = cat.winner;
+          const typeBadge = winner ? getTypeBadgeStyle(winner.entry_type) : null;
+          const genres = winner ? parseGenres(winner.genre) : [];
 
-              {/* Glow effect for winners */}
-              {cat.winner && (
-                <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl" />
+          return (
+            <div
+              key={cat.id}
+              style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
+              className={cn(
+                "relative overflow-visible rounded-2xl p-6 transition-all border group award-item-enter",
+                winner
+                  ? "bg-gradient-to-br from-amber-500/10 via-white/5 to-yellow-500/5 border-amber-500/20 hover:border-amber-400/40"
+                  : "bg-white/5 border-white/10 hover:border-white/20"
               )}
-            </div>
+            >
+              <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+                {/* Position indicator */}
+                <div className="absolute top-4 right-5 text-7xl font-black text-white/[0.06] leading-none select-none">
+                  #{index + 1}
+                </div>
 
-            <div className="relative z-10">
-              <div className="flex items-start justify-between mb-4">
-                <h3 className="text-xl font-bold flex items-center gap-2">
-                  <div className={cn(
-                    "p-1.5 rounded-lg",
-                    cat.winner
-                      ? "bg-gradient-to-br from-amber-500/20 to-yellow-600/20"
-                      : "bg-white/5"
-                  )}>
-                    <Award className={cat.winner ? "text-amber-400" : "text-gray-500"} size={18} />
-                  </div>
-                  <span className={cat.winner ? "text-amber-200" : "text-white"}>{cat.name}</span>
-                </h3>
-                <button
-                  onClick={() => setCategoryToDelete(cat)}
-                  className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                >
-                  <Trash2 size={18} />
-                </button>
+                {/* Glow effect for winners */}
+                {winner && (
+                  <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl" />
+                )}
               </div>
 
-              {cat.winner ? (
-                <div className="flex gap-6 items-center">
-                  <div className="w-48 flex-shrink-0 cursor-pointer transform hover:scale-[1.02] transition-transform" onClick={() => openPicker(cat.id)}>
-                    <div className="relative">
-                      <MediaCard entry={cat.winner} />
-                      {/* Winner badge overlay */}
-                      <div className="absolute -top-2 -right-2 bg-gradient-to-br from-amber-400 to-yellow-600 p-1.5 rounded-full shadow-lg shadow-amber-500/30">
-                        <Trophy size={14} className="text-black" />
+              <div className="relative z-10">
+                {/* Category header row — icon + name */}
+                <div className="flex items-start justify-between mb-4">
+                  <h3 className="text-2xl font-bold flex items-center gap-2.5">
+                    <div className={cn(
+                      "p-2 rounded-xl",
+                      winner
+                        ? "bg-gradient-to-br from-amber-500/20 to-yellow-600/20"
+                        : "bg-white/5"
+                    )}>
+                      <Award className={winner ? "text-amber-400" : "text-gray-500"} size={20} />
+                    </div>
+                    <span className={winner ? "text-amber-200" : "text-white"}>{cat.name}</span>
+                  </h3>
+                </div>
+
+                {winner && typeBadge ? (
+                  <div className="flex gap-6 items-stretch">
+                    {/* Left: Large cover image */}
+                    <div
+                      className="w-48 flex-shrink-0 cursor-pointer group/cover"
+                      onClick={() => openPicker(cat.id)}
+                    >
+                      <div className="relative rounded-xl overflow-hidden border border-white/10 shadow-lg transition-transform group-hover/cover:scale-[1.02]">
+                        <div className="relative h-72 w-full overflow-hidden">
+                          <WinnerCoverImage entry={winner} />
+                          {/* Winner trophy badge — inside image bounds */}
+                          <div className="absolute top-2 right-2 bg-gradient-to-br from-amber-400 to-yellow-600 p-2 rounded-full shadow-lg shadow-amber-500/30 ring-2 ring-black/20">
+                            <Trophy size={16} className="text-black" />
+                          </div>
+                          {/* Rating pill on image */}
+                          {winner.review_score !== null && winner.review_score !== undefined && (
+                            <div className={cn(
+                              "absolute bottom-2 left-2 px-2.5 py-1 rounded-full flex items-center gap-1 text-xs font-bold shadow-lg",
+                              getRatingColor(winner.review_score)
+                            )}>
+                              <Star size={11} className="fill-current" />
+                              <span>{formatCardRating(winner.review_score)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Metadata block */}
+                    <div className="flex-1 flex flex-col gap-3 min-w-0 py-1">
+                      {/* Winner pill */}
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-500/20 to-yellow-600/20 text-amber-300 rounded-full text-xs font-bold uppercase tracking-wider border border-amber-500/20 w-fit">
+                        <Trophy size={12} />
+                        Winner
+                      </div>
+
+                      {/* Title */}
+                      <h4 className="text-3xl font-bold text-white leading-tight">
+                        {winner.name}
+                      </h4>
+
+                      {/* Context line as typed pills */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs text-white font-semibold shadow-md",
+                          typeBadge.bg
+                        )}>
+                          {typeBadge.icon}
+                          <span>{winner.entry_type}</span>
+                        </span>
+                        {winner.author && (
+                          <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
+                            {winner.author}
+                          </span>
+                        )}
+                        {winner.artist && !winner.author && (
+                          <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
+                            {winner.artist}
+                          </span>
+                        )}
+                        {winner.actress && winner.actress.split(',').map((a, i) => {
+                          const trimmed = a.trim();
+                          if (!trimmed) return null;
+                          return (
+                            <span key={`actress-${i}`} className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
+                              {trimmed}
+                            </span>
+                          );
+                        })}
+                        {winner.director && !winner.author && !winner.artist && (
+                          <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
+                            {winner.director}
+                          </span>
+                        )}
+                        {winner.platform && (
+                          <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
+                            {winner.platform}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Genre chips */}
+                      {genres.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {genres.slice(0, 4).map((genre, i) => (
+                            <span
+                              key={i}
+                              className="px-2 py-0.5 bg-white/10 rounded-md text-[11px] text-gray-300 font-medium"
+                            >
+                              {genre}
+                            </span>
+                          ))}
+                          {genres.length > 4 && (
+                            <span
+                              className="px-2 py-0.5 bg-white/5 rounded-md text-[11px] text-gray-500 font-medium"
+                              title={genres.slice(4).join(', ')}
+                            >
+                              +{genres.length - 4}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Date + change winner row */}
+                      <div className="flex items-center justify-between gap-3 mt-auto pt-1">
+                        {winner.completion_date ? (
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <Calendar size={12} />
+                            <span>{formatDate(winner.completion_date)}</span>
+                          </div>
+                        ) : (
+                          <span />
+                        )}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setCategoryToDelete(cat)}
+                            className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                            title="Delete category"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => openPicker(cat.id)}
+                            className="text-sm text-amber-400 hover:text-amber-300 hover:underline font-medium transition-colors"
+                          >
+                            Change Winner →
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className="flex-1 space-y-2">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-500/20 to-yellow-600/20 text-amber-300 rounded-full text-xs font-bold uppercase tracking-wider border border-amber-500/20">
-                      <Trophy size={12} />
-                      Winner
-                    </div>
-                    <h4 className="text-2xl font-bold text-white">{cat.winner.name}</h4>
-                    <p className="text-gray-400">{cat.winner.author || cat.winner.director || cat.winner.entry_type}</p>
+                ) : (
+                  <div className="relative">
                     <button
                       onClick={() => openPicker(cat.id)}
-                      className="text-sm text-amber-400 hover:text-amber-300 hover:underline mt-2 font-medium transition-colors"
+                      className="w-full h-80 border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center gap-3 text-gray-500 hover:text-amber-400 hover:border-amber-500/30 hover:bg-amber-500/5 transition-all group/select"
                     >
-                      Change Winner →
+                      <div className="p-4 rounded-full bg-white/5 group-hover/select:bg-amber-500/10 transition-colors">
+                        <Plus size={28} />
+                      </div>
+                      <span className="font-semibold">Select Winner</span>
+                    </button>
+                    <button
+                      onClick={() => setCategoryToDelete(cat)}
+                      className="absolute bottom-3 right-3 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                      title="Delete category"
+                    >
+                      <Trash2 size={16} />
                     </button>
                   </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => openPicker(cat.id)}
-                  className="w-full h-32 border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-amber-400 hover:border-amber-500/30 hover:bg-amber-500/5 transition-all group/select"
-                >
-                  <div className="p-3 rounded-full bg-white/5 group-hover/select:bg-amber-500/10 transition-colors">
-                    <Plus size={24} />
-                  </div>
-                  <span className="font-medium">Select Winner</span>
-                </button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <WinnerPicker
