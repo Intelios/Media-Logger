@@ -5,6 +5,10 @@ import { MediaCard } from "./MediaCard"; // Reuse the card!
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 
+// Stable empty array so the default parameter doesn't create a new reference
+// on every render (which would cause useMemo/useEffect dependency loops).
+const EMPTY_IDS: number[] = [];
+
 interface WinnerPickerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -28,7 +32,7 @@ export function WinnerPicker({
   title,
   searchPlaceholder,
   confirmLabel,
-  excludedIds = [],
+  excludedIds = EMPTY_IDS,
 }: WinnerPickerProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MediaEntry[]>([]);
