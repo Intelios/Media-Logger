@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronUp, RotateCcw, Star } from "lucide-react";
 import { cn } from "../../../lib/utils_ui";
 import type { MostReplayedItem } from "../../../lib/stats-logic";
 import { StatsWidgetShell } from "../StatsWidgetShell";
@@ -149,7 +149,7 @@ export function MostReplayedWidget({ items }: MostReplayedWidgetProps) {
                         <>
                           <span className="text-gray-500">·</span>
                           <span>
-                            ⭐{" "}
+                            <Star size={12} className="inline text-amber-400 align-middle" />{" "}
                             <strong className="font-semibold text-gray-300">
                               {item.avg_score.toFixed(1)}
                             </strong>

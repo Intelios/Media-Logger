@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Calendar } from "lucide-react";
+import { Calendar, Star } from "lucide-react";
 import type { MultiLogDay } from "../../../lib/stats-logic";
 import { useStatsWidgetEditContext } from "../StatsEditableWidgetFrame";
 import { StatsWidgetShell } from "../StatsWidgetShell";
@@ -122,7 +122,7 @@ export function MultiLogDaysWidget({ multiLogDays, onDayClick }: MultiLogDaysWid
                       </span>
                     ) : null}
                     {typeof entry.review_score === "number" ? (
-                      <span className="font-medium text-amber-300">★ {entry.review_score}</span>
+                      <span className="font-medium text-amber-300"><Star size={12} className="inline text-amber-300 align-middle" /> {entry.review_score}</span>
                     ) : null}
                   </div>
                 </div>

@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Star } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 
 interface StatItem {
@@ -183,7 +183,7 @@ export function CollapsibleStatSection({
                                     <div className="flex items-center gap-2 text-xs">
                                         {item.avgScore !== undefined && (
                                             <span className={cn("font-medium", colors.text)}>
-                                                ⭐ {item.avgScore.toFixed(1)}
+                                                <Star size={12} className="inline align-middle" /> {item.avgScore.toFixed(1)}
                                             </span>
                                         )}
                                         <span className="text-gray-400">{percentage.toFixed(1)}%</span>

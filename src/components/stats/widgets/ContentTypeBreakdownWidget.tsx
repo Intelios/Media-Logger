@@ -1,4 +1,4 @@
-import { PieChart as PieIcon } from "lucide-react";
+import { PieChart as PieIcon, Star } from "lucide-react";
 import type { StatItem } from "../../../lib/stats-logic";
 import { StatsWidgetShell } from "../StatsWidgetShell";
 import { STATS_WIDGET_META } from "../stats-config";
@@ -37,7 +37,7 @@ export function ContentTypeBreakdownWidget({ items, totalEntries }: ContentTypeB
               <div className="text-2xl font-bold text-white">{item.count}</div>
               <div className="truncate text-sm text-gray-400">{item.name}</div>
               <div className="mt-1 text-xs text-gray-500">{percentage.toFixed(1)}%</div>
-              {item.avgScore ? <div className="mt-1 text-xs text-amber-400">⭐ {item.avgScore.toFixed(1)}</div> : null}
+              {item.avgScore ? <div className="mt-1 text-xs text-amber-400"><Star size={12} className="inline text-amber-400 align-middle" /> {item.avgScore.toFixed(1)}</div> : null}
             </div>
           );
         })}

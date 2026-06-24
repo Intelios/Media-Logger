@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock } from "lucide-react";
+import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock, RotateCcw, Captions } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { saveImage, getImageUrl, releaseImageUrl } from "../lib/utils";
@@ -568,7 +568,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
               : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
           )}
         >
-          <span>🔄</span>
+          <RotateCcw size={16} />
           <span>Rewatch</span>
         </button>
         <button
@@ -581,7 +581,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
               : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
           )}
         >
-          <span>💾</span>
+          <Save size={16} />
           <span>Own Copy</span>
         </button>
         <button
@@ -594,7 +594,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
               : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
           )}
         >
-          <span>📝</span>
+          <Captions size={16} />
           <span>Subtitles</span>
         </button>
       </div>

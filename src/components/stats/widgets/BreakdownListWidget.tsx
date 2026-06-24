@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Star } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { cn } from "../../../lib/utils_ui";
 import type { StatItem } from "../../../lib/stats-logic";
@@ -276,7 +276,7 @@ export function BreakdownListWidget({
                     <div className="shrink-0 text-right">
                       <p className="text-sm font-bold text-white">{item.count}</p>
                       {item.avgScore !== undefined ? (
-                        <p className={cn("mt-1 text-xs font-medium", colors.text)}>⭐ {item.avgScore.toFixed(1)}</p>
+                        <p className={cn("mt-1 text-xs font-medium", colors.text)}><Star size={12} className="inline align-middle" /> {item.avgScore.toFixed(1)}</p>
                       ) : null}
                     </div>
                   </div>
@@ -309,7 +309,7 @@ export function BreakdownListWidget({
                     </span>
                     <div className="flex items-center gap-2 text-xs">
                       {item.avgScore !== undefined ? (
-                        <span className={cn("font-medium", colors.text)}>⭐ {item.avgScore.toFixed(1)}</span>
+                        <span className={cn("font-medium", colors.text)}><Star size={12} className="inline align-middle" /> {item.avgScore.toFixed(1)}</span>
                       ) : null}
                       <span className="text-gray-400">{percentage.toFixed(1)}%</span>
                       <span className="min-w-[24px] text-right font-bold text-white">{item.count}</span>

@@ -1,4 +1,4 @@
-import { ChevronRight, Filter, Star } from "lucide-react";
+import { ChevronRight, Filter, Star, Gem } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { StatItem } from "../../../lib/stats-logic";
 import { cn } from "../../../lib/utils_ui";
@@ -40,7 +40,7 @@ function GenreTooltip({ active, payload }: any) {
         ) : null}
         {(perfectCount ?? 0) > 0 ? (
           <p className="text-text-muted">
-            <span className="font-medium text-pink-300">💎 {perfectCount}</span> perfect
+            <span className="font-medium text-pink-300"><Gem size={12} className="inline text-pink-300 align-middle" /> {perfectCount}</span> perfect
           </p>
         ) : null}
       </div>
@@ -117,8 +117,8 @@ export function TopGenresWidget({ genres, onViewAllGenres, onGenreClick }: TopGe
                 <span className="text-gray-300 transition-colors group-hover:text-white">{genre.name}</span>
               </div>
               <div className="flex items-center gap-2">
-                {(genre.perfectCount ?? 0) > 0 ? <span className="text-xs text-pink-400">💎{genre.perfectCount}</span> : null}
-                {genre.avgScore ? <span className="text-xs text-amber-400">⭐{genre.avgScore.toFixed(1)}</span> : null}
+                {(genre.perfectCount ?? 0) > 0 ? <span className="text-xs text-pink-400"><Gem size={12} className="inline text-pink-400 align-middle" />{genre.perfectCount}</span> : null}
+                {genre.avgScore ? <span className="text-xs text-amber-400"><Star size={12} className="inline text-amber-400 align-middle" />{genre.avgScore.toFixed(1)}</span> : null}
                 <span className="font-bold text-white">{genre.count}</span>
               </div>
             </button>
