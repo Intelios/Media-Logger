@@ -280,13 +280,13 @@ export function BreakdownListWidget({
           </div>
         </div>
       ) : (
-        <div
-          className={cn(
-            "flex flex-1 min-h-0 flex-col overflow-hidden transition-all duration-300 ease-out",
-            isExpanded ? "max-h-[500px]" : "max-h-[180px]"
-          )}
-        >
-          <div className={cn("space-y-2", isExpanded && "custom-scrollbar max-h-[460px] overflow-y-auto")}>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div
+            className={cn(
+              "custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto pr-1",
+              isExpanded ? "space-y-2" : "space-y-2"
+            )}
+          >
             {displayItems.map((item, index) => {
               const percentage = totalCount > 0 ? (item.count / totalCount) * 100 : 0;
               const barWidth = (item.count / maxCount) * 100;
@@ -320,7 +320,7 @@ export function BreakdownListWidget({
             })}
 
             {!isExpanded && hasMore ? (
-              <div className="pt-2 text-center">
+              <div className="mt-auto pt-3 text-center">
                 <span className="text-xs text-gray-500">+{items.length - 3} more • Click to expand</span>
               </div>
             ) : null}
