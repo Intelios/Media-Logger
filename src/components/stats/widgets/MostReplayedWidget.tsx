@@ -75,7 +75,7 @@ export function MostReplayedWidget({ items }: MostReplayedWidgetProps) {
           {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </div>
       }
-      className={cn(AMBER_COLORS.border, AMBER_COLORS.bg, AMBER_COLORS.glow, "transition-all duration-300 hover:shadow-lg")}
+      className={cn(AMBER_COLORS.border, AMBER_COLORS.bg, AMBER_COLORS.glow, "transition-all duration-300 hover:shadow-lg", isExpanded && hasMore && "min-h-[440px]")}
       headerClassName="p-4"
       bodyClassName="flex min-h-0 flex-1 flex-col px-4 pb-4"
       headerAsButton
