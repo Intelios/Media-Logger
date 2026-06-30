@@ -257,6 +257,9 @@ function GenreCloudSlide({ slide }: { slide: ReviewSlide }) {
   >([]);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const simRef = useRef<any>(null);
+  const nodesRef = useRef<any[]>([]);
+  const mouseRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
 
   const genreCloud: Array<{ name: string; count: number; avgScore?: number }> = slide.stats?.genreCloud || [];
   const topGenres = useMemo(() => genreCloud.slice(0, 8), [genreCloud]);
@@ -305,6 +308,25 @@ function GenreCloudSlide({ slide }: { slide: ReviewSlide }) {
       )
       .force("x", forceX(cx).strength(0.08))
       .force("y", forceY(cy).strength(0.08))
+      .force("mouse", () => {
+        // Custom force: push nodes away from the cursor when hovering.
+        const m = mouseRef.current;
+        if (!m.active) return;
+        for (const n of initialNodes as any) {
+          // Small bubbles stay put so the cursor can actually land on them.
+          if (n.r < 45) continue;
+          const dx = n.x - m.x;
+          const dy = n.y - m.y;
+          const dist2 = dx * dx + dy * dy;
+          const radius = 70 + n.r;
+          if (dist2 === 0 || dist2 > radius * radius) continue;
+          const dist = Math.sqrt(dist2);
+          const sizeFactor = Math.min((n.r - 45) / 45, 1);
+          const force = (1 - dist / radius) * 18 * (0.4 + sizeFactor * 0.6);
+          n.vx += (dx / dist) * force;
+          n.vy += (dy / dist) * force;
+        }
+      })
       .alphaDecay(0.03)
       .velocityDecay(0.3);
 
@@ -313,6 +335,8 @@ function GenreCloudSlide({ slide }: { slide: ReviewSlide }) {
 
     // Then copy final positions into React state
     setNodes(initialNodes.map((n) => ({ ...n })));
+    nodesRef.current = initialNodes;
+    simRef.current = sim;
 
     // Warm-up for a short while
     sim
@@ -324,6 +348,8 @@ function GenreCloudSlide({ slide }: { slide: ReviewSlide }) {
 
     return () => {
       sim.stop();
+      simRef.current = null;
+      nodesRef.current = [];
     };
   }, [dimensions.width, dimensions.height, genreCloud]);
 
@@ -355,7 +381,28 @@ function GenreCloudSlide({ slide }: { slide: ReviewSlide }) {
   return (
     <div className="w-full h-[50vh] flex flex-col items-center justify-center review-fade-up" style={{ animationDelay: "300ms" }}>
       {/* Main bubble area */}
-      <div ref={containerRef} className="relative w-full h-full max-w-xl">
+      <div
+        ref={containerRef}
+        className="relative w-full h-full max-w-xl"
+        onMouseMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          mouseRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top, active: true };
+          const sim = simRef.current;
+          // Keep the sim alive while the cursor is inside, so motion stays continuous.
+          if (sim && sim.alpha() < 0.15) sim.alpha(0.15).restart();
+        }}
+        onMouseEnter={() => {
+          mouseRef.current.active = true;
+          const sim = simRef.current;
+          if (sim) sim.alpha(0.4).restart();
+        }}
+        onMouseLeave={() => {
+          setHoveredIndex(null);
+          mouseRef.current.active = false;
+          const sim = simRef.current;
+          if (sim) sim.alpha(0).stop();
+        }}
+      >
         {/* Background web pattern */}
         <div className="absolute inset-0 opacity-10 pointer-events-none">
           <svg width="100%" height="100%">
