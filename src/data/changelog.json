@@ -1,8 +1,24 @@
 {
-  "generatedAt": "2026-06-24T17:04:23.301Z",
+  "generatedAt": "2026-06-30T21:55:20.682Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "3.5",
+      "title": "Media Logger - 3.5",
+      "date": "2026-06-30",
+      "body": "New Content/Features:\n- Added setting to disable adult entries in the featured entry on dashboard / home screen.\n- Added caching to Autocomplete and SearchFilterOptions to improve performance and use less database calls to lower risk of corruption.\n- Genre Cloud on Review page is now animated and bubbles move around your mouse.\n\nBug Fixes:\n- Fixed an issue where the review page issues more database calls than it needed to which lowered performance and risked corruption, this is now fixed.\n- Removed dead Greet function from Rust code.\n- Removed dead App.css file\n- Removed Linux compatbility as was not being used.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.5"
+    },
+    {
+      "version": "3.4.1",
+      "title": "Media Logger - 3.4.1",
+      "date": "2026-06-26",
+      "body": "- Tauri updated from 2.11.2 to 2.11.3\n- Updated 18 dependencies.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.4.1"
+    },
     {
       "version": "3.4",
       "title": "Media Logger - 3.4",
