@@ -5,6 +5,7 @@ const DISPLAY_NAME_KEY = 'media-logger-display-name';
 const NAVIGATION_YEARS_KEY = 'media-logger-navigation-years';
 const RATING_DISPLAY_MODE_KEY = 'media-logger-rating-display-mode';
 const ADULT_MEDIA_ENABLED_KEY = 'media-logger-adult-media-enabled';
+const FEATURED_ADULT_ALLOWED_KEY = 'media-logger-featured-adult-allowed';
 
 /**
  * Window event fired when the Adult Media visibility setting changes, so any
@@ -12,6 +13,12 @@ const ADULT_MEDIA_ENABLED_KEY = 'media-logger-adult-media-enabled';
  * navigation-years / entry-added event pattern.
  */
 export const ADULT_MEDIA_VISIBILITY_CHANGED_EVENT = 'adult-media-visibility-changed';
+
+/**
+ * Window event fired when the Featured-Entry adult filter changes, so the
+ * Dashboard can re-fetch its featured entry without an app restart.
+ */
+export const FEATURED_ADULT_VISIBILITY_CHANGED_EVENT = 'featured-adult-visibility-changed';
 
 // Default display name for the dashboard greeting
 const DEFAULT_DISPLAY_NAME = 'Collector';
@@ -167,4 +174,24 @@ export function isAdultMediaEnabled(): boolean {
 export function setAdultMediaEnabled(enabled: boolean): void {
     localStorage.setItem(ADULT_MEDIA_ENABLED_KEY, enabled ? 'true' : 'false');
     window.dispatchEvent(new CustomEvent(ADULT_MEDIA_VISIBILITY_CHANGED_EVENT));
+}
+
+/**
+ * Whether adult entries are eligible to appear as the Dashboard's featured
+ * entry. Independent of the global Adult Media setting: when this is false
+ * (and adult media is enabled), adult entries remain visible elsewhere but
+ * are excluded from the featured pool. Defaults to true for backward
+ * compatibility so existing users see no behavior change.
+ */
+export function isFeaturedAdultAllowed(): boolean {
+    return localStorage.getItem(FEATURED_ADULT_ALLOWED_KEY) !== 'false';
+}
+
+/**
+ * Show or hide adult entries from the Dashboard featured spot. Dispatches an
+ * event so the Dashboard re-fetches its featured entry without a restart.
+ */
+export function setFeaturedAdultAllowed(allowed: boolean): void {
+    localStorage.setItem(FEATURED_ADULT_ALLOWED_KEY, allowed ? 'true' : 'false');
+    window.dispatchEvent(new CustomEvent(FEATURED_ADULT_VISIBILITY_CHANGED_EVENT));
 }

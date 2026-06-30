@@ -7,7 +7,7 @@ import { AnimatedNumber } from "../components/AnimatedNumber";
 import { MediaListCard } from "../components/MediaListCard";
 import type { MediaEntry } from "../lib/db";
 import { getImageUrl, releaseImageUrl } from "../lib/utils";
-import { getDisplayName } from "../lib/settings";
+import { getDisplayName, FEATURED_ADULT_VISIBILITY_CHANGED_EVENT } from "../lib/settings";
 import { formatTodayMD } from "../lib/dates";
 import { getAvailableNavigationYears, getCurrentYearString } from "../lib/navigation-years";
 
@@ -114,12 +114,18 @@ export default function Dashboard() {
     load();
     loadFeatured();
 
+    // Refresh the featured entry when the Featured-Entry adult filter changes
+    // in Settings, so the card updates without an app restart.
+    const handleFeaturedAdultChange = () => loadFeatured();
+    window.addEventListener(FEATURED_ADULT_VISIBILITY_CHANGED_EVENT, handleFeaturedAdultChange);
+
     return () => {
       cancelled = true;
       // Invalidate any in-flight featured load and release the displayed image.
       loadIdRef.current++;
       releaseImageUrl(featuredImagePathRef.current);
       featuredImagePathRef.current = null;
+      window.removeEventListener(FEATURED_ADULT_VISIBILITY_CHANGED_EVENT, handleFeaturedAdultChange);
     };
   }, [loadFeatured]);
 

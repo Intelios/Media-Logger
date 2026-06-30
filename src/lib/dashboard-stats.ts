@@ -1,4 +1,6 @@
 import { dbService, type MediaEntry, adultExclusionSql } from "./db";
+import { isFeaturedAdultAllowed } from "./settings";
+import { ADULT_ENTRY_TYPES } from "./media-config";
 
 export interface DashboardStats {
   total_entries: number;
@@ -53,7 +55,11 @@ export const dashboardLogic = {
   async getFeaturedEntry(excludeId?: number): Promise<MediaEntry | null> {
     const db = await dbService.connect();
     // Pick from all visible entries so every (shown) item can be featured.
-    const baseWhere = `WHERE 1=1${adultExclusionSql()}`;
+    // Optionally also exclude adult entries from the featured pool, independent
+    // of the global Adult Media setting (adult entries stay visible elsewhere).
+    const featuredAdultExclusion =
+      isFeaturedAdultAllowed() ? '' : ` AND entry_type NOT IN (${ADULT_ENTRY_TYPES.map((t) => `'${t}'`).join(',')})`;
+    const baseWhere = `WHERE 1=1${adultExclusionSql()}${featuredAdultExclusion}`;
     // On a reroll, skip the entry that's already showing so it never repeats
     // back-to-back — unless it's the only match, in which case we keep it.
     const exclusion =
