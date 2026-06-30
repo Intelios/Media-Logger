@@ -7,12 +7,6 @@ use tauri::Manager;
 #[cfg(target_os = "macos")]
 use tauri::menu::{Menu, MenuItemBuilder, PredefinedMenuItem, Submenu};
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 #[tauri::command]
 fn apply_glass_style(
     app: tauri::AppHandle,
@@ -336,7 +330,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_liquid_glass::init())
         .invoke_handler(tauri::generate_handler![
-            greet,
             apply_glass_style,
             create_backup_zip,
             read_backup_zip,
