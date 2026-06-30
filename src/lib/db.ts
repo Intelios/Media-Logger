@@ -169,6 +169,23 @@ export interface AutocompleteOptions {
   genres: string[];
 }
 
+/**
+ * Full set of distinct values for every filterable column. Both
+ * AutocompleteOptions and SearchFilterOptions are derived from this single
+ * object so the expensive recursive CTEs for actress/genre splitting run only
+ * once per cache lifetime.
+ */
+interface DistinctValuesCache {
+  platforms: string[];
+  franchises: string[];
+  series: string[];
+  authors: string[];
+  artists: string[];
+  directors: string[];
+  actresses: string[];
+  genres: string[];
+}
+
 // 2. Database Service
 class DBService {
   private db: Database | null = null;
@@ -181,9 +198,18 @@ class DBService {
   // + runMigrations() instead of racing. Cleared once settled so later calls
   // still re-check the data directory (custom data dir can change at runtime).
   private connectPromise: Promise<Database> | null = null;
-  // Cached autocomplete options to avoid recomputing distinct values on every
-  // form open. Invalidated whenever entries are mutated.
-  private autocompleteOptionsCache: AutocompleteOptions | null = null;
+  // Unified cache of all distinct column values (plain + comma-split fields)
+  // shared by getAutocompleteOptions() and getSearchFilterOptions(). Building
+  // these requires expensive recursive CTEs over the entries table, so we
+  // compute them once and reuse the result until entries are mutated.
+  // Invalidated by invalidateAutocompleteCache() (kept name for compat).
+  private distinctValuesCache: DistinctValuesCache | null = null;
+  // Guards the cache build so concurrent callers (Search page + EntryForm
+  // mounting simultaneously) share one set of queries instead of duplicating.
+  // Monotonic epoch: incrementing it on invalidation cancels any in-flight
+  // build so its (now-stale) result is never written back to the cache.
+  private distinctValuesEpoch: number = 0;
+  private distinctValuesPromise: Promise<DistinctValuesCache> | null = null;
 
   /**
    * One-time migration of the legacy 'jav_log.db' to the canonical 'media_logger.db'.
@@ -861,25 +887,74 @@ class DBService {
     return results.map(({ value }) => value);
   }
 
+  /**
+   * Build the full set of distinct column values once and cache it. Both
+   * getAutocompleteOptions() and getSearchFilterOptions() share this single
+   * cached build so the recursive CTEs that split comma-delimited fields
+   * (actress, genre) only run once per cache lifetime.
+   *
+   * Concurrent callers share the same in-flight promise to avoid duplicate
+   * work when the Search page and EntryForm mount simultaneously.
+   */
+  private getDistinctValues(): Promise<DistinctValuesCache> {
+    if (this.distinctValuesCache) {
+      return Promise.resolve(this.distinctValuesCache);
+    }
+    if (this.distinctValuesPromise) {
+      return this.distinctValuesPromise;
+    }
+
+    const buildEpoch = this.distinctValuesEpoch;
+    this.distinctValuesPromise = (async () => {
+      const db = await this.connect();
+
+      const [platforms, franchises, series, authors, artists, directors, actresses, genres] =
+        await Promise.all([
+          this.getDistinctColumnValues(db, 'platform'),
+          this.getDistinctColumnValues(db, 'franchise'),
+          this.getDistinctColumnValues(db, 'series'),
+          this.getDistinctColumnValues(db, 'author'),
+          this.getDistinctColumnValues(db, 'artist'),
+          this.getDistinctColumnValues(db, 'director'),
+          this.getDistinctSplitValues(db, 'actress'),
+          this.getDistinctSplitValues(db, 'genre'),
+        ]);
+
+      const cache: DistinctValuesCache = {
+        platforms,
+        franchises,
+        series,
+        authors,
+        artists,
+        directors,
+        actresses,
+        genres,
+      };
+      // Only commit the cache if no invalidation happened during the build.
+      if (buildEpoch === this.distinctValuesEpoch) {
+        this.distinctValuesCache = cache;
+      }
+      return cache;
+    })().finally(() => {
+      // Drop the in-flight guard so the next caller retries. If an
+      // invalidation landed during the build, it already cleared this.
+      if (buildEpoch === this.distinctValuesEpoch) {
+        this.distinctValuesPromise = null;
+      }
+    });
+
+    return this.distinctValuesPromise;
+  }
+
   async getSearchFilterOptions(): Promise<SearchFilterOptions> {
-    const db = await this.connect();
-
-    const [platforms, directors, authors, franchises, series, actresses] = await Promise.all([
-      this.getDistinctColumnValues(db, 'platform'),
-      this.getDistinctColumnValues(db, 'director'),
-      this.getDistinctColumnValues(db, 'author'),
-      this.getDistinctColumnValues(db, 'franchise'),
-      this.getDistinctColumnValues(db, 'series'),
-      this.getDistinctSplitValues(db, 'actress'),
-    ]);
-
+    const cache = await this.getDistinctValues();
     return {
-      platforms,
-      actresses,
-      directors,
-      authors,
-      franchises,
-      series,
+      platforms: cache.platforms,
+      actresses: cache.actresses,
+      directors: cache.directors,
+      authors: cache.authors,
+      franchises: cache.franchises,
+      series: cache.series,
     };
   }
 
@@ -909,41 +984,25 @@ class DBService {
   }
 
   async getAutocompleteOptions(): Promise<AutocompleteOptions> {
-    if (this.autocompleteOptionsCache) {
-      return this.autocompleteOptionsCache;
-    }
-
-    const db = await this.connect();
-
-    const [platforms, franchises, series, authors, artists, directors, actresses, genres] =
-      await Promise.all([
-        this.getDistinctColumnValues(db, 'platform'),
-        this.getDistinctColumnValues(db, 'franchise'),
-        this.getDistinctColumnValues(db, 'series'),
-        this.getDistinctColumnValues(db, 'author'),
-        this.getDistinctColumnValues(db, 'artist'),
-        this.getDistinctColumnValues(db, 'director'),
-        this.getDistinctSplitValues(db, 'actress'),
-        this.getDistinctSplitValues(db, 'genre'),
-      ]);
-
-    const options: AutocompleteOptions = {
-      platforms,
-      franchises,
-      series,
-      authors,
-      artists,
-      directors,
-      actresses,
-      genres,
+    const cache = await this.getDistinctValues();
+    return {
+      platforms: cache.platforms,
+      franchises: cache.franchises,
+      series: cache.series,
+      authors: cache.authors,
+      artists: cache.artists,
+      directors: cache.directors,
+      actresses: cache.actresses,
+      genres: cache.genres,
     };
-
-    this.autocompleteOptionsCache = options;
-    return options;
   }
 
   invalidateAutocompleteCache(): void {
-    this.autocompleteOptionsCache = null;
+    // Bump the epoch so any in-flight build is discarded before it writes
+    // its (now-stale) result back, then drop the cached values and guard.
+    this.distinctValuesEpoch++;
+    this.distinctValuesCache = null;
+    this.distinctValuesPromise = null;
   }
 
   async searchEntries(filters: EntrySearchFilters): Promise<MediaEntry[]> {
