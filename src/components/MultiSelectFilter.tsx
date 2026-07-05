@@ -7,11 +7,15 @@ interface MultiSelectFilterProps {
   selected: string[];
   onChange: (selected: string[]) => void;
   label?: string;
+  onSolo?: (option: string) => void;
 }
 
-export function MultiSelectFilter({ options, selected, onChange, label = "Filter" }: MultiSelectFilterProps) {
+const SOLO_DOUBLE_CLICK_DELAY = 250;
+
+export function MultiSelectFilter({ options, selected, onChange, label = "Filter", onSolo }: MultiSelectFilterProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Close when clicking outside
   useEffect(() => {
@@ -24,11 +28,43 @@ export function MultiSelectFilter({ options, selected, onChange, label = "Filter
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Clear any pending single-click toggle on unmount
+  useEffect(() => {
+    return () => {
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+    };
+  }, []);
+
   const toggleOption = (option: string) => {
     const newSelected = selected.includes(option)
       ? selected.filter(item => item !== option)
       : [...selected, option];
     onChange(newSelected);
+  };
+
+  const handleOptionClick = (option: string) => {
+    if (!onSolo) {
+      toggleOption(option);
+      return;
+    }
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      return;
+    }
+    clickTimerRef.current = setTimeout(() => {
+      clickTimerRef.current = null;
+      toggleOption(option);
+    }, SOLO_DOUBLE_CLICK_DELAY);
+  };
+
+  const handleOptionDoubleClick = (option: string) => {
+    if (!onSolo) return;
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+    onSolo(option);
   };
 
   const toggleAll = () => {
@@ -77,7 +113,8 @@ export function MultiSelectFilter({ options, selected, onChange, label = "Filter
               return (
                 <button
                   key={option}
-                  onClick={() => toggleOption(option)}
+                  onClick={() => handleOptionClick(option)}
+                  onDoubleClick={() => handleOptionDoubleClick(option)}
                   className={cn(
                     "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors text-left",
                     isSelected 

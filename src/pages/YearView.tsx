@@ -417,6 +417,13 @@ export default function YearView() {
               setActivePreset(null);
               localStorage.removeItem(PRESET_STORAGE_KEY);
             }}
+            onSolo={(option) => {
+              const visible = getVisibleEntryTypes();
+              const isSoloed = selectedTypes.length === 1 && selectedTypes[0] === option;
+              setSelectedTypes(isSoloed ? visible : [option]);
+              setActivePreset(null);
+              localStorage.removeItem(PRESET_STORAGE_KEY);
+            }}
             label="Filter Types"
           />
         </div>
