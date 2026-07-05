@@ -1,8 +1,16 @@
 {
-  "generatedAt": "2026-06-30T21:55:20.682Z",
+  "generatedAt": "2026-07-05T12:27:38.026Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "3.5.1",
+      "title": "Media Logger - 3.5.1",
+      "date": "2026-07-05",
+      "body": "New Content/Features:\n- In YearView when double clicking a option in filters it now disables all other filters and just shows that one. For example, double click Anime and it disables all other types and just shows Anime.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.5.1"
+    },
     {
       "version": "3.5",
       "title": "Media Logger - 3.5",
