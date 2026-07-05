@@ -62,7 +62,7 @@ Entries can include completion date, score, description, notes, local artwork, g
 - A yearly awards system with reusable templates and winner history across years.
 - A backlog for tracking what you plan to watch, play, or read next, with in-progress and planning statuses, type filtering, and one-click promotion to a completed entry.
 - An animated year-in-review slideshow that generates themed slides for any year or month, covering top genres, perfect tens, biggest months, hidden gems, award winners, genre clouds, and more.
-- Appearance controls with 12 color themes, light/dark mode, glass styling, rating display modes (pill or thermometer), and a personalized dashboard greeting.
+- Appearance controls with multiple color themes, glass styling, rating display modes (pill or thermometer), and a personalized dashboard greeting.
 - Keyboard shortcuts for fast navigation across all major areas.
 - Local-first storage with SQLite, copied artwork assets, custom data directory support, and backup import/export in JSON or ZIP format.
 - Built-in auto-updater for seamless version upgrades.
