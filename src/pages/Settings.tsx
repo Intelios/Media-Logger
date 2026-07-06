@@ -203,7 +203,7 @@ export default function Settings() {
     const [navigationYears, setNavigationYearsState] = useState<string[]>(() => getNavigationYears());
     const [yearInput, setYearInput] = useState('');
     const [yearError, setYearError] = useState('');
-    const [ratingDisplayMode, setRatingDisplayModeState] = useState<'pill' | 'thermometer'>(() => getRatingDisplayMode());
+    const [ratingDisplayMode, setRatingDisplayModeState] = useState<'pill' | 'vertical-pill' | 'thermometer'>(() => getRatingDisplayMode());
 
     // Adult Media visibility toggle + its "hide existing entries" confirmation
     const [adultMediaEnabled, setAdultMediaEnabledState] = useState<boolean>(() => isAdultMediaEnabled());
@@ -347,11 +347,11 @@ export default function Settings() {
         showToast(style === 'clear' ? 'Backdrop style set to Clear' : 'Backdrop style set to Default');
     };
 
-    const handleRatingDisplayChange = (mode: 'pill' | 'thermometer') => {
+    const handleRatingDisplayChange = (mode: 'pill' | 'vertical-pill' | 'thermometer') => {
         if (mode === ratingDisplayMode) return;
         setRatingDisplayMode(mode);
         setRatingDisplayModeState(mode);
-        showToast(`Rating display set to ${mode === 'pill' ? 'Pill' : 'Thermometer'}`);
+        showToast(`Rating display set to ${mode === 'pill' ? 'Pill' : mode === 'vertical-pill' ? 'Vertical Pill' : 'Thermometer'}`);
     };
 
     const applyAdultMedia = (enabled: boolean) => {
@@ -820,6 +820,12 @@ export default function Settings() {
                                         className={`segmented-control-item ${ratingDisplayMode === 'pill' ? 'active' : ''}`}
                                     >
                                         Pill
+                                    </button>
+                                    <button
+                                        onClick={() => handleRatingDisplayChange('vertical-pill')}
+                                        className={`segmented-control-item ${ratingDisplayMode === 'vertical-pill' ? 'active' : ''}`}
+                                    >
+                                        Vertical Pill
                                     </button>
                                     <button
                                         onClick={() => handleRatingDisplayChange('thermometer')}

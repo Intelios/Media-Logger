@@ -145,16 +145,16 @@ export function setNavigationYears(years: string[]): string[] {
  * Get the configured rating display mode.
  * Defaults to 'pill' for backward compatibility.
  */
-export function getRatingDisplayMode(): 'pill' | 'thermometer' {
+export function getRatingDisplayMode(): 'pill' | 'vertical-pill' | 'thermometer' {
     const mode = localStorage.getItem(RATING_DISPLAY_MODE_KEY);
-    if (mode === 'thermometer') return 'thermometer';
+    if (mode === 'thermometer' || mode === 'vertical-pill') return mode;
     return 'pill';
 }
 
 /**
  * Set the rating display mode.
  */
-export function setRatingDisplayMode(mode: 'pill' | 'thermometer'): void {
+export function setRatingDisplayMode(mode: 'pill' | 'vertical-pill' | 'thermometer'): void {
     localStorage.setItem(RATING_DISPLAY_MODE_KEY, mode);
 }
 

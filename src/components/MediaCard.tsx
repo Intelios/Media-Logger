@@ -378,6 +378,18 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
               </div>
             )}
 
+            {/* Rating Vertical Pill */}
+            {(entry.review_score !== null && entry.review_score !== undefined) && ratingDisplayMode === 'vertical-pill' && (
+              <div className={cn(
+                "absolute top-2 px-2 py-1.5 rounded-full flex flex-col items-center justify-center gap-0.5 text-xs font-bold shadow-lg transition-all duration-300 z-20",
+                "right-2 group-hover:right-11",
+                getRatingColor(entry.review_score)
+              )}>
+                <Star size={11} className="fill-current" />
+                <span>{formatCardRating(entry.review_score)}</span>
+              </div>
+            )}
+
             {/* Award Badge */}
             {hasAwards && (
               <div className="absolute bottom-2 left-2 z-20" ref={awardBadgeRef}>
