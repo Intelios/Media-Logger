@@ -121,6 +121,27 @@ export function useImageUrl(dbPath: string | null | undefined, fallback = DEFAUL
   return imageUrl;
 }
 
+// Reads an arbitrary local file path (e.g. one returned by the file dialog)
+// and returns a blob: URL suitable for <img src>. The caller is responsible
+// for revoking the URL via URL.revokeObjectURL when no longer needed.
+//
+// We use this instead of convertFileSrc() because the asset protocol is not
+// enabled in tauri.conf.json, so asset:// URLs would fail to load in the
+// webview. Blob URLs are permitted by the CSP and work without any extra
+// Tauri config, mirroring how getImageUrl renders stored assets.
+export async function getLocalFileBlobUrl(filePath: string): Promise<string> {
+  const fileBytes = await readFile(filePath);
+
+  const ext = filePath.split('.').pop()?.toLowerCase();
+  let mime = 'image/jpeg';
+  if (ext === 'png') mime = 'image/png';
+  if (ext === 'webp') mime = 'image/webp';
+  if (ext === 'gif') mime = 'image/gif';
+
+  const blob = new Blob([fileBytes], { type: mime });
+  return URL.createObjectURL(blob);
+}
+
 export async function saveImage(sourcePath: string): Promise<string | null> {
   if (!sourcePath) return null;
 

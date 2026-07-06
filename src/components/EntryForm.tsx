@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock, RotateCcw, Captions } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
-import { convertFileSrc } from '@tauri-apps/api/core';
-import { saveImage, getImageUrl, releaseImageUrl } from "../lib/utils";
+import { saveImage, getImageUrl, releaseImageUrl, getLocalFileBlobUrl } from "../lib/utils";
 import type { MediaEntry, AutocompleteOptions } from "../lib/db";
 import { dbService } from "../lib/db";
 import { cn } from "../lib/utils_ui";
@@ -32,6 +31,10 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
   const [rawImagePath, setRawImagePath] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("basic");
+  // Tracks a blob: URL created from a freshly picked file so we can revoke it
+  // when it's replaced or the modal closes. Null when previewImage is either
+  // empty or sourced from getImageUrl (which has its own ref-counted cache).
+  const pickedPreviewUrlRef = useRef<string | null>(null);
   const [suggestions, setSuggestions] = useState<AutocompleteOptions>({
     platforms: [],
     franchises: [],
@@ -76,6 +79,13 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
     if (isOpen) {
       setRawImagePath(null);
       setActiveTab("basic");
+
+      // Drop any blob URL held over from a previous pick; the preview is
+      // about to be reset/replaced below.
+      if (pickedPreviewUrlRef.current) {
+        URL.revokeObjectURL(pickedPreviewUrlRef.current);
+        pickedPreviewUrlRef.current = null;
+      }
 
       if (initialData) {
         setFormData({
@@ -122,6 +132,11 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
     return () => {
       cancelled = true;
       releaseImageUrl(acquiredImagePath);
+      // Revoke any picked-file blob URL still outstanding on unmount/close.
+      if (pickedPreviewUrlRef.current) {
+        URL.revokeObjectURL(pickedPreviewUrlRef.current);
+        pickedPreviewUrlRef.current = null;
+      }
     };
   }, [isOpen, initialData]);
 
@@ -135,9 +150,20 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
       if (file) {
         const path = file as string;
         if (path) {
-          setRawImagePath(path);
-          setFormData({ ...formData, image_url: path });
-          setPreviewImage(convertFileSrc(path));
+          try {
+            const blobUrl = await getLocalFileBlobUrl(path);
+            // Revoke the previous picked preview before installing the new one.
+            if (pickedPreviewUrlRef.current) {
+              URL.revokeObjectURL(pickedPreviewUrlRef.current);
+            }
+            pickedPreviewUrlRef.current = blobUrl;
+
+            setRawImagePath(path);
+            setFormData({ ...formData, image_url: path });
+            setPreviewImage(blobUrl);
+          } catch (err) {
+            console.error("Failed to load preview for picked image:", err);
+          }
         }
       }
     } catch (e) {

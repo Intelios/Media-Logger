@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Upload, Save, Sparkles, Image as ImageIcon } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { saveImage, getImageUrl, releaseImageUrl } from "../lib/utils";
+import { saveImage, getImageUrl, releaseImageUrl, getLocalFileBlobUrl } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 import { getVisibleEntryTypeOptions } from "../lib/media-config";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
@@ -25,6 +24,10 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+  // Tracks a blob: URL created from a freshly picked file so we can revoke it
+  // when it's replaced or the modal closes. Null when previewImage is either
+  // empty or sourced from getImageUrl (which has its own ref-counted cache).
+  const pickedPreviewUrlRef = useRef<string | null>(null);
 
   useEscapeToClose(isOpen, onClose);
   useFocusTrap(isOpen, modalRef);
@@ -35,6 +38,12 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
 
     if (isOpen) {
       setRawImagePath(null);
+      // Drop any blob URL held over from a previous pick; the preview is
+      // about to be reset/replaced below.
+      if (pickedPreviewUrlRef.current) {
+        URL.revokeObjectURL(pickedPreviewUrlRef.current);
+        pickedPreviewUrlRef.current = null;
+      }
       if (initialData) {
         setName(initialData.name);
         setEntryType(initialData.entry_type);
@@ -66,6 +75,11 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
     return () => {
       cancelled = true;
       releaseImageUrl(acquiredImagePath);
+      // Revoke any picked-file blob URL still outstanding on unmount/close.
+      if (pickedPreviewUrlRef.current) {
+        URL.revokeObjectURL(pickedPreviewUrlRef.current);
+        pickedPreviewUrlRef.current = null;
+      }
     };
   }, [isOpen, initialData]);
 
@@ -78,8 +92,19 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
       if (file) {
         const path = file as string;
         if (path) {
-          setRawImagePath(path);
-          setPreviewImage(convertFileSrc(path));
+          try {
+            const blobUrl = await getLocalFileBlobUrl(path);
+            // Revoke the previous picked preview before installing the new one.
+            if (pickedPreviewUrlRef.current) {
+              URL.revokeObjectURL(pickedPreviewUrlRef.current);
+            }
+            pickedPreviewUrlRef.current = blobUrl;
+
+            setRawImagePath(path);
+            setPreviewImage(blobUrl);
+          } catch (err) {
+            console.error("Failed to load preview for picked image:", err);
+          }
         }
       }
     } catch (e) {
