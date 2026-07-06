@@ -1,8 +1,16 @@
 {
-  "generatedAt": "2026-07-05T12:27:38.026Z",
+  "generatedAt": "2026-07-06T16:09:49.574Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "3.6",
+      "title": "Media Logger - 3.6",
+      "date": "2026-07-06",
+      "body": "New Content/Features:\n- In the 'On This Day' feature of the dashboard a new 'X Years Ago' added to the card of the entry, making it easier at a glance to see how long it was you last logged that specific entry.\n- Removed the glowing orb from the 'timeline' in the sidebar year view to make the app look cleaner and less jank.\n- Updated Tauri from 2.11.3 to 2.11.4\n- Updated Lucide React from 0.562.0 to 1.23.0\n- Updated TailwindCSS from 3.4.17 to 3.4.19. (V4 attempted but broke too much to be worth doing.)\n- Updated Typescript from 5.8.3 to 6.0.3\n\nBug Fixes:\n- Fixed an issue where the 'Most Replayed' widget in Stats did not use it's full space.\n- Fixed an issue where the images in the EntryForm did not display their previews correctly.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.6"
+    },
     {
       "version": "3.5.1",
       "title": "Media Logger - 3.5.1",
