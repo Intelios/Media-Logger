@@ -89,16 +89,11 @@ export function MostReplayedWidget({ items }: MostReplayedWidgetProps) {
         </div>
       }
     >
-      <div
-        className={cn(
-          "flex flex-1 min-h-0 flex-col overflow-hidden transition-all duration-300 ease-out",
-          isExpanded ? "max-h-[600px]" : "max-h-[240px]"
-        )}
-      >
+      <div className="flex min-h-0 flex-1 flex-col">
         <div
           className={cn(
-            "space-y-0.5",
-            isExpanded && "custom-scrollbar max-h-[560px] overflow-y-auto pr-1"
+            "custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto pr-1",
+            isExpanded ? "space-y-2" : "space-y-2"
           )}
         >
           {displayItems.map((item, index) => {
