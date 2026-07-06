@@ -13,6 +13,10 @@
 .cv-auto {
   content-visibility: auto;
   contain-intrinsic-size: auto 420px;
+  /* Pad the containment box so the card's hover lift/scale never clips
+     against the content-visibility boundary on un-hover. */
+  padding-top: 8px;
+  margin-top: -8px;
 }
 
 /* content-visibility: auto implies paint containment, which clips the card's
