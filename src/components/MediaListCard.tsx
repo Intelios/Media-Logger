@@ -4,7 +4,7 @@ import type { MediaEntry } from "../lib/db";
 import { DEFAULT_COVER_IMAGE, useImageUrl } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 import { getTypeBadgeStyle, getRatingColor, parseGenres, formatCardRating } from "./MediaCard";
-import { formatDate } from "../lib/dates";
+import { formatDate, getYearsAgo } from "../lib/dates";
 
 const cardLiftTransition = {
   type: "spring",
@@ -16,6 +16,7 @@ interface MediaListCardProps {
   entry: MediaEntry;
   onClick?: (entry: MediaEntry) => void;
   index?: number;
+  showYearsAgo?: boolean;
 }
 
 /**
@@ -23,7 +24,8 @@ interface MediaListCardProps {
  * A crisp cover sits on the left while the same image bleeds across the card
  * as a soft blurred wash that fades into the surface — no hard box edges.
  */
-export function MediaListCard({ entry, onClick, index = 0 }: MediaListCardProps) {
+export function MediaListCard({ entry, onClick, index = 0, showYearsAgo = false }: MediaListCardProps) {
+  const yearsAgo = showYearsAgo ? getYearsAgo(entry.completion_date) : null;
   const imgSrc = useImageUrl(entry.image_url, "");
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const genres = parseGenres(entry.genre).slice(0, 2);
@@ -137,6 +139,9 @@ export function MediaListCard({ entry, onClick, index = 0 }: MediaListCardProps)
           <div className="flex items-center gap-1 text-[10px] text-gray-400">
             <Calendar size={10} />
             <span>{formatDate(entry.completion_date)}</span>
+            {yearsAgo !== null && yearsAgo >= 1 && (
+              <span className="ml-0.5 text-gray-500">· {yearsAgo} {yearsAgo === 1 ? 'year' : 'years'} ago</span>
+            )}
           </div>
         )}
       </div>

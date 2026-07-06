@@ -351,7 +351,7 @@ export default function Dashboard() {
           {onThisDay.length > 0 ? (
             <div className="dashboard-list-stack">
               {onThisDay.slice(0, 6).map((entry, i) => (
-                <MediaListCard key={entry.id} entry={entry} onClick={handleCardClick} index={i} />
+                <MediaListCard key={entry.id} entry={entry} onClick={handleCardClick} index={i} showYearsAgo />
               ))}
             </div>
           ) : (

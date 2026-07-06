@@ -31,6 +31,21 @@ export const formatShortDate = (dateString: string | null): string => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+// Full years between a date and today, calendar-correct.
+// Returns null for invalid/missing input, 0 for same-year dates.
+export const getYearsAgo = (dateString: string | null): number | null => {
+  if (!dateString) return null;
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  let years = now.getFullYear() - d.getFullYear();
+  const beforeAnniversary =
+    now.getMonth() < d.getMonth() ||
+    (now.getMonth() === d.getMonth() && now.getDate() < d.getDate());
+  if (beforeAnniversary) years--;
+  return years;
+};
+
 // Today as month + ordinal day, e.g. "June 9th"
 export const formatTodayMD = (): string => {
   const today = new Date();
