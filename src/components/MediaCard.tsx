@@ -416,7 +416,8 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                 style={{ width: `${(entry.review_score / 10) * 100}%` }}
               >
                 <div className={cn(
-                  "absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 flex items-center justify-center min-w-[26px] h-4 px-1 rounded-full shadow-md border border-white/20 text-[9px] font-bold",
+                  "absolute right-0 top-1/2 -translate-y-1/2 flex items-center justify-center min-w-[26px] h-4 px-1 rounded-full shadow-md border border-white/20 text-[9px] font-bold",
+                  entry.review_score >= 10 ? "translate-x-0" : "translate-x-1/2",
                   getRatingColor(entry.review_score)
                 )}>
                   {formatCardRating(entry.review_score)}
