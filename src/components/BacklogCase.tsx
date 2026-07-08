@@ -249,9 +249,13 @@ function BacklogTooltip({ item, genres, anchorEl }: { item: BacklogItem; genres:
   const pos = useMemo(() => {
     const rect = anchorEl.getBoundingClientRect();
     const tooltipWidth = 220;
+    const tooltipMaxHeight = 240;
     let left = rect.left + rect.width / 2 - tooltipWidth / 2;
     left = Math.max(8, Math.min(left, window.innerWidth - tooltipWidth - 8));
-    return { top: rect.bottom + 8, left };
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const placeBelow = spaceBelow >= tooltipMaxHeight;
+    const top = placeBelow ? rect.bottom + 8 : rect.top - 8;
+    return { top, left, placeBelow };
   }, [anchorEl]);
 
   return (
@@ -261,6 +265,7 @@ function BacklogTooltip({ item, genres, anchorEl }: { item: BacklogItem; genres:
       style={{
         top: pos.top,
         left: pos.left,
+        transform: pos.placeBelow ? undefined : 'translateY(-100%)',
       }}
     >
       <p className="text-sm font-semibold text-text leading-tight mb-1.5">{item.name}</p>
