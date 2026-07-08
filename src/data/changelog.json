@@ -1,8 +1,24 @@
 {
-  "generatedAt": "2026-07-06T16:09:49.574Z",
+  "generatedAt": "2026-07-08T19:31:23.215Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "3.7",
+      "title": "Media Logger - 3.7",
+      "date": "2026-07-08",
+      "body": "New Content/Features:\n- Added a new 'Unreleased' shelf to the Backlog to track items you would like to see/play/listen/read that haven't released quite yet.\n- Added a feature in settings where the app scans the assets (images) folder and detects any images not being used so you can remove them to reduce amount of bloat in that folder. This is handled as safely as possible in the application.\n\nBug Fixes:\n- Fixed a bug when hovering over a backlog item that the tooltip displayed in the top left then snapped to correct position.\n- Fixed a bug where the tooltip on a backlog item could get cut off on low resolution / size displays, now flips above case in those scenarios to avoid being cut off.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.7"
+    },
+    {
+      "version": "3.6.1",
+      "title": "Media Logger - 3.6.1",
+      "date": "2026-07-06",
+      "body": "New Content/Features:\n- Added new Vertical Pill rating display mode for Media Cards alongside 'Pill' and 'Thermometer' options. \n\nBug Fixes:\n- Fixed a bug where a 10/10 could slip out the card on the thermometer setting for displaying reviews on cards.\n- Finally fixed a bug where the top of the rounded corners when hovering on a card would get cut off. (This has been annoying me since I added card lift animation in 3.0 but FINALLY it's fixed!)",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.6.1"
+    },
     {
       "version": "3.6",
       "title": "Media Logger - 3.6",
