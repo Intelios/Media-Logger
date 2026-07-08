@@ -25,11 +25,14 @@ import {
     Copy,
     ScrollText,
     ChevronDown,
-    ChevronRight
+    ChevronRight,
+    ImageOff
 } from 'lucide-react';
 import { exportToFile, importFromFile, getDataStats, type ImportResult } from '../lib/csv-logic';
 import { DB_FILENAME, dbService } from '../lib/db';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { CleanupImagesModal } from '../components/CleanupImagesModal';
+import { scanOrphanedImages, type ScanResult } from '../lib/image-cleanup';
 import {
     getDataDirectory,
     setDataDirectory,
@@ -223,6 +226,11 @@ export default function Settings() {
     const [showImportModal, setShowImportModal] = useState(false);
     const [showExportFormatModal, setShowExportFormatModal] = useState(false);
 
+    // Unused-image cleanup state
+    const [isScanning, setIsScanning] = useState(false);
+    const [cleanupScan, setCleanupScan] = useState<ScanResult | null>(null);
+    const [showCleanupModal, setShowCleanupModal] = useState(false);
+
     useEffect(() => {
         const loadPaths = async () => {
             const dataDir = await getDataDirectory();
@@ -254,6 +262,24 @@ export default function Settings() {
         setSuccessMessage(message);
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 3000);
+    };
+
+    const handleCleanupScan = async () => {
+        if (isScanning) return;
+        setIsScanning(true);
+        try {
+            const result = await scanOrphanedImages();
+            if (result.orphans.length === 0) {
+                showToast('No unused images found');
+            } else {
+                setCleanupScan(result);
+                setShowCleanupModal(true);
+            }
+        } catch (error) {
+            showToast('Scan failed: ' + String(error));
+        } finally {
+            setIsScanning(false);
+        }
     };
 
     const handleBrowse = async () => {
@@ -1032,6 +1058,29 @@ export default function Settings() {
                             </div>
                         </section>
 
+                        <section className="settings-card">
+                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+                                <div>
+                                    <div className="settings-row-label">Clean Up Unused Images</div>
+                                    <div className="settings-row-description">
+                                        Find images in your assets folder that are no longer used by any entry, backlog item, or profile. Deleted files are moved to the system Trash and can be restored.
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleCleanupScan}
+                                    disabled={isScanning}
+                                    className="settings-btn settings-btn-secondary"
+                                    style={{ alignSelf: 'flex-start' }}
+                                >
+                                    {isScanning ? (
+                                        <><Loader2 size={14} className="spin" /> Scanning...</>
+                                    ) : (
+                                        <><ImageOff size={14} /> Scan for Unused Images</>
+                                    )}
+                                </button>
+                            </div>
+                        </section>
+
                         <div style={{
                             display: 'flex',
                             alignItems: 'flex-start',
@@ -1385,6 +1434,22 @@ export default function Settings() {
                         </div>
                     </div>
                 )}
+
+                <CleanupImagesModal
+                    isOpen={showCleanupModal}
+                    orphans={cleanupScan?.orphans ?? []}
+                    dataDir={cleanupScan?.dataDir ?? ''}
+                    onClose={() => setShowCleanupModal(false)}
+                    onTrashed={(trashedNames) => {
+                        const trashed = new Set(trashedNames);
+                        setCleanupScan((previous) =>
+                            previous
+                                ? { ...previous, orphans: previous.orphans.filter((orphan) => !trashed.has(orphan.name)) }
+                                : previous
+                        );
+                    }}
+                    showToast={showToast}
+                />
 
                 <ConfirmDialog
                     isOpen={showAdultConfirm}

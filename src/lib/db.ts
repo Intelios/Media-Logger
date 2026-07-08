@@ -872,6 +872,38 @@ class DBService {
   }
 
   /**
+   * Every image filename referenced anywhere in the DB (entries, backlog
+   * items, and profiles), lowercased, for unused-image cleanup. Deliberately
+   * NOT built on getAllEntries(), which applies filterHiddenEntries and
+   * would omit hidden/adult covers — those images are still in use.
+   * Any query failure propagates: callers must abort rather than treat a
+   * DB error as "no references".
+   */
+  async getAllReferencedImagePaths(): Promise<Set<string>> {
+    const db = await this.connect();
+    const queries = [
+      "SELECT image_url FROM entries WHERE image_url IS NOT NULL",
+      "SELECT image_url FROM backlog_items WHERE image_url IS NOT NULL",
+      "SELECT image_url FROM profiles WHERE image_url IS NOT NULL",
+    ];
+
+    const referenced = new Set<string>();
+    for (const query of queries) {
+      const rows = await db.select<{ image_url: string }[]>(query);
+      for (const row of rows) {
+        const value = row.image_url;
+        if (!value || value.startsWith('http')) continue;
+        // Values are normally "images/<uuid>.<ext>", but keep the basename
+        // of anything non-http so legacy or odd path formats still protect
+        // their files.
+        const basename = value.split(/[/\\]/).pop();
+        if (basename) referenced.add(basename.toLowerCase());
+      }
+    }
+    return referenced;
+  }
+
+  /**
    * Count of adult entries, ignoring the Adult Media setting. Used by the
    * Settings confirmation dialog to tell the user how many entries will be
    * hidden (not deleted) when they turn the setting off.

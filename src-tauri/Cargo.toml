@@ -29,3 +29,4 @@ tauri-plugin-dialog = "2.7.1"
 window-vibrancy = "0.6"
 chrono = "0.4"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+trash = "5"

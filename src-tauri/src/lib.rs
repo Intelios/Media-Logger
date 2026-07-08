@@ -1,7 +1,10 @@
 use serde::Serialize;
+use std::collections::HashSet;
+use std::ffi::OsStr;
 use std::fs;
 use std::io::{Read, Seek, Write};
 use std::path::{Component, Path, PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::Emitter;
 use tauri::Manager;
 #[cfg(target_os = "macos")]
@@ -321,6 +324,213 @@ fn extract_backup_assets(
     Ok(ExtractBackupAssetsResult { assets_restored })
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScannedImage {
+    name: String,
+    size_bytes: u64,
+    modified_ms: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FailedTrash {
+    name: String,
+    error: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TrashImagesResult {
+    trashed: Vec<String>,
+    skipped: Vec<String>,
+    failed: Vec<FailedTrash>,
+}
+
+fn image_filename_is_safe(name: &str) -> bool {
+    if name.is_empty() || name.starts_with('.') || name.contains('/') || name.contains('\\') {
+        return false;
+    }
+
+    let mut components = Path::new(name).components();
+    matches!(
+        (components.next(), components.next()),
+        (Some(Component::Normal(_)), None)
+    )
+}
+
+fn system_time_to_epoch_ms(time: SystemTime) -> i64 {
+    time.duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+#[tauri::command]
+fn list_asset_images(data_dir: String) -> Result<Vec<ScannedImage>, String> {
+    let images_dir = Path::new(&data_dir).join("assets").join("images");
+    if !images_dir.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    let entries = fs::read_dir(&images_dir)
+        .map_err(|error| format!("Failed to read directory {}: {error}", images_dir.display()))?;
+
+    let mut images = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| {
+            format!(
+                "Failed to read an entry inside {}: {error}",
+                images_dir.display()
+            )
+        })?;
+
+        // Non-UTF-8 names cannot appear in the DB and cannot round-trip
+        // through the frontend safely, so they are left untouched.
+        let name = match entry.file_name().into_string() {
+            Ok(name) => name,
+            Err(_) => continue,
+        };
+        if name.starts_with('.') {
+            continue;
+        }
+
+        // symlink_metadata never follows links, so symlinks are skipped
+        // instead of being resolved to whatever they point at.
+        let metadata = fs::symlink_metadata(entry.path())
+            .map_err(|error| format!("Failed to inspect {}: {error}", entry.path().display()))?;
+        if !metadata.is_file() {
+            continue;
+        }
+
+        // If the mtime is unreadable, report "now" so the frontend's
+        // recency guard errs on the side of keeping the file.
+        let modified_ms = metadata
+            .modified()
+            .map(system_time_to_epoch_ms)
+            .unwrap_or_else(|_| system_time_to_epoch_ms(SystemTime::now()));
+
+        images.push(ScannedImage {
+            name,
+            size_bytes: metadata.len(),
+            modified_ms,
+        });
+    }
+
+    Ok(images)
+}
+
+fn move_path_to_trash(path: &Path) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use trash::TrashContext;
+        use trash::macos::{DeleteMethod, TrashContextExtMacos};
+
+        // NsFileManager avoids the "control Finder" automation prompt that
+        // the default Finder-scripting method triggers. Files still land in
+        // the Trash and are restorable; they only lack the "Put Back" item.
+        let mut context = TrashContext::default();
+        context.set_delete_method(DeleteMethod::NsFileManager);
+        context
+            .delete(path)
+            .map_err(|error| format!("Failed to move {} to Trash: {error}", path.display()))
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        trash::delete(path)
+            .map_err(|error| format!("Failed to move {} to Trash: {error}", path.display()))
+    }
+}
+
+#[tauri::command]
+fn move_images_to_trash(
+    data_dir: String,
+    filenames: Vec<String>,
+    referenced: Vec<String>,
+    min_age_seconds: u64,
+) -> Result<TrashImagesResult, String> {
+    let images_root = fs::canonicalize(Path::new(&data_dir).join("assets").join("images"))
+        .map_err(|error| format!("Failed to resolve the images directory: {error}"))?;
+    if !images_root.is_dir() {
+        return Err(format!(
+            "{} is not a directory",
+            images_root.display()
+        ));
+    }
+
+    // Phase 1: validate every requested file before touching any of them.
+    // A single suspicious name aborts the whole batch.
+    let mut validated = Vec::with_capacity(filenames.len());
+    for name in &filenames {
+        if !image_filename_is_safe(name) {
+            return Err(format!("Refusing to trash unsafe filename: {name}"));
+        }
+
+        let candidate = images_root.join(name);
+        let metadata = fs::symlink_metadata(&candidate)
+            .map_err(|error| format!("Failed to inspect {}: {error}", candidate.display()))?;
+        if !metadata.is_file() {
+            return Err(format!("Refusing to trash {name}: not a regular file"));
+        }
+
+        let canonical = fs::canonicalize(&candidate)
+            .map_err(|error| format!("Failed to resolve {}: {error}", candidate.display()))?;
+        if canonical.parent() != Some(images_root.as_path())
+            || canonical.file_name() != Some(OsStr::new(name))
+        {
+            return Err(format!(
+                "Refusing to trash {name}: it resolves outside the images directory"
+            ));
+        }
+
+        validated.push((name.clone(), canonical));
+    }
+
+    let referenced: HashSet<String> = referenced
+        .into_iter()
+        .map(|name| name.to_lowercase())
+        .collect();
+    let min_age = Duration::from_secs(min_age_seconds);
+    let now = SystemTime::now();
+
+    let mut result = TrashImagesResult {
+        trashed: Vec::new(),
+        skipped: Vec::new(),
+        failed: Vec::new(),
+    };
+
+    // Phase 2: per-file guards, then trash. Never a permanent delete.
+    for (name, path) in validated {
+        // Backstop against frontend bugs: refuse anything the DB still references.
+        if referenced.contains(&name.to_lowercase()) {
+            result.skipped.push(name);
+            continue;
+        }
+
+        // Re-stat: a file written moments ago may belong to an in-flight
+        // save whose DB row doesn't exist yet. If the age can't be proven,
+        // leave the file alone.
+        let is_recent = match fs::symlink_metadata(&path).and_then(|m| m.modified()) {
+            Ok(modified) => now
+                .duration_since(modified)
+                .map(|age| age < min_age)
+                .unwrap_or(true),
+            Err(_) => true,
+        };
+        if is_recent {
+            result.skipped.push(name);
+            continue;
+        }
+
+        match move_path_to_trash(&path) {
+            Ok(()) => result.trashed.push(name),
+            Err(error) => result.failed.push(FailedTrash { name, error }),
+        }
+    }
+
+    Ok(result)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -333,7 +543,9 @@ pub fn run() {
             apply_glass_style,
             create_backup_zip,
             read_backup_zip,
-            extract_backup_assets
+            extract_backup_assets,
+            list_asset_images,
+            move_images_to_trash
         ])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
