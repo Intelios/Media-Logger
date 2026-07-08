@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Play, Pause, Check, Pencil, Trash2, MoreVertical, Film, Tv, MonitorPlay, Gamepad2, BookOpen, Disc3, Heart, Monitor, Tag, Calendar, CalendarClock } from "lucide-react";
 import { DEFAULT_COVER_IMAGE, useImageUrl } from "../lib/utils";
@@ -244,15 +244,14 @@ export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit,
 }
 
 function BacklogTooltip({ item, genres, anchorEl }: { item: BacklogItem; genres: string[]; anchorEl: HTMLElement }) {
-  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const tooltipRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const pos = useMemo(() => {
     const rect = anchorEl.getBoundingClientRect();
     const tooltipWidth = 220;
     let left = rect.left + rect.width / 2 - tooltipWidth / 2;
     left = Math.max(8, Math.min(left, window.innerWidth - tooltipWidth - 8));
-    setPos({ top: rect.bottom + 8, left });
+    return { top: rect.bottom + 8, left };
   }, [anchorEl]);
 
   return (
