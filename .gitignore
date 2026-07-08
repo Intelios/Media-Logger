@@ -61,3 +61,4 @@ patchnote.md
 !/.github/workflows/*.yml
 !/.github/workflows/*.yaml
 CODEBASE-ANALYSIS.md
+/.claude

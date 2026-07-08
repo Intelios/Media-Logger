@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ArrowUpDown, Bookmark, Plus, Play, Clock, Package } from "lucide-react";
+import { ArrowUpDown, Bookmark, Plus, Play, Clock, Package, CalendarClock, ChevronDown, ChevronUp } from "lucide-react";
 import { BacklogCase } from "../components/BacklogCase";
 import { BacklogForm } from "../components/BacklogForm";
 import { EntryForm } from "../components/EntryForm";
@@ -7,13 +7,15 @@ import { ReorderModal } from "../components/ReorderModal";
 import { backlogLogic, type BacklogItemsByStatus } from "../lib/backlog-logic";
 import { dbService, type BacklogItem, type MediaEntry } from "../lib/db";
 import { getVisibleEntryTypes, useAdultMediaEnabled } from "../lib/media-config";
+import { isUnreleasedSectionCollapsed, setUnreleasedSectionCollapsed } from "../lib/settings";
 import { cn } from "../lib/utils_ui";
 
 export default function Backlog() {
   const adultEnabled = useAdultMediaEnabled();
   const TYPE_FILTERS = ["All", ...getVisibleEntryTypes()];
-  const [items, setItems] = useState<BacklogItemsByStatus>({ inProgress: [], planning: [] });
+  const [items, setItems] = useState<BacklogItemsByStatus>({ inProgress: [], planning: [], unreleased: [] });
   const [activeFilter, setActiveFilter] = useState("All");
+  const [unreleasedCollapsed, setUnreleasedCollapsed] = useState(() => isUnreleasedSectionCollapsed());
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<BacklogItem | null>(null);
   const [completingItem, setCompletingItem] = useState<BacklogItem | null>(null);
@@ -42,7 +44,7 @@ export default function Backlog() {
   }, [adultEnabled, loadItems]);
 
   const availableTypes = (() => {
-    const allItems = [...items.inProgress, ...items.planning];
+    const allItems = [...items.inProgress, ...items.planning, ...items.unreleased];
     const types = new Set(allItems.map(i => i.entry_type));
     return TYPE_FILTERS.filter(t => t === "All" || types.has(t));
   })();
@@ -54,7 +56,8 @@ export default function Backlog() {
 
   const filteredInProgress = filterItems(items.inProgress);
   const filteredPlanning = filterItems(items.planning);
-  const totalCount = items.inProgress.length + items.planning.length;
+  const filteredUnreleased = filterItems(items.unreleased);
+  const totalCount = items.inProgress.length + items.planning.length + items.unreleased.length;
   const isEmpty = totalCount === 0;
   const isFiltering = activeFilter !== "All";
   const reorderItems = reorderStatus === "in_progress"
@@ -63,13 +66,37 @@ export default function Backlog() {
       ? items.planning
       : [];
 
-  const getStatusLabel = (status: BacklogItem['status']) => status === "in_progress" ? "In Progress" : "Planning";
+  const getStatusLabel = (status: BacklogItem['status']) =>
+    status === "in_progress" ? "In Progress" : status === "unreleased" ? "Unreleased" : "Planning";
 
-  const handleAddSave = async (data: { name: string; entry_type: string; genre: string | null; image_url: string | null }) => {
+  const toggleUnreleasedCollapsed = () => {
+    setUnreleasedCollapsed(prev => {
+      const next = !prev;
+      setUnreleasedSectionCollapsed(next);
+      return next;
+    });
+  };
+
+  const handleAddSave = async (data: { name: string; entry_type: string; genre: string | null; image_url: string | null; release_date: string | null; is_unreleased: boolean }) => {
+    const { is_unreleased, ...fields } = data;
     if (editingItem) {
-      await backlogLogic.updateItem(editingItem.id, data);
+      await backlogLogic.updateItem(editingItem.id, fields);
+      // Only touch status when the unreleased toggle actually changed, so
+      // editing an in-progress item leaves it in progress.
+      if (is_unreleased && editingItem.status !== 'unreleased') {
+        await backlogLogic.moveToUnreleased(editingItem.id);
+      } else if (!is_unreleased && editingItem.status === 'unreleased') {
+        await backlogLogic.moveToPlanning(editingItem.id);
+      }
     } else {
-      await backlogLogic.addItem(data.name, data.entry_type, data.genre, data.image_url);
+      await backlogLogic.addItem(
+        fields.name,
+        fields.entry_type,
+        fields.genre,
+        fields.image_url,
+        is_unreleased ? 'unreleased' : 'planning',
+        fields.release_date
+      );
     }
     setShowForm(false);
     setEditingItem(null);
@@ -342,6 +369,61 @@ export default function Backlog() {
               </p>
             </div>
           )}
+        </section>
+      )}
+
+      {/* Unreleased Section */}
+      {items.unreleased.length > 0 && (
+        <section className="backlog-section-enter" style={{ animationDelay: '320ms' }}>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <button
+              type="button"
+              onClick={toggleUnreleasedCollapsed}
+              className="flex items-center gap-3 group"
+            >
+              <div className="flex items-center gap-2">
+                <CalendarClock size={16} className="text-sky-400" />
+                <h2 className="text-lg font-bold text-white">Unreleased</h2>
+              </div>
+              <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-sky-500/15 text-sky-400 border border-sky-500/20">
+                {filteredUnreleased.length}
+              </span>
+              <span className="text-gray-500 group-hover:text-white transition-colors">
+                {unreleasedCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+              </span>
+            </button>
+          </div>
+
+          <div className={cn(
+            "overflow-hidden transition-all duration-300 ease-out",
+            unreleasedCollapsed ? "max-h-0" : "max-h-[2000px]"
+          )}>
+            {filteredUnreleased.length > 0 ? (
+              <div className="flex flex-wrap gap-4">
+                {filteredUnreleased.map((item, i) => (
+                  <BacklogCase
+                    key={item.id}
+                    item={item}
+                    index={i}
+                    onStart={handleStart}
+                    onPause={handlePause}
+                    onComplete={handleComplete}
+                    onEdit={handleEdit}
+                    onRemove={handleRemove}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="py-8 text-center rounded-2xl border border-dashed border-white/10"
+                style={{ backgroundColor: "var(--color-surface)" }}
+              >
+                <CalendarClock size={24} className="mx-auto text-gray-600 mb-2" />
+                <p className="text-sm text-gray-500">
+                  {`No ${activeFilter} items awaiting release`}
+                </p>
+              </div>
+            )}
+          </div>
         </section>
       )}
 

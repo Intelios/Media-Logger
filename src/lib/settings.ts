@@ -6,6 +6,7 @@ const NAVIGATION_YEARS_KEY = 'media-logger-navigation-years';
 const RATING_DISPLAY_MODE_KEY = 'media-logger-rating-display-mode';
 const ADULT_MEDIA_ENABLED_KEY = 'media-logger-adult-media-enabled';
 const FEATURED_ADULT_ALLOWED_KEY = 'media-logger-featured-adult-allowed';
+const BACKLOG_UNRELEASED_COLLAPSED_KEY = 'media-logger-backlog-unreleased-collapsed';
 
 /**
  * Window event fired when the Adult Media visibility setting changes, so any
@@ -194,4 +195,19 @@ export function isFeaturedAdultAllowed(): boolean {
 export function setFeaturedAdultAllowed(allowed: boolean): void {
     localStorage.setItem(FEATURED_ADULT_ALLOWED_KEY, allowed ? 'true' : 'false');
     window.dispatchEvent(new CustomEvent(FEATURED_ADULT_VISIBILITY_CHANGED_EVENT));
+}
+
+/**
+ * Whether the Backlog page's Unreleased section is collapsed.
+ * Defaults to false (expanded); only an explicit 'true' collapses it.
+ */
+export function isUnreleasedSectionCollapsed(): boolean {
+    return localStorage.getItem(BACKLOG_UNRELEASED_COLLAPSED_KEY) === 'true';
+}
+
+/**
+ * Persist the collapsed state of the Backlog page's Unreleased section.
+ */
+export function setUnreleasedSectionCollapsed(collapsed: boolean): void {
+    localStorage.setItem(BACKLOG_UNRELEASED_COLLAPSED_KEY, collapsed ? 'true' : 'false');
 }

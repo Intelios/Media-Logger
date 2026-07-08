@@ -185,7 +185,7 @@ const AWARD_CATEGORY_COLUMNS = ["id", "name", "year", "sort_order", "template_id
 const AWARD_WINNER_COLUMNS = ["category_id", "media_id", "selected_date"];
 const PROFILE_COLUMNS = ["type", "name", "image_url", "crop_data"];
 const HIDDEN_PROFILE_COLUMNS = ["type", "name", "hidden_date"];
-const BACKLOG_COLUMNS = ["id", "name", "entry_type", "genre", "image_url", "status", "added_date", "sort_order"];
+const BACKLOG_COLUMNS = ["id", "name", "entry_type", "genre", "image_url", "status", "added_date", "sort_order", "release_date"];
 
 // Columns that must be parsed as numbers on import. Everything else stays a
 // string (see parseCSV). ID and foreign-key columns MUST be listed here — they
@@ -660,8 +660,8 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                 if (existing.length > 0) continue;
 
                 await db.execute(
-                    "INSERT INTO backlog_items (name, entry_type, genre, image_url, status, added_date, sort_order) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-                    [item.name, item.entry_type, item.genre, item.image_url, item.status || 'planning', item.added_date || new Date().toISOString().split('T')[0], item.sort_order || 0]
+                    "INSERT INTO backlog_items (name, entry_type, genre, image_url, status, added_date, sort_order, release_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                    [item.name, item.entry_type, item.genre, item.image_url, item.status || 'planning', item.added_date || new Date().toISOString().split('T')[0], item.sort_order || 0, item.release_date || null]
                 );
             }
         }

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Play, Pause, Check, Pencil, Trash2, MoreVertical, Film, Tv, MonitorPlay, Gamepad2, BookOpen, Disc3, Heart, Monitor, Tag, Calendar } from "lucide-react";
+import { Play, Pause, Check, Pencil, Trash2, MoreVertical, Film, Tv, MonitorPlay, Gamepad2, BookOpen, Disc3, Heart, Monitor, Tag, Calendar, CalendarClock } from "lucide-react";
 import { DEFAULT_COVER_IMAGE, useImageUrl } from "../lib/utils";
+import { formatShortDate } from "../lib/dates";
 import { cn } from "../lib/utils_ui";
 import type { BacklogItem } from "../lib/db";
 
@@ -152,6 +153,13 @@ export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit,
             </div>
           )}
 
+          {/* Unreleased indicator */}
+          {item.status === 'unreleased' && (
+            <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-sky-500/90 flex items-center justify-center shadow-lg backdrop-blur-sm">
+              <CalendarClock size={11} className="text-white" />
+            </div>
+          )}
+
           {/* Hover overlay with menu button */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-r-md">
             <button
@@ -182,7 +190,7 @@ export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit,
             backgroundColor: "var(--color-surface)",
           }}
         >
-          {item.status === 'planning' ? (
+          {item.status !== 'in_progress' && (
             <button
               onClick={() => { onStart(item.id); setShowMenu(false); }}
               className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-amber-500/20 hover:text-amber-400 transition-colors"
@@ -190,7 +198,8 @@ export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit,
               <Play size={14} />
               <span>Start</span>
             </button>
-          ) : (
+          )}
+          {item.status !== 'planning' && (
             <button
               onClick={() => { onPause(item.id); setShowMenu(false); }}
               className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-amber-500/20 hover:text-amber-400 transition-colors"
@@ -269,6 +278,11 @@ function BacklogTooltip({ item, genres, anchorEl }: { item: BacklogItem; genres:
             In Progress
           </span>
         )}
+        {item.status === 'unreleased' && (
+          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-sky-500/20 text-sky-400 border border-sky-500/30">
+            Unreleased
+          </span>
+        )}
       </div>
 
       {genres.length > 0 && (
@@ -290,6 +304,13 @@ function BacklogTooltip({ item, genres, anchorEl }: { item: BacklogItem; genres:
         <Calendar size={10} />
         <span>Added {item.added_date}</span>
       </div>
+
+      {item.status === 'unreleased' && item.release_date && (
+        <div className="flex items-center gap-1.5 text-[10px] text-sky-400 mt-1">
+          <CalendarClock size={10} />
+          <span>Releases {formatShortDate(item.release_date)}</span>
+        </div>
+      )}
     </div>
   );
 }

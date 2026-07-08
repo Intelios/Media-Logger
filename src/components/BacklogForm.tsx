@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Upload, Save, Sparkles, Image as ImageIcon } from "lucide-react";
+import { X, Upload, Save, Sparkles, Image as ImageIcon, CalendarClock } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { saveImage, getImageUrl, releaseImageUrl, getLocalFileBlobUrl } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
@@ -11,7 +11,7 @@ import type { BacklogItem } from "../lib/db";
 interface BacklogFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { name: string; entry_type: string; genre: string | null; image_url: string | null }) => void;
+  onSave: (data: { name: string; entry_type: string; genre: string | null; image_url: string | null; release_date: string | null; is_unreleased: boolean }) => void;
   initialData?: BacklogItem | null;
 }
 
@@ -19,6 +19,8 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
   const [name, setName] = useState("");
   const [entryType, setEntryType] = useState("Movie");
   const [genre, setGenre] = useState("");
+  const [isUnreleased, setIsUnreleased] = useState(false);
+  const [releaseDate, setReleaseDate] = useState("");
   const [previewImage, setPreviewImage] = useState("");
   const [rawImagePath, setRawImagePath] = useState<string | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
@@ -48,6 +50,8 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
         setName(initialData.name);
         setEntryType(initialData.entry_type);
         setGenre(initialData.genre || "");
+        setIsUnreleased(initialData.status === 'unreleased');
+        setReleaseDate(initialData.release_date || "");
         setExistingImageUrl(initialData.image_url);
         if (initialData.image_url) {
           const imagePath = initialData.image_url;
@@ -67,6 +71,8 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
         setName("");
         setEntryType("Movie");
         setGenre("");
+        setIsUnreleased(false);
+        setReleaseDate("");
         setPreviewImage("");
         setExistingImageUrl(null);
       }
@@ -130,6 +136,8 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
         entry_type: entryType,
         genre: genre.trim() || null,
         image_url: finalImageUrl,
+        release_date: isUnreleased ? (releaseDate || null) : null,
+        is_unreleased: isUnreleased,
       });
     } catch (error) {
       console.error("Failed to save backlog item:", error);
@@ -212,6 +220,36 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
               placeholder="Action, RPG, Drama... (comma-separated)"
               className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-black/30 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 transition-colors"
             />
+          </div>
+
+          {/* Unreleased toggle + optional release date */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setIsUnreleased(v => !v)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border",
+                isUnreleased
+                  ? "bg-sky-500/20 text-sky-400 border-sky-500/40"
+                  : "bg-white/5 text-gray-400 border-white/5 hover:bg-white/10 hover:text-gray-300"
+              )}
+            >
+              <CalendarClock size={14} />
+              <span>Not released yet</span>
+            </button>
+            {isUnreleased && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                  Release Date <span className="text-gray-500">(optional)</span>
+                </label>
+                <input
+                  type="date"
+                  value={releaseDate}
+                  onChange={e => setReleaseDate(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-black/30 text-white focus:outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/30 transition-colors"
+                />
+              </div>
+            )}
           </div>
 
           {/* Image */}

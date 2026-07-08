@@ -3,7 +3,17 @@ import { dbService, type BacklogItem, type MediaEntry } from "./db";
 export interface BacklogItemsByStatus {
   inProgress: BacklogItem[];
   planning: BacklogItem[];
+  unreleased: BacklogItem[];
 }
+
+// Soonest release first; undated items last, falling back to manual sort_order.
+// ISO YYYY-MM-DD strings compare chronologically as plain strings.
+const byReleaseDate = (a: BacklogItem, b: BacklogItem): number => {
+  if (a.release_date && b.release_date) return a.release_date.localeCompare(b.release_date);
+  if (a.release_date) return -1;
+  if (b.release_date) return 1;
+  return a.sort_order - b.sort_order;
+};
 
 export const backlogLogic = {
   async getAllItems(): Promise<BacklogItemsByStatus> {
@@ -11,6 +21,7 @@ export const backlogLogic = {
     return {
       inProgress: items.filter(i => i.status === 'in_progress'),
       planning: items.filter(i => i.status === 'planning'),
+      unreleased: items.filter(i => i.status === 'unreleased').sort(byReleaseDate),
     };
   },
 
@@ -18,9 +29,10 @@ export const backlogLogic = {
     name: string,
     entryType: string,
     genre?: string | null,
-    imageUrl?: string | null
+    imageUrl?: string | null,
+    status: BacklogItem['status'] = 'planning',
+    releaseDate?: string | null
   ): Promise<number> {
-    const status: BacklogItem['status'] = 'planning';
     const sortOrder = await dbService.getNextBacklogSortOrder(status);
 
     return await dbService.addBacklogItem({
@@ -31,6 +43,7 @@ export const backlogLogic = {
       status,
       added_date: new Date().toISOString().split('T')[0],
       sort_order: sortOrder,
+      release_date: releaseDate ?? null,
     });
   },
 
@@ -40,6 +53,10 @@ export const backlogLogic = {
 
   async moveToPlanning(id: number): Promise<void> {
     await dbService.updateBacklogStatus(id, 'planning');
+  },
+
+  async moveToUnreleased(id: number): Promise<void> {
+    await dbService.updateBacklogStatus(id, 'unreleased');
   },
 
   async removeItem(id: number): Promise<void> {

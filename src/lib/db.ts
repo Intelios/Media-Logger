@@ -97,9 +97,10 @@ export interface BacklogItem {
   entry_type: string;
   genre: string | null;
   image_url: string | null;
-  status: 'planning' | 'in_progress';
+  status: 'planning' | 'in_progress' | 'unreleased';
   added_date: string;
   sort_order: number;
+  release_date: string | null;
 }
 
 // A single snapshot of a profile's average rating at a point in time.
@@ -374,6 +375,7 @@ class DBService {
       await this.migrateAwardCategoriesTable();
       await this.migrateAwardWinnersTable();
       await this.migrateProfilesTable();
+      await this.migrateBacklogItemsTable();
     } catch (error) {
       console.error('[DB] Compatibility migration error:', error);
     }
@@ -612,6 +614,19 @@ class DBService {
     }
   }
 
+  private async migrateBacklogItemsTable() {
+    if (!this.db) return;
+
+    const columns = await this.getTableInfo('backlog_items');
+    if (columns.length === 0) return;
+
+    // Optional release date for 'unreleased' backlog items (ISO YYYY-MM-DD).
+    if (!columns.map(c => c.name).includes('release_date')) {
+      console.log('[DB] Adding release_date to backlog_items...');
+      await this.db.execute("ALTER TABLE backlog_items ADD COLUMN release_date TEXT");
+    }
+  }
+
   /**
    * Create base tables if they don't exist (for new users)
    */
@@ -750,7 +765,8 @@ class DBService {
           image_url TEXT,
           status TEXT NOT NULL DEFAULT 'planning',
           added_date TEXT NOT NULL,
-          sort_order INTEGER DEFAULT 0
+          sort_order INTEGER DEFAULT 0,
+          release_date TEXT
         )
       `);
 
