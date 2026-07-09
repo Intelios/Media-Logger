@@ -7,8 +7,6 @@ export interface DashboardStats {
   average_rating: string;
   most_common_type: string;
   most_productive_year: string;
-  completion_rate: number; // For progress bar
-  diversity_score: number; // For progress bar
 }
 
 export const dashboardLogic = {
@@ -36,19 +34,11 @@ export const dashboardLogic = {
     const productiveYear = yearResult[0]?.year_completed ? `${yearResult[0].year_completed}` : "N/A";
     const productiveYearCount = yearResult[0]?.c || 0;
 
-    // 5. Completion Rate (Arbitrary calculation based on your Python code logic)
-    // In your code: entries with completion_date vs total.
-    // Since our query filters empty dates usually, let's assume 100% for now or query specifically.
-    const completedResult = await db.select<{count: number}[]>(`SELECT COUNT(*) as count FROM entries WHERE completion_date IS NOT NULL${adultExclusionSql()}`);
-    const completionRate = total > 0 ? (completedResult[0].count / total) * 100 : 0;
-
     return {
       total_entries: total,
       average_rating: avg.toFixed(1),
       most_common_type: commonType,
       most_productive_year: `${productiveYear} (${productiveYearCount})`,
-      completion_rate: completionRate,
-      diversity_score: 75, // Placeholder for the complex Shannon index calc from Python
     };
   },
 
