@@ -1023,7 +1023,7 @@ export default function Settings() {
                                 <div>
                                     <div className="settings-row-label">Export All Data</div>
                                     <div className="settings-row-description">
-                                        Save all your entries, collections, awards, and profile image mappings as either a JSON backup or a ZIP backup with bundled local assets
+                                        Save all your entries, collections, awards, backlog, and profile data (images, AVG rating history) as either a JSON backup or a ZIP backup with bundled local assets
                                     </div>
                                 </div>
                                 <button

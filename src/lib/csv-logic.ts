@@ -144,6 +144,7 @@ export interface ExportData {
     award_winners: string;
     profiles?: string;
     hidden_profiles?: string;
+    profile_avg_history?: string;
     backlog_items?: string;
     export_date: string;
     version: string;
@@ -183,8 +184,9 @@ const AWARD_YEAR_COLUMNS = ["year", "created_date"];
 const AWARD_TEMPLATE_COLUMNS = ["id", "name", "created_date"];
 const AWARD_CATEGORY_COLUMNS = ["id", "name", "year", "sort_order", "template_id"];
 const AWARD_WINNER_COLUMNS = ["category_id", "media_id", "selected_date"];
-const PROFILE_COLUMNS = ["type", "name", "image_url", "crop_data"];
+const PROFILE_COLUMNS = ["type", "name", "image_url", "crop_data", "track_avg_history"];
 const HIDDEN_PROFILE_COLUMNS = ["type", "name", "hidden_date"];
+const AVG_HISTORY_COLUMNS = ["type", "name", "captured_at", "average_score", "rated_count", "total_count", "source"];
 const BACKLOG_COLUMNS = ["id", "name", "entry_type", "genre", "image_url", "status", "added_date", "sort_order", "release_date"];
 
 // Columns that must be parsed as numbers on import. Everything else stays a
@@ -201,6 +203,8 @@ const AWARD_YEAR_NUMERIC_COLUMNS = new Set(["year"]);
 const AWARD_TEMPLATE_NUMERIC_COLUMNS = new Set(["id"]);
 const AWARD_CATEGORY_NUMERIC_COLUMNS = new Set(["id", "year", "sort_order", "template_id"]);
 const AWARD_WINNER_NUMERIC_COLUMNS = new Set(["category_id", "media_id"]);
+const PROFILE_NUMERIC_COLUMNS = new Set(["track_avg_history"]);
+const AVG_HISTORY_NUMERIC_COLUMNS = new Set(["average_score", "rated_count", "total_count"]);
 const BACKLOG_NUMERIC_COLUMNS = new Set(["id", "sort_order"]);
 
 /**
@@ -244,15 +248,20 @@ export async function exportAllData(): Promise<ExportData> {
         { category_id: number; media_id: number; selected_date: string }[]
     >("SELECT * FROM award_winners ORDER BY category_id ASC");
 
-    // Export profile image mappings
+    // Export profile image mappings (incl. the AVG-history tracking opt-in)
     const profiles = await db.select<
-        { type: string; name: string; image_url: string; crop_data: string | null }[]
+        { type: string; name: string; image_url: string; crop_data: string | null; track_avg_history: number }[]
     >("SELECT * FROM profiles ORDER BY type ASC, name ASC");
 
     // Export hidden profiles
     const hiddenProfiles = await db.select<
         { type: string; name: string; hidden_date: string }[]
     >("SELECT * FROM hidden_profiles ORDER BY type ASC, name ASC");
+
+    // Export per-profile AVG rating history snapshots
+    const avgHistory = await db.select<
+        { type: string; name: string; captured_at: string; average_score: number; rated_count: number; total_count: number; source: string }[]
+    >("SELECT * FROM profile_avg_history ORDER BY type ASC, name ASC, captured_at ASC");
 
     // Export backlog items
     const backlogItems = await db.select<BacklogItem[]>(
@@ -269,9 +278,10 @@ export async function exportAllData(): Promise<ExportData> {
         award_winners: toCSV(awardWinners, AWARD_WINNER_COLUMNS),
         profiles: toCSV(profiles, PROFILE_COLUMNS),
         hidden_profiles: toCSV(hiddenProfiles, HIDDEN_PROFILE_COLUMNS),
+        profile_avg_history: toCSV(avgHistory, AVG_HISTORY_COLUMNS),
         backlog_items: toCSV(backlogItems as unknown as Record<string, unknown>[], BACKLOG_COLUMNS),
         export_date: new Date().toISOString(),
-        version: "1.5",
+        version: "1.6",
     };
 }
 
@@ -595,34 +605,55 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
             const profiles = parseCSV<{
                 type: string;
                 name: string;
-                image_url: string;
+                image_url: string | null;
                 crop_data: string | null;
-            }>(data.profiles);
+                track_avg_history: number | null;
+            }>(data.profiles, PROFILE_NUMERIC_COLUMNS);
 
             for (const profile of profiles) {
-                if (!profile.type || !profile.name || !profile.image_url) continue;
+                if (!profile.type || !profile.name) continue;
 
-                // Old backups predate the crop_data column; treat missing as null.
+                // Old backups predate the crop_data / track_avg_history columns;
+                // treat missing as null. image_url can also be empty: enabling
+                // AVG tracking upserts a profile row with image_url = ''.
                 const cropData = profile.crop_data ?? null;
+                const trackAvg = profile.track_avg_history === 1 ? 1 : null;
 
-                const existing = await db.select<{ image_url: string; crop_data: string | null }[]>(
-                    "SELECT image_url, crop_data FROM profiles WHERE type = $1 AND name = $2",
+                // Rows carrying neither an image nor a tracking opt-in have
+                // nothing worth restoring.
+                if (!profile.image_url && trackAvg === null) continue;
+
+                const existing = await db.select<{ image_url: string; crop_data: string | null; track_avg_history: number }[]>(
+                    "SELECT image_url, crop_data, track_avg_history FROM profiles WHERE type = $1 AND name = $2",
                     [profile.type, profile.name]
                 );
 
                 if (existing.length === 0) {
                     await db.execute(
-                        "INSERT INTO profiles (type, name, image_url, crop_data) VALUES ($1, $2, $3, $4)",
-                        [profile.type, profile.name, profile.image_url, cropData]
+                        "INSERT INTO profiles (type, name, image_url, crop_data, track_avg_history) VALUES ($1, $2, $3, $4, $5)",
+                        [profile.type, profile.name, profile.image_url ?? "", cropData, trackAvg ?? 0]
                     );
                     result.profilesImported++;
                     continue;
                 }
 
-                if (existing[0].image_url !== profile.image_url || existing[0].crop_data !== cropData) {
+                // Merge with the existing row: a backup image wins (crop data
+                // travels with its image), but a tracking-only backup row must
+                // not clobber a locally set image. The tracking opt-in only
+                // ever turns ON — imports are additive, so a backup made
+                // before tracking was enabled locally won't switch it off.
+                const newImageUrl = profile.image_url || existing[0].image_url;
+                const newCropData = profile.image_url ? cropData : existing[0].crop_data;
+                const newTrackAvg = trackAvg ?? existing[0].track_avg_history;
+
+                if (
+                    existing[0].image_url !== newImageUrl ||
+                    existing[0].crop_data !== newCropData ||
+                    existing[0].track_avg_history !== newTrackAvg
+                ) {
                     await db.execute(
-                        "UPDATE profiles SET image_url = $1, crop_data = $2 WHERE type = $3 AND name = $4",
-                        [profile.image_url, cropData, profile.type, profile.name]
+                        "UPDATE profiles SET image_url = $1, crop_data = $2, track_avg_history = $3 WHERE type = $4 AND name = $5",
+                        [newImageUrl, newCropData, newTrackAvg, profile.type, profile.name]
                     );
                     result.profilesImported++;
                 }
@@ -641,6 +672,33 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                 await db.execute(
                     "INSERT OR IGNORE INTO hidden_profiles (type, name, hidden_date) VALUES ($1, $2, $3)",
                     [hp.type, hp.name, hp.hidden_date || new Date().toISOString()]
+                );
+            }
+        }
+
+        // 8.6. Import profile AVG history snapshots (v1.6+ backups). The
+        // (type, name, captured_at) primary key + OR IGNORE keeps re-imports
+        // idempotent, matching the skip-duplicates behavior everywhere else.
+        if (data.profile_avg_history) {
+            const historyPoints = parseCSV<{
+                type: string;
+                name: string;
+                captured_at: string;
+                average_score: number;
+                rated_count: number | null;
+                total_count: number | null;
+                source: string | null;
+            }>(data.profile_avg_history, AVG_HISTORY_NUMERIC_COLUMNS);
+
+            for (const point of historyPoints) {
+                if (!point.type || !point.name || !point.captured_at) continue;
+                if (typeof point.average_score !== "number") continue;
+
+                await db.execute(
+                    `INSERT OR IGNORE INTO profile_avg_history
+                     (type, name, captured_at, average_score, rated_count, total_count, source)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                    [point.type, point.name, point.captured_at, point.average_score, point.rated_count ?? 0, point.total_count ?? 0, point.source || "backfill"]
                 );
             }
         }
