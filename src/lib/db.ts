@@ -1503,24 +1503,18 @@ class DBService {
   ): Promise<void> {
     if (ratedCount === 0) return; // don't pollute chart with unrated-only snapshots
     const db = await this.connect();
-    // Use millisecond ISO timestamps; on rare collision, bump by 1ms until unique.
+    // Use millisecond ISO timestamps; on rare collision (INSERT OR IGNORE
+    // affects 0 rows), bump by 1ms until unique.
     let capturedAt = new Date().toISOString();
-    let attempts = 0;
-    while (attempts < 20) {
-      try {
-        await db.execute(
-          `INSERT OR IGNORE INTO profile_avg_history
-           (type, name, captured_at, average_score, rated_count, total_count, source)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [type, name, capturedAt, averageScore, ratedCount, totalCount, source]
-        );
-        return;
-      } catch {
-        // Fall through and retry with bumped timestamp.
-      }
-      const bumped = new Date(Date.parse(capturedAt) + 1).toISOString();
-      capturedAt = bumped;
-      attempts += 1;
+    for (let attempts = 0; attempts < 20; attempts++) {
+      const result = await db.execute(
+        `INSERT OR IGNORE INTO profile_avg_history
+         (type, name, captured_at, average_score, rated_count, total_count, source)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [type, name, capturedAt, averageScore, ratedCount, totalCount, source]
+      );
+      if (result.rowsAffected > 0) return;
+      capturedAt = new Date(Date.parse(capturedAt) + 1).toISOString();
     }
   }
 
@@ -1617,15 +1611,22 @@ class DBService {
     let ratedCount = 0;
     let totalCount = 0;
     let lastTs: string | null = null;
-    // Walk in chronological order, emitting one point per entry. Use the entry's
-    // completion_date as the timestamp when available; otherwise synthesize an
-    // increasing timestamp so PK ordering stays stable.
-    for (const entry of matching) {
+    // Walk in chronological order, emitting one point per distinct date. Entries
+    // sharing a completion_date are folded into a single point holding the
+    // running average AFTER all of that day's entries (the PK is one row per
+    // timestamp, so per-entry points on the same date would collide). Entries
+    // without a date get a synthesized increasing timestamp so PK ordering
+    // stays stable.
+    for (let i = 0; i < matching.length; i++) {
+      const entry = matching[i];
       totalCount++;
       if (entry.review_score != null) {
         totalScore += entry.review_score;
         ratedCount++;
       }
+      // Defer the insert while the next entry shares this completion_date.
+      const next = matching[i + 1];
+      if (entry.completion_date && next?.completion_date === entry.completion_date) continue;
       if (ratedCount === 0) continue;
       let ts: string | null = entry.completion_date;
       if (!ts) {
@@ -1636,16 +1637,14 @@ class DBService {
         ts = new Date(base + 1000).toISOString();
       }
       const avg = parseFloat((totalScore / ratedCount).toFixed(1));
-      try {
-        await db.execute(
-          `INSERT OR IGNORE INTO profile_avg_history
-           (type, name, captured_at, average_score, rated_count, total_count, source)
-           VALUES ($1, $2, $3, $4, $5, $6, 'backfill')`,
-          [type, name, ts, avg, ratedCount, totalCount]
-        );
-      } catch {
-        // Ignore collisions during backfill.
-      }
+      // OR IGNORE keeps pre-existing rows (e.g. from an earlier backfill run)
+      // rather than overwriting them.
+      await db.execute(
+        `INSERT OR IGNORE INTO profile_avg_history
+         (type, name, captured_at, average_score, rated_count, total_count, source)
+         VALUES ($1, $2, $3, $4, $5, $6, 'backfill')`,
+        [type, name, ts, avg, ratedCount, totalCount]
+      );
       lastTs = ts;
     }
 
