@@ -169,8 +169,9 @@ export default function CollectionsPage() {
     if (selectedCollection) {
       const ids = newOrder.map(i => i.id);
       await collectionsLogic.updateItemOrder(selectedCollection.id, ids);
-      // Refresh local view
-      setItems(newOrder);
+      // Refetch instead of setItems(newOrder): the reorder objects carry the
+      // ReorderModal `subtitle` decoration and must not become entry state.
+      await refreshSelectedCollection(selectedCollection);
       setReorderOpen(false);
     }
   };

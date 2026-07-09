@@ -91,6 +91,37 @@ export interface MediaEntry {
   series: string | null;
 }
 
+// Writable columns of the entries table. addEntry/updateEntry build their SQL
+// from this whitelist so stray properties on the object (e.g. UI decorations
+// like ReorderModal's `subtitle`) can never leak into an INSERT/UPDATE and
+// fail with "no such column".
+const ENTRY_COLUMNS = [
+  'name',
+  'genre',
+  'completion_date',
+  'review_score',
+  'description',
+  'notes',
+  'year_completed',
+  'is_rewatch',
+  'own_local_copy',
+  'has_subtitles',
+  'is_platinum',
+  'is_completed',
+  'is_early_access',
+  'early_access_version',
+  'image_url',
+  'entry_type',
+  'platform',
+  'author',
+  'artist',
+  'director',
+  'actress',
+  'update_version',
+  'franchise',
+  'series',
+] as const satisfies readonly (keyof Omit<MediaEntry, 'id'>)[];
+
 export interface BacklogItem {
   id: number;
   name: string;
@@ -1128,9 +1159,8 @@ class DBService {
 
   async addEntry(entry: Omit<MediaEntry, "id">): Promise<number> {
     const db = await this.connect();
-    // Helper to handle optional fields effectively
-    const keys = Object.keys(entry);
-    const values = Object.values(entry);
+    const keys = ENTRY_COLUMNS.filter((k) => k in entry);
+    const values = keys.map((k) => entry[k]);
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(",");
 
     const result: any = await db.execute(
@@ -1145,10 +1175,8 @@ class DBService {
   async updateEntry(entry: MediaEntry): Promise<void> {
     const db = await this.connect();
     const id = entry.id;
-    // Remove ID from update set
-    const { id: _, ...rest } = entry;
-    const keys = Object.keys(rest);
-    const values = Object.values(rest);
+    const keys = ENTRY_COLUMNS.filter((k) => k in entry);
+    const values = keys.map((k) => entry[k]);
 
     const setString = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
 

@@ -62,3 +62,4 @@ patchnote.md
 !/.github/workflows/*.yaml
 CODEBASE-ANALYSIS.md
 /.claude
+CODE_REPORT.md
