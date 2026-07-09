@@ -32,12 +32,9 @@ export default function Backlog() {
     }
   }, []);
 
-  useEffect(() => {
-    loadItems();
-  }, [loadItems]);
-
-  // Re-fetch (now adult-filtered) and clear any stale adult filter when the
-  // Adult Media setting is toggled, so the backlog updates without a restart.
+  // Load on mount, and re-fetch (now adult-filtered) with any stale adult
+  // filter cleared when the Adult Media setting is toggled, so the backlog
+  // updates without a restart.
   useEffect(() => {
     setActiveFilter("All");
     loadItems();

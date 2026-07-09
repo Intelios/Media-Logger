@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
@@ -258,11 +258,24 @@ export default function Settings() {
         return () => window.removeEventListener('resize', handleEnvironmentChange);
     }, []);
 
+    const toastTimeoutRef = useRef<number | null>(null);
+
     const showToast = (message: string) => {
         setSuccessMessage(message);
         setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 3000);
+        if (toastTimeoutRef.current !== null) {
+            window.clearTimeout(toastTimeoutRef.current);
+        }
+        toastTimeoutRef.current = window.setTimeout(() => setShowSuccess(false), 3000);
     };
+
+    useEffect(() => {
+        return () => {
+            if (toastTimeoutRef.current !== null) {
+                window.clearTimeout(toastTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const handleCleanupScan = async () => {
         if (isScanning) return;

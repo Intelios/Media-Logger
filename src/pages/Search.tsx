@@ -76,9 +76,25 @@ export default function SearchPage() {
 
     dbService.getSearchFilterOptions()
       .then((options) => {
-        if (isActive) {
-          setFilterOptions(options);
-        }
+        if (!isActive) return;
+        setFilterOptions(options);
+        // Prune any persisted filter selections that no longer match an
+        // offered option or are now hidden by the adult-visibility toggle,
+        // so chips always have a matching option to uncheck.
+        const visibleEntryTypes = getVisibleEntryTypes();
+        const prune = (selected: string[], available: string[]) => {
+          const allowed = new Set(available);
+          return selected.filter((value) => allowed.has(value));
+        };
+        setFilters((current) => ({
+          entryTypes: prune(current.entryTypes, visibleEntryTypes),
+          platforms: prune(current.platforms, options.platforms),
+          actresses: prune(current.actresses, options.actresses),
+          directors: prune(current.directors, options.directors),
+          authors: prune(current.authors, options.authors),
+          franchises: prune(current.franchises, options.franchises),
+          series: prune(current.series, options.series),
+        }));
       })
       .catch((error) => {
         console.error("Failed to load search filter options:", error);
