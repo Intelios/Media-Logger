@@ -339,11 +339,14 @@ class DBService {
       return this.db;
     }
 
-    // Close existing connection if switching paths
+    // Close existing connection if switching paths. The distinct-values and
+    // profile-key caches were built from the old database, so flush them via
+    // the mutation listeners before serving the new path.
     if (this.db && this.currentDbPath !== dbPath) {
       await this.db.close();
       this.db = null;
       this.migrationsRun = false;
+      notifyEntriesMutated();
     }
 
     // Connect to the database
@@ -890,6 +893,8 @@ class DBService {
       await this.db.close();
       this.db = null;
       this.currentDbPath = '';
+      // Cached distinct values / profile keys may describe the old database.
+      notifyEntriesMutated();
     }
     return this.connect();
   }
@@ -1207,6 +1212,15 @@ class DBService {
     if (entry) {
       await this.appendAvgHistoryForAffectedProfiles(entry);
     }
+  }
+
+  /**
+   * For writers that bypass addEntry/updateEntry/deleteEntry (e.g. the backup
+   * importer's raw SQL). Fires the same listeners + cache invalidation as the
+   * normal mutation path so the distinct-values and profile caches rebuild.
+   */
+  notifyExternalMutation(): void {
+    notifyEntriesMutated();
   }
 
   /**

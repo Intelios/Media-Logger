@@ -503,6 +503,12 @@ export default function Settings() {
                 setImportResult(result);
                 setShowImportModal(true);
 
+                // Imported entries may introduce new years — refresh the
+                // sidebar year list (Layout/Stats listen for this).
+                if (result.mediaEntriesImported > 0) {
+                    window.dispatchEvent(new CustomEvent('entry-added'));
+                }
+
                 // Refresh stats after import
                 const newStats = await getDataStats();
                 setDataStats(newStats);

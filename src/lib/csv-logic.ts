@@ -670,6 +670,11 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
         result.errors.push(String(error));
     }
 
+    // The raw INSERT/UPDATEs above bypass dbService's mutating methods, so fire
+    // the mutation listeners ourselves. Runs even after a partial failure —
+    // some rows may have been written before the error.
+    dbService.notifyExternalMutation();
+
     return result;
 }
 
