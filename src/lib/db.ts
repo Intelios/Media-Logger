@@ -166,6 +166,7 @@ export interface SearchFilterOptions {
 }
 
 export interface RandomPickFilters {
+  query: string;
   entryTypes: string[];
   ratingOperator: "any" | "eq" | "gte" | "lte";
   ratingValue: number;
@@ -177,6 +178,9 @@ export interface RandomPickFilters {
   rewatchStatus: "any" | "never" | "has";
   genres: string[];
   platforms: string[];
+  actresses: string[];
+  directors: string[];
+  authors: string[];
   franchises: string[];
   series: string[];
 }
@@ -1367,6 +1371,30 @@ class DBService {
     const conditions: string[] = [];
     const params: unknown[] = [];
 
+    // Free-text query matches the same columns as searchEntries so
+    // "Use current search" yields the same pool as the search page.
+    const query = filters.query?.trim().toLowerCase();
+    if (query) {
+      const searchableColumns = [
+        'name',
+        'author',
+        'artist',
+        'genre',
+        'director',
+        'actress',
+        'platform',
+        'series',
+      ];
+
+      const likeValue = `%${this.escapeLike(query)}%`;
+      const searchClauses = searchableColumns.map((column) => {
+        params.push(likeValue);
+        return `LOWER(COALESCE(${column}, '')) LIKE $${params.length} ESCAPE '\\'`;
+      });
+
+      conditions.push(`(${searchClauses.join(' OR ')})`);
+    }
+
     if (filters.entryTypes.length > 0) {
       const placeholders = filters.entryTypes.map((v) => {
         params.push(v);
@@ -1426,8 +1454,19 @@ class DBService {
     };
 
     addInFilter('platform', filters.platforms);
+    addInFilter('director', filters.directors);
+    addInFilter('author', filters.authors);
     addInFilter('franchise', filters.franchises);
     addInFilter('series', filters.series);
+
+    if (filters.actresses.length > 0) {
+      const normalizedActressColumn = `(',' || REPLACE(REPLACE(COALESCE(actress, ''), ', ', ','), ' ,', ',') || ',')`;
+      const actressClauses = filters.actresses.map((actress) => {
+        params.push(actress);
+        return `INSTR(${normalizedActressColumn}, ',' || $${params.length} || ',') > 0`;
+      });
+      conditions.push(`(${actressClauses.join(' OR ')})`);
+    }
 
     // Hide adult entries from random picks (count and result) when disabled,
     // regardless of any stale entryTypes filter that might include them.

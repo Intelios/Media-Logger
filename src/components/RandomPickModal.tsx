@@ -40,6 +40,7 @@ interface RandomPickModalProps {
 }
 
 const DEFAULT_FILTERS: RandomPickFilters = {
+  query: "",
   entryTypes: [],
   ratingOperator: "any",
   ratingValue: 5,
@@ -51,6 +52,9 @@ const DEFAULT_FILTERS: RandomPickFilters = {
   rewatchStatus: "any",
   genres: [],
   platforms: [],
+  actresses: [],
+  directors: [],
+  authors: [],
   franchises: [],
   series: [],
 };
@@ -423,6 +427,7 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
 
   const hasActiveFilters = useMemo(
     () =>
+      filters.query.trim().length > 0 ||
       filters.entryTypes.length > 0 ||
       filters.ratingOperator !== "any" ||
       filters.yearMode !== "any" ||
@@ -430,6 +435,9 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
       filters.rewatchStatus !== "any" ||
       filters.genres.length > 0 ||
       filters.platforms.length > 0 ||
+      filters.actresses.length > 0 ||
+      filters.directors.length > 0 ||
+      filters.authors.length > 0 ||
       filters.franchises.length > 0 ||
       filters.series.length > 0,
     [filters]
@@ -538,12 +546,31 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
     if (!initialSearchContext) return;
     setFilters((prev) => ({
       ...prev,
+      query: initialSearchContext.query?.trim() ?? prev.query,
       entryTypes: initialSearchContext.entryTypes ?? prev.entryTypes,
       platforms: initialSearchContext.platforms ?? prev.platforms,
+      actresses: initialSearchContext.actresses ?? prev.actresses,
+      directors: initialSearchContext.directors ?? prev.directors,
+      authors: initialSearchContext.authors ?? prev.authors,
       franchises: initialSearchContext.franchises ?? prev.franchises,
       series: initialSearchContext.series ?? prev.series,
     }));
     setUsedSearchContext(true);
+  };
+
+  const handleClearSearchContext = () => {
+    setFilters((prev) => ({
+      ...prev,
+      query: "",
+      entryTypes: [],
+      platforms: [],
+      actresses: [],
+      directors: [],
+      authors: [],
+      franchises: [],
+      series: [],
+    }));
+    setUsedSearchContext(false);
   };
 
   if (!isOpen) return null;
@@ -556,8 +583,9 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
   const noMatches = matchCount === 0;
   const canPick = matchCount !== null && matchCount > 0 && !isPickLoading;
 
-  const showSearchContextLink =
-    initialSearchContext && matchesSearchContext(initialSearchContext) && !usedSearchContext;
+  const hasSearchContext = initialSearchContext && matchesSearchContext(initialSearchContext);
+  const showSearchContextLink = hasSearchContext && !usedSearchContext;
+  const showSearchContextApplied = hasSearchContext && usedSearchContext;
 
   return createPortal(
     <div
@@ -669,6 +697,40 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
                       Apply
                     </span>
                   </button>
+                )}
+
+                {/* Applied search context — the query/people filters have no
+                    chip sections below, so this chip is their only visible trace */}
+                {showSearchContextApplied && (
+                  <div
+                    className="w-full flex items-center justify-between gap-3 p-3 rounded-xl border"
+                    style={{
+                      borderColor: "var(--color-border)",
+                      background:
+                        "linear-gradient(to right, color-mix(in srgb, var(--color-primary) 6%, transparent), color-mix(in srgb, var(--color-secondary) 6%, transparent))",
+                    }}
+                  >
+                    <span className="flex items-center gap-2.5 min-w-0">
+                      <Link2 size={14} style={{ color: "var(--color-primary)" }} />
+                      <span className="text-xs text-gray-300 truncate">
+                        Using current search
+                        {contextLabel(initialSearchContext!) && (
+                          <span className="text-gray-500">
+                            {" "}
+                            — {contextLabel(initialSearchContext!)}
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleClearSearchContext}
+                      className="p-1 rounded-lg transition-colors text-gray-400 hover:text-white hover:bg-white/10 shrink-0"
+                      aria-label="Remove search context"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
                 )}
 
                 {/* Type + Rating row */}
@@ -936,7 +998,10 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
                 <div className="flex items-center gap-2">
                   {hasActiveFilters && (
                     <button
-                      onClick={() => setFilters({ ...DEFAULT_FILTERS })}
+                      onClick={() => {
+                        setFilters({ ...DEFAULT_FILTERS });
+                        setUsedSearchContext(false);
+                      }}
                       className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all"
                     >
                       <RotateCcw size={12} />
