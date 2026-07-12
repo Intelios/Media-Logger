@@ -9,7 +9,7 @@ import { forceSimulation, forceCollide, forceManyBody, forceX, forceY } from "d3
 import { scaleLinear } from "d3-scale";
 import { cn } from "../lib/utils_ui";
 import { DEFAULT_COVER_IMAGE, getImageUrl, releaseImageUrl, useImageUrl } from "../lib/utils";
-import { generateReview, getReviewYearStats, type ReviewData, type ReviewSlide } from "../lib/review-logic";
+import { generateReview, getReviewYearStats, getReviewFilteredCount, type ReviewData, type ReviewSlide, type ReviewParams } from "../lib/review-logic";
 import { FILTER_PRESETS, getVisibleEntryTypes, getVisiblePresetKeys, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { getTypeBadgeStyle } from "../components/MediaCard";
@@ -853,6 +853,7 @@ export default function ReviewPage() {
   const [activePreset, setActivePreset] = useState<ActiveFilterPresetKey>(null);
   const [loading, setLoading] = useState(false);
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
+  const [filteredCount, setFilteredCount] = useState<number | null>(null);
 
   useEffect(() => {
     getReviewYearStats().then(stats => {
@@ -860,6 +861,23 @@ export default function ReviewPage() {
       if (stats.length > 0 && !selectedYear) setSelectedYear(stats[0].year);
     });
   }, []);
+
+  useEffect(() => {
+    if (!selectedYear || selectedTypes.length === 0) {
+      setFilteredCount(null);
+      return;
+    }
+    const params: ReviewParams = {
+      year: selectedYear,
+      month: selectedMonth ?? undefined,
+      typeFilter: selectedTypes,
+    };
+    let cancelled = false;
+    getReviewFilteredCount(params).then(count => {
+      if (!cancelled) setFilteredCount(count);
+    });
+    return () => { cancelled = true; };
+  }, [selectedYear, selectedMonth, selectedTypes]);
 
   const handlePreset = (key: FilterPresetKey) => {
     if (activePreset === key) {
@@ -896,6 +914,7 @@ export default function ReviewPage() {
   const periodLabel = selectedMonth ? MONTH_NAMES[selectedMonth - 1] : "Full Year";
   const visibleTypes = getVisibleEntryTypes();
   const selectedYearCount = years.find(y => y.year === selectedYear)?.count ?? 0;
+  const displayCount = filteredCount ?? selectedYearCount;
   const canGenerate = !!selectedYear && selectedTypes.length > 0 && !loading;
 
   return (
@@ -1073,7 +1092,7 @@ export default function ReviewPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-400">Entries</span>
-                <span className="text-sm font-semibold text-white">{selectedYearCount}</span>
+                <span className="text-sm font-semibold text-white">{displayCount}</span>
               </div>
             </div>
 

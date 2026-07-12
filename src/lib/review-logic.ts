@@ -451,3 +451,13 @@ export async function getReviewYearStats(): Promise<{ year: number; count: numbe
   );
   return rows.map(r => ({ year: r.year_completed, count: Number(r.count) }));
 }
+
+export async function getReviewFilteredCount(params: ReviewParams): Promise<number> {
+  const db = await dbService.connect();
+  const { where, values } = buildWhereClause(params);
+  const rows = await db.select<{ total: number }[]>(
+    `SELECT COUNT(*) as total FROM entries WHERE ${where}`,
+    values,
+  );
+  return rows[0]?.total ?? 0;
+}
