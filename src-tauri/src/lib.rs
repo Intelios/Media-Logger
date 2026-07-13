@@ -1,3 +1,4 @@
+use same_file::Handle;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
@@ -128,6 +129,110 @@ struct TemporaryDirectory {
     cleanup_on_drop: bool,
 }
 
+struct TemporaryBackupFile {
+    path: PathBuf,
+    file: Option<fs::File>,
+    cleanup_on_drop: bool,
+}
+
+impl TemporaryBackupFile {
+    fn new(parent: &Path) -> Result<Self, String> {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+
+        for attempt in 0..1000_u16 {
+            let path = parent.join(format!(
+                ".media-logger-backup-{}-{nonce}-{attempt}.tmp",
+                std::process::id()
+            ));
+            match fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create_new(true)
+                .open(&path)
+            {
+                Ok(file) => {
+                    return Ok(Self {
+                        path,
+                        file: Some(file),
+                        cleanup_on_drop: true,
+                    });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => {
+                    return Err(format!(
+                        "Failed to create a temporary backup in {}: {error}",
+                        parent.display()
+                    ));
+                }
+            }
+        }
+
+        Err(format!(
+            "Failed to allocate a temporary backup in {}",
+            parent.display()
+        ))
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn file(&self) -> &fs::File {
+        self.file.as_ref().expect("temporary backup file is open")
+    }
+
+    fn file_mut(&mut self) -> &mut fs::File {
+        self.file.as_mut().expect("temporary backup file is open")
+    }
+
+    fn persist(mut self, output_path: &Path) -> Result<(), String> {
+        self.file.take();
+
+        #[cfg(windows)]
+        match fs::symlink_metadata(output_path) {
+            Ok(metadata) if metadata.is_dir() => {
+                return Err(format!(
+                    "Backup destination is a directory: {}",
+                    output_path.display()
+                ));
+            }
+            Ok(_) => fs::remove_file(output_path).map_err(|error| {
+                format!(
+                    "Failed to replace existing backup {}: {error}",
+                    output_path.display()
+                )
+            })?,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "Failed to inspect backup destination {}: {error}",
+                    output_path.display()
+                ));
+            }
+        }
+
+        fs::rename(&self.path, output_path).map_err(|error| {
+            format!(
+                "Failed to publish ZIP backup to {}: {error}",
+                output_path.display()
+            )
+        })?;
+        self.cleanup_on_drop = false;
+        Ok(())
+    }
+}
+
+impl Drop for TemporaryBackupFile {
+    fn drop(&mut self) {
+        if self.cleanup_on_drop {
+            let _ = fs::remove_file(&self.path);
+        }
+    }
+}
+
 impl TemporaryDirectory {
     fn new(path: PathBuf) -> Self {
         Self {
@@ -156,12 +261,6 @@ fn zip_options() -> zip::write::SimpleFileOptions {
         .compression_method(zip::CompressionMethod::Deflated)
 }
 
-fn create_zip_archive(file_path: &Path) -> Result<zip::ZipWriter<fs::File>, String> {
-    let file = fs::File::create(file_path)
-        .map_err(|error| format!("Failed to create ZIP {}: {error}", file_path.display()))?;
-    Ok(zip::ZipWriter::new(file))
-}
-
 fn open_zip_archive(file_path: &Path) -> Result<zip::ZipArchive<fs::File>, String> {
     let file = fs::File::open(file_path)
         .map_err(|error| format!("Failed to open ZIP {}: {error}", file_path.display()))?;
@@ -173,12 +272,37 @@ fn add_file_to_zip<W: Write + Seek>(
     zip: &mut zip::ZipWriter<W>,
     source_path: &Path,
     archive_path: &str,
+    excluded_files: &[PathBuf],
 ) -> Result<(), String> {
-    zip.start_file(archive_path, zip_options())
-        .map_err(|error| format!("Failed to add {archive_path} to ZIP: {error}"))?;
-
     let mut file = fs::File::open(source_path)
         .map_err(|error| format!("Failed to open {}: {error}", source_path.display()))?;
+    let source_handle = Handle::from_file(file.try_clone().map_err(|error| {
+        format!(
+            "Failed to inspect the identity of {}: {error}",
+            source_path.display()
+        )
+    })?)
+    .map_err(|error| {
+        format!(
+            "Failed to inspect the identity of {}: {error}",
+            source_path.display()
+        )
+    })?;
+
+    for excluded_path in excluded_files {
+        let excluded_handle = Handle::from_path(excluded_path).map_err(|error| {
+            format!(
+                "Failed to inspect excluded backup file {}: {error}",
+                excluded_path.display()
+            )
+        })?;
+        if source_handle == excluded_handle {
+            return Ok(());
+        }
+    }
+
+    zip.start_file(archive_path, zip_options())
+        .map_err(|error| format!("Failed to add {archive_path} to ZIP: {error}"))?;
     std::io::copy(&mut file, zip)
         .map_err(|error| format!("Failed to write {archive_path} to ZIP: {error}"))?;
 
@@ -189,6 +313,7 @@ fn add_dir_to_zip<W: Write + Seek>(
     zip: &mut zip::ZipWriter<W>,
     source_dir: &Path,
     archive_prefix: &str,
+    excluded_files: &[PathBuf],
 ) -> Result<(), String> {
     let entries = fs::read_dir(source_dir)
         .map_err(|error| format!("Failed to read directory {}: {error}", source_dir.display()))?;
@@ -207,9 +332,9 @@ fn add_dir_to_zip<W: Write + Seek>(
         let archive_path = format!("{archive_prefix}/{entry_name}");
 
         if entry_type.is_dir() {
-            add_dir_to_zip(zip, &entry.path(), &archive_path)?;
+            add_dir_to_zip(zip, &entry.path(), &archive_path, excluded_files)?;
         } else if entry_type.is_file() {
-            add_file_to_zip(zip, &entry.path(), &archive_path)?;
+            add_file_to_zip(zip, &entry.path(), &archive_path, excluded_files)?;
         }
     }
 
@@ -656,6 +781,72 @@ fn inspect_existing_assets_root(data_root: &Path, assets_path: &Path) -> Result<
     }
 }
 
+fn prepare_backup_destination(
+    output_path: &Path,
+) -> Result<(PathBuf, PathBuf, Option<PathBuf>), String> {
+    let file_name = output_path.file_name().ok_or_else(|| {
+        format!(
+            "Backup destination must include a file name: {}",
+            output_path.display()
+        )
+    })?;
+    let requested_parent = output_path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+
+    fs::create_dir_all(requested_parent).map_err(|error| {
+        format!(
+            "Failed to prepare backup destination {}: {error}",
+            requested_parent.display()
+        )
+    })?;
+    let canonical_parent = fs::canonicalize(requested_parent).map_err(|error| {
+        format!(
+            "Failed to resolve backup destination {}: {error}",
+            requested_parent.display()
+        )
+    })?;
+
+    let canonical_output = canonical_parent.join(file_name);
+    let resolved_existing_output = match fs::symlink_metadata(output_path) {
+        Ok(_) => Some(fs::canonicalize(output_path).map_err(|error| {
+            format!(
+                "Failed to resolve existing backup destination {}: {error}",
+                output_path.display()
+            )
+        })?),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(format!(
+                "Failed to inspect backup destination {}: {error}",
+                output_path.display()
+            ));
+        }
+    };
+
+    Ok((
+        canonical_parent,
+        canonical_output,
+        resolved_existing_output,
+    ))
+}
+
+fn existing_file_is_regular(path: &Path) -> Result<bool, String> {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => Ok(true),
+        Ok(_) => Err(format!(
+            "Backup destination is not a regular file: {}",
+            path.display()
+        )),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!(
+            "Failed to inspect existing backup {}: {error}",
+            path.display()
+        )),
+    }
+}
+
 #[tauri::command]
 fn create_backup_zip(
     output_path: String,
@@ -663,38 +854,96 @@ fn create_backup_zip(
     data_dir: String,
 ) -> Result<(), String> {
     let output_path = PathBuf::from(output_path);
+    let requested_data_root = PathBuf::from(data_dir);
+    fs::create_dir_all(&requested_data_root).map_err(|error| {
+        format!(
+            "Failed to prepare data directory {}: {error}",
+            requested_data_root.display()
+        )
+    })?;
+    let canonical_data_root = fs::canonicalize(&requested_data_root).map_err(|error| {
+        format!(
+            "Failed to resolve data directory {}: {error}",
+            requested_data_root.display()
+        )
+    })?;
+    if !canonical_data_root.is_dir() {
+        return Err(format!(
+            "Data path is not a directory: {}",
+            canonical_data_root.display()
+        ));
+    }
 
-    if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent).map_err(|error| {
+    let canonical_assets_location = canonical_data_root.join("assets");
+    let canonical_assets_source = if canonical_assets_location.is_dir() {
+        Some(fs::canonicalize(&canonical_assets_location).map_err(|error| {
             format!(
-                "Failed to prepare backup destination {}: {error}",
-                parent.display()
+                "Failed to resolve assets directory {}: {error}",
+                canonical_assets_location.display()
             )
-        })?;
+        })?)
+    } else {
+        None
+    };
+    let (canonical_output_parent, canonical_output, resolved_existing_output) =
+        prepare_backup_destination(&output_path)?;
+    let path_is_inside_assets = |path: &Path| {
+        path.starts_with(&canonical_assets_location)
+            || canonical_assets_source
+                .as_ref()
+                .is_some_and(|assets| path.starts_with(assets))
+    };
+
+    if path_is_inside_assets(&canonical_output)
+        || resolved_existing_output
+        .as_ref()
+        .is_some_and(|output| path_is_inside_assets(output))
+    {
+        return Err(format!(
+            "Refusing to save a backup inside the assets directory: {}",
+            output_path.display()
+        ));
     }
 
-    if output_path.exists() {
-        fs::remove_file(&output_path).map_err(|error| {
-            format!(
-                "Failed to replace existing backup {}: {error}",
-                output_path.display()
-            )
-        })?;
+    let mut excluded_files = Vec::new();
+    if existing_file_is_regular(&canonical_output)? {
+        excluded_files.push(canonical_output.clone());
     }
 
-    let mut zip = create_zip_archive(&output_path)?;
-    zip.start_file("backup.json", zip_options())
-        .map_err(|error| format!("Failed to add backup.json to ZIP: {error}"))?;
-    zip.write_all(backup_json.as_bytes())
-        .map_err(|error| format!("Failed to write backup.json to ZIP: {error}"))?;
-
-    let assets_source = Path::new(&data_dir).join("assets");
-    if assets_source.is_dir() {
-        add_dir_to_zip(&mut zip, &assets_source, "assets")?;
+    let mut temporary_backup = TemporaryBackupFile::new(&canonical_output_parent)?;
+    let canonical_temporary_path = fs::canonicalize(temporary_backup.path()).map_err(|error| {
+        format!(
+            "Failed to resolve temporary backup {}: {error}",
+            temporary_backup.path().display()
+        )
+    })?;
+    if path_is_inside_assets(&canonical_temporary_path) {
+        return Err(format!(
+            "Refusing to create a temporary backup inside the assets directory: {}",
+            temporary_backup.path().display()
+        ));
     }
+    excluded_files.push(temporary_backup.path().to_path_buf());
 
-    zip.finish()
-        .map_err(|error| format!("Failed to finalize ZIP backup: {error}"))?;
+    {
+        let mut zip = zip::ZipWriter::new(temporary_backup.file_mut());
+        zip.start_file("backup.json", zip_options())
+            .map_err(|error| format!("Failed to add backup.json to ZIP: {error}"))?;
+        zip.write_all(backup_json.as_bytes())
+            .map_err(|error| format!("Failed to write backup.json to ZIP: {error}"))?;
+
+        if let Some(assets) = &canonical_assets_source {
+            add_dir_to_zip(&mut zip, assets, "assets", &excluded_files)?;
+        }
+
+        zip.finish()
+            .map_err(|error| format!("Failed to finalize ZIP backup: {error}"))?;
+    }
+    temporary_backup
+        .file()
+        .sync_all()
+        .map_err(|error| format!("Failed to flush ZIP backup to disk: {error}"))?;
+    temporary_backup.persist(&canonical_output)?;
 
     Ok(())
 }
