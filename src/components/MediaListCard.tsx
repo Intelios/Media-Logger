@@ -1,7 +1,8 @@
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Star, Calendar, RotateCcw, Captions, Trophy, Clock } from "lucide-react";
 import type { MediaEntry } from "../lib/db";
-import { DEFAULT_COVER_IMAGE, useImageUrl } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, useImageSource } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 import { getTypeBadgeStyle, getRatingColor, parseGenres, formatCardRating } from "./MediaCard";
 import { formatDate, getYearsAgo } from "../lib/dates";
@@ -26,7 +27,15 @@ interface MediaListCardProps {
  */
 export function MediaListCard({ entry, onClick, index = 0, showYearsAgo = false }: MediaListCardProps) {
   const yearsAgo = showYearsAgo ? getYearsAgo(entry.completion_date) : null;
-  const imgSrc = useImageUrl(entry.image_url, "");
+  const { src: imgSrc, status: imgStatus } = useImageSource(entry.image_url);
+  const [coverRevealed, setCoverRevealed] = useState(imgStatus === 'ready');
+  const prevImgSrcRef = useRef(imgSrc);
+  useEffect(() => {
+    if (prevImgSrcRef.current !== imgSrc) {
+      prevImgSrcRef.current = imgSrc;
+      setCoverRevealed(false);
+    }
+  }, [imgSrc]);
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const genres = parseGenres(entry.genre).slice(0, 2);
   const hasScore = entry.review_score !== null && entry.review_score !== undefined;
@@ -48,18 +57,24 @@ export function MediaListCard({ entry, onClick, index = 0, showYearsAgo = false 
       {/* Ambient blurred wash of the cover, fading out across the card */}
       <div
         className="media-list-card-blur"
-        style={{ backgroundImage: imgSrc ? `url("${imgSrc}")` : undefined }}
+        style={{ backgroundImage: imgStatus === 'ready' ? `url("${imgSrc}")` : undefined }}
       />
       <div className="media-list-card-overlay" />
 
       {/* Cover thumbnail — uniform left section, image zoomed to fill (cover + center) */}
-      <img
-        src={imgSrc || DEFAULT_COVER_IMAGE}
-        alt={entry.name}
-        loading="lazy"
-        onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; }}
-        className="media-list-card-thumb"
-      />
+      {(imgStatus === 'loading' || !coverRevealed) && (
+        <div className="cover-skeleton absolute left-0 top-0 h-full z-[3]" style={{ width: '110px' }} aria-hidden="true" />
+      )}
+      {imgStatus !== 'loading' && (
+        <img
+          src={imgSrc || DEFAULT_COVER_IMAGE}
+          alt={entry.name}
+          loading="lazy"
+          onLoad={() => setCoverRevealed(true)}
+          onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; setCoverRevealed(true); }}
+          className={cn("media-list-card-thumb transition-opacity duration-500", coverRevealed ? "opacity-100" : "opacity-0")}
+        />
+      )}
 
       {/* Content */}
       <div className="media-list-card-body">

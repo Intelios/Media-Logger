@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Play, Pause, Check, Pencil, Trash2, MoreVertical, Film, Tv, MonitorPlay, Gamepad2, BookOpen, Disc3, Heart, Monitor, Tag, Calendar, CalendarClock } from "lucide-react";
-import { DEFAULT_COVER_IMAGE, useImageUrl } from "../lib/utils";
+import { useImageSource } from "../lib/utils";
 import { formatShortDate } from "../lib/dates";
 import { cn } from "../lib/utils_ui";
 import type { BacklogItem } from "../lib/db";
@@ -59,7 +59,15 @@ interface BacklogCaseProps {
 }
 
 export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit, onRemove }: BacklogCaseProps) {
-  const imageUrl = useImageUrl(item.image_url);
+  const { src: imageUrl, status: imgStatus } = useImageSource(item.image_url);
+  const [coverRevealed, setCoverRevealed] = useState(imgStatus === 'ready');
+  const prevImageUrlRef = useRef(imageUrl);
+  useEffect(() => {
+    if (prevImageUrlRef.current !== imageUrl) {
+      prevImageUrlRef.current = imageUrl;
+      setCoverRevealed(false);
+    }
+  }, [imageUrl]);
   const [showMenu, setShowMenu] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -97,7 +105,7 @@ export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit,
     setShowTooltip(false);
   };
 
-  const hasImage = item.image_url && imageUrl !== DEFAULT_COVER_IMAGE;
+  const hasImage = imgStatus === 'ready';
   const genres = item.genre?.split(",").map(g => g.trim()).filter(Boolean) || [];
   const spineColor = getSpineColor(item.entry_type);
   const spineGradient = getSpineGradient(item.entry_type);
@@ -120,14 +128,22 @@ export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit,
 
         {/* Cover */}
         <div className="absolute inset-0 rounded-r-md rounded-l-sm overflow-hidden">
+          {(imgStatus === 'loading' || (hasImage && !coverRevealed)) && (
+            <div className="cover-skeleton absolute inset-0" aria-hidden="true" />
+          )}
           {hasImage ? (
             <img
               src={imageUrl}
               alt={item.name}
-              className="w-full h-full object-cover"
+              className={cn(
+                "w-full h-full object-cover transition-opacity duration-500",
+                coverRevealed ? "opacity-100" : "opacity-0"
+              )}
               draggable={false}
+              onLoad={() => setCoverRevealed(true)}
+              onError={() => setCoverRevealed(true)}
             />
-          ) : (
+          ) : imgStatus === 'empty' ? (
             <div className={cn(
               "w-full h-full flex flex-col items-center justify-center gap-2",
               spineColor, "bg-opacity-20"
@@ -141,7 +157,7 @@ export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit,
                 {item.name}
               </p>
             </div>
-          )}
+          ) : null}
 
           {/* Top edge shadow for depth */}
           <div className="absolute inset-0 rounded-r-md shadow-[inset_0_2px_4px_rgba(0,0,0,0.3),inset_0_-2px_4px_rgba(0,0,0,0.2)]" />

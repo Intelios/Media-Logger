@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus, Clock, Captions } from "lucide-react";
-import { DEFAULT_COVER_IMAGE, useImageUrl } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, useImageSource } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { getRatingDisplayMode } from "../lib/settings";
@@ -161,7 +161,17 @@ function PortalTooltip({ children, anchorRef }: { children: React.ReactNode; anc
 
 export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys }: MediaCardProps) {
   const navigate = useNavigate();
-  const imgSrc = useImageUrl(entry.image_url);
+  const { src: imgSrc, status: imgStatus } = useImageSource(entry.image_url);
+  // Reveal the cover with a fade once it has actually loaded; cached/remote
+  // images (status already 'ready' on mount) skip the skeleton entirely.
+  const [coverRevealed, setCoverRevealed] = useState(imgStatus === 'ready');
+  const prevImgSrcRef = useRef(imgSrc);
+  useEffect(() => {
+    if (prevImgSrcRef.current !== imgSrc) {
+      prevImgSrcRef.current = imgSrc;
+      setCoverRevealed(false);
+    }
+  }, [imgSrc]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [imageViewOpen, setImageViewOpen] = useState(false);
@@ -326,13 +336,22 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
             className="h-52 w-full relative overflow-hidden rounded-t-2xl"
             style={{ WebkitMaskImage: "-webkit-radial-gradient(white, black)" }}
           >
-            <img
-              src={imgSrc}
-              alt={entry.name}
-              className="w-full h-full rounded-t-2xl object-cover transition-transform duration-500 group-hover:scale-110"
-              loading="lazy"
-              onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; }}
-            />
+            {(imgStatus === 'loading' || !coverRevealed) && (
+              <div className="cover-skeleton absolute inset-0 rounded-t-2xl" aria-hidden="true" />
+            )}
+            {imgStatus !== 'loading' && (
+              <img
+                src={imgSrc || DEFAULT_COVER_IMAGE}
+                alt={entry.name}
+                className={cn(
+                  "w-full h-full rounded-t-2xl object-cover transition duration-500 group-hover:scale-110",
+                  coverRevealed ? "opacity-100" : "opacity-0"
+                )}
+                loading="lazy"
+                onLoad={() => setCoverRevealed(true)}
+                onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; setCoverRevealed(true); }}
+              />
+            )}
 
             {/* Gradient Overlay */}
             <div className="absolute inset-0 rounded-t-2xl bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -800,7 +819,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
             >
               {/* Image */}
               <img
-                src={imgSrc}
+                src={imgSrc || DEFAULT_COVER_IMAGE}
                 alt={entry.name}
                 className="max-w-[90vw] max-h-[80vh] object-contain rounded-2xl shadow-2xl"
                 onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; }}

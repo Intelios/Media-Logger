@@ -87,18 +87,42 @@ export function releaseImageUrl(dbPath: string | null | undefined): void {
   }
 }
 
-export function useImageUrl(dbPath: string | null | undefined, fallback = DEFAULT_COVER_IMAGE): string {
-  const [imageUrl, setImageUrl] = useState(fallback);
+// Loading state for a cover image. `loading` means we are still reading the
+// file off disk (show a skeleton, NOT the fallback graphic); `empty` means the
+// entry genuinely has no usable image (show DEFAULT_COVER_IMAGE); `ready` means
+// the real cover URL is available.
+export type ImageStatus = 'loading' | 'ready' | 'empty';
+export interface ImageSource {
+  src: string;
+  status: ImageStatus;
+}
+
+// Read-only synchronous resolution for the initial paint. Never mutates the
+// refcount — it only lets already-known images (remote URLs and warm cache
+// hits) render on the very first frame instead of flashing a placeholder.
+function peekImageUrl(dbPath: string | null | undefined): ImageSource {
+  if (!dbPath) return { src: DEFAULT_COVER_IMAGE, status: 'empty' };
+  if (dbPath.startsWith('http')) return { src: dbPath, status: 'ready' };
+
+  const cached = urlCache.get(dbPath);
+  if (cached) return { src: cached.url, status: 'ready' };
+
+  return { src: '', status: 'loading' };
+}
+
+// Loads a cover image and reports its loading state, so callers can show a
+// skeleton while it reads off disk and fade the real image in once ready
+// (instead of flashing the DEFAULT_COVER_IMAGE placeholder mid-load).
+export function useImageSource(dbPath: string | null | undefined): ImageSource {
+  const [state, setState] = useState<ImageSource>(() => peekImageUrl(dbPath));
 
   useEffect(() => {
-    if (!dbPath) {
-      setImageUrl(fallback);
-      return;
-    }
+    // Seed synchronously so http/cache/null images never flash a placeholder.
+    setState(peekImageUrl(dbPath));
+    if (!dbPath) return;
 
     let cancelled = false;
     let acquired = false;
-    setImageUrl(fallback);
 
     getImageUrl(dbPath).then((url) => {
       acquired = true;
@@ -107,7 +131,7 @@ export function useImageUrl(dbPath: string | null | undefined, fallback = DEFAUL
         return;
       }
 
-      setImageUrl(url);
+      setState({ src: url, status: url === DEFAULT_COVER_IMAGE ? 'empty' : 'ready' });
     });
 
     return () => {
@@ -116,9 +140,18 @@ export function useImageUrl(dbPath: string | null | undefined, fallback = DEFAUL
         releaseImageUrl(dbPath);
       }
     };
-  }, [dbPath, fallback]);
+  }, [dbPath]);
 
-  return imageUrl;
+  return state;
+}
+
+// Backward-compatible string API: returns the real URL once ready, otherwise
+// the fallback. Behaves like the original hook (fallback while loading and for
+// entries with no image), but now benefits from the synchronous cache/remote
+// fast path in useImageSource so warm images no longer flash.
+export function useImageUrl(dbPath: string | null | undefined, fallback = DEFAULT_COVER_IMAGE): string {
+  const { src, status } = useImageSource(dbPath);
+  return status === 'ready' ? src : fallback;
 }
 
 // Reads an arbitrary local file path (e.g. one returned by the file dialog)

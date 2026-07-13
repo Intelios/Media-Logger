@@ -222,6 +222,24 @@ body {
   animation: shimmer 3s ease-in-out infinite;
 }
 
+/* Loading skeleton for cover images — a neutral shimmer shown while the cover
+   reads off disk, replacing the old "NO COVER" flash. Reuses @keyframes shimmer
+   above but at a faster, loading-oriented pace. */
+.cover-skeleton {
+  background: linear-gradient(90deg,
+      color-mix(in srgb, var(--color-border) 35%, transparent) 0%,
+      color-mix(in srgb, var(--color-border) 70%, transparent) 50%,
+      color-mix(in srgb, var(--color-border) 35%, transparent) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cover-skeleton {
+    animation: none;
+  }
+}
+
 /* Glow pulse for interactive elements */
 @keyframes glow-pulse {
 
