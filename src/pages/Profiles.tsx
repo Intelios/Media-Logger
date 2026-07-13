@@ -838,6 +838,7 @@ export default function ProfilesPage() {
     // Crop applied to the hero cover — live draft while editing, otherwise the saved value.
     const activeCrop = isCropEditing ? draftCrop : (selectedProfile.crop ?? DEFAULT_CROP);
     const TypeIcon = selectedProfileConfig.icon;
+    const ratingPct = (selectedProfile.average_score / 10) * 100;
     return (
       <>
       <div className="animate-in fade-in duration-500 -mx-6 -mt-6">
@@ -1114,10 +1115,25 @@ export default function ProfilesPage() {
                         <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-gray-400 whitespace-nowrap">
                           Avg Rating
                         </span>
-                        <div className="h-1.5 flex-1 bg-black/40 rounded-full overflow-hidden">
+                        <div className="relative flex-1">
+                          {/* Track + fill (grows from 0 on open) */}
+                          <div className="h-1.5 bg-black/40 rounded-full overflow-hidden">
+                            <div
+                              className={`relative h-full rounded-full bg-gradient-to-r ${selectedProfileConfig.barGradient}`}
+                              style={{ width: `${ratingPct}%`, animation: "profile-bar-grow 900ms cubic-bezier(0.16,1,0.3,1)" }}
+                            >
+                              {/* Brighten toward the leading edge */}
+                              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-transparent to-white/25" />
+                            </div>
+                          </div>
+                          {/* Lit cap that rides the leading edge */}
                           <div
-                            className={`h-full bg-gradient-to-r ${selectedProfileConfig.barGradient} rounded-full transition-all duration-1000`}
-                            style={{ width: `${(selectedProfile.average_score / 10) * 100}%` }}
+                            className="absolute top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"
+                            style={{
+                              left: `${ratingPct}%`,
+                              boxShadow: "0 0 6px 1px rgba(255,255,255,0.75)",
+                              animation: "profile-bar-cap 900ms cubic-bezier(0.16,1,0.3,1)",
+                            }}
                           />
                         </div>
                       </div>

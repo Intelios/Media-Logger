@@ -1446,6 +1446,20 @@ body {
   animation: award-header-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Profile rating bar — fill grows from 0 on open; the lit cap travels with the tip
+   (same duration/easing keeps the cap glued to the fill's leading edge). */
+@keyframes profile-bar-grow {
+  from {
+    width: 0;
+  }
+}
+
+@keyframes profile-bar-cap {
+  from {
+    left: 0;
+  }
+}
+
 /* Backlog header entrance */
 .backlog-header-enter {
   animation: award-header-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
