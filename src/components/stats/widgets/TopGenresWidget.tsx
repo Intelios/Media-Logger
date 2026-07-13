@@ -10,17 +10,28 @@ const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"
 
 interface TopGenresWidgetProps {
   genres: StatItem[];
+  totalFilteredEntries: number;
   onViewAllGenres: () => void;
   onGenreClick: (genreName: string) => void;
 }
 
-function GenreTooltip({ active, payload }: any) {
+function formatPercentage(count: number, total: number) {
+  if (total === 0) return "0%";
+  return `${Math.min(100, (count / total) * 100).toFixed(1)}%`;
+}
+
+function formatPercentageWhole(count: number, total: number) {
+  if (total === 0) return "0%";
+  return `${Math.min(100, Math.round((count / total) * 100))}%`;
+}
+
+function GenreTooltip({ active, payload, totalFilteredEntries }: any) {
   if (!active || !payload?.length) return null;
 
   const { name, count, avgScore, perfectCount } = payload[0].payload;
 
   return (
-    <div className="glass-tooltip min-w-[140px] rounded-xl px-4 py-3">
+    <div className="glass-tooltip min-w-[160px] rounded-xl px-4 py-3">
       <div className="mb-2 flex items-center gap-2">
         <div
           className="h-2.5 w-2.5 rounded-full"
@@ -31,6 +42,7 @@ function GenreTooltip({ active, payload }: any) {
       <div className="space-y-1 text-sm">
         <p className="text-gray-300">
           <span className="font-bold text-primary">{count}</span> {count === 1 ? "entry" : "entries"}
+          <span className="ml-1 text-text-muted">({formatPercentage(count, totalFilteredEntries)} of filtered)</span>
         </p>
         {avgScore !== undefined ? (
           <p className="flex items-center gap-1 text-text-muted">
@@ -48,7 +60,7 @@ function GenreTooltip({ active, payload }: any) {
   );
 }
 
-export function TopGenresWidget({ genres, onViewAllGenres, onGenreClick }: TopGenresWidgetProps) {
+export function TopGenresWidget({ genres, totalFilteredEntries, onViewAllGenres, onGenreClick }: TopGenresWidgetProps) {
   const meta = STATS_WIDGET_META["top-genres"];
   const topGenres = genres.slice(0, 10);
   const { isCustomizing } = useStatsWidgetEditContext();
@@ -88,7 +100,7 @@ export function TopGenresWidget({ genres, onViewAllGenres, onGenreClick }: TopGe
                   <Cell key={`top-genre-cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
                 ))}
               </Pie>
-              <Tooltip content={<GenreTooltip />} />
+              <Tooltip content={<GenreTooltip totalFilteredEntries={totalFilteredEntries} />} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -119,6 +131,7 @@ export function TopGenresWidget({ genres, onViewAllGenres, onGenreClick }: TopGe
               <div className="flex items-center gap-2">
                 {(genre.perfectCount ?? 0) > 0 ? <span className="text-xs text-pink-400"><Gem size={12} className="inline text-pink-400 align-middle" />{genre.perfectCount}</span> : null}
                 {genre.avgScore ? <span className="text-xs text-amber-400"><Star size={12} className="inline text-amber-400 align-middle" />{genre.avgScore.toFixed(1)}</span> : null}
+                <span className="text-xs text-purple-300">{formatPercentageWhole(genre.count, totalFilteredEntries)}</span>
                 <span className="font-bold text-white">{genre.count}</span>
               </div>
             </button>

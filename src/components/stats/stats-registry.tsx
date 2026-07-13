@@ -139,6 +139,7 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
     render: (context) => (
       <TopGenresWidget
         genres={context.data.genres}
+        totalFilteredEntries={context.data.total}
         onViewAllGenres={context.onViewAllGenres}
         onGenreClick={context.onGenreClick}
       />
