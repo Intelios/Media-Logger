@@ -33,7 +33,8 @@ const PROFILE_TYPES = [
     barGradient: "from-blue-500 to-cyan-500",
     dividerGradient: "to-blue-500/20",
     accentColor: "text-blue-400/60",
-    surfaceTintClass: "from-blue-500/12 to-cyan-500/6"
+    surfaceTintClass: "from-blue-500/12 to-cyan-500/6",
+    railColor: "bg-blue-500/30"
   },
   {
     key: "actress", label: "Actress", icon: Sparkles,
@@ -51,7 +52,8 @@ const PROFILE_TYPES = [
     barGradient: "from-rose-500 to-pink-500",
     dividerGradient: "to-rose-500/20",
     accentColor: "text-rose-400/60",
-    surfaceTintClass: "from-rose-500/12 to-pink-500/6"
+    surfaceTintClass: "from-rose-500/12 to-pink-500/6",
+    railColor: "bg-rose-500/30"
   },
   {
     key: "artist", label: "Artist", icon: Music,
@@ -69,7 +71,8 @@ const PROFILE_TYPES = [
     barGradient: "from-purple-500 to-violet-500",
     dividerGradient: "to-purple-500/20",
     accentColor: "text-purple-400/60",
-    surfaceTintClass: "from-purple-500/12 to-violet-500/6"
+    surfaceTintClass: "from-purple-500/12 to-violet-500/6",
+    railColor: "bg-purple-500/30"
   },
   {
     key: "author", label: "Author", icon: BookOpen,
@@ -87,7 +90,8 @@ const PROFILE_TYPES = [
     barGradient: "from-amber-500 to-orange-500",
     dividerGradient: "to-amber-500/20",
     accentColor: "text-amber-400/60",
-    surfaceTintClass: "from-amber-500/12 to-orange-500/6"
+    surfaceTintClass: "from-amber-500/12 to-orange-500/6",
+    railColor: "bg-amber-500/30"
   },
   {
     key: "platform", label: "Platform", icon: Gamepad2,
@@ -105,7 +109,8 @@ const PROFILE_TYPES = [
     barGradient: "from-green-500 to-emerald-500",
     dividerGradient: "to-green-500/20",
     accentColor: "text-green-400/60",
-    surfaceTintClass: "from-green-500/12 to-emerald-500/6"
+    surfaceTintClass: "from-green-500/12 to-emerald-500/6",
+    railColor: "bg-green-500/30"
   },
   {
     key: "franchise", label: "Franchise", icon: Gamepad2,
@@ -123,7 +128,8 @@ const PROFILE_TYPES = [
     barGradient: "from-indigo-500 to-purple-500",
     dividerGradient: "to-indigo-500/20",
     accentColor: "text-indigo-400/60",
-    surfaceTintClass: "from-indigo-500/12 to-purple-500/6"
+    surfaceTintClass: "from-indigo-500/12 to-purple-500/6",
+    railColor: "bg-indigo-500/30"
   },
   {
     key: "series", label: "Series", icon: Tv,
@@ -141,7 +147,8 @@ const PROFILE_TYPES = [
     barGradient: "from-teal-500 to-cyan-500",
     dividerGradient: "to-teal-500/20",
     accentColor: "text-teal-400/60",
-    surfaceTintClass: "from-teal-500/12 to-cyan-500/6"
+    surfaceTintClass: "from-teal-500/12 to-cyan-500/6",
+    railColor: "bg-teal-500/30"
   },
 ];
 
@@ -202,7 +209,8 @@ function TimelineCard({
   isFirst,
   isLast,
   onClick,
-  surfaceTint
+  surfaceTint,
+  railColor
 }: {
   entry: MediaEntry;
   index: number;
@@ -210,20 +218,27 @@ function TimelineCard({
   isLast: boolean;
   onClick: (entry: MediaEntry) => void;
   surfaceTint?: string;
+  railColor?: string;
 }) {
-  // Leading rail: vertical line + colored node (green first / rose latest / gray middle).
+  // Leading rail: one continuous vertical line with a colored node per entry
+  // (green first / rose latest / gray middle). Each line segment reaches
+  // halfway into the inter-row gap so neighboring segments meet, producing a
+  // single flowing bar instead of dashed segments. The line color adapts to
+  // the profile's accent color.
+  const lineColor = railColor || "bg-rose-500/30";
   const rail = (
-    <div className="relative w-4 flex-shrink-0 flex flex-col items-center self-stretch">
-      {/* Top line */}
-      {!isFirst ? (
-        <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500/40 to-rose-500/20" />
-      ) : (
-        <div className="flex-1" />
+    <div className="relative w-4 flex-shrink-0 self-stretch">
+      {/* Top half of the connecting line */}
+      {!isFirst && (
+        <div
+          className={`absolute left-1/2 -translate-x-1/2 w-0.5 ${lineColor}`}
+          style={{ bottom: '50%', height: 'calc(50% + 0.375rem)' }}
+        />
       )}
 
       {/* Node */}
       <div
-        className={`relative z-10 flex-shrink-0 w-4 h-4 rounded-full border-2 ${
+        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 w-4 h-4 rounded-full border-2 ${
           isFirst
             ? 'bg-green-500 border-green-400 shadow-lg shadow-green-500/50'
             : isLast
@@ -239,11 +254,12 @@ function TimelineCard({
         )}
       </div>
 
-      {/* Bottom line */}
-      {!isLast ? (
-        <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500/20 to-rose-500/40" />
-      ) : (
-        <div className="flex-1" />
+      {/* Bottom half of the connecting line */}
+      {!isLast && (
+        <div
+          className={`absolute left-1/2 -translate-x-1/2 w-0.5 ${lineColor}`}
+          style={{ top: '50%', height: 'calc(50% + 0.375rem)' }}
+        />
       )}
     </div>
   );
@@ -1258,6 +1274,7 @@ export default function ProfilesPage() {
                   isLast={idx === timelineEntries.length - 1}
                   onClick={handleEntryClick}
                   surfaceTint={selectedProfileConfig.surfaceTintClass}
+                  railColor={selectedProfileConfig.railColor}
                 />
               ))}
             </div>
