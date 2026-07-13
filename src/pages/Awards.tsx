@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Award, ChevronLeft, Plus, Trash2, Trophy, ArrowUpDown, Sparkles, History, Star, Calendar } from "lucide-react";
+import { Award, ChevronLeft, Plus, Trash2, Trophy, ArrowUpDown, Sparkles, History, Star, Calendar, AlertCircle, X } from "lucide-react";
 import { awardsLogic, type AwardYearSummary, type AwardCategory, type AwardTemplate, type TemplateWinnerHistory } from "../lib/awards-logic";
 import { MediaCard, getTypeBadgeStyle, getRatingColor, formatCardRating, parseGenres } from "../components/MediaCard";
 import { WinnerPicker } from "../components/WinnerPicker";
@@ -73,11 +73,22 @@ export default function AwardsPage() {
   // New Input Modal State
   const [inputModalOpen, setInputModalOpen] = useState(false);
 
+  // Visible error message for award/year creation failures (e.g. duplicate
+  // template in the same year, invalid year input).
+  const [awardError, setAwardError] = useState<string | null>(null);
+
   // Load Years and Templates on Mount
   useEffect(() => {
     loadYears();
     loadTemplates();
   }, []);
+
+  // Auto-dismiss award error banner after a few seconds
+  useEffect(() => {
+    if (!awardError) return;
+    const t = window.setTimeout(() => setAwardError(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [awardError]);
 
   const loadYears = () => awardsLogic.getAwardYears().then(setYears);
   const loadTemplates = () => awardsLogic.getAllTemplates().then(setTemplates);
@@ -110,21 +121,43 @@ export default function AwardsPage() {
     setInputModalOpen(true);
   };
 
+  const validateYearInput = (value: string): string | null => {
+    if (!/^\d{4}$/.test(value)) {
+      return "Enter a 4-digit year (e.g. 2026).";
+    }
+    const y = Number(value);
+    if (y < 1900 || y > 9999) {
+      return "Enter a year between 1900 and 9999.";
+    }
+    if (years.some(existing => existing.year === y)) {
+      return `${y} already has an award year.`;
+    }
+    return null;
+  };
+
   const handleYearInputSubmit = async (value: string) => {
-    const y = parseInt(value);
-    if (!isNaN(y)) {
+    const y = Number(value);
+    try {
       await awardsLogic.createYear(y);
       await loadYears();
       handleYearSelect(y);
+    } catch (error) {
+      setAwardError(error instanceof Error ? error.message : String(error));
     }
   };
 
   // Category creation handlers
   const handleCreateNewCategory = async (name: string) => {
     if (selectedYear) {
-      await awardsLogic.createCategory(name, selectedYear);
-      loadCategories(selectedYear);
-      loadTemplates(); // Refresh templates since a new one was created
+      try {
+        await awardsLogic.createCategory(name, selectedYear);
+        loadCategories(selectedYear);
+        loadTemplates(); // Refresh templates since a new one was created
+        setAwardError(null);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setAwardError(message);
+      }
     }
   };
 
@@ -133,8 +166,10 @@ export default function AwardsPage() {
       try {
         await awardsLogic.createCategoryFromTemplate(templateId, selectedYear);
         loadCategories(selectedYear);
+        setAwardError(null);
       } catch (error) {
-        console.error("Error creating category from template:", error);
+        const message = error instanceof Error ? error.message : String(error);
+        setAwardError(message);
       }
     }
   };
@@ -195,6 +230,19 @@ export default function AwardsPage() {
   if (view === "main") {
     return (
       <div className="space-y-10 max-w-6xl mx-auto">
+        {awardError && (
+          <div className="fixed bottom-6 right-6 z-[80] flex items-start gap-3 max-w-sm bg-[#2a1a1a] border border-red-500/40 rounded-xl p-4 shadow-2xl">
+            <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-200 flex-1">{awardError}</p>
+            <button
+              onClick={() => setAwardError(null)}
+              className="p-1 hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
+              aria-label="Dismiss error"
+            >
+              <X size={14} className="text-red-300" />
+            </button>
+          </div>
+        )}
         <header className="award-header-enter">
           <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-amber-600 inline-flex items-center gap-3">
             <Trophy className="text-yellow-500" />
@@ -319,6 +367,7 @@ export default function AwardsPage() {
           title="Create New Award Year"
           placeholder="e.g. 2026"
           defaultValue={new Date().getFullYear().toString()}
+          validate={validateYearInput}
         />
 
         <ConfirmDialog
@@ -448,6 +497,19 @@ export default function AwardsPage() {
   // --- VIEW 2: YEAR DETAIL (Category Editor) ---
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-20">
+      {awardError && (
+        <div className="fixed bottom-6 right-6 z-[80] flex items-start gap-3 max-w-sm bg-[#2a1a1a] border border-red-500/40 rounded-xl p-4 shadow-2xl">
+          <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-red-200 flex-1">{awardError}</p>
+          <button
+            onClick={() => setAwardError(null)}
+            className="p-1 hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
+            aria-label="Dismiss error"
+          >
+            <X size={14} className="text-red-300" />
+          </button>
+        </div>
+      )}
       <header className="flex items-center gap-4 award-header-enter">
         <button
           onClick={goBackToMain}

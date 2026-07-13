@@ -27,6 +27,10 @@ export async function runMigrations(db: Database): Promise<void> {
 
   // Award templates migration
   await runAwardTemplatesMigration(db);
+
+  // Enforce UNIQUE(year, template_id) on award_categories so the same
+  // reusable template cannot be added to a single year more than once.
+  await runAwardCategoriesUniqueMigration(db);
 }
 
 async function getTableInfo(db: Database, tableName: string): Promise<{ name: string; pk: number }[]> {
@@ -424,6 +428,68 @@ async function createTables(db: Database) {
     console.log('[DB] Base tables ensured');
   } catch (error) {
     console.error('[DB] Error creating tables:', error);
+  }
+}
+
+/**
+ * Add a partial UNIQUE(year, template_id) index to award_categories so the
+ * same reusable template cannot be inserted into a single year more than
+ * once. NULL template_id rows are excluded (legacy/non-templated categories
+ * can legitimately repeat names within a year). Existing duplicates are
+ * collapsed (keeping the lowest id) before the index is created.
+ */
+async function runAwardCategoriesUniqueMigration(db: Database) {
+  try {
+    const indexes = await db.select<{ name: string }[]>(
+      "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_award_categories_year_template'"
+    );
+    if (indexes.length > 0) return;
+
+    // Collapse any existing duplicates: keep the row with the smallest id,
+    // delete the rest. Winners for the doomed categories are reassigned to
+    // the surviving category where possible, otherwise dropped.
+    const dupes = await db.select<{ year: number; template_id: number; survivor_id: number }[]>(
+      `SELECT year, template_id, MIN(id) AS survivor_id
+       FROM award_categories
+       WHERE template_id IS NOT NULL
+       GROUP BY year, template_id
+       HAVING COUNT(*) > 1`
+    );
+
+    for (const d of dupes) {
+      const losers = await db.select<{ id: number }[]>(
+        `SELECT id FROM award_categories
+         WHERE year = $1 AND template_id = $2 AND id <> $3
+         ORDER BY id ASC`,
+        [d.year, d.template_id, d.survivor_id]
+      );
+      for (const l of losers) {
+        // Reassign any winner pinned to the doomed category onto the survivor
+        // only if the survivor doesn't already have a winner; otherwise drop.
+        const survivorWinner = await db.select<{ category_id: number }[]>(
+          "SELECT category_id FROM award_winners WHERE category_id = $1",
+          [d.survivor_id]
+        );
+        if (survivorWinner.length === 0) {
+          await db.execute(
+            "UPDATE OR REPLACE award_winners SET category_id = $1 WHERE category_id = $2",
+            [d.survivor_id, l.id]
+          );
+        } else {
+          await db.execute("DELETE FROM award_winners WHERE category_id = $1", [l.id]);
+        }
+        await db.execute("DELETE FROM award_categories WHERE id = $1", [l.id]);
+      }
+    }
+
+    await db.execute(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_award_categories_year_template
+       ON award_categories (year, template_id)
+       WHERE template_id IS NOT NULL`
+    );
+    console.log('[DB] award_categories unique (year, template_id) index ensured');
+  } catch (error) {
+    console.error('[DB] award_categories unique index migration error:', error);
   }
 }
 

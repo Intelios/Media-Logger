@@ -33,6 +33,19 @@ export interface TemplateWinnerHistory {
   category_id: number;
 }
 
+/** Normalize an award/template name: trim whitespace and collapse internal runs. */
+function normalizeAwardName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ');
+}
+
+/** Strict year validation: must be a 4-digit positive integer string/number. */
+function validateAwardYear(year: number): number {
+  if (!Number.isInteger(year) || year < 1900 || year > 9999) {
+    throw new Error("Please enter a valid 4-digit year (e.g. 2026).");
+  }
+  return year;
+}
+
 export const awardsLogic = {
   // 1. Get list of years that have awards
   async getAwardYears(): Promise<AwardYearSummary[]> {
@@ -50,6 +63,7 @@ export const awardsLogic = {
   },
 
   async createYear(year: number): Promise<void> {
+    validateAwardYear(year);
     const db = await dbService.connect();
     await db.execute(
       "INSERT OR IGNORE INTO award_years (year, created_date) VALUES ($1, datetime('now'))",
@@ -106,21 +120,40 @@ export const awardsLogic = {
 
   // 3. Create Category (also creates template if it doesn't exist)
   async createCategory(name: string, year: number) {
+    const normalized = normalizeAwardName(name);
+    if (!normalized) {
+      throw new Error("Please enter an award name.");
+    }
+    validateAwardYear(year);
+
     const db = await dbService.connect();
     await this.createYear(year);
 
-    // First, ensure template exists for this name
+    // First, ensure template exists for this normalized name
     await db.execute(
       "INSERT OR IGNORE INTO award_templates (name, created_date) VALUES ($1, datetime('now'))",
-      [name]
+      [normalized]
     );
 
     // Get the template id
     const template = await db.select<{ id: number }[]>(
       "SELECT id FROM award_templates WHERE name = $1",
-      [name]
+      [normalized]
     );
-    const templateId = template[0]?.id || null;
+    const templateId = template[0]?.id ?? null;
+    if (templateId == null) {
+      throw new Error("Could not create or find the award template.");
+    }
+
+    // Same dedupe guard as createCategoryFromTemplate: a template may only
+    // appear once per year. (Also enforced by a partial unique index.)
+    const existing = await db.select<{ id: number }[]>(
+      "SELECT id FROM award_categories WHERE template_id = $1 AND year = $2",
+      [templateId, year]
+    );
+    if (existing.length > 0) {
+      throw new Error(`"${normalized}" already exists for ${year}.`);
+    }
 
     // Get max sort order
     const maxSort = await db.select<{ max: number }[]>("SELECT MAX(sort_order) as max FROM award_categories WHERE year = $1", [year]);
@@ -128,7 +161,7 @@ export const awardsLogic = {
 
     await db.execute(
       "INSERT INTO award_categories (name, year, created_date, sort_order, template_id) VALUES ($1, $2, datetime('now'), $3, $4)",
-      [name, year, nextSort, templateId]
+      [normalized, year, nextSort, templateId]
     );
   },
 
@@ -262,16 +295,21 @@ export const awardsLogic = {
 
   // 12. Create a new template (standalone)
   async createTemplate(name: string): Promise<number> {
+    const normalized = normalizeAwardName(name);
+    if (!normalized) {
+      throw new Error("Please enter an award name.");
+    }
     const db = await dbService.connect();
     const result: any = await db.execute(
       "INSERT INTO award_templates (name, created_date) VALUES ($1, datetime('now'))",
-      [name]
+      [normalized]
     );
     return result.lastInsertId;
   },
 
   // 13. Create category from existing template
   async createCategoryFromTemplate(templateId: number, year: number): Promise<void> {
+    validateAwardYear(year);
     const db = await dbService.connect();
     await this.createYear(year);
 
@@ -292,7 +330,7 @@ export const awardsLogic = {
     );
 
     if (existing.length > 0) {
-      throw new Error("This award already exists for this year");
+      throw new Error(`"${template[0].name}" already exists for ${year}.`);
     }
 
     // Get max sort order
