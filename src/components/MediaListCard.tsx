@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { Star, Calendar, RotateCcw, Captions, Trophy, Clock } from "lucide-react";
 import type { MediaEntry } from "../lib/db";
@@ -18,14 +18,37 @@ interface MediaListCardProps {
   onClick?: (entry: MediaEntry) => void;
   index?: number;
   showYearsAgo?: boolean;
+  /** Right-side slot: prominent accent (e.g. award trophy pill). Takes priority over indexLabel. */
+  accentBadge?: ReactNode;
+  /** Right-side slot: small index indicator (e.g. timeline "#N"). Used when no accentBadge. */
+  indexLabel?: ReactNode;
+  /** Top-right overlay slot (e.g. milestone "First"/"Latest" badge). */
+  cornerBadge?: ReactNode;
+  /** Decorative element rendered to the left of the card (e.g. timeline line+node). */
+  leadingRail?: ReactNode;
+  /** Tailwind gradient color classes applied as a subtle surface tint (e.g. "from-blue-500/10 to-cyan-500/5"). */
+  surfaceTint?: string;
 }
 
 /**
  * Compact horizontal "ambient blur" card for the dashboard vertical lists.
  * A crisp cover sits on the left while the same image bleeds across the card
  * as a soft blurred wash that fades into the surface — no hard box edges.
+ *
+ * Optional slots let the same card identity be reused on the Profiles page
+ * (Timeline & Awards) without altering the dashboard appearance.
  */
-export function MediaListCard({ entry, onClick, index = 0, showYearsAgo = false }: MediaListCardProps) {
+export function MediaListCard({
+  entry,
+  onClick,
+  index = 0,
+  showYearsAgo = false,
+  accentBadge,
+  indexLabel,
+  cornerBadge,
+  leadingRail,
+  surfaceTint,
+}: MediaListCardProps) {
   const yearsAgo = showYearsAgo ? getYearsAgo(entry.completion_date) : null;
   const { src: imgSrc, status: imgStatus } = useImageSource(entry.image_url);
   const [coverRevealed, setCoverRevealed] = useState(imgStatus === 'ready');
@@ -46,12 +69,15 @@ export function MediaListCard({ entry, onClick, index = 0, showYearsAgo = false 
   const isRewatch = entry.is_rewatch === 1;
   const hasSubtitles = entry.has_subtitles === 1;
 
-  return (
+  const hasTrailingSlot = Boolean(accentBadge ?? indexLabel);
+  const interactive = Boolean(onClick);
+
+  const card = (
     <motion.div
       whileHover={{ y: -2 }}
       transition={cardLiftTransition}
-      onClick={() => onClick?.(entry)}
-      className="media-list-card"
+      onClick={interactive ? () => onClick?.(entry) : undefined}
+      className={cn("media-list-card", interactive && "media-list-card-interactive")}
       style={{ animationDelay: `${index * 0.05}s` }}
     >
       {/* Ambient blurred wash of the cover, fading out across the card */}
@@ -60,6 +86,11 @@ export function MediaListCard({ entry, onClick, index = 0, showYearsAgo = false 
         style={{ backgroundImage: imgStatus === 'ready' ? `url("${imgSrc}")` : undefined }}
       />
       <div className="media-list-card-overlay" />
+
+      {/* Optional profile-color surface tint (sits above overlay, below content) */}
+      {surfaceTint && (
+        <div className={cn("media-list-card-tint bg-gradient-to-br", surfaceTint)} aria-hidden="true" />
+      )}
 
       {/* Cover thumbnail — uniform left section, image zoomed to fill (cover + center) */}
       {(imgStatus === 'loading' || !coverRevealed) && (
@@ -76,14 +107,19 @@ export function MediaListCard({ entry, onClick, index = 0, showYearsAgo = false 
         />
       )}
 
+      {/* Optional top-right overlay badge (milestone) */}
+      {cornerBadge && (
+        <div className="media-list-card-corner">{cornerBadge}</div>
+      )}
+
       {/* Content */}
-      <div className="media-list-card-body">
-        {/* Line 1: name + rating */}
+      <div className={cn("media-list-card-body", hasTrailingSlot && "pr-2")}>
+        {/* Line 1: name (+ rating on dashboard, where no corner badge competes for the top-right) */}
         <div className="flex items-center gap-2">
           <h4 className="flex-1 min-w-0 truncate font-semibold text-sm text-gray-100">
             {entry.name}
           </h4>
-          {hasScore && (
+          {hasScore && !leadingRail && !accentBadge && (
             <span
               className={cn(
                 "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold shadow-sm shrink-0",
@@ -96,7 +132,7 @@ export function MediaListCard({ entry, onClick, index = 0, showYearsAgo = false 
           )}
         </div>
 
-        {/* Line 2: type badge + genres + status */}
+        {/* Line 2: type badge + genres + status (+ rating when a leading rail is present) */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <span
             className={cn(
@@ -147,6 +183,17 @@ export function MediaListCard({ entry, onClick, index = 0, showYearsAgo = false 
               <Clock size={9} className="text-violet-400" />
             </span>
           )}
+          {hasScore && (leadingRail || accentBadge) && (
+            <span
+              className={cn(
+                "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold shadow-sm shrink-0",
+                getRatingColor(entry.review_score)
+              )}
+            >
+              <Star size={9} className="fill-current" />
+              {formatCardRating(entry.review_score!)}
+            </span>
+          )}
         </div>
 
         {/* Line 3: date */}
@@ -160,6 +207,23 @@ export function MediaListCard({ entry, onClick, index = 0, showYearsAgo = false 
           </div>
         )}
       </div>
+
+      {/* Trailing slot: accent badge (award pill) or index label (timeline #N) */}
+      {hasTrailingSlot && (
+        <div className="media-list-card-trailing">
+          {accentBadge ?? indexLabel}
+        </div>
+      )}
     </motion.div>
+  );
+
+  if (!leadingRail) return card;
+
+  // With a leading rail (timeline line+node), wrap in a flex row.
+  return (
+    <div className="media-list-card-row">
+      {leadingRail}
+      {card}
+    </div>
   );
 }

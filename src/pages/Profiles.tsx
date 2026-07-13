@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw, Trophy, Tv, ArrowUp, ArrowDown, Captions, MoreVertical, EyeOff, Eye, Crop, Check, X, Maximize, Activity } from "lucide-react";
+import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, RotateCcw, Trophy, Tv, ArrowUp, ArrowDown, MoreVertical, EyeOff, Eye, Crop, Check, X, Maximize, Activity } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { profilesLogic, type ProfileSummary, type CropData, DEFAULT_CROP } from "../lib/profiles-logic";
 import { awardsLogic } from "../lib/awards-logic";
 import type { MediaEntry } from "../lib/db";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
+import { MediaListCard } from "../components/MediaListCard";
 import { formatShortDate } from "../lib/dates";
 import { useImageUrl } from "../lib/utils";
 import { AvgHistoryModal } from "../components/AvgHistoryModal";
@@ -31,7 +32,8 @@ const PROFILE_TYPES = [
     iconColor: "text-blue-400",
     barGradient: "from-blue-500 to-cyan-500",
     dividerGradient: "to-blue-500/20",
-    accentColor: "text-blue-400/60"
+    accentColor: "text-blue-400/60",
+    surfaceTintClass: "from-blue-500/12 to-cyan-500/6"
   },
   {
     key: "actress", label: "Actress", icon: Sparkles,
@@ -48,7 +50,8 @@ const PROFILE_TYPES = [
     iconColor: "text-rose-400",
     barGradient: "from-rose-500 to-pink-500",
     dividerGradient: "to-rose-500/20",
-    accentColor: "text-rose-400/60"
+    accentColor: "text-rose-400/60",
+    surfaceTintClass: "from-rose-500/12 to-pink-500/6"
   },
   {
     key: "artist", label: "Artist", icon: Music,
@@ -65,7 +68,8 @@ const PROFILE_TYPES = [
     iconColor: "text-purple-400",
     barGradient: "from-purple-500 to-violet-500",
     dividerGradient: "to-purple-500/20",
-    accentColor: "text-purple-400/60"
+    accentColor: "text-purple-400/60",
+    surfaceTintClass: "from-purple-500/12 to-violet-500/6"
   },
   {
     key: "author", label: "Author", icon: BookOpen,
@@ -82,7 +86,8 @@ const PROFILE_TYPES = [
     iconColor: "text-amber-400",
     barGradient: "from-amber-500 to-orange-500",
     dividerGradient: "to-amber-500/20",
-    accentColor: "text-amber-400/60"
+    accentColor: "text-amber-400/60",
+    surfaceTintClass: "from-amber-500/12 to-orange-500/6"
   },
   {
     key: "platform", label: "Platform", icon: Gamepad2,
@@ -99,7 +104,8 @@ const PROFILE_TYPES = [
     iconColor: "text-green-400",
     barGradient: "from-green-500 to-emerald-500",
     dividerGradient: "to-green-500/20",
-    accentColor: "text-green-400/60"
+    accentColor: "text-green-400/60",
+    surfaceTintClass: "from-green-500/12 to-emerald-500/6"
   },
   {
     key: "franchise", label: "Franchise", icon: Gamepad2,
@@ -116,7 +122,8 @@ const PROFILE_TYPES = [
     iconColor: "text-indigo-400",
     barGradient: "from-indigo-500 to-purple-500",
     dividerGradient: "to-indigo-500/20",
-    accentColor: "text-indigo-400/60"
+    accentColor: "text-indigo-400/60",
+    surfaceTintClass: "from-indigo-500/12 to-purple-500/6"
   },
   {
     key: "series", label: "Series", icon: Tv,
@@ -133,7 +140,8 @@ const PROFILE_TYPES = [
     iconColor: "text-teal-400",
     barGradient: "from-teal-500 to-cyan-500",
     dividerGradient: "to-teal-500/20",
-    accentColor: "text-teal-400/60"
+    accentColor: "text-teal-400/60",
+    surfaceTintClass: "from-teal-500/12 to-cyan-500/6"
   },
 ];
 
@@ -192,128 +200,84 @@ function TimelineCard({
   entry,
   index,
   isFirst,
-  isLast
+  isLast,
+  onClick,
+  surfaceTint
 }: {
   entry: MediaEntry;
   index: number;
   isFirst: boolean;
   isLast: boolean;
+  onClick: (entry: MediaEntry) => void;
+  surfaceTint?: string;
 }) {
-  const imgSrc = useImageUrl(entry.image_url, '');
-  const isLeft = index % 2 === 0;
+  // Leading rail: vertical line + colored node (green first / rose latest / gray middle).
+  const rail = (
+    <div className="relative w-4 flex-shrink-0 flex flex-col items-center self-stretch">
+      {/* Top line */}
+      {!isFirst ? (
+        <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500/40 to-rose-500/20" />
+      ) : (
+        <div className="flex-1" />
+      )}
+
+      {/* Node */}
+      <div
+        className={`relative z-10 flex-shrink-0 w-4 h-4 rounded-full border-2 ${
+          isFirst
+            ? 'bg-green-500 border-green-400 shadow-lg shadow-green-500/50'
+            : isLast
+              ? 'bg-rose-500 border-rose-400 shadow-lg shadow-rose-500/50'
+              : 'bg-gray-700 border-gray-500'
+        }`}
+      >
+        {(isFirst || isLast) && (
+          <div
+            className="absolute inset-0 rounded-full animate-ping opacity-30"
+            style={{ backgroundColor: isFirst ? '#22c55e' : '#f43f5e' }}
+          />
+        )}
+      </div>
+
+      {/* Bottom line */}
+      {!isLast ? (
+        <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500/20 to-rose-500/40" />
+      ) : (
+        <div className="flex-1" />
+      )}
+    </div>
+  );
+
+  // Corner milestone badge (top-right of the card).
+  const cornerBadge = isFirst ? (
+    <div className="flex items-center gap-1 bg-green-500/90 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg backdrop-blur-sm">
+      <Flag size={12} />
+      <span>First</span>
+    </div>
+  ) : isLast ? (
+    <div className="flex items-center gap-1 bg-rose-500/90 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg backdrop-blur-sm">
+      <Flame size={12} />
+      <span>Latest</span>
+    </div>
+  ) : null;
+
+  // Index label (#N) — shown when no accent badge is present (always, for timeline).
+  const indexLabel = (
+    <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+      <span className="text-xs font-bold text-gray-400">#{index + 1}</span>
+    </div>
+  );
 
   return (
-    <div
-      className={`relative flex items-center gap-4 ${isLeft ? 'flex-row' : 'flex-row-reverse'} md:flex-row`}
-      style={{
-        animationDelay: `${index * 80}ms`,
-        animation: 'fadeInUp 0.5s ease-out forwards',
-        opacity: 0
-      }}
-    >
-      {/* Timeline Line and Node */}
-      <div className="absolute left-1/2 md:left-8 -translate-x-1/2 md:translate-x-0 top-0 bottom-0 flex flex-col items-center">
-        {/* Top line */}
-        {!isFirst && (
-          <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500/40 to-rose-500/20" />
-        )}
-        {isFirst && <div className="flex-1" />}
-
-        {/* Node */}
-        <div className={`relative z-10 flex-shrink-0 w-4 h-4 rounded-full border-2 ${isFirst
-          ? 'bg-green-500 border-green-400 shadow-lg shadow-green-500/50'
-          : isLast
-            ? 'bg-rose-500 border-rose-400 shadow-lg shadow-rose-500/50'
-            : 'bg-gray-700 border-gray-500'
-          }`}>
-          {(isFirst || isLast) && (
-            <div className="absolute inset-0 rounded-full animate-ping opacity-30" style={{ backgroundColor: isFirst ? '#22c55e' : '#f43f5e' }} />
-          )}
-        </div>
-
-        {/* Bottom line */}
-        {!isLast && (
-          <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500/20 to-rose-500/40" />
-        )}
-        {isLast && <div className="flex-1" />}
-      </div>
-
-      {/* Entry Card */}
-      <div className={`ml-0 md:ml-20 flex-1 max-w-lg ${isLeft ? 'mr-auto md:mr-0' : 'ml-auto md:ml-20'
-        }`}>
-        <div className="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden hover:border-white/25 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/40">
-          {/* Milestone Badge */}
-          {isFirst && (
-            <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-green-500/90 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg">
-              <Flag size={12} />
-              <span>First</span>
-            </div>
-          )}
-          {isLast && (
-            <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-rose-500/90 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg">
-              <Flame size={12} />
-              <span>Latest</span>
-            </div>
-          )}
-
-          <div className="flex gap-3 p-3">
-            {/* Thumbnail */}
-            <div className="w-16 h-20 rounded-lg overflow-hidden bg-black/40 flex-shrink-0 border border-white/10">
-              {imgSrc ? (
-                <img src={imgSrc} className="w-full h-full object-cover" alt={entry.name} />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-500">
-                  <LayoutGrid size={20} />
-                </div>
-              )}
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 min-w-0">
-              <h4 className="font-semibold text-sm text-white truncate group-hover:text-rose-200 transition-colors">
-                {entry.name}
-              </h4>
-
-              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <span className="text-xs text-gray-400 capitalize bg-white/5 px-2 py-0.5 rounded">
-                  {entry.entry_type || 'Entry'}
-                </span>
-                {entry.is_rewatch === 1 && (
-                  <div className="flex items-center gap-1 bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30">
-                    <RotateCcw size={10} />
-                    <span className="text-xs font-medium">Replay</span>
-                  </div>
-                )}
-                {entry.has_subtitles === 1 && (
-                  <div className="flex items-center gap-1 bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/30">
-                    <Captions size={10} />
-                    <span className="text-xs font-medium">Subtitles</span>
-                  </div>
-                )}
-                {entry.review_score != null && (
-                  <div className="flex items-center gap-1 text-yellow-500">
-                    <Star size={10} fill="currentColor" />
-                    <span className="text-xs font-medium">{entry.review_score}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1.5 mt-2 text-gray-400">
-                <Calendar size={11} />
-                <span className="text-xs">{formatShortDate(entry.completion_date)}</span>
-              </div>
-            </div>
-
-            {/* Entry Number Badge */}
-            <div className="flex-shrink-0 self-center">
-              <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
-                <span className="text-xs font-bold text-gray-400">#{index + 1}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <MediaListCard
+      entry={entry}
+      index={index}
+      onClick={onClick}
+      leadingRail={rail}
+      cornerBadge={cornerBadge}
+      indexLabel={indexLabel}
+      surfaceTint={surfaceTint}
+    />
   );
 }
 
@@ -322,59 +286,32 @@ function AwardCard({
   entry,
   categoryName,
   profileConfig,
-  index
+  index,
+  onClick
 }: {
   entry: MediaEntry;
   categoryName: string;
   profileConfig: typeof PROFILE_TYPES[number];
   index: number;
+  onClick: (entry: MediaEntry) => void;
 }) {
-  const imgSrc = useImageUrl(entry.image_url, '');
+  const accentBadge = (
+    <div
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r ${profileConfig.badgeGradient} shadow-lg ${profileConfig.badgeShadow}`}
+    >
+      <Trophy size={14} className="text-white" />
+      <span className="text-white text-xs font-bold whitespace-nowrap">{categoryName}</span>
+    </div>
+  );
 
   return (
-    <div
-      className="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden hover:border-white/25 transition-all duration-300 hover:scale-[1.01] hover:shadow-2xl hover:shadow-black/40"
-      style={{
-        animationDelay: `${index * 80}ms`,
-        animation: 'fadeInUp 0.5s ease-out forwards',
-        opacity: 0
-      }}
-    >
-      <div className="flex gap-4 p-4 items-center">
-        {/* Entry Thumbnail */}
-        <div className="w-14 h-20 rounded-lg overflow-hidden bg-black/40 flex-shrink-0 border border-white/10">
-          {imgSrc ? (
-            <img src={imgSrc} className="w-full h-full object-cover" alt={entry.name} />
-          ) : (
-            <div className={`w-full h-full bg-gradient-to-br ${profileConfig.placeholderGradient} opacity-30`} />
-          )}
-        </div>
-
-        {/* Entry Info */}
-        <div className="flex-1 min-w-0">
-          <p className="text-white font-medium text-sm truncate">{entry.name}</p>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-xs text-gray-400 capitalize bg-white/5 px-2 py-0.5 rounded">
-              {entry.entry_type || 'Entry'}
-            </span>
-            {entry.review_score != null && (
-              <div className="flex items-center gap-1 text-yellow-500">
-                <Star size={10} fill="currentColor" />
-                <span className="text-xs font-medium">{entry.review_score}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Award Badge */}
-        <div className="flex-shrink-0">
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r ${profileConfig.badgeGradient} shadow-lg ${profileConfig.badgeShadow}`}>
-            <Trophy size={14} className="text-white" />
-            <span className="text-white text-xs font-bold whitespace-nowrap">{categoryName}</span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <MediaListCard
+      entry={entry}
+      index={index}
+      onClick={onClick}
+      accentBadge={accentBadge}
+      surfaceTint={profileConfig.surfaceTintClass}
+    />
   );
 }
 
@@ -571,6 +508,14 @@ export default function ProfilesPage() {
       .sort(([a], [b]) => b - a)
       .map(([year, awards]) => ({ year, awards }));
   }, [awardsMap, profileEntries]);
+
+  // Navigate to the entry's year view, highlighting it (mirrors the dashboard behavior).
+  const handleEntryClick = (entry: MediaEntry) => {
+    if (!entry.year_completed) return;
+    const params = new URLSearchParams({ highlight: String(entry.id) });
+    if (entry.entry_type) params.set('type', entry.entry_type);
+    navigate(`/year/${entry.year_completed}?${params.toString()}`);
+  };
 
   // Hidden profiles
   const [showHidden, setShowHidden] = useState(false);
@@ -1303,7 +1248,7 @@ export default function ProfilesPage() {
             </div>
 
             {/* Timeline */}
-            <div className="relative max-w-2xl mx-auto space-y-4">
+            <div className="relative max-w-2xl mx-auto space-y-3">
               {timelineEntries.map((entry, idx) => (
                 <TimelineCard
                   key={entry.id}
@@ -1311,6 +1256,8 @@ export default function ProfilesPage() {
                   index={idx}
                   isFirst={idx === 0}
                   isLast={idx === timelineEntries.length - 1}
+                  onClick={handleEntryClick}
+                  surfaceTint={selectedProfileConfig.surfaceTintClass}
                 />
               ))}
             </div>
@@ -1373,6 +1320,7 @@ export default function ProfilesPage() {
                           categoryName={item.categoryName}
                           profileConfig={selectedProfileConfig}
                           index={idx}
+                          onClick={handleEntryClick}
                         />
                       ))}
                     </div>

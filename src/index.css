@@ -2066,6 +2066,57 @@ body {
   padding: 0.5rem 0.85rem;
 }
 
+/* Interactive variant — pointer + hover emphasis (dashboard already passes onClick) */
+.media-list-card-interactive {
+  cursor: pointer;
+}
+
+/* Profile-color surface tint layer — sits above the dark overlay (z-1), below content (z-2) */
+.media-list-card-tint {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.55;
+}
+
+/* Top-right overlay badge slot (milestone First/Latest) */
+.media-list-card-corner {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 4;
+}
+
+/* Trailing slot — accent pill (award) or index label (timeline #N) */
+.media-list-card-trailing {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  align-self: center;
+  padding-right: 0.85rem;
+}
+
+/* Row wrapper when a leading rail (timeline line+node) is present */
+.media-list-card-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  animation: cardEnter 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+.media-list-card-row .media-list-card {
+  flex: 1;
+  min-width: 0;
+  animation: none;
+  opacity: 1;
+}
+
 @keyframes cardEnter {
   from {
     opacity: 0;
