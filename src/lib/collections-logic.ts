@@ -1,4 +1,4 @@
-import { dbService, type MediaEntry } from "./db";
+import { dbService, adultExclusionSql, type MediaEntry } from "./db";
 
 export interface Collection {
   id: number;
@@ -14,33 +14,45 @@ export const collectionsLogic = {
   async getAllCollections(): Promise<Collection[]> {
     const db = await dbService.connect();
 
-    // Fetch collections with item counts in one query (avoids per-collection COUNT queries)
+    // Fetch collections with item counts in one query (avoids per-collection COUNT queries).
+    // Join through to entries so item_count reflects only entries that resolve and pass the
+    // adult filter — the exclusion goes in the ON clause (not WHERE) so empty collections
+    // still count 0. COUNT(m.id) then only tallies rows where the entries join succeeded.
     const cols = await db.select<(Collection & { item_count: number })[]>(
-      `SELECT c.id, c.name, c.description, c.created_date, COUNT(ci.media_id) as item_count
+      `SELECT c.id, c.name, c.description, c.created_date, COUNT(m.id) as item_count
        FROM collections c
        LEFT JOIN collection_items ci ON ci.collection_id = c.id
+       LEFT JOIN entries m ON ci.media_id = m.id${adultExclusionSql()}
        GROUP BY c.id, c.name, c.description, c.created_date
        ORDER BY c.name ASC`
     );
 
-    // Fetch all thumbnail candidates once; keep first 4 per collection in JS
-    const thumbnailRows = await db.select<{ collection_id: number; image_url: string | null }[]>(
-      `SELECT ci.collection_id, m.image_url
-       FROM collection_items ci
-       JOIN entries m ON ci.media_id = m.id
-       WHERE m.image_url IS NOT NULL AND m.image_url <> ''
-       ORDER BY ci.collection_id ASC, ci.sort_order ASC, ci.id ASC`
+    // Fetch only the first 4 visible thumbnails per collection. A window
+    // function ranks each collection's candidates in the DB so we transfer at
+    // most 4 rows per collection instead of every item. Adult entries are
+    // excluded here when the Adult Media setting is off (m.entry_type resolves
+    // unambiguously — collection_items has no entry_type column).
+    const thumbnailRows = await db.select<{ collection_id: number; image_url: string }[]>(
+      `SELECT collection_id, image_url
+       FROM (
+         SELECT ci.collection_id AS collection_id, m.image_url AS image_url,
+                ROW_NUMBER() OVER (
+                  PARTITION BY ci.collection_id
+                  ORDER BY ci.sort_order ASC, ci.id ASC
+                ) AS rn
+         FROM collection_items ci
+         JOIN entries m ON ci.media_id = m.id
+         WHERE m.image_url IS NOT NULL AND m.image_url <> ''${adultExclusionSql()}
+       )
+       WHERE rn <= 4
+       ORDER BY collection_id ASC, rn ASC`
     );
 
     const thumbnailsByCollection = new Map<number, string[]>();
     for (const row of thumbnailRows) {
-      if (!row.image_url) continue;
-
       const existing = thumbnailsByCollection.get(row.collection_id) || [];
-      if (existing.length < 4) {
-        existing.push(row.image_url);
-        thumbnailsByCollection.set(row.collection_id, existing);
-      }
+      existing.push(row.image_url);
+      thumbnailsByCollection.set(row.collection_id, existing);
     }
 
     for (const col of cols) {
