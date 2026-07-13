@@ -1,9 +1,10 @@
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fs;
 use std::io::{Read, Seek, Write};
 use std::path::{Component, Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::Emitter;
 use tauri::Manager;
@@ -107,7 +108,48 @@ struct BackupZipReadResult {
 #[serde(rename_all = "camelCase")]
 struct ExtractBackupAssetsResult {
     assets_restored: usize,
+    cleanup_warnings: Vec<String>,
 }
+
+#[derive(Clone)]
+struct ValidatedAssetEntry {
+    index: usize,
+    relative_path: PathBuf,
+    is_dir: bool,
+}
+
+struct InspectedBackupArchive {
+    backup_json_index: usize,
+    assets: Vec<ValidatedAssetEntry>,
+}
+
+struct TemporaryDirectory {
+    path: PathBuf,
+    cleanup_on_drop: bool,
+}
+
+impl TemporaryDirectory {
+    fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            cleanup_on_drop: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.cleanup_on_drop = false;
+    }
+}
+
+impl Drop for TemporaryDirectory {
+    fn drop(&mut self) {
+        if self.cleanup_on_drop {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+}
+
+static BACKUP_ASSET_EXTRACTION_LOCK: Mutex<()> = Mutex::new(());
 
 fn zip_options() -> zip::write::SimpleFileOptions {
     zip::write::SimpleFileOptions::default()
@@ -174,14 +216,444 @@ fn add_dir_to_zip<W: Write + Seek>(
     Ok(())
 }
 
-fn archive_path_is_safe(path: &str) -> bool {
-    let normalized = path.replace('\\', "/");
-    let archive_path = Path::new(&normalized);
+fn archive_entry_name_is_canonical(name: &str, is_dir: bool) -> bool {
+    if name.is_empty() || name.contains('\0') || name.contains('\\') || name.starts_with('/') {
+        return false;
+    }
 
-    !normalized.is_empty()
-        && archive_path
-            .components()
-            .all(|component| matches!(component, Component::Normal(_)))
+    let path_without_directory_marker = if is_dir {
+        match name.strip_suffix('/') {
+            Some(path) if !path.is_empty() => path,
+            _ => return false,
+        }
+    } else {
+        name
+    };
+
+    path_without_directory_marker
+        .split('/')
+        .all(|component| !component.is_empty() && component != "." && component != "..")
+}
+
+fn zip_entry_is_expected_type(entry: &zip::read::ZipFile<'_>, is_dir: bool) -> bool {
+    const UNIX_FILE_TYPE_MASK: u32 = 0o170000;
+    const UNIX_DIRECTORY: u32 = 0o040000;
+    const UNIX_REGULAR_FILE: u32 = 0o100000;
+
+    if entry.is_symlink() {
+        return false;
+    }
+
+    match entry.unix_mode().map(|mode| mode & UNIX_FILE_TYPE_MASK) {
+        None | Some(0) => true,
+        Some(UNIX_DIRECTORY) => is_dir,
+        Some(UNIX_REGULAR_FILE) => !is_dir,
+        Some(_) => false,
+    }
+}
+
+fn register_asset_destination(
+    destinations: &mut HashMap<PathBuf, bool>,
+    relative_path: &Path,
+    is_dir: bool,
+) -> Result<(), String> {
+    if destinations.contains_key(relative_path) {
+        return Err(format!(
+            "Backup ZIP contains duplicate asset path: {}",
+            relative_path.display()
+        ));
+    }
+
+    for ancestor in relative_path.ancestors().skip(1) {
+        if ancestor.as_os_str().is_empty() {
+            break;
+        }
+        if destinations.get(ancestor) == Some(&false) {
+            return Err(format!(
+                "Backup ZIP contains a file/directory conflict at {}",
+                relative_path.display()
+            ));
+        }
+    }
+
+    if !is_dir
+        && destinations
+            .keys()
+            .any(|existing| existing != relative_path && existing.starts_with(relative_path))
+    {
+        return Err(format!(
+            "Backup ZIP contains a file/directory conflict at {}",
+            relative_path.display()
+        ));
+    }
+
+    destinations.insert(relative_path.to_path_buf(), is_dir);
+    Ok(())
+}
+
+fn inspect_backup_archive<R: Read + Seek>(
+    archive: &mut zip::ZipArchive<R>,
+) -> Result<InspectedBackupArchive, String> {
+    let mut backup_json_index = None;
+    let mut assets = Vec::new();
+    let mut destinations = HashMap::new();
+
+    for index in 0..archive.len() {
+        let entry = archive
+            .by_index(index)
+            .map_err(|error| format!("Failed to inspect ZIP entry: {error}"))?;
+        let name = entry.name();
+        let is_dir = entry.is_dir();
+
+        if !archive_entry_name_is_canonical(name, is_dir) {
+            return Err(format!("Backup ZIP contains an unsafe path: {name:?}"));
+        }
+        if !zip_entry_is_expected_type(&entry, is_dir) {
+            return Err(format!(
+                "Backup ZIP contains a symlink or unsupported entry type: {name:?}"
+            ));
+        }
+
+        let enclosed_path = entry
+            .enclosed_name()
+            .ok_or_else(|| format!("Backup ZIP contains an unsafe path: {name:?}"))?;
+
+        if enclosed_path == Path::new("backup.json") {
+            if is_dir {
+                return Err("backup.json must be a regular file".to_string());
+            }
+            if backup_json_index.replace(index).is_some() {
+                return Err("Backup ZIP contains more than one backup.json".to_string());
+            }
+            continue;
+        }
+
+        let relative_path = enclosed_path
+            .strip_prefix(Path::new("assets"))
+            .map_err(|_| format!("Backup ZIP contains an unexpected entry: {name:?}"))?;
+        if relative_path.as_os_str().is_empty()
+            || !relative_path
+                .components()
+                .all(|component| matches!(component, Component::Normal(_)))
+        {
+            return Err(format!(
+                "Backup ZIP contains an unsafe asset path: {name:?}"
+            ));
+        }
+
+        register_asset_destination(&mut destinations, relative_path, is_dir)?;
+        assets.push(ValidatedAssetEntry {
+            index,
+            relative_path: relative_path.to_path_buf(),
+            is_dir,
+        });
+    }
+
+    let backup_json_index =
+        backup_json_index.ok_or_else(|| "Backup ZIP is missing backup.json".to_string())?;
+
+    Ok(InspectedBackupArchive {
+        backup_json_index,
+        assets,
+    })
+}
+
+fn create_unique_staging_directory(data_root: &Path) -> Result<PathBuf, String> {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+
+    for attempt in 0..1000_u16 {
+        let path = data_root.join(format!(
+            ".media-logger-assets-staging-{}-{nonce}-{attempt}",
+            std::process::id()
+        ));
+        match fs::create_dir(&path) {
+            Ok(()) => return Ok(path),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(format!(
+                    "Failed to create asset staging directory {}: {error}",
+                    path.display()
+                ));
+            }
+        }
+    }
+
+    Err("Failed to allocate a unique asset staging directory".to_string())
+}
+
+fn ensure_canonical_containment(root: &Path, path: &Path) -> Result<(), String> {
+    let canonical = fs::canonicalize(path)
+        .map_err(|error| format!("Failed to resolve {}: {error}", path.display()))?;
+    if !canonical.starts_with(root) {
+        return Err(format!(
+            "Refusing a path outside its approved asset root: {}",
+            path.display()
+        ));
+    }
+    Ok(())
+}
+
+fn copy_regular_tree(
+    source: &Path,
+    destination: &Path,
+    containment_root: &Path,
+) -> Result<(), String> {
+    let entries = fs::read_dir(source)
+        .map_err(|error| format!("Failed to read directory {}: {error}", source.display()))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|error| {
+            format!(
+                "Failed to read an entry inside {}: {error}",
+                source.display()
+            )
+        })?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        let metadata = fs::symlink_metadata(&source_path)
+            .map_err(|error| format!("Failed to inspect {}: {error}", source_path.display()))?;
+
+        if metadata.file_type().is_symlink() {
+            return Err(format!(
+                "Refusing to import while the existing assets tree contains a symlink: {}",
+                source_path.display()
+            ));
+        }
+
+        if metadata.is_dir() {
+            fs::create_dir(&destination_path).map_err(|error| {
+                format!(
+                    "Failed to create staged directory {}: {error}",
+                    destination_path.display()
+                )
+            })?;
+            ensure_canonical_containment(containment_root, &destination_path)?;
+            copy_regular_tree(&source_path, &destination_path, containment_root)?;
+        } else if metadata.is_file() {
+            let mut source_file = fs::File::open(&source_path)
+                .map_err(|error| format!("Failed to open {}: {error}", source_path.display()))?;
+            let mut destination_file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&destination_path)
+                .map_err(|error| {
+                    format!(
+                        "Failed to create staged asset {}: {error}",
+                        destination_path.display()
+                    )
+                })?;
+            std::io::copy(&mut source_file, &mut destination_file).map_err(|error| {
+                format!(
+                    "Failed to copy existing asset {}: {error}",
+                    source_path.display()
+                )
+            })?;
+            ensure_canonical_containment(containment_root, &destination_path)?;
+        } else {
+            return Err(format!(
+                "Refusing unsupported entry in the existing assets tree: {}",
+                source_path.display()
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn ensure_staged_directory(staging_root: &Path, relative_path: &Path) -> Result<PathBuf, String> {
+    let mut current = staging_root.to_path_buf();
+
+    for component in relative_path.components() {
+        let Component::Normal(component) = component else {
+            return Err(format!(
+                "Refusing unsafe staged directory: {}",
+                relative_path.display()
+            ));
+        };
+        current.push(component);
+
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(format!(
+                    "Refusing staged symlink component: {}",
+                    current.display()
+                ));
+            }
+            Ok(metadata) if metadata.is_dir() => {}
+            Ok(_) => {
+                return Err(format!(
+                    "A staged asset file conflicts with directory {}",
+                    current.display()
+                ));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                fs::create_dir(&current).map_err(|create_error| {
+                    format!(
+                        "Failed to create staged directory {}: {create_error}",
+                        current.display()
+                    )
+                })?;
+            }
+            Err(error) => {
+                return Err(format!("Failed to inspect {}: {error}", current.display()));
+            }
+        }
+
+        ensure_canonical_containment(staging_root, &current)?;
+    }
+
+    Ok(current)
+}
+
+fn validate_regular_tree(root: &Path, current: &Path) -> Result<(), String> {
+    let entries = fs::read_dir(current)
+        .map_err(|error| format!("Failed to read directory {}: {error}", current.display()))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|error| {
+            format!(
+                "Failed to read an entry inside {}: {error}",
+                current.display()
+            )
+        })?;
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| format!("Failed to inspect {}: {error}", path.display()))?;
+
+        if metadata.file_type().is_symlink() {
+            return Err(format!(
+                "Refusing symlink in asset tree: {}",
+                path.display()
+            ));
+        }
+        if !metadata.is_dir() && !metadata.is_file() {
+            return Err(format!(
+                "Refusing unsupported entry in asset tree: {}",
+                path.display()
+            ));
+        }
+
+        ensure_canonical_containment(root, &path)?;
+        if metadata.is_dir() {
+            validate_regular_tree(root, &path)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn overlay_backup_assets<R: Read + Seek>(
+    archive: &mut zip::ZipArchive<R>,
+    assets: &[ValidatedAssetEntry],
+    staging_root: &Path,
+) -> Result<usize, String> {
+    let mut assets_restored = 0;
+
+    for asset in assets {
+        if asset.is_dir {
+            ensure_staged_directory(staging_root, &asset.relative_path)?;
+            continue;
+        }
+
+        let parent = asset
+            .relative_path
+            .parent()
+            .unwrap_or_else(|| Path::new(""));
+        ensure_staged_directory(staging_root, parent)?;
+        let destination_path = staging_root.join(&asset.relative_path);
+
+        match fs::symlink_metadata(&destination_path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(format!(
+                    "Refusing staged symlink destination: {}",
+                    destination_path.display()
+                ));
+            }
+            Ok(metadata) if metadata.is_file() => {
+                fs::remove_file(&destination_path).map_err(|error| {
+                    format!(
+                        "Failed to replace staged asset {}: {error}",
+                        destination_path.display()
+                    )
+                })?;
+            }
+            Ok(_) => {
+                return Err(format!(
+                    "A backup asset conflicts with existing directory {}",
+                    destination_path.display()
+                ));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "Failed to inspect staged asset {}: {error}",
+                    destination_path.display()
+                ));
+            }
+        }
+
+        let mut destination_file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&destination_path)
+            .map_err(|error| {
+                format!(
+                    "Failed to create staged asset {}: {error}",
+                    destination_path.display()
+                )
+            })?;
+        let mut entry = archive
+            .by_index(asset.index)
+            .map_err(|error| format!("Failed to read ZIP asset entry: {error}"))?;
+        std::io::copy(&mut entry, &mut destination_file).map_err(|error| {
+            format!(
+                "Failed to stage backup asset {}: {error}",
+                asset.relative_path.display()
+            )
+        })?;
+        destination_file.flush().map_err(|error| {
+            format!(
+                "Failed to flush staged asset {}: {error}",
+                destination_path.display()
+            )
+        })?;
+        ensure_canonical_containment(staging_root, &destination_path)?;
+        assets_restored += 1;
+    }
+
+    Ok(assets_restored)
+}
+
+fn inspect_existing_assets_root(data_root: &Path, assets_path: &Path) -> Result<bool, String> {
+    match fs::symlink_metadata(assets_path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => Err(format!(
+            "Refusing symlink at the live assets root: {}",
+            assets_path.display()
+        )),
+        Ok(metadata) if metadata.is_dir() => {
+            ensure_canonical_containment(data_root, assets_path)?;
+            let canonical_assets = fs::canonicalize(assets_path).map_err(|error| {
+                format!(
+                    "Failed to resolve the live assets directory {}: {error}",
+                    assets_path.display()
+                )
+            })?;
+            validate_regular_tree(&canonical_assets, &canonical_assets)?;
+            Ok(true)
+        }
+        Ok(_) => Err(format!(
+            "The live assets path is not a directory: {}",
+            assets_path.display()
+        )),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!(
+            "Failed to inspect the live assets path {}: {error}",
+            assets_path.display()
+        )),
+    }
 }
 
 #[tauri::command]
@@ -231,9 +703,10 @@ fn create_backup_zip(
 fn read_backup_zip(file_path: String) -> Result<BackupZipReadResult, String> {
     let zip_path = PathBuf::from(file_path);
     let mut archive = open_zip_archive(&zip_path)?;
+    let inspected = inspect_backup_archive(&mut archive)?;
     let mut backup_file = archive
-        .by_name("backup.json")
-        .map_err(|_| "Backup ZIP is missing backup.json".to_string())?;
+        .by_index(inspected.backup_json_index)
+        .map_err(|error| format!("Failed to read backup.json from ZIP: {error}"))?;
     let mut backup_json = String::new();
     backup_file
         .read_to_string(&mut backup_json)
@@ -249,79 +722,144 @@ fn read_backup_zip(file_path: String) -> Result<BackupZipReadResult, String> {
 fn extract_backup_assets(
     file_path: String,
     data_dir: String,
-    overwrite: bool,
 ) -> Result<ExtractBackupAssetsResult, String> {
+    let _extraction_guard = BACKUP_ASSET_EXTRACTION_LOCK
+        .lock()
+        .map_err(|_| "Backup asset extraction lock is unavailable".to_string())?;
     let zip_path = PathBuf::from(file_path);
     let mut archive = open_zip_archive(&zip_path)?;
-    let mut asset_indexes = Vec::new();
+    let inspected = inspect_backup_archive(&mut archive)?;
 
-    for index in 0..archive.len() {
-        let entry = archive
-            .by_index(index)
-            .map_err(|error| format!("Failed to inspect ZIP entry: {error}"))?;
-        let entry = entry.name().to_string();
-
-        if entry != "backup.json" && !archive_path_is_safe(&entry) {
-            return Err(format!("Backup ZIP contains an unsafe path: {entry}"));
-        }
-
-        if entry.starts_with("assets/") {
-            asset_indexes.push(index);
-        }
+    if inspected.assets.is_empty() {
+        return Ok(ExtractBackupAssetsResult {
+            assets_restored: 0,
+            cleanup_warnings: Vec::new(),
+        });
     }
 
-    if asset_indexes.is_empty() {
-        return Ok(ExtractBackupAssetsResult { assets_restored: 0 });
+    let requested_data_root = PathBuf::from(data_dir);
+    fs::create_dir_all(&requested_data_root).map_err(|error| {
+        format!(
+            "Failed to prepare data directory {}: {error}",
+            requested_data_root.display()
+        )
+    })?;
+    let data_root = fs::canonicalize(&requested_data_root).map_err(|error| {
+        format!(
+            "Failed to resolve data directory {}: {error}",
+            requested_data_root.display()
+        )
+    })?;
+    let data_root_metadata = fs::metadata(&data_root)
+        .map_err(|error| format!("Failed to inspect {}: {error}", data_root.display()))?;
+    if !data_root_metadata.is_dir() {
+        return Err(format!(
+            "Data path is not a directory: {}",
+            data_root.display()
+        ));
     }
 
-    let destination_assets = Path::new(&data_dir).join("assets");
-    let mut assets_restored = 0;
+    let destination_assets = data_root.join("assets");
+    let assets_existed = inspect_existing_assets_root(&data_root, &destination_assets)?;
 
-    for index in asset_indexes {
-        let mut entry = archive
-            .by_index(index)
-            .map_err(|error| format!("Failed to read ZIP asset entry: {error}"))?;
+    let staging_path = create_unique_staging_directory(&data_root)?;
+    let mut staging_guard = TemporaryDirectory::new(staging_path.clone());
+    let staging_root = fs::canonicalize(&staging_path).map_err(|error| {
+        format!(
+            "Failed to resolve asset staging directory {}: {error}",
+            staging_path.display()
+        )
+    })?;
+    ensure_canonical_containment(&data_root, &staging_root)?;
 
-        if entry.is_dir() {
-            continue;
+    if assets_existed {
+        copy_regular_tree(&destination_assets, &staging_root, &staging_root)?;
+    }
+
+    let assets_restored = overlay_backup_assets(&mut archive, &inspected.assets, &staging_root)?;
+    validate_regular_tree(&staging_root, &staging_root)?;
+
+    let mut cleanup_warnings = Vec::new();
+    if assets_existed {
+        // Revalidate immediately before publication. The live tree is never opened for
+        // writing; it is moved aside as one directory and restored on publish failure.
+        if !inspect_existing_assets_root(&data_root, &destination_assets)? {
+            return Err("The live assets directory changed during backup import".to_string());
         }
 
-        let entry_name = entry.name().to_string();
-        let relative_path = entry_name.strip_prefix("assets/").unwrap_or_default();
-        if relative_path.is_empty() {
-            continue;
+        let mut rollback_name = staging_path
+            .file_name()
+            .ok_or_else(|| "Asset staging directory has no filename".to_string())?
+            .to_os_string();
+        rollback_name.push("-rollback");
+        let rollback_path = data_root.join(rollback_name);
+        match fs::symlink_metadata(&rollback_path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Ok(_) => {
+                return Err(format!(
+                    "Refusing occupied asset rollback path: {}",
+                    rollback_path.display()
+                ));
+            }
+            Err(error) => {
+                return Err(format!(
+                    "Failed to inspect asset rollback path {}: {error}",
+                    rollback_path.display()
+                ));
+            }
         }
 
-        let destination_path = destination_assets.join(relative_path);
-        if !overwrite && destination_path.exists() {
-            continue;
+        fs::rename(&destination_assets, &rollback_path).map_err(|error| {
+            format!("Failed to move the live assets tree to rollback storage: {error}")
+        })?;
+
+        if let Err(publish_error) = fs::rename(&staging_root, &destination_assets) {
+            let restore_result = fs::rename(&rollback_path, &destination_assets);
+            return match restore_result {
+                Ok(()) => Err(format!(
+                    "Failed to publish restored assets; the original assets were restored: {publish_error}"
+                )),
+                Err(restore_error) => Err(format!(
+                    "Failed to publish restored assets ({publish_error}) and failed to restore the original assets from {} ({restore_error})",
+                    rollback_path.display()
+                )),
+            };
+        }
+        staging_guard.disarm();
+
+        if let Err(error) = fs::remove_dir_all(&rollback_path) {
+            cleanup_warnings.push(format!(
+                "Assets were restored, but the previous asset tree could not be removed from {}: {error}",
+                rollback_path.display()
+            ));
+        }
+    } else {
+        match fs::symlink_metadata(&destination_assets) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Ok(_) => {
+                return Err("The live assets path appeared during backup import".to_string());
+            }
+            Err(error) => {
+                return Err(format!(
+                    "Failed to recheck the live assets path {}: {error}",
+                    destination_assets.display()
+                ));
+            }
         }
 
-        if let Some(parent) = destination_path.parent() {
-            fs::create_dir_all(parent).map_err(|error| {
-                format!(
-                    "Failed to create parent directory {}: {error}",
-                    parent.display()
-                )
-            })?;
-        }
-
-        let mut destination_file = fs::File::create(&destination_path).map_err(|error| {
+        fs::rename(&staging_root, &destination_assets).map_err(|error| {
             format!(
-                "Failed to create restored asset {}: {error}",
-                destination_path.display()
+                "Failed to publish restored assets to {}: {error}",
+                destination_assets.display()
             )
         })?;
-        std::io::copy(&mut entry, &mut destination_file).map_err(|error| {
-            format!(
-                "Failed to restore asset {}: {error}",
-                destination_path.display()
-            )
-        })?;
-        assets_restored += 1;
+        staging_guard.disarm();
     }
 
-    Ok(ExtractBackupAssetsResult { assets_restored })
+    Ok(ExtractBackupAssetsResult {
+        assets_restored,
+        cleanup_warnings,
+    })
 }
 
 #[derive(Serialize)]

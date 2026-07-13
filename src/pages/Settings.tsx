@@ -93,6 +93,7 @@ type BackupZipReadResult = {
 
 type ExtractBackupAssetsResult = {
     assetsRestored: number;
+    cleanupWarnings: string[];
 };
 
 const appMetadata = {
@@ -495,12 +496,15 @@ export default function Settings() {
                     if (result.success) {
                         try {
                             const dataDir = await getDataDirectory();
-                            const { assetsRestored } = await invoke<ExtractBackupAssetsResult>('extract_backup_assets', {
+                            const { assetsRestored, cleanupWarnings } = await invoke<ExtractBackupAssetsResult>('extract_backup_assets', {
                                 filePath,
-                                dataDir,
-                                overwrite: true
+                                dataDir
                             });
-                            result = { ...result, assetsRestored };
+                            result = {
+                                ...result,
+                                assetsRestored,
+                                errors: [...result.errors, ...cleanupWarnings]
+                            };
                         } catch (assetError) {
                             result = {
                                 ...result,
