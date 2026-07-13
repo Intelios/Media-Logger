@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, Calendar, RotateCcw, Trophy, Tv, ArrowUp, ArrowDown, Captions, MoreVertical, EyeOff, Eye, Crop, Check, X, Maximize, Activity } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
@@ -1168,33 +1169,54 @@ export default function ProfilesPage() {
             <div className="flex items-center gap-1 p-1 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl">
               <button
                 onClick={() => setViewMode('collection')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'collection'
-                  ? `bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`
+                className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'collection'
+                  ? 'text-white'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
                   }`}
               >
-                <LayoutGrid size={16} />
-                <span>Collection</span>
+                {viewMode === 'collection' && (
+                  <motion.span
+                    layoutId="profile-view-active"
+                    className={`absolute inset-0 rounded-lg bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`}
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <LayoutGrid size={16} className="relative z-10" />
+                <span className="relative z-10">Collection</span>
               </button>
               <button
                 onClick={() => setViewMode('timeline')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'timeline'
-                  ? `bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`
+                className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'timeline'
+                  ? 'text-white'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
                   }`}
               >
-                <Clock size={16} />
-                <span>Timeline</span>
+                {viewMode === 'timeline' && (
+                  <motion.span
+                    layoutId="profile-view-active"
+                    className={`absolute inset-0 rounded-lg bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`}
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <Clock size={16} className="relative z-10" />
+                <span className="relative z-10">Timeline</span>
               </button>
               <button
                 onClick={() => setViewMode('awards')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'awards'
-                  ? `bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`
+                className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'awards'
+                  ? 'text-white'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
                   }`}
               >
-                <Trophy size={16} />
-                <span>Awards</span>
+                {viewMode === 'awards' && (
+                  <motion.span
+                    layoutId="profile-view-active"
+                    className={`absolute inset-0 rounded-lg bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`}
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <Trophy size={16} className="relative z-10" />
+                <span className="relative z-10">Awards</span>
               </button>
             </div>
 
@@ -1207,13 +1229,20 @@ export default function ProfilesPage() {
                     setSortOrderMap(prev => ({ ...prev, [key]: "oldest" }));
                   }
                 }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${sortOrder === "oldest"
-                  ? `bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`
+                className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${sortOrder === "oldest"
+                  ? 'text-white'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
                   }`}
               >
-                <ArrowUp size={14} />
-                <span>Oldest</span>
+                {sortOrder === "oldest" && (
+                  <motion.span
+                    layoutId="profile-sort-active"
+                    className={`absolute inset-0 rounded-lg bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`}
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <ArrowUp size={14} className="relative z-10" />
+                <span className="relative z-10">Oldest</span>
               </button>
               <button
                 onClick={() => {
@@ -1222,13 +1251,20 @@ export default function ProfilesPage() {
                     setSortOrderMap(prev => ({ ...prev, [key]: "newest" }));
                   }
                 }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${sortOrder === "newest"
-                  ? `bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`
+                className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${sortOrder === "newest"
+                  ? 'text-white'
                   : 'text-gray-400 hover:text-white hover:bg-white/5'
                   }`}
               >
-                <ArrowDown size={14} />
-                <span>Newest</span>
+                {sortOrder === "newest" && (
+                  <motion.span
+                    layoutId="profile-sort-active"
+                    className={`absolute inset-0 rounded-lg bg-gradient-to-r ${selectedProfileConfig.badgeGradient} text-white shadow-lg`}
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <ArrowDown size={14} className="relative z-10" />
+                <span className="relative z-10">Newest</span>
               </button>
             </div>
 
