@@ -207,6 +207,29 @@ const PROFILE_NUMERIC_COLUMNS = new Set(["track_avg_history"]);
 const AVG_HISTORY_NUMERIC_COLUMNS = new Set(["average_score", "rated_count", "total_count"]);
 const BACKLOG_NUMERIC_COLUMNS = new Set(["id", "sort_order"]);
 
+const MEDIA_IDENTITY_COLUMNS = MEDIA_COLUMNS.filter((column) => column !== "id");
+const MEDIA_ZERO_DEFAULT_COLUMNS = new Set([
+    "is_rewatch",
+    "own_local_copy",
+    "has_subtitles",
+    "is_platinum",
+    "is_completed",
+    "is_early_access",
+]);
+
+/**
+ * A media row's complete exported identity. Missing columns in older backups
+ * are normalized to the values the entries table would give them on insert.
+ */
+function getMediaIdentityKey(entry: MediaEntry): string {
+    const values = entry as unknown as Record<string, unknown>;
+    return JSON.stringify(MEDIA_IDENTITY_COLUMNS.map((column) => {
+        const value = values[column];
+        if (value !== undefined) return value;
+        return MEDIA_ZERO_DEFAULT_COLUMNS.has(column) ? 0 : null;
+    }));
+}
+
 /**
  * Export all data from the database as CSV strings
  */
@@ -311,7 +334,9 @@ export interface ImportResult {
 
 /**
  * Import data from an export file
- * Uses Option A: Skip duplicates (match by name + completion_date for media)
+ * Exact rows already present before the import are reused. Rows from the same
+ * backup are never compared with one another, so legitimate duplicates and
+ * replays remain distinct.
  */
 export async function importFromFile(fileContent: string): Promise<ImportResult> {
     const result: ImportResult = {
@@ -347,19 +372,24 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
             const entries = parseCSV<MediaEntry>(data.media_entries, MEDIA_NUMERIC_COLUMNS);
             console.log(`[CSV] Parsed ${entries.length} media entries`);
 
-            // Preload existing (name, completion_date) keys so duplicates are
-            // detected with a single query instead of one SELECT per row. Note:
-            // tauri-sql runs each execute() on a pooled connection, so a JS-side
-            // BEGIN/COMMIT can't atomically wrap the import. Instead the import is
-            // idempotent (skip-duplicates), so a run that fails partway can be
-            // safely re-run to resume without creating duplicates.
-            const existingMediaKeys = new Map<string, number>();
-            const existingMediaRows = await db.select<{ id: number; name: string; completion_date: string | null }[]>(
-                "SELECT id, name, completion_date FROM entries"
+            // Match only against rows that existed before this import. Each
+            // existing row can satisfy at most one backup row, which preserves
+            // the multiplicity of exact duplicates while keeping retries
+            // idempotent after a partial import.
+            const existingMediaRows = await db.select<MediaEntry[]>(
+                `SELECT ${MEDIA_COLUMNS.join(", ")} FROM entries ORDER BY id ASC`
             );
+            const existingMediaMatches = new Map<string, { ids: number[]; nextIndex: number }>();
             for (const row of existingMediaRows) {
-                existingMediaKeys.set(JSON.stringify([row.name, row.completion_date ?? null]), row.id);
+                const identityKey = getMediaIdentityKey(row);
+                const matches = existingMediaMatches.get(identityKey);
+                if (matches) {
+                    matches.ids.push(row.id);
+                } else {
+                    existingMediaMatches.set(identityKey, { ids: [row.id], nextIndex: 0 });
+                }
             }
+            const preserveMediaIds = existingMediaRows.length === 0;
 
             for (const entry of entries) {
                 // Skip entries with missing required fields
@@ -370,11 +400,11 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
 
                 const oldId = entry.id;
 
-                // Check for duplicate by name + completion_date against the
-                // preloaded key set. The JSON key is null-safe, mirroring the
-                // previous `name = ? AND completion_date IS ?` matching semantics.
-                const dedupKey = JSON.stringify([entry.name, entry.completion_date ?? null]);
-                const existingId = existingMediaKeys.get(dedupKey);
+                const identityKey = getMediaIdentityKey(entry);
+                const existingMatches = existingMediaMatches.get(identityKey);
+                const existingId = existingMatches && existingMatches.nextIndex < existingMatches.ids.length
+                    ? existingMatches.ids[existingMatches.nextIndex++]
+                    : undefined;
 
                 if (existingId !== undefined) {
                     // Map to existing entry
@@ -383,30 +413,30 @@ export async function importFromFile(fileContent: string): Promise<ImportResult>
                     continue;
                 }
 
-                // Insert new entry (without the old ID)
-                const { id: _, ...entryData } = entry;
+                const entryValues = entry as unknown as Record<string, unknown>;
+                const keys = MEDIA_IDENTITY_COLUMNS.filter((column) => column in entryValues);
+                const values = keys.map((key) => entryValues[key]);
 
-                // Filter out null/undefined values for optional fields but keep required ones
-                const filteredData: Record<string, unknown> = {};
-                for (const [key, value] of Object.entries(entryData)) {
-                    // Include all fields, even if null (database handles defaults)
-                    filteredData[key] = value;
+                // A fresh restore can retain the backup's stable media IDs. For
+                // a merge, IDs are generated to avoid colliding with local rows.
+                const canPreserveId = preserveMediaIds && Number.isInteger(oldId) && oldId > 0;
+                if (canPreserveId) {
+                    keys.unshift("id");
+                    values.unshift(oldId);
                 }
-
-                const keys = Object.keys(filteredData);
-                const values = Object.values(filteredData);
                 const placeholders = keys.map((_, i) => `$${i + 1}`).join(",");
 
                 try {
-                    const insertResult: any = await db.execute(
+                    const insertResult = await db.execute(
                         `INSERT INTO entries (${keys.join(",")}) VALUES (${placeholders})`,
                         values
                     );
 
-                    mediaIdMap.set(oldId, insertResult.lastInsertId);
-                    // Record the new key so duplicates within the same file are
-                    // also skipped (preserving the original per-row behavior).
-                    existingMediaKeys.set(dedupKey, insertResult.lastInsertId);
+                    const newId = canPreserveId ? oldId : insertResult.lastInsertId;
+                    if (newId === undefined) {
+                        throw new Error("Database did not return an ID for the imported entry");
+                    }
+                    mediaIdMap.set(oldId, newId);
                     result.mediaEntriesImported++;
                 } catch (insertError) {
                     console.error('[CSV] Failed to insert entry:', entry.name, insertError);

@@ -1063,7 +1063,7 @@ export default function Settings() {
                                 <div>
                                     <div className="settings-row-label">Import Data</div>
                                     <div className="settings-row-description">
-                                        Restore data from a JSON or ZIP backup file. Duplicate entries will be skipped.
+                                        Restore data from a JSON or ZIP backup file. Existing entries are skipped only when all exported fields match.
                                     </div>
                                 </div>
                                 <button
@@ -1386,7 +1386,7 @@ export default function Settings() {
                                             <strong style={{ color: 'var(--color-primary)' }}>{importResult.mediaEntriesImported}</strong>
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Media entries skipped (duplicates):</span>
+                                            <span>Media entries already present (exact matches):</span>
                                             <strong>{importResult.mediaEntriesSkipped}</strong>
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
