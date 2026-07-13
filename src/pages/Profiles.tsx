@@ -837,11 +837,12 @@ export default function ProfilesPage() {
   if (selectedProfile && selectedProfileConfig) {
     // Crop applied to the hero cover — live draft while editing, otherwise the saved value.
     const activeCrop = isCropEditing ? draftCrop : (selectedProfile.crop ?? DEFAULT_CROP);
+    const TypeIcon = selectedProfileConfig.icon;
     return (
       <>
       <div className="animate-in fade-in duration-500 -mx-6 -mt-6">
         {/* Split Hero - Cover-focused header */}
-        <div className="relative flex flex-col md:flex-row min-h-[340px] overflow-hidden rounded-b-3xl profile-header-enter">
+        <div className="relative flex flex-col md:flex-row min-h-[340px] overflow-hidden rounded-b-3xl rounded-tl-3xl profile-header-enter">
           {/* Ambient blurred wash of the cover (cohesion layer behind everything) */}
           {headerImgSrc ? (
             <img
@@ -1055,10 +1056,9 @@ export default function ProfilesPage() {
 
           {/* RIGHT: Info panel */}
           <div className="relative z-10 flex-1 min-w-0 p-8 md:p-10 flex flex-col justify-center gap-4">
-            {/* Eyebrow */}
+            {/* Type identity — stated once, with the type's own icon */}
             <div className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] ${selectedProfileConfig.accentColor}`}>
-              <span>Profile</span>
-              <span className="opacity-50">·</span>
+              <TypeIcon size={15} className={selectedProfileConfig.iconColor} />
               <span>{selectedProfileConfig.label}</span>
             </div>
 
@@ -1067,57 +1067,65 @@ export default function ProfilesPage() {
               {selectedProfile.name}
             </h1>
 
-            {/* Type badge */}
-            <div>
-              <span className={`inline-block capitalize bg-gradient-to-r ${selectedProfileConfig.badgeGradient} px-4 py-1.5 rounded-full text-sm font-bold text-white shadow-lg ${selectedProfileConfig.badgeShadow}`}>
-                {selectedProfile.type}
-              </span>
-            </div>
-
-            {/* Compact inline stats */}
-            <div className="flex flex-wrap items-center gap-2 mt-1">
-              <span className="inline-flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3.5 py-1.5 text-sm font-medium text-white">
-                <Hash size={15} className={selectedProfileConfig.iconColor} />
-                {selectedProfile.count}
-                <span className="text-gray-400">entries</span>
-              </span>
-              {selectedProfile.average_score > 0 && (
-                selectedProfile.track_avg_history ? (
-                  <button
-                    onClick={() => setAvgHistoryOpen(true)}
-                    className="group inline-flex items-center gap-1.5 bg-white/5 border border-yellow-400/40 hover:border-yellow-400/80 hover:bg-yellow-400/10 rounded-full px-3.5 py-1.5 text-sm font-medium text-white transition-all"
-                    title="View AVG rating history"
-                  >
-                    <Star size={15} className="text-yellow-400" fill="currentColor" />
-                    {selectedProfile.average_score}
-                    <span className="text-gray-400">avg</span>
-                    <Activity size={13} className="text-yellow-400/80 group-hover:text-yellow-400 transition-colors" />
-                  </button>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3.5 py-1.5 text-sm font-medium text-white">
-                    <Star size={15} className="text-yellow-400" fill="currentColor" />
-                    {selectedProfile.average_score}
-                    <span className="text-gray-400">avg</span>
-                  </span>
-                )
-              )}
-            </div>
-
-            {/* Slim rating bar */}
-            {selectedProfile.average_score > 0 && (
-              <div className="max-w-sm mt-1">
-                <div className="flex justify-between text-xs mb-1.5">
-                  <span className="text-gray-400">Rating</span>
-                  <span className="text-white font-medium">{selectedProfile.average_score}/10</span>
-                </div>
-                <div className="h-1.5 bg-black/40 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full bg-gradient-to-r ${selectedProfileConfig.barGradient} rounded-full transition-all duration-1000`}
-                    style={{ width: `${(selectedProfile.average_score / 10) * 100}%` }}
-                  />
-                </div>
+            {/* Stat strip — big numbers, rating bar merged into the Avg stat */}
+            <div className="flex items-stretch gap-6 mt-2">
+              {/* Entries */}
+              <div className="flex flex-col">
+                <span className="text-3xl md:text-4xl font-bold text-white tabular-nums leading-none">
+                  {selectedProfile.count}
+                </span>
+                <span className="mt-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-gray-400">
+                  Entries
+                </span>
               </div>
-            )}
+
+              {selectedProfile.average_score > 0 && (() => {
+                const AvgCell = selectedProfile.track_avg_history ? "button" : "div";
+                return (
+                  <>
+                    {/* Divider */}
+                    <div className="w-px self-stretch bg-white/10" />
+
+                    {/* Avg rating — the old rating bar lives here now */}
+                    <AvgCell
+                      {...(selectedProfile.track_avg_history
+                        ? {
+                            onClick: () => setAvgHistoryOpen(true),
+                            title: "View AVG rating history",
+                          }
+                        : {})}
+                      className={`group flex flex-col flex-1 max-w-xs text-left ${
+                        selectedProfile.track_avg_history
+                          ? "cursor-pointer rounded-lg -m-1.5 p-1.5 transition-colors hover:bg-yellow-400/5"
+                          : ""
+                      }`}
+                    >
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-3xl md:text-4xl font-bold text-white tabular-nums leading-none">
+                          {selectedProfile.average_score}
+                        </span>
+                        <span className="text-sm font-medium text-gray-500">/10</span>
+                        <Star size={16} className="self-center text-yellow-400" fill="currentColor" />
+                        {selectedProfile.track_avg_history && (
+                          <Activity size={14} className="self-center text-yellow-400/70 transition-colors group-hover:text-yellow-400" />
+                        )}
+                      </div>
+                      <div className="mt-2 flex items-center gap-2.5">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-gray-400 whitespace-nowrap">
+                          Avg Rating
+                        </span>
+                        <div className="h-1.5 flex-1 bg-black/40 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full bg-gradient-to-r ${selectedProfileConfig.barGradient} rounded-full transition-all duration-1000`}
+                            style={{ width: `${(selectedProfile.average_score / 10) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    </AvgCell>
+                  </>
+                );
+              })()}
+            </div>
           </div>
         </div>
 
