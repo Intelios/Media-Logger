@@ -85,6 +85,14 @@ export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit,
     return () => window.removeEventListener("click", handleClick);
   }, [showMenu]);
 
+  // The menu portal is a React child, so moving the pointer into it never
+  // fires mouseleave on the case — reset the tooltip on any menu open/close
+  // so it can't reappear once a menu action (edit/remove) closes the menu.
+  useEffect(() => {
+    clearTimeout(tooltipTimeoutRef.current);
+    setShowTooltip(false);
+  }, [showMenu]);
+
   const handleMenuClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (showMenu) {
