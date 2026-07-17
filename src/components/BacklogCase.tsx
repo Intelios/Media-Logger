@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Play, Pause, Check, Pencil, Trash2, MoreVertical, Film, Tv, MonitorPlay, Gamepad2, BookOpen, Disc3, Heart, Monitor, Tag, Calendar, CalendarClock } from "lucide-react";
+import { Play, Pause, Check, Pencil, Trash2, MoreVertical, Film, Tv, MonitorPlay, Gamepad2, BookOpen, Disc3, Heart, Monitor, Tag, Calendar, CalendarClock, Hourglass } from "lucide-react";
 import { useImageSource } from "../lib/utils";
-import { formatShortDate } from "../lib/dates";
+import { formatShortDate, getDaysUntil } from "../lib/dates";
 import { cn } from "../lib/utils_ui";
 import type { BacklogItem } from "../lib/db";
 
@@ -261,6 +261,7 @@ export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit,
 
 function BacklogTooltip({ item, genres, anchorEl }: { item: BacklogItem; genres: string[]; anchorEl: HTMLElement }) {
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const daysUntilRelease = getDaysUntil(item.release_date);
 
   const pos = useMemo(() => {
     const rect = anchorEl.getBoundingClientRect();
@@ -326,10 +327,22 @@ function BacklogTooltip({ item, genres, anchorEl }: { item: BacklogItem; genres:
       </div>
 
       {item.status === 'unreleased' && item.release_date && (
-        <div className="flex items-center gap-1.5 text-[10px] text-sky-400 mt-1">
-          <CalendarClock size={10} />
-          <span>Releases {formatShortDate(item.release_date)}</span>
-        </div>
+        <>
+          <div className="flex items-center gap-1.5 text-[10px] text-sky-400 mt-1">
+            <CalendarClock size={10} />
+            <span>Releases {formatShortDate(item.release_date)}</span>
+          </div>
+          {daysUntilRelease !== null && daysUntilRelease >= 0 && (
+            <div className="flex items-center gap-1.5 text-[10px] text-sky-400 mt-1">
+              <Hourglass size={10} />
+              <span>
+                {daysUntilRelease === 0
+                  ? 'Releases Today!'
+                  : `${daysUntilRelease} ${daysUntilRelease === 1 ? 'Day' : 'Days'} Until Release`}
+              </span>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

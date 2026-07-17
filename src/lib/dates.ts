@@ -46,6 +46,18 @@ export const getYearsAgo = (dateString: string | null): number | null => {
   return years;
 };
 
+// Whole days from today until a date, midnight-to-midnight (time of day ignored).
+// Returns null for invalid/missing input, 0 for today, negative for past dates.
+export const getDaysUntil = (dateString: string | null): number | null => {
+  if (!dateString) return null;
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
+};
+
 // Today as month + ordinal day, e.g. "June 9th"
 export const formatTodayMD = (): string => {
   const today = new Date();
