@@ -2,6 +2,7 @@ import { Suspense, lazy, type ReactNode } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { ThemeProvider } from "./lib/ThemeContext";
+import { useAnimationPause } from "./lib/useAnimationPause";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const YearView = lazy(() => import("./pages/YearView"));
@@ -33,6 +34,8 @@ function LazyRoute({ children }: { children: ReactNode }) {
 }
 
 function App() {
+  useAnimationPause();
+
   return (
     <ThemeProvider>
       <BrowserRouter>

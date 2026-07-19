@@ -7,6 +7,7 @@ name = "Media-Logger"
 version = "3.8.1"
 dependencies = [
  "chrono",
+ "objc2",
  "same-file",
  "serde",
  "serde_json",

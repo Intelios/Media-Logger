@@ -1318,6 +1318,33 @@ fn move_images_to_trash(
     Ok(result)
 }
 
+// While the window is unfocused, WindowServer continuously recomposites a
+// transparent window (~25-40% GPU utilization measured on macOS 26 even with
+// fully static content). Making the window opaque whenever it loses focus
+// stops that; transparency (and the glass look) is restored on focus.
+#[cfg(target_os = "macos")]
+fn set_native_window_opaque(window: &tauri::Window, opaque: bool) {
+    use objc2::runtime::AnyObject;
+    use objc2::{class, msg_send};
+
+    let Ok(ns_ptr) = window.ns_window() else {
+        return;
+    };
+    if ns_ptr.is_null() {
+        return;
+    }
+    let ns_window = ns_ptr as *mut AnyObject;
+    unsafe {
+        let color: *mut AnyObject = if opaque {
+            msg_send![class!(NSColor), blackColor]
+        } else {
+            msg_send![class!(NSColor), clearColor]
+        };
+        let _: () = msg_send![ns_window, setBackgroundColor: color];
+        let _: () = msg_send![ns_window, setOpaque: opaque];
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1334,6 +1361,14 @@ pub fn run() {
             list_asset_images,
             move_images_to_trash
         ])
+        .on_window_event(|window, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::WindowEvent::Focused(focused) = event {
+                set_native_window_opaque(window, !focused);
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (window, event);
+        })
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
 

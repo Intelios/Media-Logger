@@ -10,6 +10,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Energy saver: useAnimationPause adds this class while the window is
+   unfocused or hidden. Freezing the infinite decorative animations (dashboard
+   ken-burns, score glows, shimmers) stops WindowServer/GPU from recompositing
+   the translucent window every frame while the app sits in the background. */
+html.animations-paused *,
+html.animations-paused *::before,
+html.animations-paused *::after {
+  animation-play-state: paused !important;
+}
+
 .cv-auto {
   content-visibility: auto;
   contain-intrinsic-size: auto 420px;
