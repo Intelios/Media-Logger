@@ -215,7 +215,7 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
     ),
   }),
   authors: createStatsWidgetDefinition("authors", {
-    isAvailable: (context) => isRelevantToEntryTypes(context.selectedTypes, ["Book"]),
+    isAvailable: (context) => isRelevantToEntryTypes(context.selectedTypes, ["Book", "Comic"]),
     render: (context) => (
       <BreakdownListWidget
         widgetId="authors"

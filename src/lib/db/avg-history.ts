@@ -82,7 +82,7 @@ export async function appendAvgHistoryForAffectedProfiles(entry: MediaEntry): Pr
   collect('author', 'author', true);
   collect('platform', 'platform', entry.entry_type === 'Game');
   collect('franchise', 'franchise', entry.entry_type === 'Game');
-  collect('series', 'series', ['Show', 'K-Drama', 'Anime'].includes(entry.entry_type || ''));
+  collect('series', 'series', ['Show', 'K-Drama', 'Anime', 'Comic'].includes(entry.entry_type || ''));
 
   if (pairs.length === 0) return;
 

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Play, Pause, Check, Pencil, Trash2, MoreVertical, Film, Tv, MonitorPlay, Gamepad2, BookOpen, Disc3, Heart, Monitor, Tag, Calendar, CalendarClock, Hourglass } from "lucide-react";
+import { Play, Pause, Check, Pencil, Trash2, MoreVertical, Film, Tv, MonitorPlay, Gamepad2, BookOpen, Disc3, Heart, Monitor, Tag, Calendar, CalendarClock, Hourglass, Zap } from "lucide-react";
 import { useImageSource } from "../lib/utils";
 import { formatShortDate, getDaysUntil } from "../lib/dates";
 import { cn } from "../lib/utils_ui";
@@ -15,6 +15,7 @@ const getSpineColor = (type: string) => {
   if (t.includes("movie")) return "bg-blue-600";
   if (t.includes("show")) return "bg-cyan-600";
   if (t.includes("book")) return "bg-amber-600";
+  if (t.includes("comic")) return "bg-orange-600";
   if (t.includes("jav") || t.includes("hentai")) return "bg-rose-600";
   if (t.includes("visual novel")) return "bg-indigo-600";
   return "bg-gray-600";
@@ -29,6 +30,7 @@ const getTypeIcon = (type: string) => {
   if (t.includes("movie")) return <Film size={28} />;
   if (t.includes("show")) return <Tv size={28} />;
   if (t.includes("book")) return <BookOpen size={28} />;
+  if (t.includes("comic")) return <Zap size={28} />;
   if (t.includes("jav") || t.includes("hentai")) return <Heart size={28} />;
   if (t.includes("visual novel")) return <Monitor size={28} />;
   return <Tag size={28} />;
@@ -43,6 +45,7 @@ const getSpineGradient = (type: string) => {
   if (t.includes("movie")) return "from-blue-700 to-blue-500";
   if (t.includes("show")) return "from-cyan-700 to-cyan-500";
   if (t.includes("book")) return "from-amber-700 to-amber-500";
+  if (t.includes("comic")) return "from-orange-700 to-orange-500";
   if (t.includes("jav") || t.includes("hentai")) return "from-rose-700 to-rose-500";
   if (t.includes("visual novel")) return "from-indigo-700 to-indigo-500";
   return "from-gray-700 to-gray-500";

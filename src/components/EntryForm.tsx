@@ -220,13 +220,13 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
         next.update_version = null;
       }
 
-      // Series applies only to Show, K-Drama, and Anime.
-      if (key === "entry_type" && !["Show", "K-Drama", "Anime"].includes(value as string)) {
+      // Series applies only to Show, K-Drama, Anime, and Comic.
+      if (key === "entry_type" && !["Show", "K-Drama", "Anime", "Comic"].includes(value as string)) {
         next.series = null;
       }
 
-      // Author applies only to books.
-      if (key === "entry_type" && value !== "Book") {
+      // Author applies only to books and comics.
+      if (key === "entry_type" && !["Book", "Comic"].includes(value as string)) {
         next.author = null;
       }
 
@@ -426,7 +426,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
         </>
       )}
 
-      {formData.entry_type === 'Book' && (
+      {["Book", "Comic"].includes(formData.entry_type || "") && (
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
             <Book size={14} className="text-amber-400" />
@@ -442,7 +442,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
         </div>
       )}
 
-      {["Show", "K-Drama", "Anime"].includes(formData.entry_type || "") && (
+      {["Show", "K-Drama", "Anime", "Comic"].includes(formData.entry_type || "") && (
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
             <Sparkles size={14} className="text-teal-400" />
