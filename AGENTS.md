@@ -8,32 +8,33 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app. No mobile/web plans
 |---|---|
 | `npm run dev` | Vite only, port 1420 browser preview. **No Tauri runtime.** |
 | `npm run tauri dev` | Full Tauri desktop app. Must use this to exercise DB, FS, and native window APIs. |
-| `npm run build` | `tsc && vite build` (frontend type-check + build). |
+| `npm run build` | `tsc && vite build` — `tsc` is the only static check; unused locals/parameters fail it. |
 | `npm run tauri build` | Production desktop bundle. |
 | `npm run tauri` | Tauri CLI passthrough. |
 | `npm run changelog:sync` | Syncs `src/data/changelog.json` with GitHub Releases. **User-only** — requires `gh` CLI auth. |
 
-- No tests, lint, formatter, or CI configs exist and none should be added.
-- TypeScript is strict with `noUnusedLocals`/`noUnusedParameters`: unused variables fail `tsc`.
+- No tests, lint, or formatter exist and none should be added. Sole CI: manual-dispatch Windows build (`.github/workflows/build-windows.yml`).
+- TypeScript is strict with `noUnusedLocals`/`noUnusedParameters`.
 
 ## Architecture
 
 **Frontend (`src/`)**:
 - Entry: `src/main.tsx` → `App.tsx` → `<ThemeProvider>` + `<BrowserRouter>` + `<Layout>` + lazy-loaded pages.
 - Pages: `Dashboard`, `YearView`, `Search`, `Stats`, `Profiles`, `Awards`, `Collections`, `Backlog`, `Review`, `Settings`.
-- `src/lib/db.ts` — singleton `dbService` wrapping `@tauri-apps/plugin-sql`; migrations run on every `connect()`.
+- `src/lib/db/` — data layer (formerly a single `db.ts`). `service.ts` exports the `dbService` singleton facade; `connection.ts` owns `connect()` + legacy-file migration; `migrations.ts` owns schema migrations; `shared.ts` owns adult filtering; `index.ts` is the public barrel. **Submodules must import siblings directly, never the barrel or `service.ts`** — keeps the module graph acyclic.
 - `src/lib/stats-logic.ts` — stats computed in-memory from fetched rows, not SQL aggregations.
 - `src/lib/themes.ts` + `src/lib/ThemeContext.tsx` — CSS-variable theming persisted to `localStorage`.
-- `src/lib/settings.ts` — `localStorage`-based settings (data dir, display name, nav years, adult-media toggle).
-- `src/lib/utils.ts` — image loading via `@tauri-apps/plugin-fs` (reads local files → blob URLs), ref-counted cache.
+- `src/lib/settings.ts` — `localStorage`-based settings (data dir, display name, nav years, adult-media toggle, etc.).
+- `src/lib/utils.ts` — image loading via `@tauri-apps/plugin-fs` (reads local files → blob URLs), ref-counted cache (`releaseImageUrl`). The asset protocol is **not** enabled — `convertFileSrc()` URLs would fail; never use it.
 - `src/lib/media-config.tsx` — canonical entry types and adult filtering helpers.
 
 **Backend (`src-tauri/`)**:
 - `main.rs` → calls `media_logger_lib::run()`.
-- `lib.rs` — Tauri builder with plugins (sql, fs, dialog, opener, updater, liquid-glass), native macOS menu bar, and backup zip/unzip commands.
-- Native commands: `apply_glass_style`, `create_backup_zip`, `read_backup_zip`, `extract_backup_assets`.
-- Backup ZIP bundles `backup.json` plus the `assets/` directory. Rust uses `zip` crate; no external `zip`/`unzip` dependency.
-- Window is transparent for macOS glass/vibrancy effects.
+- `lib.rs` — Tauri builder with plugins (sql, fs, dialog, opener, liquid-glass), native macOS menu bar, and backup zip/unzip commands.
+- Native commands: `apply_glass_style`, `create_backup_zip`, `read_backup_zip`, `extract_backup_assets`, `list_asset_images`, `move_images_to_trash`.
+- Backup ZIP bundles `backup.json` plus the `assets/` directory. Rust uses the `zip` crate; no external `zip`/`unzip` dependency.
+- Window is transparent for macOS glass/vibrancy; on macOS the native window intentionally toggles opaque↔transparent on focus change.
+- `@tauri-apps/plugin-updater` is in `package.json` but no updater plugin is registered in Rust — auto-update is not actually wired up despite the README claim.
 
 **Routing** (`react-router-dom`): `/`, `/year/:year`, `/search`, `/stats`, `/profiles`, `/awards`, `/collections`, `/backlog`, `/review`, `/settings`.
 
@@ -47,10 +48,10 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app. No mobile/web plans
 
 ## DB / Data Quirks
 
-- SQLite canonical filename is `media_logger.db` (`DB_FILENAME` in `src/lib/db.ts`).
-- Legacy installs used `jav_log.db`; `dbService.connect()` migrates once by copying the file plus `-wal`/`-shm` sidecars, leaving the original untouched as a backup. **Do not delete or reopen it.**
-- DB path is `{appLocalDataDir}/media_logger.db` or a user-configured custom path (`getDataDirectory`).
-- Migrations run automatically on every `connect()` — schema evolves forward, never reset.
+- SQLite canonical filename is `media_logger.db` (`DB_FILENAME` in `src/lib/db/connection.ts`).
+- Default data dir: `~/Library/Application Support/com.medialogger.data/` (bundle id `com.medialogger.data`), or a user-configured custom path (`getDataDirectory`). **Dev and production builds share the same real DB** — back it up before seeding or destructive testing. End-to-end verification workflow: `.claude/skills/verify/SKILL.md`.
+- Legacy installs used `jav_log.db`; `connect()` migrates once by copying the file plus `-wal`/`-shm` sidecars, leaving the original untouched as a backup. **Do not delete or reopen it.**
+- `connect()` dedupes concurrent callers and reuses the live connection per path. Schema migrations run **once per connection** (`migrationsRun` guard), not on every `connect()` call — schema evolves forward, never reset.
 - Legacy table renamed: `javs` → `entries`.
 - Boolean-like fields (`is_rewatch`, `is_platinum`, `is_completed`, `own_local_copy`, `has_subtitles`, `is_early_access`) are stored as SQLite integers (0/1), not booleans.
 - `actress` is a comma-delimited string, not a normalized column. Search uses comma-aware `INSTR` matching.
@@ -68,15 +69,15 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app. No mobile/web plans
 ## Native macOS Menu Bar
 
 Defined in Rust (`lib.rs`). Sends Tauri events to the frontend:
-- `menu-navigate` for ⌘1–⌘9 (Dashboard, Year View, Search, Stats, Profiles, Awards, Collections, Backlog, Review).
+- `menu-navigate` for ⌘1–⌘9 (Dashboard, Year View, Search, Stats, Profiles, Awards, Collections, Backlog, Review) and ⌘, (Settings).
 - `menu-new-entry` for ⌘N.
-- ⌘, opens Settings.
 
 ## What NOT to Do
 
 - Do not add test/lint/formatter infrastructure.
 - Do not rename `media_logger.db` or the `entries` table — use `DB_FILENAME` and the `entries` table name.
-- Do not change the DB connection flow — migrations must run on every `connect()`.
+- Do not change the DB connection flow — `connect()` dedupes and reuses connections; migrations run once per connection, schema moves forward only.
 - Do not assume booleans in SQLite — check for the 0/1 integer pattern.
 - Do not assume `npm run dev` gives you a desktop app — use `npm run tauri dev`.
 - Do not delete the legacy `jav_log.db` backup.
+- Do not use `convertFileSrc()` / asset-protocol URLs for images — read via plugin-fs into blob URLs.
