@@ -209,6 +209,9 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
   const isRewatch = entry.is_rewatch === 1;
   const hasLocalCopy = entry.own_local_copy === 1;
   const hasSubtitles = entry.has_subtitles === 1;
+  // The 2px platinum/perfect border curves at 14px on its inside (16px outer - 2px width);
+  // the image must match that inner curve or a dark sliver shows at the top corners
+  const imageTopRadius = hasPlatinum || perfectTen ? "rounded-t-[14px]" : "rounded-t-2xl";
   const elevationShadow = hasPlatinum
     ? "0 30px 60px rgba(0, 0, 0, 0.42), 0 12px 26px rgba(8, 47, 73, 0.28), 0 0 54px rgba(34, 211, 238, 0.22), 0 0 84px rgba(245, 158, 11, 0.14)"
     : perfectTen
@@ -333,18 +336,19 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
         <div className="relative">
           {/* Image Container */}
           <div
-            className="h-52 w-full relative overflow-hidden rounded-t-2xl"
+            className={cn("h-52 w-full relative overflow-hidden", imageTopRadius)}
             style={{ WebkitMaskImage: "-webkit-radial-gradient(white, black)" }}
           >
             {(imgStatus === 'loading' || !coverRevealed) && (
-              <div className="cover-skeleton absolute inset-0 rounded-t-2xl" aria-hidden="true" />
+              <div className={cn("cover-skeleton absolute inset-0", imageTopRadius)} aria-hidden="true" />
             )}
             {imgStatus !== 'loading' && (
               <img
                 src={imgSrc || DEFAULT_COVER_IMAGE}
                 alt={entry.name}
                 className={cn(
-                  "w-full h-full rounded-t-2xl object-cover transition duration-500 group-hover:scale-110",
+                  "w-full h-full object-cover transition duration-500 group-hover:scale-110",
+                  imageTopRadius,
                   coverRevealed ? "opacity-100" : "opacity-0"
                 )}
                 loading="lazy"
@@ -354,7 +358,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
             )}
 
             {/* Gradient Overlay */}
-            <div className="absolute inset-0 rounded-t-2xl bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className={cn("absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300", imageTopRadius)} />
 
             {/* Platinum Badge */}
             {hasPlatinum && (
