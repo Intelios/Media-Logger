@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Book, Film, Gamepad, Gamepad2, Heart, Music, Sparkles, Star, Tag, Zap, type LucideIcon } from "lucide-react";
+import { Book, Film, Gamepad, Gamepad2, Heart, Music, Sparkles, Star, Tag, type LucideIcon } from "lucide-react";
 import { isAdultMediaEnabled, ADULT_MEDIA_VISIBILITY_CHANGED_EVENT } from "./settings";
 
 export const ENTRY_TYPES: string[] = [
@@ -7,7 +7,6 @@ export const ENTRY_TYPES: string[] = [
   "Show",
   "Anime",
   "Book",
-  "Comic",
   "Album",
   "K-Drama",
   "JAV",
@@ -22,7 +21,6 @@ export const ENTRY_TYPE_OPTIONS: { value: string; icon: ReactNode }[] = [
   { value: "Show", icon: <Film size={14} /> },
   { value: "Anime", icon: <Sparkles size={14} /> },
   { value: "Book", icon: <Book size={14} /> },
-  { value: "Comic", icon: <Zap size={14} /> },
   { value: "Album", icon: <Music size={14} /> },
   { value: "K-Drama", icon: <Film size={14} /> },
   { value: "JAV", icon: <Star size={14} /> },
@@ -57,7 +55,7 @@ export const FILTER_PRESETS: Record<FilterPresetKey, MediaFilterPreset> = {
     key: "media",
     label: "Media",
     icon: Film,
-    types: ["K-Drama", "Anime", "Show", "Movie", "Book", "Comic", "Album"],
+    types: ["K-Drama", "Anime", "Show", "Movie", "Book", "Album"],
     gradient: "from-blue-500 via-cyan-500 to-amber-500",
   },
   adult: {

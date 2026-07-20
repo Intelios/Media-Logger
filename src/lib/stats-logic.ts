@@ -80,7 +80,7 @@ export interface StatsDataset {
   entries: MediaEntry[];
   ratedEntries: Array<MediaEntry & { review_score: number }>;
   gameEntries: MediaEntry[];
-  seriesEntries: MediaEntry[];
+  tvEntries: MediaEntry[];
   now: Date;
 }
 
@@ -130,8 +130,8 @@ function isGameEntry(entry: MediaEntry) {
   return typeof entry.entry_type === "string" && entry.entry_type.trim().toLowerCase() === "game";
 }
 
-function isSeriesEntry(entry: MediaEntry) {
-  return typeof entry.entry_type === "string" && ["show", "k-drama", "anime", "comic"].includes(entry.entry_type.trim().toLowerCase());
+function isTvEntry(entry: MediaEntry) {
+  return typeof entry.entry_type === "string" && ["show", "k-drama", "anime"].includes(entry.entry_type.trim().toLowerCase());
 }
 
 function getMonthFromDate(dateStr: string) {
@@ -196,7 +196,7 @@ export function createStatsDataset(entries: MediaEntry[], now = new Date()): Sta
     entries,
     ratedEntries: entries.filter(hasReviewScore),
     gameEntries: entries.filter(isGameEntry),
-    seriesEntries: entries.filter(isSeriesEntry),
+    tvEntries: entries.filter(isTvEntry),
     now,
   };
 }
@@ -300,7 +300,7 @@ export function selectFranchises(dataset: StatsDataset) {
 }
 
 export function selectSeries(dataset: StatsDataset) {
-  return countWithScores(dataset.seriesEntries, "series").slice(0, 25);
+  return countWithScores(dataset.tvEntries, "series").slice(0, 25);
 }
 
 export function selectStudios(dataset: StatsDataset) {

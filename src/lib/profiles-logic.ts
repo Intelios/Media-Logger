@@ -163,7 +163,7 @@ async function aggregateAllProfiles(): Promise<ProfileSummary[]> {
         processField(entry, "franchise", "franchise");
       }
     }
-    if (["Show", "K-Drama", "Anime", "Comic"].includes(entry.entry_type || "")) {
+    if (["Show", "K-Drama", "Anime"].includes(entry.entry_type || "")) {
       if (entry.series) {
         processField(entry, "series", "series");
       }

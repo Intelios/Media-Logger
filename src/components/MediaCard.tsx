@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus, Clock, Captions, Zap } from "lucide-react";
+import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus, Clock, Captions } from "lucide-react";
 import { DEFAULT_COVER_IMAGE, useImageSource } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
@@ -22,7 +22,6 @@ export const getTypeBadgeStyle = (type: string | null) => {
   if (t.includes("movie")) return { bg: "bg-blue-600", icon: <Film size={12} /> };
   if (t.includes("show")) return { bg: "bg-cyan-600", icon: <Tv size={12} /> };
   if (t.includes("book")) return { bg: "bg-amber-600", icon: <BookOpen size={12} /> };
-  if (t.includes("comic")) return { bg: "bg-orange-600", icon: <Zap size={12} /> };
   if (t.includes("jav") || t.includes("hentai")) return { bg: "bg-rose-600", icon: <Heart size={12} /> };
   if (t.includes("visual novel")) return { bg: "bg-indigo-600", icon: <Monitor size={12} /> };
   return { bg: "bg-gray-600", icon: <MonitorPlay size={12} /> };
@@ -48,7 +47,7 @@ const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon
   if (type.includes("album") && entry.artist) {
     items.push({ label: "Artist", value: entry.artist, icon: <Disc3 size={12} />, profileType: "artist" });
   }
-  if ((type.includes("book") || type.includes("comic")) && entry.author) {
+  if (type.includes("book") && entry.author) {
     items.push({ label: "Author", value: entry.author, icon: <BookOpen size={12} />, profileType: "author" });
   }
   if (type.includes("game") && entry.platform) {

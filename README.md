@@ -41,7 +41,6 @@ Media Logger supports:
 - `Show`
 - `Anime`
 - `Book`
-- `Comic`
 - `Album`
 - `K-Drama`
 - `Game`

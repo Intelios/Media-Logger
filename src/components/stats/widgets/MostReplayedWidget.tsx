@@ -27,7 +27,6 @@ const TYPE_COLORS: Record<string, string> = {
   movie: "bg-indigo-500/15 text-indigo-400 border-indigo-500/20",
   jav: "bg-pink-500/15 text-pink-400 border-pink-500/20",
   hentai: "bg-purple-500/15 text-purple-400 border-purple-500/20",
-  comic: "bg-teal-500/15 text-teal-400 border-teal-500/20",
 };
 
 function getTypeColor(entryType: string | null): string {
