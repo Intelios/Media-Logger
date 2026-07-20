@@ -1,8 +1,40 @@
 {
-  "generatedAt": "2026-07-17T19:28:47.222Z",
+  "generatedAt": "2026-07-20T18:16:06.023Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "3.9",
+      "title": "Media Logger - 3.9",
+      "date": "2026-07-20",
+      "body": "New Content/Features:\n- Added an MCP feature so you can allow an AI assistant to access your library for recommendations or other usages. Privacy respecting, so won't touch anything it's not meant to and also hides notes just in case of private info.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.9"
+    },
+    {
+      "version": "3.8.4",
+      "title": "Media Logger - 3.8.4",
+      "date": "2026-07-20",
+      "body": "New Content/Features:\n- Dates on the profile page collection cards now stand out more, shown in the profile's accent color so you can see at a glance when each entry was completed. Cards elsewhere in the app are unchanged.\n\nBug Fixes:\n- Fixed an issue where on the profile page if using the 'clear' / liquid glass style on MacOS the background would become darkened with dense content in the profile page.\n- Fixed a issue where the 'Edit' button in the drop down on a media card didn't have correct highlighting.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.8.4"
+    },
+    {
+      "version": "3.8.3",
+      "title": "Media Logger - 3.8.3",
+      "date": "2026-07-19",
+      "body": "- Fixed a bug where the 10/10 & Platinum glow effect had a small gap in the effect.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.8.3"
+    },
+    {
+      "version": "3.8.2",
+      "title": "Media Logger - 3.8.2",
+      "date": "2026-07-19",
+      "body": "- Fixed a critical bug on MacOS which led to extremely high GPU usage and battery drain when the app was hidden but not minimised. This has no impact on the Windows version.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.8.2"
+    },
     {
       "version": "3.8.1",
       "title": "Media Logger - 3.8.1",
