@@ -870,6 +870,7 @@ pub struct SearchMediaRequest {
     pub sort: String,
     /// Page size. Defaults to 25 and is capped at 100.
     #[serde(default)]
+    #[schemars(with = "Option<i64>")]
     pub limit: Option<u32>,
     /// Opaque continuation cursor returned by a prior call with the same filters.
     #[serde(default)]
@@ -904,6 +905,7 @@ pub struct ListBacklogRequest {
     #[serde(default)]
     pub statuses: Vec<String>,
     #[serde(default)]
+    #[schemars(with = "Option<i64>")]
     pub limit: Option<u32>,
     #[serde(default)]
     pub cursor: Option<String>,
@@ -916,7 +918,9 @@ fn default_sort() -> String {
 #[derive(Debug, Clone, Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PaginationMetadata {
+    #[schemars(with = "i64")]
     pub limit: u32,
+    #[schemars(with = "i64")]
     pub returned: usize,
     pub has_more: bool,
     pub next_cursor: Option<String>,
@@ -990,6 +994,7 @@ pub struct GetMediaDetailsResponse {
 #[serde(rename_all = "camelCase")]
 pub struct CountedValue {
     pub value: String,
+    #[schemars(with = "i64")]
     pub count: usize,
 }
 
@@ -997,6 +1002,7 @@ pub struct CountedValue {
 #[serde(rename_all = "camelCase")]
 pub struct YearCount {
     pub year: i32,
+    #[schemars(with = "i64")]
     pub count: usize,
 }
 
@@ -1007,7 +1013,9 @@ pub struct SummarizeLibraryResponse {
     pub notes_included: bool,
     pub pagination: PaginationMetadata,
     pub truncation: TruncationMetadata,
+    #[schemars(with = "i64")]
     pub total_count: usize,
+    #[schemars(with = "i64")]
     pub rated_count: usize,
     pub average_score: Option<f64>,
     pub type_counts: Vec<CountedValue>,

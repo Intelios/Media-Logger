@@ -61,7 +61,7 @@ Entries can include completion date, score, description, notes, local artwork, g
 - Custom collections for building ranked lists, themed shelves, favorites, or any other hand-picked grouping with drag-and-drop reordering.
 - A yearly awards system with reusable templates and winner history across years.
 - A backlog for tracking what you plan to watch, play, or read next, with in-progress and planning statuses, type filtering, and one-click promotion to a completed entry.
-- Optional local MCP access for querying your completed library and backlog from Codex or VS Code while Media Logger is running.
+- Optional local MCP access for querying your completed library and backlog from Codex, VS Code, or OpenCode while Media Logger is running.
 - An animated year-in-review slideshow that generates themed slides for any year or month, covering top genres, perfect tens, biggest months, hidden gems, award winners, genre clouds, and more.
 - Appearance controls with multiple color themes, glass styling, rating display modes (pill or thermometer), and a personalized dashboard greeting.
 - Keyboard shortcuts for fast navigation across all major areas.
@@ -103,7 +103,9 @@ Media Logger can expose a small, read-only Model Context Protocol (MCP) server t
 - MCP tools can search completed entries, fetch safe entry details, summarize the library, and list backlog items. They cannot add, edit, or delete anything.
 - Recent access history contains only the client label, tool name, time, outcome, and result count; it does not store media titles, filters, descriptions, or tokens.
 
-To connect Codex or VS Code, enable AI Access, create a named connection, and copy the generated configuration shown by the app. The token is displayed once. Revoke that connection and create a replacement if the token is lost or exposed.
+To connect Codex, VS Code, or OpenCode, enable AI Access, create a named connection, and copy the generated configuration shown by the app. The token is displayed once. Revoke that connection and create a replacement if the token is lost or exposed.
+
+For OpenCode, merge the generated `mcp` object into the global `~/.config/opencode/opencode.json` file, or into a project-level `opencode.json` if access should be limited to one project. The entry uses OpenCode's `remote` transport, disables OAuth discovery because Media Logger uses a bearer token, and sends that token through the `Authorization` header. Restart OpenCode and run `opencode mcp list` to verify the connection. See the [OpenCode MCP server documentation](https://opencode.ai/docs/mcp-servers/) for configuration and troubleshooting details.
 
 The configured client may report that Media Logger is unavailable while the app is closed or AI Access is disabled. This is expected: there is no background service or internet-facing relay. Although the MCP endpoint itself is local, the AI client may send returned metadata to its configured model provider, so review that provider's privacy settings before enabling access.
 

@@ -234,6 +234,24 @@ export function buildVsCodeMcpConfig(secret: McpCredentialSecret): string {
     }, null, 2);
 }
 
+/** Copyable OpenCode global `opencode.json` fragment; this never edits OpenCode settings. */
+export function buildOpenCodeMcpConfig(secret: McpCredentialSecret): string {
+    return JSON.stringify({
+        $schema: 'https://opencode.ai/config.json',
+        mcp: {
+            'media-logger': {
+                type: 'remote',
+                url: secret.endpoint,
+                enabled: true,
+                oauth: false,
+                headers: {
+                    Authorization: `Bearer ${secret.token}`,
+                },
+            },
+        },
+    }, null, 2);
+}
+
 /**
  * Keeps the native MCP lifecycle aligned with the app database and privacy
  * policy. It intentionally has no React state: Settings consumes the typed

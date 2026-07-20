@@ -62,6 +62,7 @@ import type { ColorTheme, GlassStyle } from '../lib/themes';
 import { getCurrentYearString, updateNavigationYears } from '../lib/navigation-years';
 import {
     buildCodexMcpConfig,
+    buildOpenCodeMcpConfig,
     buildVsCodeMcpConfig,
     chooseNewMcpEndpoint,
     clearMcpAccessLog,
@@ -926,6 +927,7 @@ export default function Settings() {
     const mcpRuntimeState = mcpStatus?.runtimeState ?? (mcpLoadError ? 'error' : null);
     const mcpError = mcpStatus?.error ?? mcpLoadError;
     const codexMcpConfig = newCredential ? buildCodexMcpConfig(newCredential) : '';
+    const openCodeMcpConfig = newCredential ? buildOpenCodeMcpConfig(newCredential) : '';
     const vsCodeMcpConfig = newCredential ? buildVsCodeMcpConfig(newCredential) : '';
 
     const navItems: { id: SettingsSection; label: string; icon: React.ReactNode }[] = [
@@ -2172,6 +2174,24 @@ export default function Settings() {
                                     </button>
                                 </div>
                                 <pre className="mcp-config-code"><code>{vsCodeMcpConfig}</code></pre>
+                            </div>
+
+                            <div className="mcp-setup-field">
+                                <div className="mcp-setup-field-heading">
+                                    <div>
+                                        <label>OpenCode global opencode.json</label>
+                                        <span>Merge this into ~/.config/opencode/opencode.json without replacing unrelated settings.</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="settings-btn settings-btn-secondary"
+                                        onClick={() => void handleCopyMcpValue(openCodeMcpConfig, 'OpenCode configuration')}
+                                    >
+                                        <Copy size={13} />
+                                        Copy
+                                    </button>
+                                </div>
+                                <pre className="mcp-config-code"><code>{openCodeMcpConfig}</code></pre>
                             </div>
 
                             <div className="ai-access-provider-warning">
