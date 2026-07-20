@@ -502,7 +502,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
             <div className="h-px bg-white/10" />
             <button
               onClick={handleEdit}
-              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-primary/20 hover:text-primary transition-colors"
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] hover:text-primary transition-colors"
             >
               <Pencil size={14} />
               <span>Edit</span>
