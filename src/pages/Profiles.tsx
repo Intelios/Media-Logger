@@ -1272,7 +1272,13 @@ export default function ProfilesPage() {
                     opacity: 0
                   }}
                 >
-                  <MediaCard entry={entry} awards={entry.id ? awardsMap.get(entry.id) : undefined} />
+                  <MediaCard
+                    entry={entry}
+                    awards={entry.id ? awardsMap.get(entry.id) : undefined}
+                    dateEmphasis="prominent"
+                    dateAccentClass={selectedProfileConfig.color}
+                    dateTintClass={selectedProfileConfig.surfaceTintClass}
+                  />
                 </div>
               ))}
             </div>

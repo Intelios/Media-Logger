@@ -101,6 +101,13 @@ interface MediaCardProps {
   onEdit?: (entry: MediaEntry) => void;
   onDelete?: (id: number) => void;
   onDuplicate?: (entry: MediaEntry) => void;
+  // Date footer emphasis. 'default' is the quiet gray footer used everywhere;
+  // 'prominent' is an opt-in loud footer (used on the Profiles page, where the
+  // date is what you're scanning for). Accent classes tint it to the context —
+  // e.g. the profile's own accent color.
+  dateEmphasis?: 'default' | 'prominent';
+  dateAccentClass?: string; // text color, e.g. "text-blue-400"
+  dateTintClass?: string;   // gradient bg, e.g. "from-blue-500/12 to-cyan-500/6"
 }
 
 function PortalTooltip({ children, anchorRef }: { children: React.ReactNode; anchorRef: React.RefObject<HTMLElement | null> }) {
@@ -159,7 +166,7 @@ function PortalTooltip({ children, anchorRef }: { children: React.ReactNode; anc
   );
 }
 
-export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys }: MediaCardProps) {
+export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys, dateEmphasis = 'default', dateAccentClass, dateTintClass }: MediaCardProps) {
   const navigate = useNavigate();
   const { src: imgSrc, status: imgStatus } = useImageSource(entry.image_url);
   // Reveal the cover with a fade once it has actually loaded; cached/remote
@@ -702,10 +709,26 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
 
           {/* Date */}
           {entry.completion_date && (
-            <div className="flex items-center gap-1.5 text-[10px] text-gray-500 mt-auto pt-2 border-t border-white/5">
-              <Calendar size={11} />
-              <span>{formatDate(entry.completion_date)}</span>
-            </div>
+            dateEmphasis === 'prominent' ? (
+              /* Loud footer — opt-in (Profiles page). Bigger, semibold, and
+                 tinted with the context's accent so the date reads at a glance. */
+              <div className="mt-auto pt-2 border-t border-white/5">
+                <div className={cn(
+                  "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 bg-gradient-to-r",
+                  dateTintClass || "from-primary/15 to-primary/5"
+                )}>
+                  <Calendar size={12} className={dateAccentClass || "text-primary"} />
+                  <span className={cn("text-xs font-semibold tabular-nums", dateAccentClass || "text-primary")}>
+                    {formatDate(entry.completion_date)}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-[10px] text-gray-500 mt-auto pt-2 border-t border-white/5">
+                <Calendar size={11} />
+                <span>{formatDate(entry.completion_date)}</span>
+              </div>
+            )
           )}
         </div>
 
