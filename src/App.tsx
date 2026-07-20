@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { ThemeProvider } from "./lib/ThemeContext";
 import { useAnimationPause } from "./lib/useAnimationPause";
+import { useMcpLifecycle } from "./lib/mcp";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const YearView = lazy(() => import("./pages/YearView"));
@@ -35,6 +36,7 @@ function LazyRoute({ children }: { children: ReactNode }) {
 
 function App() {
   useAnimationPause();
+  useMcpLifecycle();
 
   return (
     <ThemeProvider>

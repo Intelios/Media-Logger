@@ -31,6 +31,21 @@ window-vibrancy = "0.6"
 chrono = "0.4"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 trash = "5"
+axum = "0.8"
+base64 = "0.22"
+hex = "0.4"
+http-body-util = "0.1"
+rand = "0.9"
+rmcp = { version = "=2.2.0", features = ["server", "macros", "schemars", "transport-streamable-http-server"] }
+sha2 = "0.10"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "macros"] }
+subtle = "2.6"
+tokio = { version = "1", features = ["net", "rt-multi-thread", "sync", "time"] }
+tokio-util = "0.7"
+uuid = { version = "1", features = ["v4"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Storage_FileSystem"] }

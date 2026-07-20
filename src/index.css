@@ -755,6 +755,23 @@ body {
   background: var(--color-surface-hover);
 }
 
+.settings-btn-danger {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.22);
+}
+
+.settings-btn-danger:hover {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.14);
+}
+
+.settings-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+}
+
 /* Path Display */
 .path-display {
   font-family: 'SF Mono', 'Menlo', monospace;
@@ -776,6 +793,530 @@ body {
   border-radius: 6px;
   background: var(--color-primary);
   color: white;
+}
+
+/* AI Access / local MCP */
+.settings-content > .settings-section-enter .ai-access-wide {
+  grid-column: 1 / -1;
+}
+
+.ai-access-hero-card {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 46%),
+    var(--color-surface);
+}
+
+.ai-access-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px;
+}
+
+.ai-access-hero-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ai-access-hero-icon,
+.ai-access-privacy-icon,
+.ai-access-connection-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: white;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+}
+
+.ai-access-hero-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-primary) 22%, transparent);
+}
+
+.ai-access-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ai-access-title-row .settings-row-label {
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.ai-access-description {
+  max-width: 680px;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.mcp-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  background: var(--color-background);
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+}
+
+.mcp-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mcp-status-running {
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.28);
+  background: rgba(34, 197, 94, 0.09);
+}
+
+.mcp-status-starting {
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.09);
+}
+
+.mcp-status-error {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.09);
+}
+
+.ai-access-endpoint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.ai-access-endpoint {
+  max-width: 58%;
+  padding: 8px 11px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  color: var(--color-text-muted);
+  background: var(--color-background);
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 11px;
+  text-align: right;
+}
+
+.ai-access-error,
+.ai-access-provider-warning,
+.ai-access-token-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 13px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ai-access-error {
+  margin: 14px 20px 0;
+  border: 1px solid rgba(239, 68, 68, 0.24);
+  border-radius: 8px;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.ai-access-error svg,
+.ai-access-provider-warning svg,
+.ai-access-token-warning svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.ai-access-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.ai-access-toolbar strong {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.ai-access-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 17px 16px 12px;
+}
+
+.ai-access-privacy-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+}
+
+.ai-access-privacy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 11px 0 0;
+  padding-left: 18px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ai-access-provider-warning {
+  margin: 0 16px 16px;
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  background: rgba(245, 158, 11, 0.07);
+}
+
+.ai-access-provider-warning svg,
+.ai-access-token-warning svg {
+  color: #fbbf24;
+}
+
+.ai-access-adult-row {
+  gap: 16px;
+}
+
+.ai-access-policy-state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 16px;
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.ai-access-policy-state strong {
+  color: var(--color-text);
+}
+
+.mcp-policy-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #64748b;
+}
+
+.mcp-policy-indicator.included {
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+}
+
+.ai-access-connection-create {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 16px;
+}
+
+.ai-access-create-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-access-create-controls .settings-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-access-inline-error {
+  color: #f87171;
+  font-size: 12px;
+}
+
+.ai-access-connections-list,
+.ai-access-log-list {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.ai-access-connection,
+.ai-access-log-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.ai-access-connection:last-child,
+.ai-access-log-entry:last-child {
+  border-bottom: none;
+}
+
+.ai-access-connection-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+
+.ai-access-connection-details,
+.ai-access-log-details {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ai-access-connection-details strong,
+.ai-access-log-details strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-access-connection-details span,
+.ai-access-log-details > span {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.ai-access-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+
+.ai-access-log-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ai-access-log-header .settings-btn {
+  padding: 6px 10px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.ai-access-log-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.ai-access-log-icon.success {
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.ai-access-log-details > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.ai-access-tool-name {
+  padding: 2px 6px;
+  overflow: hidden;
+  border-radius: 5px;
+  color: var(--color-text-muted);
+  background: var(--color-background);
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-access-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 82px;
+  padding: 18px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.ai-access-empty-state svg {
+  opacity: 0.6;
+}
+
+.ai-access-repair-row {
+  gap: 16px;
+}
+
+.mcp-credential-modal {
+  width: min(100%, 760px);
+}
+
+.mcp-credential-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 15px;
+}
+
+.mcp-credential-modal-header h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 19px;
+}
+
+.mcp-credential-modal-header p {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.ai-access-token-warning {
+  margin-bottom: 16px;
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  background: rgba(245, 158, 11, 0.07);
+}
+
+.mcp-setup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.mcp-setup-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mcp-setup-field-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mcp-setup-field-heading label {
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mcp-setup-field-heading span {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.mcp-secret-value,
+.mcp-config-code {
+  display: block;
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  background: var(--color-background);
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.mcp-secret-value {
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+}
+
+.mcp-config-code {
+  max-height: 190px;
+  margin: 0;
+  padding: 12px;
+  white-space: pre;
+}
+
+.mcp-credential-done {
+  width: 100%;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+@media (max-width: 760px) {
+  .settings-content > .settings-section-enter .ai-access-wide {
+    grid-column: auto;
+  }
+
+  .ai-access-hero,
+  .ai-access-endpoint-row,
+  .ai-access-adult-row,
+  .ai-access-repair-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ai-access-endpoint {
+    max-width: none;
+    text-align: left;
+  }
+
+  .ai-access-toolbar,
+  .ai-access-create-controls,
+  .mcp-setup-field-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ai-access-toolbar .settings-btn,
+  .ai-access-create-controls .settings-btn,
+  .ai-access-repair-row .settings-btn {
+    justify-content: center;
+  }
+
+  .ai-access-connection {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .ai-access-connection .settings-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ai-access-log-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ai-access-log-actions .settings-btn {
+    flex: 1;
+    justify-content: center;
+  }
 }
 
 /* Changelog */

@@ -61,6 +61,7 @@ Entries can include completion date, score, description, notes, local artwork, g
 - Custom collections for building ranked lists, themed shelves, favorites, or any other hand-picked grouping with drag-and-drop reordering.
 - A yearly awards system with reusable templates and winner history across years.
 - A backlog for tracking what you plan to watch, play, or read next, with in-progress and planning statuses, type filtering, and one-click promotion to a completed entry.
+- Optional local MCP access for querying your completed library and backlog from Codex or VS Code while Media Logger is running.
 - An animated year-in-review slideshow that generates themed slides for any year or month, covering top genres, perfect tens, biggest months, hidden gems, award winners, genre clouds, and more.
 - Appearance controls with multiple color themes, glass styling, rating display modes (pill or thermometer), and a personalized dashboard greeting.
 - Keyboard shortcuts for fast navigation across all major areas.
@@ -90,6 +91,21 @@ Entries can include completion date, score, description, notes, local artwork, g
 - Includes schema migrations for older installs, including legacy table compatibility and newer awards, profiles, collections, backlog, and series features.
 - Supports full-library backup export and import through JSON or ZIP files (ZIP bundles artwork assets alongside data).
 - Designed as a forward-compatible rebuild of the previous Python/Flet Media Logger.
+
+## AI Access (Local MCP)
+
+Media Logger can expose a small, read-only Model Context Protocol (MCP) server to supported AI clients on the same computer. It is disabled by default and only listens while Media Logger is running and **Settings → AI Access** is enabled.
+
+- The server binds only to `127.0.0.1` and requires a separate bearer token for each configured client.
+- The MCP server makes no outbound network requests; it reads the local SQLite database only after an authenticated tool call.
+- Personal notes, cover-image paths, filesystem paths, and ownership/subtitle flags are never queried or returned.
+- Adult entries are available only when both the app-wide Adult Media setting and the separate MCP adult-data setting are enabled.
+- MCP tools can search completed entries, fetch safe entry details, summarize the library, and list backlog items. They cannot add, edit, or delete anything.
+- Recent access history contains only the client label, tool name, time, outcome, and result count; it does not store media titles, filters, descriptions, or tokens.
+
+To connect Codex or VS Code, enable AI Access, create a named connection, and copy the generated configuration shown by the app. The token is displayed once. Revoke that connection and create a replacement if the token is lost or exposed.
+
+The configured client may report that Media Logger is unavailable while the app is closed or AI Access is disabled. This is expected: there is no background service or internet-facing relay. Although the MCP endpoint itself is local, the AI client may send returned metadata to its configured model provider, so review that provider's privacy settings before enabling access.
 
 ## Tech Stack
 

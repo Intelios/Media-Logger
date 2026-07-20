@@ -26,7 +26,14 @@ import {
     ScrollText,
     ChevronDown,
     ChevronRight,
-    ImageOff
+    ImageOff,
+    Bot,
+    ShieldCheck,
+    KeyRound,
+    Trash2,
+    RefreshCw,
+    Activity,
+    Server
 } from 'lucide-react';
 import { exportToFile, importFromFile, getDataStats, type ImportResult } from '../lib/csv-logic';
 import { DB_FILENAME, dbService } from '../lib/db';
@@ -53,11 +60,30 @@ import {
 import { useTheme } from '../lib/ThemeContext';
 import type { ColorTheme, GlassStyle } from '../lib/themes';
 import { getCurrentYearString, updateNavigationYears } from '../lib/navigation-years';
+import {
+    buildCodexMcpConfig,
+    buildVsCodeMcpConfig,
+    chooseNewMcpEndpoint,
+    clearMcpAccessLog,
+    createMcpCredential,
+    getMcpAccessLog,
+    getMcpStatus,
+    resyncMcpDatabase,
+    revokeMcpCredential,
+    setMcpAdultOptIn,
+    setMcpEnabled,
+    setMcpGlobalAdultEnabled,
+    suspendMcpRuntime,
+    type McpAuditEvent,
+    type McpCredentialSecret,
+    type McpRuntimeState,
+    type McpStatus
+} from '../lib/mcp';
 import changelogData from '../data/changelog.json';
 import packageJson from '../../package.json';
 import tauriConfig from '../../src-tauri/tauri.conf.json';
 
-type SettingsSection = 'general' | 'appearance' | 'data' | 'changelog' | 'about';
+type SettingsSection = 'general' | 'appearance' | 'ai-access' | 'data' | 'changelog' | 'about';
 type BackupFormat = 'json' | 'zip';
 
 type ChangelogRelease = {
@@ -139,6 +165,33 @@ function formatGeneratedAt(value: string | null): string {
     }).format(date);
 }
 
+function formatMcpTimestamp(value: string | null | undefined): string {
+    if (!value) return 'Never';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    return new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    }).format(date);
+}
+
+function getMcpStateLabel(state: McpRuntimeState | null): string {
+    switch (state) {
+        case 'running':
+            return 'Running';
+        case 'starting':
+            return 'Starting';
+        case 'error':
+            return 'Error';
+        case 'off':
+            return 'Off';
+        default:
+            return 'Loading';
+    }
+}
+
 function getEnvironmentInfo(): EnvironmentInfo {
     return {
         platform: navigator.platform || 'Unknown',
@@ -213,6 +266,8 @@ export default function Settings() {
     const [adultMediaEnabled, setAdultMediaEnabledState] = useState<boolean>(() => isAdultMediaEnabled());
     const [showAdultConfirm, setShowAdultConfirm] = useState(false);
     const [adultCount, setAdultCount] = useState(0);
+    const [isAdultPolicyBusy, setIsAdultPolicyBusy] = useState(false);
+    const adultPolicyBusyRef = useRef(false);
 
     // Featured entry adult filter (independent of the global Adult Media toggle)
     const [featuredAdultAllowed, setFeaturedAdultAllowedState] = useState<boolean>(() => isFeaturedAdultAllowed());
@@ -231,6 +286,16 @@ export default function Settings() {
     const [isScanning, setIsScanning] = useState(false);
     const [cleanupScan, setCleanupScan] = useState<ScanResult | null>(null);
     const [showCleanupModal, setShowCleanupModal] = useState(false);
+
+    // Local MCP / AI Access state
+    const [mcpStatus, setMcpStatus] = useState<McpStatus | null>(null);
+    const [mcpAccessLog, setMcpAccessLog] = useState<McpAuditEvent[]>([]);
+    const [mcpLoadError, setMcpLoadError] = useState<string | null>(null);
+    const [mcpBusyAction, setMcpBusyAction] = useState<string | null>(null);
+    const [connectionLabel, setConnectionLabel] = useState('');
+    const [connectionError, setConnectionError] = useState('');
+    const [newCredential, setNewCredential] = useState<McpCredentialSecret | null>(null);
+    const [showEndpointConfirm, setShowEndpointConfirm] = useState(false);
 
     useEffect(() => {
         const loadPaths = async () => {
@@ -259,6 +324,41 @@ export default function Settings() {
         return () => window.removeEventListener('resize', handleEnvironmentChange);
     }, []);
 
+    useEffect(() => {
+        let cancelled = false;
+
+        const refresh = async () => {
+            try {
+                const [status, accessLog] = await Promise.all([
+                    getMcpStatus(),
+                    getMcpAccessLog(),
+                ]);
+                if (!cancelled) {
+                    setMcpStatus(status);
+                    setMcpAccessLog(accessLog);
+                    setMcpLoadError(null);
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    setMcpLoadError(String(error));
+                }
+            }
+        };
+
+        void refresh();
+        if (activeSection !== 'ai-access') {
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        const refreshTimer = window.setInterval(() => void refresh(), 5000);
+        return () => {
+            cancelled = true;
+            window.clearInterval(refreshTimer);
+        };
+    }, [activeSection]);
+
     const toastTimeoutRef = useRef<number | null>(null);
 
     const showToast = (message: string) => {
@@ -277,6 +377,29 @@ export default function Settings() {
             }
         };
     }, []);
+
+    const refreshMcpData = async () => {
+        const [status, accessLog] = await Promise.all([
+            getMcpStatus(),
+            getMcpAccessLog(),
+        ]);
+        setMcpStatus(status);
+        setMcpAccessLog(accessLog);
+        setMcpLoadError(null);
+    };
+
+    const syncMcpForDataDirectory = async (): Promise<boolean> => {
+        try {
+            const status = await resyncMcpDatabase();
+            setMcpStatus(status);
+            setMcpLoadError(null);
+            return true;
+        } catch (error) {
+            console.error('AI Access database resync failed:', error);
+            setMcpLoadError(String(error));
+            return false;
+        }
+    };
 
     const handleCleanupScan = async () => {
         if (isScanning) return;
@@ -297,6 +420,8 @@ export default function Settings() {
     };
 
     const handleBrowse = async () => {
+        if (mcpBusyAction) return;
+
         const selected = await open({
             directory: true,
             multiple: false,
@@ -304,19 +429,49 @@ export default function Settings() {
         });
 
         if (selected && typeof selected === 'string') {
-            setDataDirectory(selected);
-            setCurrentPath(selected);
-            setIsCustom(true);
-            showToast('Data directory updated');
+            setMcpBusyAction('data-directory');
+            try {
+                const suspendedStatus = await suspendMcpRuntime();
+                setMcpStatus(suspendedStatus);
+                setDataDirectory(selected);
+                setCurrentPath(selected);
+                setIsCustom(true);
+                const mcpSynced = await syncMcpForDataDirectory();
+                showToast(mcpSynced
+                    ? 'Data directory updated'
+                    : 'Data directory updated; AI Access remains unavailable');
+            } catch (error) {
+                console.error('Unable to safely change the data directory:', error);
+                setMcpLoadError(String(error));
+                showToast('Data directory was not changed because AI Access could not be suspended');
+            } finally {
+                setMcpBusyAction(null);
+            }
         }
     };
 
     const handleReset = async () => {
-        clearDataDirectory();
-        const appDir = await appLocalDataDir();
-        setCurrentPath(appDir);
-        setIsCustom(false);
-        showToast('Reset to default location');
+        if (mcpBusyAction) return;
+
+        setMcpBusyAction('data-directory');
+        try {
+            const appDir = await appLocalDataDir();
+            const suspendedStatus = await suspendMcpRuntime();
+            setMcpStatus(suspendedStatus);
+            clearDataDirectory();
+            setCurrentPath(appDir);
+            setIsCustom(false);
+            const mcpSynced = await syncMcpForDataDirectory();
+            showToast(mcpSynced
+                ? 'Reset to default location'
+                : 'Default restored; AI Access remains unavailable');
+        } catch (error) {
+            console.error('Unable to safely reset the data directory:', error);
+            setMcpLoadError(String(error));
+            showToast('Data directory was not reset because AI Access could not be suspended');
+        } finally {
+            setMcpBusyAction(null);
+        }
     };
 
     const handleDisplayNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -394,24 +549,71 @@ export default function Settings() {
         showToast(`Rating display set to ${mode === 'pill' ? 'Pill' : mode === 'vertical-pill' ? 'Vertical Pill' : 'Thermometer'}`);
     };
 
-    const applyAdultMedia = (enabled: boolean) => {
-        setAdultMediaEnabled(enabled);
-        setAdultMediaEnabledState(enabled);
-        showToast(enabled ? 'Adult media shown' : 'Adult media hidden');
+    const applyAdultMedia = async (enabled: boolean) => {
+        if (adultPolicyBusyRef.current) return;
+        adultPolicyBusyRef.current = true;
+        setIsAdultPolicyBusy(true);
+
+        try {
+            if (!enabled) {
+                const status = await setMcpGlobalAdultEnabled(false);
+                setMcpStatus(status);
+                setMcpLoadError(null);
+
+                setAdultMediaEnabled(false);
+                setAdultMediaEnabledState(false);
+                showToast('Adult media hidden');
+                return;
+            }
+
+            // Enabling the app-wide preference first is safe because MCP remains
+            // fail-closed until its native policy update succeeds.
+            setAdultMediaEnabled(true);
+            setAdultMediaEnabledState(true);
+            try {
+                const status = await setMcpGlobalAdultEnabled(true);
+                setMcpStatus(status);
+                setMcpLoadError(null);
+                showToast('Adult media shown');
+            } catch (error) {
+                console.error('Unable to update AI Access adult policy:', error);
+                setMcpLoadError(String(error));
+                showToast('Adult media shown; AI Access remains filtered');
+            }
+        } catch (error) {
+            console.error('Unable to update AI Access adult policy:', error);
+            setMcpLoadError(String(error));
+            showToast('Adult media was not hidden because AI Access could not be secured');
+            throw error;
+        } finally {
+            adultPolicyBusyRef.current = false;
+            setIsAdultPolicyBusy(false);
+        }
     };
 
     const handleAdultMediaToggle = async (enabled: boolean) => {
-        if (enabled === adultMediaEnabled) return;
+        if (enabled === adultMediaEnabled || adultPolicyBusyRef.current) return;
         // Turning off while adult entries exist: confirm they'll be hidden (not deleted).
         if (!enabled) {
-            const count = await dbService.countAdultEntries();
-            if (count > 0) {
-                setAdultCount(count);
-                setShowAdultConfirm(true);
-                return;
+            adultPolicyBusyRef.current = true;
+            setIsAdultPolicyBusy(true);
+            try {
+                const count = await dbService.countAdultEntries();
+                if (count > 0) {
+                    setAdultCount(count);
+                    setShowAdultConfirm(true);
+                    return;
+                }
+            } finally {
+                adultPolicyBusyRef.current = false;
+                setIsAdultPolicyBusy(false);
             }
         }
-        applyAdultMedia(enabled);
+        try {
+            await applyAdultMedia(enabled);
+        } catch {
+            // applyAdultMedia reports the fail-closed error to the user.
+        }
     };
 
     const handleFeaturedAdultToggle = (allowed: boolean) => {
@@ -419,6 +621,144 @@ export default function Settings() {
         setFeaturedAdultAllowed(allowed);
         setFeaturedAdultAllowedState(allowed);
         showToast(allowed ? 'Adult entries eligible for featured' : 'Adult entries hidden from featured');
+    };
+
+    const handleMcpEnabledToggle = async (enabled: boolean) => {
+        if (!mcpStatus || mcpStatus.enabled === enabled || mcpBusyAction) return;
+
+        setMcpBusyAction('enabled');
+        try {
+            const status = await setMcpEnabled(enabled);
+            setMcpStatus(status);
+            setMcpLoadError(null);
+            showToast(enabled ? 'AI Access enabled' : 'AI Access disabled');
+        } catch (error) {
+            console.error('Unable to update AI Access:', error);
+            setMcpLoadError(String(error));
+            showToast('Unable to update AI Access');
+        } finally {
+            setMcpBusyAction(null);
+        }
+    };
+
+    const handleMcpAdultToggle = async (enabled: boolean) => {
+        if (!mcpStatus || !adultMediaEnabled || mcpStatus.adultOptIn === enabled || mcpBusyAction) return;
+
+        setMcpBusyAction('adult');
+        try {
+            const status = await setMcpAdultOptIn(enabled);
+            setMcpStatus(status);
+            setMcpLoadError(null);
+            showToast(enabled ? 'Adult media allowed for AI Access' : 'Adult media blocked from AI Access');
+        } catch (error) {
+            console.error('Unable to update AI Access adult opt-in:', error);
+            setMcpLoadError(String(error));
+            showToast('Unable to update the AI Access adult setting');
+        } finally {
+            setMcpBusyAction(null);
+        }
+    };
+
+    const handleCreateMcpCredential = async () => {
+        const label = connectionLabel.trim();
+        if (!label) {
+            setConnectionError('Enter a name so you can identify and revoke this connection later.');
+            return;
+        }
+        if (!mcpStatus?.endpoint || mcpBusyAction) return;
+
+        setMcpBusyAction('create-credential');
+        setConnectionError('');
+        try {
+            const secret = await createMcpCredential(label);
+            setNewCredential(secret);
+            setConnectionLabel('');
+            await refreshMcpData();
+        } catch (error) {
+            console.error('Unable to create AI Access connection:', error);
+            setConnectionError(String(error));
+        } finally {
+            setMcpBusyAction(null);
+        }
+    };
+
+    const handleRevokeMcpCredential = async (credentialId: string, label: string) => {
+        if (mcpBusyAction) return;
+
+        setMcpBusyAction(`revoke-${credentialId}`);
+        try {
+            const status = await revokeMcpCredential(credentialId);
+            setMcpStatus(status);
+            setMcpLoadError(null);
+            showToast(`${label} access revoked`);
+        } catch (error) {
+            console.error('Unable to revoke AI Access connection:', error);
+            setMcpLoadError(String(error));
+            showToast('Unable to revoke that connection');
+        } finally {
+            setMcpBusyAction(null);
+        }
+    };
+
+    const handleClearMcpAccessLog = async () => {
+        if (mcpBusyAction) return;
+
+        setMcpBusyAction('clear-log');
+        try {
+            await clearMcpAccessLog();
+            setMcpAccessLog([]);
+            showToast('Recent AI access cleared');
+        } catch (error) {
+            console.error('Unable to clear AI access activity:', error);
+            setMcpLoadError(String(error));
+            showToast('Unable to clear recent activity');
+        } finally {
+            setMcpBusyAction(null);
+        }
+    };
+
+    const handleRefreshMcpData = async () => {
+        if (mcpBusyAction) return;
+
+        setMcpBusyAction('refresh');
+        try {
+            await refreshMcpData();
+        } catch (error) {
+            console.error('Unable to refresh AI Access:', error);
+            setMcpLoadError(String(error));
+            showToast('Unable to refresh AI Access');
+        } finally {
+            setMcpBusyAction(null);
+        }
+    };
+
+    const handleChooseNewMcpEndpoint = async () => {
+        if (mcpBusyAction) return;
+
+        setMcpBusyAction('endpoint');
+        try {
+            const status = await chooseNewMcpEndpoint();
+            setMcpStatus(status);
+            setMcpLoadError(null);
+            showToast('New local endpoint selected');
+        } catch (error) {
+            console.error('Unable to choose a new MCP endpoint:', error);
+            setMcpLoadError(String(error));
+            showToast('Unable to choose a new endpoint');
+            throw error;
+        } finally {
+            setMcpBusyAction(null);
+        }
+    };
+
+    const handleCopyMcpValue = async (value: string, label: string) => {
+        try {
+            await navigator.clipboard.writeText(value);
+            showToast(`${label} copied`);
+        } catch (error) {
+            console.error(`Unable to copy ${label.toLowerCase()}:`, error);
+            showToast(`Unable to copy ${label.toLowerCase()}`);
+        }
     };
 
     const exportJsonBackup = async () => {
@@ -583,10 +923,15 @@ export default function Settings() {
     };
 
     const latestRelease = changelog.releases[0];
+    const mcpRuntimeState = mcpStatus?.runtimeState ?? (mcpLoadError ? 'error' : null);
+    const mcpError = mcpStatus?.error ?? mcpLoadError;
+    const codexMcpConfig = newCredential ? buildCodexMcpConfig(newCredential) : '';
+    const vsCodeMcpConfig = newCredential ? buildVsCodeMcpConfig(newCredential) : '';
 
     const navItems: { id: SettingsSection; label: string; icon: React.ReactNode }[] = [
         { id: 'general', label: 'General', icon: <User size={18} /> },
         { id: 'appearance', label: 'Appearance', icon: <Palette size={18} /> },
+        { id: 'ai-access', label: 'AI Access', icon: <Bot size={18} /> },
         { id: 'data', label: 'Data', icon: <Database size={18} /> },
         { id: 'changelog', label: 'Changelog', icon: <ScrollText size={18} /> },
         { id: 'about', label: 'About', icon: <Info size={18} /> },
@@ -757,15 +1102,17 @@ export default function Settings() {
                                         Show JAV, Hentai, and Adult Visual Novel types and entries throughout the app. When off, existing adult entries are hidden everywhere — never deleted — and reappear when turned back on.
                                     </div>
                                 </div>
-                                <div className="segmented-control">
+                                <div className={`segmented-control ${isAdultPolicyBusy ? 'segmented-control-disabled' : ''}`}>
                                     <button
                                         onClick={() => handleAdultMediaToggle(true)}
+                                        disabled={isAdultPolicyBusy}
                                         className={`segmented-control-item ${adultMediaEnabled ? 'active' : ''}`}
                                     >
                                         On
                                     </button>
                                     <button
                                         onClick={() => handleAdultMediaToggle(false)}
+                                        disabled={isAdultPolicyBusy}
                                         className={`segmented-control-item ${!adultMediaEnabled ? 'active' : ''}`}
                                     >
                                         Off
@@ -888,6 +1235,302 @@ export default function Settings() {
                     </div>
                 )}
 
+                {/* AI Access Section */}
+                {activeSection === 'ai-access' && (
+                    <div className="settings-section-enter ai-access-grid" key="ai-access">
+                        <section className="settings-card ai-access-wide ai-access-hero-card">
+                            <div className="ai-access-hero">
+                                <div className="ai-access-hero-heading">
+                                    <div className="ai-access-hero-icon">
+                                        <Server size={24} />
+                                    </div>
+                                    <div>
+                                        <div className="ai-access-title-row">
+                                            <span className="settings-row-label">Local MCP Server</span>
+                                            <span className={`mcp-status-badge mcp-status-${mcpRuntimeState ?? 'loading'}`}>
+                                                <span className="mcp-status-dot" />
+                                                {getMcpStateLabel(mcpRuntimeState)}
+                                            </span>
+                                        </div>
+                                        <div className="settings-row-description ai-access-description">
+                                            Let approved AI assistants read recommendation-safe library and backlog data while Media Logger is open.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className={`segmented-control ${!mcpStatus || mcpBusyAction === 'enabled' ? 'segmented-control-disabled' : ''}`}>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleMcpEnabledToggle(true)}
+                                        disabled={!mcpStatus || mcpBusyAction === 'enabled'}
+                                        className={`segmented-control-item ${mcpStatus?.enabled ? 'active' : ''}`}
+                                    >
+                                        {mcpBusyAction === 'enabled' && !mcpStatus?.enabled && <Loader2 size={13} className="spin" />}
+                                        On
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleMcpEnabledToggle(false)}
+                                        disabled={!mcpStatus || mcpBusyAction === 'enabled'}
+                                        className={`segmented-control-item ${mcpStatus && !mcpStatus.enabled ? 'active' : ''}`}
+                                    >
+                                        {mcpBusyAction === 'enabled' && mcpStatus?.enabled && <Loader2 size={13} className="spin" />}
+                                        Off
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="ai-access-endpoint-row">
+                                <div>
+                                    <div className="settings-row-label">Endpoint</div>
+                                    <div className="settings-row-description">
+                                        Bound to this computer only. It is unreachable when the app or AI Access is off.
+                                    </div>
+                                </div>
+                                <code className="ai-access-endpoint">
+                                    {mcpStatus?.endpoint ?? 'Created the first time AI Access is enabled'}
+                                </code>
+                            </div>
+
+                            {mcpError && (
+                                <div className="ai-access-error" role="alert">
+                                    <AlertCircle size={16} />
+                                    <span>{mcpError}</span>
+                                </div>
+                            )}
+
+                            <div className="ai-access-toolbar">
+                                <span>
+                                    Last activity: <strong>{formatMcpTimestamp(mcpStatus?.lastActivity)}</strong>
+                                </span>
+                                <button
+                                    type="button"
+                                    className="settings-btn settings-btn-secondary"
+                                    onClick={() => void handleRefreshMcpData()}
+                                    disabled={Boolean(mcpBusyAction)}
+                                >
+                                    {mcpBusyAction === 'refresh'
+                                        ? <Loader2 size={14} className="spin" />
+                                        : <RefreshCw size={14} />}
+                                    Refresh
+                                </button>
+                            </div>
+                        </section>
+
+                        <section className="settings-card">
+                            <div className="settings-card-header">Privacy Boundary</div>
+                            <div className="ai-access-privacy">
+                                <div className="ai-access-privacy-icon">
+                                    <ShieldCheck size={22} />
+                                </div>
+                                <div>
+                                    <div className="settings-row-label">Read-only and deliberately limited</div>
+                                    <ul className="ai-access-privacy-list">
+                                        <li>Only library and backlog recommendation fields are available.</li>
+                                        <li>Personal notes, image paths, ownership, and subtitle flags are never queried.</li>
+                                        <li>No assistant can add, edit, delete, or run arbitrary SQL.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div className="ai-access-provider-warning">
+                                <AlertCircle size={16} />
+                                <span>
+                                    The server is local, but anything an assistant reads may be handled under that AI provider&apos;s privacy policy. Only create connections for assistants you trust.
+                                </span>
+                            </div>
+                        </section>
+
+                        <section className="settings-card">
+                            <div className="settings-card-header">Sensitive Content</div>
+                            <div className="settings-row ai-access-adult-row">
+                                <div>
+                                    <div className="settings-row-label">Adult Media for AI Access</div>
+                                    <div className="settings-row-description">
+                                        {adultMediaEnabled
+                                            ? 'Requires this separate opt-in. Turning it off never changes or deletes your library.'
+                                            : 'The app-wide Adult Media setting is off, so adult entries are always excluded from AI Access.'}
+                                    </div>
+                                </div>
+                                <div className={`segmented-control ${!adultMediaEnabled || !mcpStatus || Boolean(mcpBusyAction) ? 'segmented-control-disabled' : ''}`}>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleMcpAdultToggle(true)}
+                                        disabled={!adultMediaEnabled || !mcpStatus || Boolean(mcpBusyAction)}
+                                        className={`segmented-control-item ${adultMediaEnabled && mcpStatus?.adultOptIn ? 'active' : ''}`}
+                                    >
+                                        On
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleMcpAdultToggle(false)}
+                                        disabled={!adultMediaEnabled || !mcpStatus || Boolean(mcpBusyAction)}
+                                        className={`segmented-control-item ${!adultMediaEnabled || (mcpStatus && !mcpStatus.adultOptIn) ? 'active' : ''}`}
+                                    >
+                                        Off
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="ai-access-policy-state">
+                                <span className={`mcp-policy-indicator ${mcpStatus?.adultMediaIncluded ? 'included' : ''}`} />
+                                Adult entries are currently <strong>{mcpStatus?.adultMediaIncluded ? 'included' : 'excluded'}</strong> from every MCP tool.
+                            </div>
+                        </section>
+
+                        <section className="settings-card ai-access-wide">
+                            <div className="settings-card-header">Approved Connections</div>
+                            <div className="ai-access-connection-create">
+                                <div>
+                                    <div className="settings-row-label">Create a connection</div>
+                                    <div className="settings-row-description">
+                                        Give each AI client its own credential so access can be revoked independently.
+                                    </div>
+                                </div>
+                                <div className="ai-access-create-controls">
+                                    <input
+                                        type="text"
+                                        className="settings-input"
+                                        value={connectionLabel}
+                                        onChange={(event) => {
+                                            setConnectionLabel(event.target.value);
+                                            if (connectionError) setConnectionError('');
+                                        }}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter') {
+                                                event.preventDefault();
+                                                void handleCreateMcpCredential();
+                                            }
+                                        }}
+                                        placeholder="e.g. Codex on this Mac"
+                                        maxLength={80}
+                                        disabled={!mcpStatus?.endpoint || Boolean(mcpBusyAction)}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="settings-btn settings-btn-primary"
+                                        onClick={() => void handleCreateMcpCredential()}
+                                        disabled={!mcpStatus?.endpoint || Boolean(mcpBusyAction)}
+                                    >
+                                        {mcpBusyAction === 'create-credential'
+                                            ? <Loader2 size={14} className="spin" />
+                                            : <KeyRound size={14} />}
+                                        Create Connection
+                                    </button>
+                                </div>
+                                {!mcpStatus?.endpoint && (
+                                    <div className="settings-row-description">Enable AI Access once before creating a connection.</div>
+                                )}
+                                {connectionError && <div className="ai-access-inline-error">{connectionError}</div>}
+                            </div>
+
+                            <div className="ai-access-connections-list">
+                                {mcpStatus?.credentials.length ? (
+                                    mcpStatus.credentials.map((credential) => (
+                                        <div className="ai-access-connection" key={credential.id}>
+                                            <div className="ai-access-connection-icon">
+                                                <KeyRound size={16} />
+                                            </div>
+                                            <div className="ai-access-connection-details">
+                                                <strong>{credential.label}</strong>
+                                                <span>
+                                                    Created {formatMcpTimestamp(credential.createdAt)} · Last used {formatMcpTimestamp(credential.lastUsedAt)}
+                                                </span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="settings-btn settings-btn-danger"
+                                                onClick={() => void handleRevokeMcpCredential(credential.id, credential.label)}
+                                                disabled={Boolean(mcpBusyAction)}
+                                            >
+                                                {mcpBusyAction === `revoke-${credential.id}`
+                                                    ? <Loader2 size={14} className="spin" />
+                                                    : <Trash2 size={14} />}
+                                                Revoke
+                                            </button>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="ai-access-empty-state">
+                                        <KeyRound size={22} />
+                                        <span>No AI clients have access.</span>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+
+                        <section className="settings-card ai-access-wide">
+                            <div className="settings-card-header ai-access-log-header">
+                                <span>Recent Access</span>
+                                <div className="ai-access-log-actions">
+                                    <button
+                                        type="button"
+                                        className="settings-btn settings-btn-secondary"
+                                        onClick={() => void handleRefreshMcpData()}
+                                        disabled={Boolean(mcpBusyAction)}
+                                    >
+                                        <RefreshCw size={13} />
+                                        Refresh
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="settings-btn settings-btn-secondary"
+                                        onClick={() => void handleClearMcpAccessLog()}
+                                        disabled={mcpAccessLog.length === 0 || Boolean(mcpBusyAction)}
+                                    >
+                                        <Trash2 size={13} />
+                                        Clear
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="ai-access-log-list">
+                                {mcpAccessLog.length > 0 ? (
+                                    mcpAccessLog.map((event, index) => (
+                                        <div className="ai-access-log-entry" key={`${event.timestamp}-${event.connectionLabel}-${event.toolName}-${index}`}>
+                                            <div className={`ai-access-log-icon ${event.outcome.toLowerCase() === 'success' ? 'success' : 'error'}`}>
+                                                <Activity size={14} />
+                                            </div>
+                                            <div className="ai-access-log-details">
+                                                <div>
+                                                    <strong>{event.connectionLabel}</strong>
+                                                    <span className="ai-access-tool-name">{event.toolName}</span>
+                                                </div>
+                                                <span>
+                                                    {formatMcpTimestamp(event.timestamp)} · {event.outcome}
+                                                    {event.returnedCount !== null ? ` · ${event.returnedCount} returned` : ''}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="ai-access-empty-state">
+                                        <Activity size={22} />
+                                        <span>No authenticated tool activity this session.</span>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+
+                        <section className="settings-card ai-access-wide">
+                            <div className="settings-row ai-access-repair-row">
+                                <div>
+                                    <div className="settings-row-label">Endpoint Repair</div>
+                                    <div className="settings-row-description">
+                                        Choose a new local port only if another app is using the saved endpoint. Existing client configurations must then be updated.
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    className="settings-btn settings-btn-secondary"
+                                    onClick={() => setShowEndpointConfirm(true)}
+                                    disabled={!mcpStatus || Boolean(mcpBusyAction)}
+                                >
+                                    <RefreshCw size={14} />
+                                    Choose New Endpoint
+                                </button>
+                            </div>
+                        </section>
+                    </div>
+                )}
+
                 {/* Data Section */}
                 {activeSection === 'data' && (
                     <div className="settings-section-enter" key="data">
@@ -911,6 +1554,7 @@ export default function Settings() {
                                     <button
                                         onClick={handleBrowse}
                                         className="settings-btn settings-btn-primary"
+                                        disabled={mcpBusyAction === 'data-directory'}
                                     >
                                         <FolderOpen size={14} />
                                         Browse...
@@ -919,6 +1563,7 @@ export default function Settings() {
                                         <button
                                             onClick={() => revealItemInDir(currentPath)}
                                             className="settings-btn settings-btn-secondary"
+                                            disabled={mcpBusyAction === 'data-directory'}
                                         >
                                             <ExternalLink size={14} />
                                             Open Directory
@@ -928,6 +1573,7 @@ export default function Settings() {
                                         <button
                                             onClick={handleReset}
                                             className="settings-btn settings-btn-secondary"
+                                            disabled={mcpBusyAction === 'data-directory'}
                                         >
                                             <RotateCcw size={14} />
                                             Reset
@@ -1458,6 +2104,93 @@ export default function Settings() {
                     </div>
                 )}
 
+                {/* One-time MCP credential setup */}
+                {newCredential && (
+                    <div className="modal-overlay">
+                        <div className="modal-content mcp-credential-modal" role="dialog" aria-modal="true" aria-labelledby="mcp-credential-title">
+                            <div className="mcp-credential-modal-header">
+                                <div className="ai-access-hero-icon">
+                                    <KeyRound size={22} />
+                                </div>
+                                <div>
+                                    <h2 id="mcp-credential-title">Connect {newCredential.credential.label}</h2>
+                                    <p>This bearer token is shown once. Copy it before closing this window.</p>
+                                </div>
+                            </div>
+
+                            <div className="ai-access-token-warning">
+                                <ShieldCheck size={16} />
+                                <span>Media Logger stores only a one-way hash. It cannot recover this token later.</span>
+                            </div>
+
+                            <div className="mcp-setup-field">
+                                <div className="mcp-setup-field-heading">
+                                    <label>Bearer token</label>
+                                    <button
+                                        type="button"
+                                        className="settings-btn settings-btn-secondary"
+                                        onClick={() => void handleCopyMcpValue(newCredential.token, 'Token')}
+                                    >
+                                        <Copy size={13} />
+                                        Copy
+                                    </button>
+                                </div>
+                                <code className="mcp-secret-value">{newCredential.token}</code>
+                            </div>
+
+                            <div className="mcp-setup-field">
+                                <div className="mcp-setup-field-heading">
+                                    <div>
+                                        <label>Codex config.toml</label>
+                                        <span>Use this option for Codex only.</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="settings-btn settings-btn-secondary"
+                                        onClick={() => void handleCopyMcpValue(codexMcpConfig, 'Codex configuration')}
+                                    >
+                                        <Copy size={13} />
+                                        Copy
+                                    </button>
+                                </div>
+                                <pre className="mcp-config-code"><code>{codexMcpConfig}</code></pre>
+                            </div>
+
+                            <div className="mcp-setup-field">
+                                <div className="mcp-setup-field-heading">
+                                    <div>
+                                        <label>VS Code user mcp.json</label>
+                                        <span>Use this instead for VS Code; the password-style input prompts for the token.</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="settings-btn settings-btn-secondary"
+                                        onClick={() => void handleCopyMcpValue(vsCodeMcpConfig, 'VS Code configuration')}
+                                    >
+                                        <Copy size={13} />
+                                        Copy
+                                    </button>
+                                </div>
+                                <pre className="mcp-config-code"><code>{vsCodeMcpConfig}</code></pre>
+                            </div>
+
+                            <div className="ai-access-provider-warning">
+                                <AlertCircle size={16} />
+                                <span>Use this credential with one client only. Create a separate connection for every additional client so each can be revoked independently.</span>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="settings-btn settings-btn-primary mcp-credential-done"
+                                onClick={() => setNewCredential(null)}
+                            >
+                                <CheckCircle2 size={14} />
+                                I&apos;ve Saved the Token
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 <CleanupImagesModal
                     isOpen={showCleanupModal}
                     orphans={cleanupScan?.orphans ?? []}
@@ -1473,6 +2206,18 @@ export default function Settings() {
                     }}
                     showToast={showToast}
                 />
+
+                <ConfirmDialog
+                    isOpen={showEndpointConfirm}
+                    tone="default"
+                    title="Choose a New MCP Endpoint?"
+                    subtitle="Existing AI clients will need updated configuration"
+                    confirmLabel="Choose New Endpoint"
+                    onClose={() => setShowEndpointConfirm(false)}
+                    onConfirm={handleChooseNewMcpEndpoint}
+                >
+                    Media Logger will select and save a new local port. Existing credentials remain valid, but every connected AI client must be updated with the new endpoint.
+                </ConfirmDialog>
 
                 <ConfirmDialog
                     isOpen={showAdultConfirm}

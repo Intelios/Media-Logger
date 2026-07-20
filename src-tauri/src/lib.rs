@@ -1,3 +1,5 @@
+mod mcp;
+
 use same_file::Handle;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -76,10 +78,7 @@ fn theme_mode_is_dark(mode: &str) -> Option<bool> {
 }
 
 #[cfg(target_os = "windows")]
-fn apply_windows_backdrop(
-    window: &tauri::WebviewWindow,
-    dark: Option<bool>,
-) -> Result<(), String> {
+fn apply_windows_backdrop(window: &tauri::WebviewWindow, dark: Option<bool>) -> Result<(), String> {
     use window_vibrancy::{apply_blur, apply_mica};
 
     if let Err(mica_error) = apply_mica(window, dark) {
@@ -257,8 +256,7 @@ impl Drop for TemporaryDirectory {
 static BACKUP_ASSET_EXTRACTION_LOCK: Mutex<()> = Mutex::new(());
 
 fn zip_options() -> zip::write::SimpleFileOptions {
-    zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated)
+    zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated)
 }
 
 fn open_zip_archive(file_path: &Path) -> Result<zip::ZipArchive<fs::File>, String> {
@@ -825,11 +823,7 @@ fn prepare_backup_destination(
         }
     };
 
-    Ok((
-        canonical_parent,
-        canonical_output,
-        resolved_existing_output,
-    ))
+    Ok((canonical_parent, canonical_output, resolved_existing_output))
 }
 
 fn existing_file_is_regular(path: &Path) -> Result<bool, String> {
@@ -876,12 +870,14 @@ fn create_backup_zip(
 
     let canonical_assets_location = canonical_data_root.join("assets");
     let canonical_assets_source = if canonical_assets_location.is_dir() {
-        Some(fs::canonicalize(&canonical_assets_location).map_err(|error| {
-            format!(
-                "Failed to resolve assets directory {}: {error}",
-                canonical_assets_location.display()
-            )
-        })?)
+        Some(
+            fs::canonicalize(&canonical_assets_location).map_err(|error| {
+                format!(
+                    "Failed to resolve assets directory {}: {error}",
+                    canonical_assets_location.display()
+                )
+            })?,
+        )
     } else {
         None
     };
@@ -896,8 +892,8 @@ fn create_backup_zip(
 
     if path_is_inside_assets(&canonical_output)
         || resolved_existing_output
-        .as_ref()
-        .is_some_and(|output| path_is_inside_assets(output))
+            .as_ref()
+            .is_some_and(|output| path_is_inside_assets(output))
     {
         return Err(format!(
             "Refusing to save a backup inside the assets directory: {}",
@@ -1239,10 +1235,7 @@ fn move_images_to_trash(
     let images_root = fs::canonicalize(Path::new(&data_dir).join("assets").join("images"))
         .map_err(|error| format!("Failed to resolve the images directory: {error}"))?;
     if !images_root.is_dir() {
-        return Err(format!(
-            "{} is not a directory",
-            images_root.display()
-        ));
+        return Err(format!("{} is not a directory", images_root.display()));
     }
 
     // Phase 1: validate every requested file before touching any of them.
@@ -1359,7 +1352,18 @@ pub fn run() {
             read_backup_zip,
             extract_backup_assets,
             list_asset_images,
-            move_images_to_trash
+            move_images_to_trash,
+            mcp::mcp_get_status,
+            mcp::mcp_sync_runtime,
+            mcp::mcp_set_enabled,
+            mcp::mcp_set_adult_opt_in,
+            mcp::mcp_set_global_adult_policy,
+            mcp::mcp_create_credential,
+            mcp::mcp_revoke_credential,
+            mcp::mcp_get_access_log,
+            mcp::mcp_clear_access_log,
+            mcp::mcp_suspend_runtime,
+            mcp::mcp_choose_new_endpoint
         ])
         .on_window_event(|window, event| {
             #[cfg(target_os = "macos")]
@@ -1370,6 +1374,11 @@ pub fn run() {
             let _ = (window, event);
         })
         .setup(|app| {
+            let mcp_config_dir = app.path().app_config_dir()?;
+            let mcp_state =
+                mcp::McpState::from_config_dir(mcp_config_dir).map_err(std::io::Error::other)?;
+            app.manage(mcp_state);
+
             let window = app.get_webview_window("main").unwrap();
 
             // Apply platform-native backdrop effects.
