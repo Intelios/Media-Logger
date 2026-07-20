@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "Media-Logger"
-version = "3.8.1"
+version = "3.8.4"
 dependencies = [
  "chrono",
  "objc2",
