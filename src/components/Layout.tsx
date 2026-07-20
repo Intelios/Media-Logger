@@ -332,9 +332,22 @@ export function Layout() {
         </div>
       </aside>
 
-      {/* Main Content Area - uses theme variable for background */}
-      <main className="flex-1 overflow-y-auto p-6 scroll-smooth" style={{ backgroundColor: 'var(--color-background)' }}>
-        {showDbMigratedBanner && (
+      {/* Main Content Area.
+          The themed background tint lives on a non-scrolling, viewport-sized
+          layer rather than on the scroll container itself. When a translucent
+          background sits on an `overflow-y-auto` element whose content exceeds
+          the viewport, WebKit promotes that element to its own compositing
+          layer and the translucency stops reading through the native window
+          backdrop (Clear glass / vibrancy) — so tall pages looked darkened
+          while short ones stayed clear. Keeping the tint on a fixed-size layer
+          composites it once over the backdrop regardless of scroll height. */}
+      <div className="relative flex-1 min-w-0">
+        <div
+          className="pointer-events-none absolute inset-0 z-0"
+          style={{ backgroundColor: 'var(--color-background)' }}
+        />
+        <main className="relative z-[1] h-full overflow-y-auto p-6 scroll-smooth">
+          {showDbMigratedBanner && (
           <div
             className="mb-4 flex items-start gap-3 rounded-xl border px-4 py-3"
             style={{
@@ -358,7 +371,8 @@ export function Layout() {
           </div>
         )}
         <Outlet />
-      </main>
+        </main>
+      </div>
 
       {showEntryForm && (
         <EntryForm
