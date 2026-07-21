@@ -1225,8 +1225,7 @@ fn move_path_to_trash(path: &Path) -> Result<(), String> {
     }
 }
 
-#[tauri::command]
-fn move_images_to_trash(
+fn move_images_to_trash_blocking(
     data_dir: String,
     filenames: Vec<String>,
     referenced: Vec<String>,
@@ -1309,6 +1308,23 @@ fn move_images_to_trash(
     }
 
     Ok(result)
+}
+
+#[tauri::command]
+async fn move_images_to_trash(
+    data_dir: String,
+    filenames: Vec<String>,
+    referenced: Vec<String>,
+    min_age_seconds: u64,
+) -> Result<TrashImagesResult, String> {
+    // Windows' Recycle Bin API is a blocking COM operation. Running it in a
+    // synchronous Tauri command blocks the main event loop and can deadlock
+    // the confirmation UI even after Explorer has moved the files.
+    tauri::async_runtime::spawn_blocking(move || {
+        move_images_to_trash_blocking(data_dir, filenames, referenced, min_age_seconds)
+    })
+    .await
+    .map_err(|error| format!("The image cleanup worker failed: {error}"))?
 }
 
 // While the window is unfocused, WindowServer continuously recomposites a

@@ -13,19 +13,35 @@ const PAUSED_CLASS = "animations-paused";
  */
 export function useAnimationPause() {
   useEffect(() => {
-    let focused = true;
+    let focused = document.hasFocus();
+    let focusRevision = 0;
 
     const sync = () => {
       document.documentElement.classList.toggle(PAUSED_CLASS, document.hidden || !focused);
     };
 
-    const handleVisibility = () => sync();
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    const appWindow = getCurrentWindow();
-    appWindow.isFocused().then((value) => {
+    const setFocused = (value: boolean) => {
+      focusRevision += 1;
       focused = value;
       sync();
+    };
+
+    const handleVisibility = () => sync();
+    const handleDomFocus = () => setFocused(true);
+    const handleDomBlur = () => setFocused(false);
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleDomFocus);
+    window.addEventListener("blur", handleDomBlur);
+    sync();
+
+    const appWindow = getCurrentWindow();
+    const revisionBeforeInitialCheck = focusRevision;
+    appWindow.isFocused().then((value) => {
+      // The Windows startup focus event can arrive while isFocused() is still
+      // pending. Do not let its older result overwrite a newer event.
+      if (focusRevision === revisionBeforeInitialCheck) {
+        setFocused(value);
+      }
     });
 
     // onFocusChanged resolves its unlisten fn asynchronously; guard with a
@@ -34,8 +50,7 @@ export function useAnimationPause() {
     let offFocus: (() => void) | undefined;
     appWindow
       .onFocusChanged(({ payload }) => {
-        focused = payload;
-        sync();
+        setFocused(payload);
       })
       .then((fn) => {
         if (cancelled) fn();
@@ -46,6 +61,8 @@ export function useAnimationPause() {
       cancelled = true;
       offFocus?.();
       document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleDomFocus);
+      window.removeEventListener("blur", handleDomBlur);
       document.documentElement.classList.remove(PAUSED_CLASS);
     };
   }, []);

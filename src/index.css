@@ -11,12 +11,29 @@
 @tailwind utilities;
 
 /* Energy saver: useAnimationPause adds this class while the window is
-   unfocused or hidden. Freezing the infinite decorative animations (dashboard
-   ken-burns, score glows, shimmers) stops WindowServer/GPU from recompositing
-   the translucent window every frame while the app sits in the background. */
-html.animations-paused *,
-html.animations-paused *::before,
-html.animations-paused *::after {
+   unfocused or hidden. Only continuous animations are paused here. Pausing
+   every animation can strand finite page-entry animations on their first
+   (often transparent) frame when Windows reports startup focus late. */
+html.animations-paused :is(
+  .animate-perfect-glow,
+  .animate-platinum-glow,
+  .animate-pulse-subtle,
+  .animate-shimmer,
+  .cover-skeleton,
+  .animate-glow-pulse,
+  .animate-float,
+  .animate-float-delayed,
+  .animate-float-slow,
+  .animate-gradient,
+  .animate-collection-glow,
+  .animate-float-decoration,
+  .animate-spin,
+  .animate-pulse,
+  .animate-ping,
+  .animate-bounce,
+  .spin,
+  .dashboard-featured-bg img
+) {
   animation-play-state: paused !important;
 }
 
