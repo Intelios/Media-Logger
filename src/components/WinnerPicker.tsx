@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Search, X, Plus } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { MediaCard } from "./MediaCard"; // Reuse the card!
@@ -111,7 +112,9 @@ export function WinnerPicker({
 
   if (!isOpen) return null;
 
-  return (
+  // Portalled to <body> so a parent's `space-y-*` margin can't offset the
+  // fixed overlay — see the note in EntryForm.
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
       <div ref={modalRef} className="bg-[#1a1a1a] border border-white/10 w-full max-w-4xl h-[80vh] rounded-2xl shadow-2xl flex flex-col">
         
@@ -205,6 +208,7 @@ export function WinnerPicker({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

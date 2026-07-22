@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X, Save, Layers, Sparkles, Pencil } from "lucide-react";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -32,7 +33,9 @@ export function CollectionModal({ isOpen, onClose, onSubmit, initialName, initia
   const isEdit = mode === "edit";
   const Icon = isEdit ? Pencil : Layers;
 
-  return (
+  // Portalled to <body> so a parent's `space-y-*` margin can't offset the
+  // fixed overlay — see the note in EntryForm.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       <div
         ref={modalRef}
@@ -122,6 +125,7 @@ export function CollectionModal({ isOpen, onClose, onSubmit, initialName, initia
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

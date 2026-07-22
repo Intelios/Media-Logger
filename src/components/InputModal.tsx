@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -47,7 +48,9 @@ export function InputModal({ isOpen, onClose, onSubmit, title, placeholder, defa
     onClose();
   };
 
-  return (
+  // Portalled to <body> so a parent's `space-y-*` margin can't offset the
+  // fixed overlay — see the note in EntryForm.
+  return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
       <div ref={modalRef} className="bg-[#1a1a1a] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl p-6">
         <div className="flex justify-between items-center mb-4">
@@ -91,6 +94,7 @@ export function InputModal({ isOpen, onClose, onSubmit, title, placeholder, defa
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

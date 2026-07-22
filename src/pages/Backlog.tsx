@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { ArrowUpDown, Bookmark, Plus, Play, Clock, Package, CalendarClock, ChevronDown, ChevronUp } from "lucide-react";
 import { BacklogCase } from "../components/BacklogCase";
 import { BacklogForm } from "../components/BacklogForm";
@@ -450,8 +451,9 @@ export default function Backlog() {
         title={reorderStatus ? `Reorder ${getStatusLabel(reorderStatus)} Backlog` : "Reorder Backlog"}
       />
 
-      {/* Delete Confirmation */}
-      {showDeleteConfirm !== null && (
+      {/* Delete Confirmation — portalled to <body> so the page's `space-y-6`
+          margin can't offset the fixed overlay (see the note in EntryForm). */}
+      {showDeleteConfirm !== null && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
           <div className="w-full max-w-sm rounded-2xl border border-white/10 shadow-2xl p-6"
             style={{ backgroundColor: "var(--color-surface)" }}
@@ -475,7 +477,8 @@ export default function Backlog() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

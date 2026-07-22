@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock, RotateCcw, Captions } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { saveImage, getImageUrl, releaseImageUrl, getLocalFileBlobUrl } from "../lib/utils";
@@ -665,7 +666,12 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
     </div>
   );
 
-  return (
+  // Rendered into <body>. Pages mount this modal as a trailing child of a
+  // `space-y-*` container, and Tailwind's `> :not([hidden]) ~ :not([hidden])`
+  // rule sets `margin-top` on it — including on this fixed overlay. With both
+  // `top` and `bottom` resolved (inset-0), that margin shifts the backdrop down
+  // and shortens it, leaving an undarkened strip across the top of the screen.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
       {/* Modal Container */}
       <div
@@ -754,6 +760,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

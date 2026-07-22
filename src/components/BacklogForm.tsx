@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X, Upload, Save, Sparkles, Image as ImageIcon, CalendarClock } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { saveImage, getImageUrl, releaseImageUrl, getLocalFileBlobUrl } from "../lib/utils";
@@ -148,7 +149,9 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
 
   if (!isOpen) return null;
 
-  return (
+  // Portalled to <body> so a parent's `space-y-*` margin can't offset the
+  // fixed overlay — see the note in EntryForm.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
       <div
         ref={modalRef}
@@ -303,6 +306,7 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

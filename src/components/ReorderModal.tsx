@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X, Save, GripVertical } from "lucide-react";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -80,7 +81,9 @@ export function ReorderModal<T extends ReorderItem>({ isOpen, onClose, items, on
 
   if (!isOpen) return null;
 
-  return (
+  // Portalled to <body> so a parent's `space-y-*` margin can't offset the
+  // fixed overlay — see the note in EntryForm.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
       <div ref={modalRef} className="bg-[#1a1a1a] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
         <div className="p-4 border-b border-white/5 flex justify-between items-center">
@@ -109,7 +112,8 @@ export function ReorderModal<T extends ReorderItem>({ isOpen, onClose, items, on
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
