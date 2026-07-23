@@ -372,7 +372,7 @@ export default function CollectionsPage() {
 
   // --- VIEW 2: LIST (Grid of Collections) ---
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-8">
       {/* Enhanced Header */}
       <header className="flex items-center justify-between collection-header-enter">
         <div>
