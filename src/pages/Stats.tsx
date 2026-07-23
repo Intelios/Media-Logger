@@ -270,13 +270,6 @@ export default function StatsPage() {
     }));
   };
 
-  const handleActiveViewChange = (viewId: StatsDashboardViewId) => {
-    setDashboardPreferences((currentPreferences) => ({
-      ...currentPreferences,
-      activeView: viewId,
-    }));
-  };
-
   const handleSummaryOrderChange = (nextVisibleOrder: (typeof SUMMARY_WIDGET_IDS)[number][]) => {
     updateActiveViewLayout((layout) => ({
       ...layout,
@@ -333,7 +326,6 @@ export default function StatsPage() {
         onResetPreset={handleResetPreset}
         onActiveYearChange={setActiveYear}
         activeView={activeView}
-        onActiveViewChange={handleActiveViewChange}
         isCustomizing={isCustomizing}
         onToggleCustomize={() => setIsCustomizing((current) => !current)}
         layout={activeLayout}

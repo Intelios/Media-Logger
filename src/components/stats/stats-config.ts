@@ -28,7 +28,7 @@ export const MAIN_WIDGET_IDS = [
   "completion-heatmap",
 ] as const;
 
-export const STATS_DASHBOARD_VIEW_IDS = ["overview", "dashboard"] as const;
+export const STATS_DASHBOARD_VIEW_IDS = ["dashboard"] as const;
 export const DISPLAY_MODE_WIDGET_IDS = ["platforms", "franchises", "studios", "authors", "actresses"] as const;
 
 export type SummaryWidgetId = (typeof SUMMARY_WIDGET_IDS)[number];
@@ -47,7 +47,6 @@ export const DEFAULT_STATS_WIDGET_DISPLAY_MODE: StatsWidgetDisplayMode = "bars";
 export interface StatsDashboardViewDefinition {
   id: StatsDashboardViewId;
   label: string;
-  containerClassName: string;
   defaultHidden: StatsWidgetId[];
 }
 
@@ -92,21 +91,12 @@ export type StatsPresetKey = ActiveFilterPresetKey;
 export type StatsFilterPreset = MediaFilterPreset;
 
 export const STATS_DASHBOARD_VIEW_DEFINITIONS: Record<StatsDashboardViewId, StatsDashboardViewDefinition> = {
-  overview: {
-    id: "overview",
-    label: "Overview",
-    containerClassName: "max-w-7xl",
-    defaultHidden: ["multi-log-days", "score-trend", "average-score-by-type", "studios", "authors", "actresses"],
-  },
   dashboard: {
     id: "dashboard",
     label: "Dashboard",
-    containerClassName: "max-w-[1600px]",
     defaultHidden: [],
   },
 };
-
-export const STATS_CUSTOMIZE_WORKSPACE_CLASSNAME = "max-w-[1680px]";
 
 const DISPLAY_MODE_WIDGET_ID_SET = new Set<StatsWidgetId>(DISPLAY_MODE_WIDGET_IDS);
 

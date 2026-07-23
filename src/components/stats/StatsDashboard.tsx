@@ -5,7 +5,6 @@ import { StatsPageHeader } from "./StatsPageHeader";
 import { StatsSummaryRibbon } from "./StatsSummaryRibbon";
 import { StatsWidgetGrid } from "./StatsWidgetGrid";
 import {
-  STATS_CUSTOMIZE_WORKSPACE_CLASSNAME,
   STATS_DASHBOARD_VIEW_DEFINITIONS,
   type MainWidgetId,
   type StatsDashboardRenderContext,
@@ -37,7 +36,6 @@ interface StatsDashboardProps {
   onResetPreset: () => void;
   onActiveYearChange: (year: string) => void;
   activeView: StatsDashboardViewId;
-  onActiveViewChange: (viewId: StatsDashboardViewId) => void;
   isCustomizing: boolean;
   onToggleCustomize: () => void;
   layout: StatsDashboardViewLayout;
@@ -85,7 +83,6 @@ export function StatsDashboard({
   onResetPreset,
   onActiveYearChange,
   activeView,
-  onActiveViewChange,
   isCustomizing,
   onToggleCustomize,
   layout,
@@ -143,18 +140,11 @@ export function StatsDashboard({
     toCustomizePanelItem(definition, layout)
   );
 
-  const containerClassName = isCustomizing
-    ? STATS_CUSTOMIZE_WORKSPACE_CLASSNAME
-    : activeViewDefinition.containerClassName;
-
   return (
-    <div className={cn("mx-auto pb-20", containerClassName)}>
+    <div className="pb-20">
       <StatsPageHeader
         title="Statistics"
         subtitle={`Deep dive analytics for ${activeYear}`}
-        views={Object.values(STATS_DASHBOARD_VIEW_DEFINITIONS)}
-        activeView={activeView}
-        onActiveViewChange={onActiveViewChange}
         isCustomizing={isCustomizing}
         onToggleCustomize={onToggleCustomize}
         entryTypes={entryTypes}

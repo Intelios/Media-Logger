@@ -158,9 +158,8 @@ export function createDefaultStatsDashboardPreferences(
 ): StatsDashboardPreferencesV3 {
   return {
     version: STATS_DASHBOARD_PREFERENCES_VERSION,
-    activeView: "overview",
+    activeView: "dashboard",
     views: {
-      overview: createDefaultStatsDashboardViewLayout("overview", definitions),
       dashboard: createDefaultStatsDashboardViewLayout("dashboard", definitions),
     },
   };
@@ -212,20 +211,12 @@ export function normalizeStatsDashboardPreferences(
     return defaults;
   }
 
-  const activeView =
-    candidate.activeView === "overview" || candidate.activeView === "dashboard" ? candidate.activeView : defaults.activeView;
-
   const views = candidate.views && typeof candidate.views === "object" ? candidate.views : {};
 
   return {
     version: STATS_DASHBOARD_PREFERENCES_VERSION,
-    activeView,
+    activeView: "dashboard",
     views: {
-      overview: normalizeStatsDashboardViewLayout(
-        (views as Partial<Record<StatsDashboardViewId, unknown>>).overview,
-        "overview",
-        definitions
-      ),
       dashboard: normalizeStatsDashboardViewLayout(
         (views as Partial<Record<StatsDashboardViewId, unknown>>).dashboard,
         "dashboard",
@@ -250,20 +241,12 @@ function normalizeLegacyStatsDashboardPreferencesV2(
     return defaults;
   }
 
-  const activeView =
-    candidate.activeView === "overview" || candidate.activeView === "dashboard" ? candidate.activeView : defaults.activeView;
-
   const views = candidate.views && typeof candidate.views === "object" ? candidate.views : {};
 
   return {
     version: STATS_DASHBOARD_PREFERENCES_VERSION,
-    activeView,
+    activeView: "dashboard",
     views: {
-      overview: normalizeStatsDashboardViewLayout(
-        (views as Partial<Record<StatsDashboardViewId, unknown>>).overview,
-        "overview",
-        definitions
-      ),
       dashboard: normalizeStatsDashboardViewLayout(
         (views as Partial<Record<StatsDashboardViewId, unknown>>).dashboard,
         "dashboard",
@@ -329,13 +312,12 @@ export function loadStatsDashboardPreferences(
       return normalizeStatsDashboardPreferences(
         {
           version: STATS_DASHBOARD_PREFERENCES_VERSION,
-          activeView: "overview",
+          activeView: "dashboard",
           views: {
-            overview: {
+            dashboard: {
               ...legacyLayout,
               displayModes: getDefaultDisplayModes(),
             },
-            dashboard: createDefaultStatsDashboardViewLayout("dashboard", definitions),
           },
         },
         definitions

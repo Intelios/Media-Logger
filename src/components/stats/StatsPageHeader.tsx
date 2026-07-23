@@ -2,19 +2,11 @@ import { Check, SlidersHorizontal } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "../../lib/utils_ui";
 import { MultiSelectFilter } from "../MultiSelectFilter";
-import type {
-  StatsDashboardViewDefinition,
-  StatsDashboardViewId,
-  StatsFilterPreset,
-  StatsPresetKey,
-} from "./stats-config";
+import type { StatsFilterPreset, StatsPresetKey } from "./stats-config";
 
 interface StatsPageHeaderProps {
   title: string;
   subtitle: string;
-  views: StatsDashboardViewDefinition[];
-  activeView: StatsDashboardViewId;
-  onActiveViewChange: (viewId: StatsDashboardViewId) => void;
   isCustomizing: boolean;
   onToggleCustomize: () => void;
   entryTypes: string[];
@@ -32,9 +24,6 @@ interface StatsPageHeaderProps {
 export function StatsPageHeader({
   title,
   subtitle,
-  views,
-  activeView,
-  onActiveViewChange,
   isCustomizing,
   onToggleCustomize,
   entryTypes,
@@ -62,24 +51,6 @@ export function StatsPageHeader({
         </div>
 
         <div className="flex flex-wrap items-center gap-3 xl:justify-end">
-          <div className="flex overflow-x-auto rounded-xl border border-white/10 bg-white/5 p-1">
-            {views.map((view) => (
-              <button
-                key={view.id}
-                type="button"
-                onClick={() => onActiveViewChange(view.id)}
-                className={cn(
-                  "whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-all",
-                  activeView === view.id
-                    ? "bg-white/12 text-white shadow-lg"
-                    : "text-gray-400 hover:bg-white/5 hover:text-white"
-                )}
-              >
-                {view.label}
-              </button>
-            ))}
-          </div>
-
           <button
             type="button"
             onClick={onToggleCustomize}
