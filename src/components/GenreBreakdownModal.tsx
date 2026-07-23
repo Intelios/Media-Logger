@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X, Star, Gem, ChevronRight, BarChart3 } from "lucide-react";
 import { type StatItem } from "../lib/stats-logic";
 import { cn } from "../lib/utils_ui";
@@ -32,7 +33,7 @@ export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onG
         return b.count - a.count;
     });
 
-    return (
+    return createPortal(
         <>
             {/* Backdrop */}
             <div
@@ -164,6 +165,7 @@ export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onG
                     </div>
                 </div>
             </div>
-        </>
+        </>,
+        document.body
     );
 }

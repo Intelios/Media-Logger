@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { type MediaEntry } from "../lib/db";
 import { MediaCard } from "./MediaCard";
@@ -44,7 +45,7 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, onEntriesCh
         onEntriesChange();
     };
 
-    return (
+    return createPortal(
         <>
             {/* Backdrop */}
             <div
@@ -101,6 +102,7 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, onEntriesCh
                 onSave={handleSave}
                 initialData={editingEntry}
             />
-        </>
+        </>,
+        document.body
     );
 }
