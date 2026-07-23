@@ -1,15 +1,103 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUpDown, Bookmark, Plus, Play, Clock, Package, CalendarClock, ChevronDown, ChevronUp } from "lucide-react";
-import { BacklogCase } from "../components/BacklogCase";
+import { Bookmark, Plus, Play, Clock, Package, CalendarClock, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable";
+import { SortableBacklogCase } from "../components/SortableBacklogCase";
 import { BacklogForm } from "../components/BacklogForm";
 import { EntryForm } from "../components/EntryForm";
-import { ReorderModal } from "../components/ReorderModal";
 import { backlogLogic, type BacklogItemsByStatus } from "../lib/backlog-logic";
 import { dbService, type BacklogItem, type MediaEntry } from "../lib/db";
 import { getVisibleEntryTypes, useAdultMediaEnabled } from "../lib/media-config";
 import { isUnreleasedSectionCollapsed, setUnreleasedSectionCollapsed } from "../lib/settings";
 import { cn } from "../lib/utils_ui";
+
+type SectionKey = "inProgress" | "planning" | "unreleased";
+
+const CONTAINER_IDS: Record<SectionKey, string> = {
+  inProgress: "section:inProgress",
+  planning: "section:planning",
+  unreleased: "section:unreleased",
+};
+
+const SECTION_STATUS: Record<SectionKey, BacklogItem["status"]> = {
+  inProgress: "in_progress",
+  planning: "planning",
+  unreleased: "unreleased",
+};
+
+interface SortableSectionGridProps {
+  containerId: string;
+  list: BacklogItem[];
+  dragEnabled: boolean;
+  suppressTooltip: boolean;
+  emptyState: ReactNode;
+  onStart: (id: number) => void;
+  onPause: (id: number) => void;
+  onComplete: (item: BacklogItem) => void;
+  onEdit: (item: BacklogItem) => void;
+  onRemove: (id: number) => void;
+}
+
+// A droppable card grid for one backlog section. The whole grid (including its
+// empty-state placeholder) is a droppable, so an empty section is still a valid
+// cross-section drop target; each card inside is individually sortable.
+function SortableSectionGrid({
+  containerId,
+  list,
+  dragEnabled,
+  suppressTooltip,
+  emptyState,
+  onStart,
+  onPause,
+  onComplete,
+  onEdit,
+  onRemove,
+}: SortableSectionGridProps) {
+  const { setNodeRef } = useDroppable({ id: containerId });
+
+  return (
+    <div ref={setNodeRef}>
+      {list.length > 0 ? (
+        <SortableContext items={list.map((i) => i.id)} strategy={rectSortingStrategy}>
+          <div className="flex flex-wrap gap-4">
+            {list.map((item, i) => (
+              <SortableBacklogCase
+                key={item.id}
+                item={item}
+                index={i}
+                disabled={!dragEnabled}
+                suppressTooltip={suppressTooltip}
+                onStart={onStart}
+                onPause={onPause}
+                onComplete={onComplete}
+                onEdit={onEdit}
+                onRemove={onRemove}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      ) : (
+        emptyState
+      )}
+    </div>
+  );
+}
 
 export default function Backlog() {
   const adultEnabled = useAdultMediaEnabled();
@@ -22,8 +110,13 @@ export default function Backlog() {
   const [completingItem, setCompletingItem] = useState<BacklogItem | null>(null);
   const [completionInitialData, setCompletionInitialData] = useState<Partial<MediaEntry> | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
-  const [reorderStatus, setReorderStatus] = useState<BacklogItem['status'] | null>(null);
+  const [activeId, setActiveId] = useState<number | null>(null);
   const loadIdRef = useRef(0);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const loadItems = useCallback(async () => {
     const id = ++loadIdRef.current;
@@ -58,14 +151,10 @@ export default function Backlog() {
   const totalCount = items.inProgress.length + items.planning.length + items.unreleased.length;
   const isEmpty = totalCount === 0;
   const isFiltering = activeFilter !== "All";
-  const reorderItems = reorderStatus === "in_progress"
-    ? items.inProgress
-    : reorderStatus === "planning"
-      ? items.planning
-      : [];
-
-  const getStatusLabel = (status: BacklogItem['status']) =>
-    status === "in_progress" ? "In Progress" : status === "unreleased" ? "Unreleased" : "Planning";
+  // Reordering a filtered subset would leave hidden items' sort_order untouched
+  // and corrupt the overall order, so dragging is only enabled with no filter.
+  const dragEnabled = !isFiltering;
+  const isDragging = activeId !== null;
 
   const toggleUnreleasedCollapsed = () => {
     setUnreleasedCollapsed(prev => {
@@ -164,15 +253,62 @@ export default function Backlog() {
     }
   };
 
-  const handleReorderSave = async (newOrder: BacklogItem[]) => {
-    if (!reorderStatus) return;
+  // Resolve a dnd id to its section: a section droppable id (string) or, for a
+  // card id (number), whichever list currently holds it.
+  const findContainer = (id: string | number): SectionKey | null => {
+    const asSection = (Object.keys(CONTAINER_IDS) as SectionKey[]).find((k) => CONTAINER_IDS[k] === id);
+    if (asSection) return asSection;
+    const numId = typeof id === "number" ? id : Number(id);
+    if (items.inProgress.some((i) => i.id === numId)) return "inProgress";
+    if (items.planning.some((i) => i.id === numId)) return "planning";
+    if (items.unreleased.some((i) => i.id === numId)) return "unreleased";
+    return null;
+  };
 
-    await backlogLogic.updateItemOrder(reorderStatus, newOrder.map(item => item.id));
-    setItems((current) => reorderStatus === "in_progress"
-      ? { ...current, inProgress: newOrder }
-      : { ...current, planning: newOrder }
-    );
-    setReorderStatus(null);
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(Number(event.active.id));
+  };
+
+  const handleDragCancel = () => setActiveId(null);
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const from = findContainer(active.id);
+    const to = findContainer(over.id);
+    if (!from || !to) return;
+
+    const activeItemId = Number(active.id);
+
+    if (from === to) {
+      // Unreleased is auto-sorted by release date, so reordering within it is a
+      // no-op — it would just snap back to the release-date order on next load.
+      if (from === "unreleased" || active.id === over.id) return;
+      const list = items[from];
+      const oldIndex = list.findIndex((i) => i.id === activeItemId);
+      const newIndex = list.findIndex((i) => i.id === Number(over.id));
+      if (oldIndex === -1 || newIndex === -1) return;
+      const newOrder = arrayMove(list, oldIndex, newIndex);
+      setItems((cur) => ({ ...cur, [from]: newOrder })); // optimistic
+      backlogLogic
+        .updateItemOrder(SECTION_STATUS[from], newOrder.map((i) => i.id))
+        .catch(() => loadItems());
+      return;
+    }
+
+    // Cross-section: change the item's status. Dropping into Unreleased isn't
+    // supported (an unreleased item is defined by a release date, set in the
+    // form), so ignore those drops.
+    if (to === "unreleased") return;
+    try {
+      if (to === "inProgress") await backlogLogic.moveToInProgress(activeItemId);
+      else await backlogLogic.moveToPlanning(activeItemId);
+    } catch (error) {
+      console.error("Failed to move backlog item between sections:", error);
+    }
+    await loadItems();
   };
 
   return (
@@ -260,6 +396,16 @@ export default function Backlog() {
         </div>
       )}
 
+      {/* Sections share one DndContext so cards can be dragged within a section
+          (reorder) and across sections (change status). */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+
       {/* In Progress Section */}
       {!isEmpty && (
         <section className="backlog-section-enter" style={{ animationDelay: '120ms' }}>
@@ -273,45 +419,34 @@ export default function Backlog() {
                 {filteredInProgress.length}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setReorderStatus("in_progress")}
-              disabled={items.inProgress.length < 2 || isFiltering}
-              title={isFiltering ? "Clear the type filter to reorder all in-progress items" : undefined}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white/5 disabled:hover:text-gray-400"
-            >
-              <ArrowUpDown size={14} />
-              Reorder
-            </button>
+            {isFiltering && filteredInProgress.length > 1 && (
+              <span className="text-xs text-gray-500">Clear the type filter to drag-reorder</span>
+            )}
           </div>
 
-          {filteredInProgress.length > 0 ? (
-            <div className="flex flex-wrap gap-4">
-              {filteredInProgress.map((item, i) => (
-                <BacklogCase
-                  key={item.id}
-                  item={item}
-                  index={i}
-                  onStart={handleStart}
-                  onPause={handlePause}
-                  onComplete={handleComplete}
-                  onEdit={handleEdit}
-                  onRemove={handleRemove}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="py-8 text-center rounded-2xl border border-dashed border-white/10"
-              style={{ backgroundColor: "var(--color-surface)" }}
-            >
-              <Clock size={24} className="mx-auto text-gray-600 mb-2" />
-              <p className="text-sm text-gray-500">
-                {activeFilter !== "All"
-                  ? `No ${activeFilter} items in progress`
-                  : "Nothing in progress yet. Start something from your planning queue!"}
-              </p>
-            </div>
-          )}
+          <SortableSectionGrid
+            containerId={CONTAINER_IDS.inProgress}
+            list={filteredInProgress}
+            dragEnabled={dragEnabled}
+            suppressTooltip={isDragging}
+            onStart={handleStart}
+            onPause={handlePause}
+            onComplete={handleComplete}
+            onEdit={handleEdit}
+            onRemove={handleRemove}
+            emptyState={
+              <div className="py-8 text-center rounded-2xl border border-dashed border-white/10"
+                style={{ backgroundColor: "var(--color-surface)" }}
+              >
+                <Clock size={24} className="mx-auto text-gray-600 mb-2" />
+                <p className="text-sm text-gray-500">
+                  {activeFilter !== "All"
+                    ? `No ${activeFilter} items in progress`
+                    : "Nothing in progress yet. Start something from your planning queue!"}
+                </p>
+              </div>
+            }
+          />
         </section>
       )}
 
@@ -328,45 +463,34 @@ export default function Backlog() {
                 {filteredPlanning.length}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setReorderStatus("planning")}
-              disabled={items.planning.length < 2 || isFiltering}
-              title={isFiltering ? "Clear the type filter to reorder all planning items" : undefined}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white/5 disabled:hover:text-gray-400"
-            >
-              <ArrowUpDown size={14} />
-              Reorder
-            </button>
+            {isFiltering && filteredPlanning.length > 1 && (
+              <span className="text-xs text-gray-500">Clear the type filter to drag-reorder</span>
+            )}
           </div>
 
-          {filteredPlanning.length > 0 ? (
-            <div className="flex flex-wrap gap-4">
-              {filteredPlanning.map((item, i) => (
-                <BacklogCase
-                  key={item.id}
-                  item={item}
-                  index={i}
-                  onStart={handleStart}
-                  onPause={handlePause}
-                  onComplete={handleComplete}
-                  onEdit={handleEdit}
-                  onRemove={handleRemove}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="py-8 text-center rounded-2xl border border-dashed border-white/10"
-              style={{ backgroundColor: "var(--color-surface)" }}
-            >
-              <Bookmark size={24} className="mx-auto text-gray-600 mb-2" />
-              <p className="text-sm text-gray-500">
-                {activeFilter !== "All"
-                  ? `No ${activeFilter} items in your planning queue`
-                  : "Your planning queue is empty. Add something you've been meaning to get to!"}
-              </p>
-            </div>
-          )}
+          <SortableSectionGrid
+            containerId={CONTAINER_IDS.planning}
+            list={filteredPlanning}
+            dragEnabled={dragEnabled}
+            suppressTooltip={isDragging}
+            onStart={handleStart}
+            onPause={handlePause}
+            onComplete={handleComplete}
+            onEdit={handleEdit}
+            onRemove={handleRemove}
+            emptyState={
+              <div className="py-8 text-center rounded-2xl border border-dashed border-white/10"
+                style={{ backgroundColor: "var(--color-surface)" }}
+              >
+                <Bookmark size={24} className="mx-auto text-gray-600 mb-2" />
+                <p className="text-sm text-gray-500">
+                  {activeFilter !== "All"
+                    ? `No ${activeFilter} items in your planning queue`
+                    : "Your planning queue is empty. Add something you've been meaning to get to!"}
+                </p>
+              </div>
+            }
+          />
         </section>
       )}
 
@@ -392,38 +516,40 @@ export default function Backlog() {
             </button>
           </div>
 
+          {/* While a drag is active the section drops its clip so a card lifted
+              out of it (this container is otherwise overflow-hidden for the
+              collapse animation) isn't cut off at the section edge. */}
           <div className={cn(
-            "overflow-hidden transition-all duration-300 ease-out",
-            unreleasedCollapsed ? "max-h-0" : "max-h-[2000px]"
+            "transition-all duration-300 ease-out",
+            unreleasedCollapsed ? "max-h-0" : "max-h-[2000px]",
+            !unreleasedCollapsed && isDragging ? "overflow-visible" : "overflow-hidden"
           )}>
-            {filteredUnreleased.length > 0 ? (
-              <div className="flex flex-wrap gap-4">
-                {filteredUnreleased.map((item, i) => (
-                  <BacklogCase
-                    key={item.id}
-                    item={item}
-                    index={i}
-                    onStart={handleStart}
-                    onPause={handlePause}
-                    onComplete={handleComplete}
-                    onEdit={handleEdit}
-                    onRemove={handleRemove}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="py-8 text-center rounded-2xl border border-dashed border-white/10"
-                style={{ backgroundColor: "var(--color-surface)" }}
-              >
-                <CalendarClock size={24} className="mx-auto text-gray-600 mb-2" />
-                <p className="text-sm text-gray-500">
-                  {`No ${activeFilter} items awaiting release`}
-                </p>
-              </div>
-            )}
+            <SortableSectionGrid
+              containerId={CONTAINER_IDS.unreleased}
+              list={filteredUnreleased}
+              dragEnabled={dragEnabled}
+              suppressTooltip={isDragging}
+              onStart={handleStart}
+              onPause={handlePause}
+              onComplete={handleComplete}
+              onEdit={handleEdit}
+              onRemove={handleRemove}
+              emptyState={
+                <div className="py-8 text-center rounded-2xl border border-dashed border-white/10"
+                  style={{ backgroundColor: "var(--color-surface)" }}
+                >
+                  <CalendarClock size={24} className="mx-auto text-gray-600 mb-2" />
+                  <p className="text-sm text-gray-500">
+                    {`No ${activeFilter} items awaiting release`}
+                  </p>
+                </div>
+              }
+            />
           </div>
         </section>
       )}
+
+      </DndContext>
 
       {/* Backlog Add/Edit Form */}
       <BacklogForm
@@ -442,14 +568,6 @@ export default function Backlog() {
           initialData={completionInitialData as MediaEntry}
         />
       )}
-
-      <ReorderModal
-        isOpen={reorderStatus !== null}
-        onClose={() => setReorderStatus(null)}
-        items={reorderItems}
-        onSave={handleReorderSave}
-        title={reorderStatus ? `Reorder ${getStatusLabel(reorderStatus)} Backlog` : "Reorder Backlog"}
-      />
 
       {/* Delete Confirmation — portalled to <body> so the page's `space-y-6`
           margin can't offset the fixed overlay (see the note in EntryForm). */}

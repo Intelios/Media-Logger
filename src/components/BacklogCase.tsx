@@ -51,6 +51,8 @@ const getSpineGradient = (type: string) => {
 interface BacklogCaseProps {
   item: BacklogItem;
   index: number;
+  /** Hide the hover tooltip — set while a drag is in progress. */
+  suppressTooltip?: boolean;
   onStart: (id: number) => void;
   onPause: (id: number) => void;
   onComplete: (item: BacklogItem) => void;
@@ -58,7 +60,7 @@ interface BacklogCaseProps {
   onRemove: (id: number) => void;
 }
 
-export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit, onRemove }: BacklogCaseProps) {
+export function BacklogCase({ item, index, suppressTooltip, onStart, onPause, onComplete, onEdit, onRemove }: BacklogCaseProps) {
   const { src: imageUrl, status: imgStatus } = useImageSource(item.image_url);
   const { revealed: coverRevealed, reveal: revealCover, attachImg: coverImgRef } = useCoverReveal(imageUrl, imgStatus);
   const [showMenu, setShowMenu] = useState(false);
@@ -97,7 +99,17 @@ export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit,
     setShowMenu(true);
   };
 
+  // Suppress (and clear any pending) tooltip while a drag is active so sibling
+  // cards sliding under the cursor don't pop tooltips mid-drag.
+  useEffect(() => {
+    if (suppressTooltip) {
+      clearTimeout(tooltipTimeoutRef.current);
+      setShowTooltip(false);
+    }
+  }, [suppressTooltip]);
+
   const handleMouseEnter = () => {
+    if (suppressTooltip) return;
     tooltipTimeoutRef.current = setTimeout(() => setShowTooltip(true), 400);
   };
 
@@ -183,6 +195,7 @@ export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit,
             <button
               ref={menuButtonRef}
               onClick={handleMenuClick}
+              onPointerDown={(e) => e.stopPropagation()}
               className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center hover:bg-black/70 transition-colors"
             >
               <MoreVertical size={14} className="text-white" />
