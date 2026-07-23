@@ -1,8 +1,40 @@
 {
-  "generatedAt": "2026-07-20T18:16:06.023Z",
+  "generatedAt": "2026-07-23T14:58:31.978Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "3.9.4",
+      "title": "Media Logger - 3.9.4",
+      "date": "2026-07-23",
+      "body": "- Fixed an issue where cover images could get stuck on the loading animation forever and never appear, until you switched pages or refreshed the app. This was most noticeable on the Search page. Covers now fade in reliably every time.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.9.4"
+    },
+    {
+      "version": "3.9.3",
+      "title": "Media Logger - 3.9.3",
+      "date": "2026-07-23",
+      "body": "- Fixed an issue where the Perfect 10s/This Month/Genre View modal would be rendered inline and be cut off by the side bar, now are full screen modal pop ups once again.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.9.3"
+    },
+    {
+      "version": "3.9.2",
+      "title": "Media Logger - 3.9.2",
+      "date": "2026-07-22",
+      "body": "- Fixed a issue where the darkened overlay in the edit/add entry form could have a gap at the top.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.9.2"
+    },
+    {
+      "version": "3.9.1",
+      "title": "Media Logger - 3.9.1",
+      "date": "2026-07-21",
+      "body": "Bug Fixes:\n- Blank pages: the background energy saver paused all animations. A Windows startup focus race could freeze page-entry animations at opacity 0.\n- Frozen cleanup prompt: the Windows Recycle Bin operation ran synchronously on Tauri’s main thread. It now runs on a blocking worker in following Tauri’s guidance for blocking commands.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.9.1"
+    },
     {
       "version": "3.9",
       "title": "Media Logger - 3.9",
