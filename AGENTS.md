@@ -1,6 +1,11 @@
 # Media Logger — Agent Guide
 
-Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app. No mobile/web plans.
+Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app. 
+
+
+## Important To Know
+- No mobile/web plans at all for the app. Desktop only.
+- All development for the app takes place on a MacOS device.
 
 ## Commands
 
