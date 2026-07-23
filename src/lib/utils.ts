@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { join } from '@tauri-apps/api/path';
 import { readFile, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs';
 import { getDataDirectory } from './settings';
@@ -152,6 +152,53 @@ export function useImageSource(dbPath: string | null | undefined): ImageSource {
 export function useImageUrl(dbPath: string | null | undefined, fallback = DEFAULT_COVER_IMAGE): string {
   const { src, status } = useImageSource(dbPath);
   return status === 'ready' ? src : fallback;
+}
+
+// Robustly reveals a cover <img> with a fade-in once it has actually painted.
+// Callers render a skeleton while `revealed` is false and fade the <img> in
+// (opacity 0 -> 100) when it flips true: wire `reveal` onto onLoad/onError and
+// `attachImg` onto the element's `ref`.
+//
+// Why this exists (do NOT go back to a bare onLoad handler): our covers are
+// inserted into the DOM only AFTER their bytes are read off disk (see
+// useImageSource). In WKWebView (macOS) a dynamically-inserted <img> can finish
+// decoding before React attaches its onLoad listener — or, with loading="lazy",
+// never fire a load at all — so the event is missed and the skeleton sits there
+// forever until an unrelated re-layout (navigating away and back) nudges it.
+// The `attachImg` ref catches the already-complete case; onLoad/onError cover
+// the normal async case. Introduced to fix the stuck-skeleton regression from
+// the 3.8 "Image Loading 2.0" refactor.
+export interface CoverReveal {
+  revealed: boolean;
+  reveal: () => void;
+  attachImg: (node: HTMLImageElement | null) => void;
+}
+
+export function useCoverReveal(src: string | null | undefined, status: ImageStatus): CoverReveal {
+  // Warm cache / remote images are 'ready' on mount, so skip the skeleton.
+  const [revealed, setRevealed] = useState(status === 'ready');
+  const nodeRef = useRef<HTMLImageElement | null>(null);
+  const prevSrcRef = useRef(src);
+
+  useEffect(() => {
+    if (prevSrcRef.current === src) return;
+    prevSrcRef.current = src;
+    // The source changed: hide and wait for the new image to load — unless the
+    // element already has it decoded, in which case a load event may never come.
+    const node = nodeRef.current;
+    setRevealed(Boolean(node && node.complete && node.naturalWidth > 0));
+  }, [src]);
+
+  const reveal = useCallback(() => setRevealed(true), []);
+
+  const attachImg = useCallback((node: HTMLImageElement | null) => {
+    nodeRef.current = node;
+    // Already decoded by the time it attaches → reveal now, don't wait on a
+    // load event that may have already fired.
+    if (node && node.complete && node.naturalWidth > 0) setRevealed(true);
+  }, []);
+
+  return { revealed, reveal, attachImg };
 }
 
 // Reads an arbitrary local file path (e.g. one returned by the file dialog)

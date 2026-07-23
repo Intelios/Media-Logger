@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus, Clock, Captions } from "lucide-react";
-import { DEFAULT_COVER_IMAGE, useImageSource } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, useImageSource, useCoverReveal } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { getRatingDisplayMode } from "../lib/settings";
@@ -171,14 +171,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
   const { src: imgSrc, status: imgStatus } = useImageSource(entry.image_url);
   // Reveal the cover with a fade once it has actually loaded; cached/remote
   // images (status already 'ready' on mount) skip the skeleton entirely.
-  const [coverRevealed, setCoverRevealed] = useState(imgStatus === 'ready');
-  const prevImgSrcRef = useRef(imgSrc);
-  useEffect(() => {
-    if (prevImgSrcRef.current !== imgSrc) {
-      prevImgSrcRef.current = imgSrc;
-      setCoverRevealed(false);
-    }
-  }, [imgSrc]);
+  const { revealed: coverRevealed, reveal: revealCover, attachImg: coverImgRef } = useCoverReveal(imgSrc, imgStatus);
   const [menuOpen, setMenuOpen] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [imageViewOpen, setImageViewOpen] = useState(false);
@@ -351,6 +344,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
             )}
             {imgStatus !== 'loading' && (
               <img
+                ref={coverImgRef}
                 src={imgSrc || DEFAULT_COVER_IMAGE}
                 alt={entry.name}
                 className={cn(
@@ -358,9 +352,8 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                   imageTopRadius,
                   coverRevealed ? "opacity-100" : "opacity-0"
                 )}
-                loading="lazy"
-                onLoad={() => setCoverRevealed(true)}
-                onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; setCoverRevealed(true); }}
+                onLoad={revealCover}
+                onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; revealCover(); }}
               />
             )}
 

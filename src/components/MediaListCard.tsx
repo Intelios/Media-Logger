@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { Star, Calendar, RotateCcw, Captions, Trophy, Clock } from "lucide-react";
 import type { MediaEntry } from "../lib/db";
-import { DEFAULT_COVER_IMAGE, useImageSource } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, useImageSource, useCoverReveal } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 import { getTypeBadgeStyle, getRatingColor, parseGenres, formatCardRating } from "./MediaCard";
 import { formatDate, getYearsAgo } from "../lib/dates";
@@ -51,14 +51,7 @@ export function MediaListCard({
 }: MediaListCardProps) {
   const yearsAgo = showYearsAgo ? getYearsAgo(entry.completion_date) : null;
   const { src: imgSrc, status: imgStatus } = useImageSource(entry.image_url);
-  const [coverRevealed, setCoverRevealed] = useState(imgStatus === 'ready');
-  const prevImgSrcRef = useRef(imgSrc);
-  useEffect(() => {
-    if (prevImgSrcRef.current !== imgSrc) {
-      prevImgSrcRef.current = imgSrc;
-      setCoverRevealed(false);
-    }
-  }, [imgSrc]);
+  const { revealed: coverRevealed, reveal: revealCover, attachImg: coverImgRef } = useCoverReveal(imgSrc, imgStatus);
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const genres = parseGenres(entry.genre).slice(0, 2);
   const hasScore = entry.review_score !== null && entry.review_score !== undefined;
@@ -98,11 +91,11 @@ export function MediaListCard({
       )}
       {imgStatus !== 'loading' && (
         <img
+          ref={coverImgRef}
           src={imgSrc || DEFAULT_COVER_IMAGE}
           alt={entry.name}
-          loading="lazy"
-          onLoad={() => setCoverRevealed(true)}
-          onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; setCoverRevealed(true); }}
+          onLoad={revealCover}
+          onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; revealCover(); }}
           className={cn("media-list-card-thumb transition-opacity duration-500", coverRevealed ? "opacity-100" : "opacity-0")}
         />
       )}

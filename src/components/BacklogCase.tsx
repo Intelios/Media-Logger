@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Play, Pause, Check, Pencil, Trash2, MoreVertical, Film, Tv, MonitorPlay, Gamepad2, BookOpen, Disc3, Heart, Monitor, Tag, Calendar, CalendarClock, Hourglass } from "lucide-react";
-import { useImageSource } from "../lib/utils";
+import { useImageSource, useCoverReveal } from "../lib/utils";
 import { formatShortDate, getDaysUntil } from "../lib/dates";
 import { cn } from "../lib/utils_ui";
 import type { BacklogItem } from "../lib/db";
@@ -60,14 +60,7 @@ interface BacklogCaseProps {
 
 export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit, onRemove }: BacklogCaseProps) {
   const { src: imageUrl, status: imgStatus } = useImageSource(item.image_url);
-  const [coverRevealed, setCoverRevealed] = useState(imgStatus === 'ready');
-  const prevImageUrlRef = useRef(imageUrl);
-  useEffect(() => {
-    if (prevImageUrlRef.current !== imageUrl) {
-      prevImageUrlRef.current = imageUrl;
-      setCoverRevealed(false);
-    }
-  }, [imageUrl]);
+  const { revealed: coverRevealed, reveal: revealCover, attachImg: coverImgRef } = useCoverReveal(imageUrl, imgStatus);
   const [showMenu, setShowMenu] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -141,6 +134,7 @@ export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit,
           )}
           {hasImage ? (
             <img
+              ref={coverImgRef}
               src={imageUrl}
               alt={item.name}
               className={cn(
@@ -148,8 +142,8 @@ export function BacklogCase({ item, index, onStart, onPause, onComplete, onEdit,
                 coverRevealed ? "opacity-100" : "opacity-0"
               )}
               draggable={false}
-              onLoad={() => setCoverRevealed(true)}
-              onError={() => setCoverRevealed(true)}
+              onLoad={revealCover}
+              onError={revealCover}
             />
           ) : imgStatus === 'empty' ? (
             <div className={cn(
