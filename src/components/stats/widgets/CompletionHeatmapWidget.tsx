@@ -1,4 +1,6 @@
 import { Calendar } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { StatsWidgetShell } from "../StatsWidgetShell";
 import { STATS_WIDGET_META } from "../stats-config";
 import type { DailyCompletion } from "../../../lib/stats-logic";
@@ -126,6 +128,64 @@ export function CompletionHeatmapWidget({ dailyCompletions, activeYear, onDateCl
   const maxCount = hasData ? Math.max(...dailyCompletions.map((d) => d.count)) : 0;
   const heatmapWidth = columns.length > 0 ? columns.length * HEATMAP_COLUMN_WIDTH - HEATMAP_COLUMN_GAP : 0;
 
+  // Single shared hover tooltip for the whole heatmap. Tracking one hovered
+  // day (plus its anchor rect) avoids creating a portal element per cell —
+  // important since a year renders ~365 tiny buttons.
+  const [hoveredDay, setHoveredDay] = useState<{ day: HeatmapDay; rect: DOMRect } | null>(null);
+  const tooltipTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const clearHover = useCallback(() => {
+    clearTimeout(tooltipTimeoutRef.current);
+    setHoveredDay(null);
+  }, []);
+
+  useEffect(() => {
+    return () => clearTimeout(tooltipTimeoutRef.current);
+  }, []);
+
+  // Dismiss the tooltip on any scroll or resize so it never floats away from
+  // its anchor cell (the heatmap body scrolls horizontally, and the page
+  // scrolls vertically). Re-positioning would be misleading since the cell
+  // under the cursor changes; just hide it.
+  useEffect(() => {
+    if (!hoveredDay) return;
+    const handle = () => clearHover();
+    window.addEventListener("scroll", handle, true);
+    window.addEventListener("resize", handle);
+    return () => {
+      window.removeEventListener("scroll", handle, true);
+      window.removeEventListener("resize", handle);
+    };
+  }, [hoveredDay, clearHover]);
+
+  const handleCellEnter = useCallback((day: HeatmapDay, el: HTMLButtonElement) => {
+    if (!day.date || day.count === 0) return;
+    clearTimeout(tooltipTimeoutRef.current);
+    tooltipTimeoutRef.current = setTimeout(() => {
+      setHoveredDay({ day, rect: el.getBoundingClientRect() });
+    }, 200);
+  }, []);
+
+  const handleCellLeave = useCallback(() => {
+    clearTimeout(tooltipTimeoutRef.current);
+    setHoveredDay(null);
+  }, []);
+
+  // Compute portal position — centered above the cell, flipped below when
+  // there isn't enough headroom. Mirrors the BacklogTooltip placement logic.
+  const tooltipPos = (() => {
+    if (!hoveredDay) return null;
+    const { rect } = hoveredDay;
+    const tooltipWidth = 180;
+    const tooltipHeight = 64;
+    let left = rect.left + rect.width / 2 - tooltipWidth / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tooltipWidth - 8));
+    const spaceAbove = rect.top;
+    const placeBelow = spaceAbove < tooltipHeight + 8;
+    const top = placeBelow ? rect.bottom + 8 : rect.top - 8;
+    return { top, left, placeBelow, tooltipWidth };
+  })();
+
   return (
     <StatsWidgetShell
       widgetId={meta.id}
@@ -179,17 +239,17 @@ export function CompletionHeatmapWidget({ dailyCompletions, activeYear, onDateCl
                         key={dayIndex}
                         type="button"
                         disabled={!day.date || day.count === 0}
-                        onClick={() => day.date && onDateClick(day.date)}
+                        onClick={() => {
+                          handleCellLeave();
+                          if (day.date) onDateClick(day.date);
+                        }}
+                        onMouseEnter={(e) => handleCellEnter(day, e.currentTarget)}
+                        onMouseLeave={handleCellLeave}
                         className={`h-3 w-3 rounded-sm ${day.date ? getColorForCount(day.count) : "bg-transparent"} ${
                           day.date && day.count > 0
                             ? "cursor-pointer transition-all hover:ring-1 hover:ring-white/30"
                             : "cursor-default"
                         } disabled:opacity-50`}
-                        title={
-                          day.date
-                            ? `${formatShortDate(day.date)}: ${day.count} ${day.count === 1 ? "entry" : "entries"}`
-                            : undefined
-                        }
                       />
                     ))}
                   </div>
@@ -211,6 +271,25 @@ export function CompletionHeatmapWidget({ dailyCompletions, activeYear, onDateCl
           {maxCount > 5 && <span className="text-gray-500">(max: {maxCount})</span>}
         </div>
       </div>
+      {hoveredDay && tooltipPos && hoveredDay.day.date && createPortal(
+        <div
+          className="glass-tooltip fixed z-[9999] rounded-xl px-4 py-3"
+          style={{
+            top: tooltipPos.top,
+            left: tooltipPos.left,
+            width: tooltipPos.tooltipWidth,
+            transform: tooltipPos.placeBelow ? undefined : "translateY(-100%)",
+          }}
+        >
+          <div className="text-sm font-semibold text-text leading-tight">
+            {formatShortDate(hoveredDay.day.date)}
+          </div>
+          <div className="mt-1 text-sm text-text-muted">
+            {hoveredDay.day.count} {hoveredDay.day.count === 1 ? "entry" : "entries"}
+          </div>
+        </div>,
+        document.body
+      )}
     </StatsWidgetShell>
   );
 }
