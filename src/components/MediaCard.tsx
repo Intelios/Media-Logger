@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { motion } from "framer-motion";
 import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus, Clock, Captions } from "lucide-react";
 import { DEFAULT_COVER_IMAGE, useImageSource, useCoverReveal } from "../lib/utils";

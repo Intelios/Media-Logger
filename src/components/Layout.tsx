@@ -1,5 +1,5 @@
 import { Children, isValidElement, useState, useEffect, useCallback, type ReactNode } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Settings, PartyPopper, Bookmark, Database, X } from "lucide-react";
 import { cn } from "../lib/utils_ui";

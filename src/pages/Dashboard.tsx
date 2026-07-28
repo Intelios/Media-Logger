@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import { motion, AnimatePresence, useReducedMotion, type Variants } from "framer-motion";
 import { Library, Star, Calendar, Folder, ArrowRight, Sparkles, Hourglass, RotateCcw, Captions, Shuffle, Clock } from "lucide-react";
 import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";

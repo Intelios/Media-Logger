@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router";
 import { Sparkles, ChevronDown, ChevronUp, X, HardDrive, RotateCcw, Captions } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";

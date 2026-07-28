@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router";
 import { Users, ChevronLeft, Star, Hash, Camera, Clapperboard, Sparkles, Music, BookOpen, Gamepad2, Clock, LayoutGrid, Flag, Flame, RotateCcw, Trophy, Tv, ArrowUp, ArrowDown, MoreVertical, EyeOff, Eye, Crop, Check, X, Maximize, Activity } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import { profilesLogic, type ProfileSummary, type CropData, DEFAULT_CROP } from "../lib/profiles-logic";
