@@ -2,8 +2,8 @@ import { cn } from "../../lib/utils_ui";
 import type { FullStats } from "../../lib/stats-logic";
 import { StatsCustomizePanel } from "./StatsCustomizePanel";
 import { StatsPageHeader } from "./StatsPageHeader";
+import { StatsSectionGrid } from "./StatsSectionGrid";
 import { StatsSummaryRibbon } from "./StatsSummaryRibbon";
-import { StatsWidgetGrid } from "./StatsWidgetGrid";
 import {
   STATS_DASHBOARD_VIEW_DEFINITIONS,
   type MainWidgetId,
@@ -64,6 +64,7 @@ function toCustomizePanelItem(definition: StatsWidgetDefinition, layout: StatsDa
     title: definition.title,
     description: definition.description,
     zone: definition.zone,
+    section: definition.section,
     displayModeOptions: definition.displayModeOptions,
     displayMode: getStatsDashboardWidgetDisplayMode(layout.displayModes, definition.id),
   };
@@ -171,7 +172,7 @@ export function StatsDashboard({
             onHideWidget={(widgetId) => onHideWidget(widgetId)}
           />
 
-          <StatsWidgetGrid
+          <StatsSectionGrid
             items={visibleMainWidgets.map((definition) => ({
               widgetId: definition.id as MainWidgetId,
               size: definition.defaultSize as Exclude<StatsWidgetSize, "summary">,

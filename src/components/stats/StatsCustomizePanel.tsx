@@ -1,10 +1,13 @@
 import { Eye, EyeOff, RotateCcw } from "lucide-react";
 import { cn } from "../../lib/utils_ui";
-import type {
-  StatsDashboardViewDefinition,
-  StatsWidgetDisplayMode,
-  StatsWidgetId,
-  StatsWidgetZone,
+import {
+  STATS_WIDGET_SECTION_LABELS,
+  STATS_WIDGET_SECTION_ORDER,
+  type StatsDashboardViewDefinition,
+  type StatsWidgetDisplayMode,
+  type StatsWidgetId,
+  type StatsWidgetSection,
+  type StatsWidgetZone,
 } from "./stats-config";
 
 interface StatsCustomizePanelWidget {
@@ -12,6 +15,7 @@ interface StatsCustomizePanelWidget {
   title: string;
   description: string;
   zone: StatsWidgetZone;
+  section?: StatsWidgetSection;
   displayModeOptions?: readonly StatsWidgetDisplayMode[];
   displayMode?: StatsWidgetDisplayMode;
 }
@@ -51,6 +55,14 @@ function ZoneBadge({ zone }: { zone: StatsWidgetZone }) {
   );
 }
 
+function SectionBadge({ section }: { section: StatsWidgetSection }) {
+  return (
+    <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+      {STATS_WIDGET_SECTION_LABELS[section]}
+    </span>
+  );
+}
+
 function StatsCustomizeSection({
   title,
   description,
@@ -61,6 +73,77 @@ function StatsCustomizeSection({
   actionIcon,
   onDisplayModeChange,
 }: StatsCustomizeSectionProps) {
+  const groupedItems = STATS_WIDGET_SECTION_ORDER.flatMap((section) => ({
+    section,
+    widgets: items.filter((item) => item.section === section),
+  })).filter((group) => group.widgets.length > 0);
+  const ungroupedItems = items.filter((item) => !item.section);
+
+  const renderItemList = (groupItems: StatsCustomizePanelWidget[]) => (
+    <div className="space-y-2">
+      {groupItems.map((item) => (
+        <div
+          key={item.id}
+          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="truncate text-sm font-semibold text-white">{item.title}</p>
+                {item.section ? <SectionBadge section={item.section} /> : null}
+                <ZoneBadge zone={item.zone} />
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-gray-400">{item.description}</p>
+            </div>
+
+            {onAction && actionLabel ? (
+              <button
+                type="button"
+                onClick={() => onAction(item.id)}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors",
+                  actionIcon === "show"
+                    ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15"
+                    : "border-red-400/20 bg-red-500/10 text-red-200 hover:bg-red-500/15"
+                )}
+              >
+                {actionIcon === "show" ? <Eye size={14} /> : <EyeOff size={14} />}
+                <span>{actionLabel}</span>
+              </button>
+            ) : null}
+          </div>
+
+          {item.displayModeOptions && item.displayMode ? (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-black/10 px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Display</p>
+              <div className="inline-flex rounded-xl border border-white/10 bg-white/5 p-1">
+                {item.displayModeOptions.map((mode) => {
+                  const isActive = item.displayMode === mode;
+
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => onDisplayModeChange(item.id, mode)}
+                      className={cn(
+                        "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                        isActive
+                          ? "bg-white/12 text-white"
+                          : "text-gray-400 hover:bg-white/6 hover:text-gray-200"
+                      )}
+                    >
+                      {mode === "bars" ? "Bars" : "Donut"}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <section className="space-y-3">
       <div>
@@ -73,64 +156,14 @@ function StatsCustomizeSection({
           {emptyMessage}
         </div>
       ) : (
-        <div className="space-y-2">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-semibold text-white">{item.title}</p>
-                    <ZoneBadge zone={item.zone} />
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-gray-400">{item.description}</p>
-                </div>
-
-                {onAction && actionLabel ? (
-                  <button
-                    type="button"
-                    onClick={() => onAction(item.id)}
-                    className={cn(
-                      "inline-flex shrink-0 items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors",
-                      actionIcon === "show"
-                        ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15"
-                        : "border-red-400/20 bg-red-500/10 text-red-200 hover:bg-red-500/15"
-                    )}
-                  >
-                    {actionIcon === "show" ? <Eye size={14} /> : <EyeOff size={14} />}
-                    <span>{actionLabel}</span>
-                  </button>
-                ) : null}
-              </div>
-
-              {item.displayModeOptions && item.displayMode ? (
-                <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-black/10 px-3 py-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Display</p>
-                  <div className="inline-flex rounded-xl border border-white/10 bg-white/5 p-1">
-                    {item.displayModeOptions.map((mode) => {
-                      const isActive = item.displayMode === mode;
-
-                      return (
-                        <button
-                          key={mode}
-                          type="button"
-                          onClick={() => onDisplayModeChange(item.id, mode)}
-                          className={cn(
-                            "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
-                            isActive
-                              ? "bg-white/12 text-white"
-                              : "text-gray-400 hover:bg-white/6 hover:text-gray-200"
-                          )}
-                        >
-                          {mode === "bars" ? "Bars" : "Donut"}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
+        <div className="space-y-4">
+          {ungroupedItems.length > 0 ? renderItemList(ungroupedItems) : null}
+          {groupedItems.map((group) => (
+            <div key={group.section} className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
+                {STATS_WIDGET_SECTION_LABELS[group.section]}
+              </p>
+              {renderItemList(group.widgets)}
             </div>
           ))}
         </div>
