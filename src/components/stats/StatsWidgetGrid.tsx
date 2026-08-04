@@ -13,6 +13,10 @@ interface StatsWidgetGridItem {
   content: ReactNode;
 }
 
+interface StatsWidgetGridItemWithRowSpan extends StatsWidgetGridItem {
+  rowSpan: number;
+}
+
 interface StatsWidgetGridProps {
   items: StatsWidgetGridItem[];
   isCustomizing: boolean;
@@ -20,11 +24,28 @@ interface StatsWidgetGridProps {
   onHideWidget: (widgetId: MainWidgetId) => void;
 }
 
-const SIZE_CLASS_MAP: Record<StatsWidgetGridItem["size"], string> = {
-  small: "col-span-1 md:col-span-4",
-  half: "col-span-1 md:col-span-6",
-  full: "col-span-1 md:col-span-12",
-};
+// A "full" widget always takes the whole row. Consecutive "half" widgets pair up
+// on a row. A "half" that is not part of a pair — no half before it and no half
+// after it — is an unpaired trailer and takes the full row, so sections never
+// have dead space regardless of order or hidden widgets.
+function resolveRowSpans(items: StatsWidgetGridItem[]): StatsWidgetGridItemWithRowSpan[] {
+  return items.map((item, index) => {
+    let rowSpan: number;
+
+    if (item.size === "half") {
+      const previousItem = items[index - 1];
+      const nextItem = items[index + 1];
+      const hasHalfNeighbor =
+        (previousItem !== undefined && previousItem.size === "half") ||
+        (nextItem !== undefined && nextItem.size === "half");
+      rowSpan = hasHalfNeighbor ? 6 : 12;
+    } else {
+      rowSpan = 12;
+    }
+
+    return { ...item, rowSpan };
+  });
+}
 
 const HEIGHT_CLASS_MAP: Record<StatsWidgetGridItem["heightPreset"], string> = {
   compact: "min-h-[240px]",
@@ -56,6 +77,7 @@ export function StatsWidgetGrid({
   );
 
   const widgetIds = items.map((item) => item.widgetId);
+  const itemsWithRowSpans = resolveRowSpans(items);
 
   const handleDragEnd = (event: DragEndEvent) => {
     if (!isCustomizing || !event.over || event.active.id === event.over.id) {
@@ -85,13 +107,17 @@ export function StatsWidgetGrid({
             isCustomizing && "rounded-[32px] border border-dashed border-white/10 bg-white/[0.025] p-3"
           )}
         >
-          {items.map((item) => (
+          {itemsWithRowSpans.map((item) => (
             <StatsEditableWidgetFrame
               key={item.widgetId}
               widgetId={item.widgetId}
               isCustomizing={isCustomizing}
               onHide={() => onHideWidget(item.widgetId)}
-              className={cn("h-full", SIZE_CLASS_MAP[item.size], HEIGHT_CLASS_MAP[item.heightPreset])}
+              className={cn(
+                "h-full md:col-span-6",
+                item.rowSpan === 12 ? "md:col-span-12" : null,
+                HEIGHT_CLASS_MAP[item.heightPreset]
+              )}
             >
               <div
                 data-stats-widget={item.widgetId}

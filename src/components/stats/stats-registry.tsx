@@ -1,15 +1,10 @@
 import {
-  Building2,
   Calendar,
-  Gamepad2,
   Hash,
-  Heart,
   PieChart as PieIcon,
   RefreshCw,
-  Sparkles,
   Star,
   Trophy,
-  User,
 } from "lucide-react";
 import { StatsSummaryCard } from "./StatsSummaryCard";
 import {
@@ -21,7 +16,7 @@ import {
   type StatsWidgetZone,
 } from "./stats-config";
 import { AverageScoreByTypeWidget } from "./widgets/AverageScoreByTypeWidget";
-import { BreakdownListWidget } from "./widgets/BreakdownListWidget";
+import { TopListsWidget } from "./widgets/TopListsWidget";
 import { CompletionHeatmapWidget } from "./widgets/CompletionHeatmapWidget";
 import { ContentTypeBreakdownWidget } from "./widgets/ContentTypeBreakdownWidget";
 import { MostReplayedWidget } from "./widgets/MostReplayedWidget";
@@ -30,14 +25,6 @@ import { MonthlyActivityWidget } from "./widgets/MonthlyActivityWidget";
 import { RatingDistributionWidget } from "./widgets/RatingDistributionWidget";
 import { ScoreTrendWidget } from "./widgets/ScoreTrendWidget";
 import { TopGenresWidget } from "./widgets/TopGenresWidget";
-
-function isRelevantToEntryTypes(selectedTypes: string[], relevantTypes: string[]) {
-  if (selectedTypes.length === 0) {
-    return true;
-  }
-
-  return selectedTypes.some((entryType) => relevantTypes.includes(entryType));
-}
 
 function shouldIncludeProfileBackedItem(itemCount: number, itemName: string, profileType: string, profileKeys: Set<string>, profileKeysReady: boolean) {
   if (!profileKeysReady) return true;
@@ -172,73 +159,27 @@ export const STATS_WIDGET_DEFINITIONS: Record<StatsWidgetId, StatsWidgetDefiniti
   "average-score-by-type": createStatsWidgetDefinition("average-score-by-type", {
     render: (context) => <AverageScoreByTypeWidget items={context.data.averageScoreByType} />,
   }),
-  platforms: createStatsWidgetDefinition("platforms", {
-    isAvailable: (context) => isRelevantToEntryTypes(context.selectedTypes, ["Game"]),
+  "top-lists": createStatsWidgetDefinition("top-lists", {
     render: (context) => (
-      <BreakdownListWidget
-        widgetId="platforms"
-        icon={<Gamepad2 size={18} />}
-        items={context.data.platforms.filter((item) =>
-          shouldIncludeProfileBackedItem(item.count, item.name, "platform", context.profileKeys, context.profileKeysReady)
-        )}
-        accentColor="blue"
-        displayMode={context.displayModes.platforms ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
-      />
-    ),
-  }),
-  franchises: createStatsWidgetDefinition("franchises", {
-    isAvailable: (context) => isRelevantToEntryTypes(context.selectedTypes, ["Game"]),
-    render: (context) => (
-      <BreakdownListWidget
-        widgetId="franchises"
-        icon={<Sparkles size={18} />}
-        items={context.data.franchises.filter((item) =>
-          shouldIncludeProfileBackedItem(item.count, item.name, "franchise", context.profileKeys, context.profileKeysReady)
-        )}
-        accentColor="cyan"
-        displayMode={context.displayModes.franchises ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
-      />
-    ),
-  }),
-  studios: createStatsWidgetDefinition("studios", {
-    isAvailable: (context) => isRelevantToEntryTypes(context.selectedTypes, ["JAV", "Hentai"]),
-    render: (context) => (
-      <BreakdownListWidget
-        widgetId="studios"
-        icon={<Building2 size={18} />}
-        items={context.data.studios.filter((item) =>
-          shouldIncludeProfileBackedItem(item.count, item.name, "director", context.profileKeys, context.profileKeysReady)
-        )}
-        accentColor="purple"
-        displayMode={context.displayModes.studios ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
-      />
-    ),
-  }),
-  authors: createStatsWidgetDefinition("authors", {
-    isAvailable: (context) => isRelevantToEntryTypes(context.selectedTypes, ["Book"]),
-    render: (context) => (
-      <BreakdownListWidget
-        widgetId="authors"
-        icon={<User size={18} />}
-        items={context.data.authors.filter((item) =>
-          shouldIncludeProfileBackedItem(item.count, item.name, "author", context.profileKeys, context.profileKeysReady)
-        )}
-        accentColor="green"
-        displayMode={context.displayModes.authors ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
-      />
-    ),
-  }),
-  actresses: createStatsWidgetDefinition("actresses", {
-    isAvailable: (context) => isRelevantToEntryTypes(context.selectedTypes, ["JAV", "Hentai"]),
-    render: (context) => (
-      <BreakdownListWidget
-        widgetId="actresses"
-        icon={<Heart size={18} />}
-        items={context.data.actresses.filter((item) =>
-          shouldIncludeProfileBackedItem(item.count, item.name, "actress", context.profileKeys, context.profileKeysReady)
-        )}
-        accentColor="pink"
-        displayMode={context.displayModes.actresses ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
+      <TopListsWidget
+        items={{
+          platforms: context.data.platforms.filter((item) =>
+            shouldIncludeProfileBackedItem(item.count, item.name, "platform", context.profileKeys, context.profileKeysReady)
+          ),
+          franchises: context.data.franchises.filter((item) =>
+            shouldIncludeProfileBackedItem(item.count, item.name, "franchise", context.profileKeys, context.profileKeysReady)
+          ),
+          studios: context.data.studios.filter((item) =>
+            shouldIncludeProfileBackedItem(item.count, item.name, "director", context.profileKeys, context.profileKeysReady)
+          ),
+          authors: context.data.authors.filter((item) =>
+            shouldIncludeProfileBackedItem(item.count, item.name, "author", context.profileKeys, context.profileKeysReady)
+          ),
+          actresses: context.data.actresses.filter((item) =>
+            shouldIncludeProfileBackedItem(item.count, item.name, "actress", context.profileKeys, context.profileKeysReady)
+          ),
+        }}
+        displayMode={context.displayModes["top-lists"] ?? DEFAULT_STATS_WIDGET_DISPLAY_MODE}
       />
     ),
   }),
