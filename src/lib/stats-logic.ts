@@ -43,6 +43,12 @@ export interface DailyCompletion {
   count: number;
 }
 
+export interface MostReplayedLog {
+  completion_date: string | null;
+  review_score: number | null;
+  is_rewatch: boolean;
+}
+
 export interface MostReplayedItem {
   name: string;
   name_id: number;
@@ -50,6 +56,7 @@ export interface MostReplayedItem {
   rewatch_count: number;
   avg_score: number | null;
   entry_type: string | null;
+  logs: MostReplayedLog[];
 }
 
 export interface FullStats {
@@ -445,11 +452,23 @@ export function selectDailyCompletions(dataset: StatsDataset): DailyCompletion[]
 export function selectMostReplayed(dataset: StatsDataset): MostReplayedItem[] {
   const groups = new Map<
     string,
-    { total: number; rewatches: number; id: number; scores: number[]; entryType: string | null }
+    {
+      total: number;
+      rewatches: number;
+      id: number;
+      scores: number[];
+      entryType: string | null;
+      logs: MostReplayedLog[];
+    }
   >();
 
   for (const entry of dataset.entries) {
     const existing = groups.get(entry.name);
+    const log: MostReplayedLog = {
+      completion_date: entry.completion_date,
+      review_score: entry.review_score,
+      is_rewatch: Boolean(entry.is_rewatch),
+    };
     if (existing) {
       existing.total += 1;
       if (Boolean(entry.is_rewatch)) {
@@ -461,6 +480,7 @@ export function selectMostReplayed(dataset: StatsDataset): MostReplayedItem[] {
       if (entry.entry_type) {
         existing.entryType = entry.entry_type;
       }
+      existing.logs.push(log);
     } else {
       groups.set(entry.name, {
         total: 1,
@@ -468,6 +488,7 @@ export function selectMostReplayed(dataset: StatsDataset): MostReplayedItem[] {
         id: entry.id,
         scores: hasReviewScore(entry) ? [entry.review_score] : [],
         entryType: entry.entry_type ?? null,
+        logs: [log],
       });
     }
   }
@@ -485,6 +506,12 @@ export function selectMostReplayed(dataset: StatsDataset): MostReplayedItem[] {
         ? data.scores.reduce((sum, s) => sum + s, 0) / data.scores.length
         : null,
       entry_type: data.entryType,
+      logs: data.logs.sort((left, right) => {
+        if (left.completion_date === null && right.completion_date === null) return 0;
+        if (left.completion_date === null) return 1;
+        if (right.completion_date === null) return -1;
+        return left.completion_date.localeCompare(right.completion_date);
+      }),
     }));
 }
 
