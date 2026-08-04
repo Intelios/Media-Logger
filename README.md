@@ -44,9 +44,6 @@ Media Logger supports:
 - `Album`
 - `K-Drama`
 - `Game`
-- `Adult Visual Novel`
-- `JAV`
-- `Hentai`
 - `Other`
 
 Entries can include completion date, score, description, notes, local artwork, genre, and type-specific metadata like platform, franchise, series, author, artist, director/studio, or actress.
