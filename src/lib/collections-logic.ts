@@ -9,6 +9,26 @@ export interface Collection {
   thumbnails?: string[]; // For cover preview
 }
 
+// A named, colored sub-grouping within a collection. Eras are a pure overlay:
+// they never reorder items, they only let the UI draw a bracket around the
+// items that share an era. Items keep their sort_order.
+export interface Era {
+  id: number;
+  collection_id: number;
+  name: string;
+  color: string; // hex, e.g. '#0EA5E9'
+  sort_order: number;
+  created_date: string;
+}
+
+// A MediaEntry as rendered inside a collection detail view, augmented with the
+// era it belongs to (null when the item is ungrouped).
+export interface CollectionItemView extends MediaEntry {
+  era_id: number | null;
+  era_name: string | null;
+  era_color: string | null;
+}
+
 export const collectionsLogic = {
   // 1. Get All Collections with stats
   async getAllCollections(): Promise<Collection[]> {
@@ -63,15 +83,69 @@ export const collectionsLogic = {
   },
 
   // 2. Get Items in a Collection
-  async getCollectionItems(collectionId: number): Promise<MediaEntry[]> {
+  async getCollectionItems(collectionId: number): Promise<CollectionItemView[]> {
     const db = await dbService.connect();
-    return await db.select<MediaEntry[]>(
-        `SELECT m.* 
+    return await db.select<CollectionItemView[]>(
+        `SELECT m.*, ce.id AS era_id, ce.name AS era_name, ce.color AS era_color
          FROM collection_items ci 
          JOIN entries m ON ci.media_id = m.id 
+         LEFT JOIN collection_eras ce ON ce.id = ci.era_id
          WHERE ci.collection_id = $1 
          ORDER BY ci.sort_order ASC`,
         [collectionId]
+    );
+  },
+
+  // 2b. Get all eras for a collection, ordered by their sort_order
+  async getEras(collectionId: number): Promise<Era[]> {
+    const db = await dbService.connect();
+    return await db.select<Era[]>(
+      `SELECT * FROM collection_eras
+       WHERE collection_id = $1
+       ORDER BY sort_order ASC, id ASC`,
+      [collectionId]
+    );
+  },
+
+  // 2c. Persist a full era list for a collection (create/update/delete/reorder
+  // reconciled in one pass — the modal edits a local copy and commits on save).
+  async saveEras(collectionId: number, eras: Era[]) {
+    const db = await dbService.connect();
+    const existing = await this.getEras(collectionId);
+    const existingById = new Map(existing.map(e => [e.id, e]));
+    const incomingIds = new Set(eras.filter(e => e.id > 0).map(e => e.id));
+
+    for (const era of existing) {
+      if (!incomingIds.has(era.id)) {
+        // Items referencing a removed era become ungrouped (no FK enforcement).
+        await db.execute("UPDATE collection_items SET era_id = NULL WHERE era_id = $1", [era.id]);
+        await db.execute("DELETE FROM collection_eras WHERE id = $1", [era.id]);
+      }
+    }
+
+    for (let i = 0; i < eras.length; i++) {
+      const era = eras[i];
+      if (era.id > 0 && existingById.has(era.id)) {
+        await db.execute(
+          "UPDATE collection_eras SET name = $1, color = $2, sort_order = $3 WHERE id = $4",
+          [era.name, era.color, i, era.id]
+        );
+      } else if (era.id <= 0) {
+        await db.execute(
+          "INSERT INTO collection_eras (collection_id, name, color, sort_order, created_date) VALUES ($1, $2, $3, $4, datetime('now'))",
+          [collectionId, era.name, era.color, i]
+        );
+      }
+    }
+  },
+
+  // 2d. Assign (or clear) an item's era. Eras never move the item — only the
+  // era_id reference changes, so the item stays exactly where it was sorted.
+  async setItemEra(collectionId: number, mediaId: number, eraId: number | null) {
+    const db = await dbService.connect();
+    await db.execute(
+      "UPDATE collection_items SET era_id = $1 WHERE collection_id = $2 AND media_id = $3",
+      [eraId, collectionId, mediaId]
     );
   },
 
@@ -97,6 +171,7 @@ export const collectionsLogic = {
   async deleteCollection(id: number) {
     const db = await dbService.connect();
     await db.execute("DELETE FROM collection_items WHERE collection_id = $1", [id]);
+    await db.execute("DELETE FROM collection_eras WHERE collection_id = $1", [id]);
     await db.execute("DELETE FROM collections WHERE id = $1", [id]);
   },
 

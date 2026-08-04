@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useLayoutEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image, Pencil } from "lucide-react";
-import { collectionsLogic, type Collection } from "../lib/collections-logic";
+import { collectionsLogic, type Collection, type Era, type CollectionItemView } from "../lib/collections-logic";
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
@@ -12,6 +12,23 @@ import { getImageUrl, releaseImageUrl } from "../lib/utils";
 import { ArrowUpDown } from "lucide-react"; // Import ArrowUpDown icon
 import { ReorderModal } from "../components/ReorderModal"; // Import Modal
 import { EntryForm } from "../components/EntryForm"; // Import EntryForm for editing
+import { ErasModal } from "../components/ErasModal";
+import { EraAssignMenu } from "../components/EraAssignMenu";
+import { hexToRgb } from "../lib/themes";
+
+// A bracket rectangle drawn behind a run of era members on one visual row of
+// the grid. Era members that wrap to a second row produce one bracket per row.
+interface EraBracket {
+  key: string;
+  eraId: number;
+  eraName: string;
+  eraColor: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  firstRow: boolean;
+}
 
 // Helper for thumbnail grid - Enhanced version
 function CollectionThumbnails({ images }: { images: string[] }) {
@@ -81,8 +98,15 @@ function CollectionThumbnails({ images }: { images: string[] }) {
 export default function CollectionsPage() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
-  const [items, setItems] = useState<MediaEntry[]>([]);
+  const [items, setItems] = useState<CollectionItemView[]>([]);
   const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
+
+  // Eras
+  const [eras, setEras] = useState<Era[]>([]);
+  const [erasOpen, setErasOpen] = useState(false);
+  const [brackets, setBrackets] = useState<EraBracket[]>([]);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const cardElsRef = useRef<Map<number, HTMLDivElement>>(new Map());
 
   // Modals
   const [createOpen, setCreateOpen] = useState(false);
@@ -95,6 +119,78 @@ export default function CollectionsPage() {
   const [collectionToDelete, setCollectionToDelete] = useState<Collection | null>(null);
   const [itemToRemove, setItemToRemove] = useState<MediaEntry | null>(null);
 
+  // Measure era member cards and compute bracket rects (one per era per visual
+  // row). Eras are a pure overlay: this only reads DOM positions.
+  const computeBrackets = useCallback(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const gridRect = grid.getBoundingClientRect();
+
+    const membersByEra = new Map<number, HTMLDivElement[]>();
+    for (const [, el] of cardElsRef.current) {
+      const raw = el.dataset.eraId;
+      if (!raw) continue;
+      const eraId = Number(raw);
+      if (!eraId) continue;
+      const list = membersByEra.get(eraId) ?? [];
+      list.push(el);
+      membersByEra.set(eraId, list);
+    }
+
+    const next: EraBracket[] = [];
+    for (const [eraId, els] of membersByEra) {
+      const era = eras.find(e => e.id === eraId);
+      if (!era) continue;
+
+      const measured = els.map(el => ({ el, rect: el.getBoundingClientRect() }));
+      measured.sort((a, b) => (a.rect.top - b.rect.top) || (a.rect.left - b.rect.left));
+
+      // Cluster into visual rows (same top within a small tolerance).
+      const rows: { rects: typeof measured }[] = [];
+      for (const item of measured) {
+        const row = rows.find(r => Math.abs(r.rects[0].rect.top - item.rect.top) < 12);
+        if (row) row.rects.push(item);
+        else rows.push({ rects: [item] });
+      }
+
+      rows.forEach((row, rowIndex) => {
+        const left = Math.min(...row.rects.map(r => r.rect.left));
+        const right = Math.max(...row.rects.map(r => r.rect.right));
+        const top = Math.min(...row.rects.map(r => r.rect.top));
+        const bottom = Math.max(...row.rects.map(r => r.rect.bottom));
+        const pad = 6;
+        next.push({
+          key: `${eraId}-${rowIndex}`,
+          eraId,
+          eraName: era.name,
+          eraColor: era.color,
+          left: left - pad - gridRect.left,
+          top: top - pad - gridRect.top,
+          width: right - left + pad * 2,
+          height: bottom - top + pad * 2,
+          firstRow: rowIndex === 0,
+        });
+      });
+    }
+    setBrackets(next);
+  }, [eras]);
+
+  // Recompute whenever items/eras change (runs after DOM commit, so refs are live).
+  useLayoutEffect(() => {
+    computeBrackets();
+  }, [computeBrackets, items]);
+
+  // Recompute on container/card resize (window resizes, image loads reflowing
+  // the grid). The observer reads the live refs each time it fires.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const ro = new ResizeObserver(() => computeBrackets());
+    ro.observe(grid);
+    cardElsRef.current.forEach(el => ro.observe(el));
+    return () => ro.disconnect();
+  }, [computeBrackets, items]);
+
   useEffect(() => {
     loadCollections();
   }, []);
@@ -105,6 +201,7 @@ export default function CollectionsPage() {
     const collectionItems = await collectionsLogic.getCollectionItems(collection.id);
     setItems(collectionItems);
     setSelectedCollection(collection);
+    setEras(await collectionsLogic.getEras(collection.id));
 
     const mediaIds = collectionItems.map(e => e.id).filter((id): id is number => id !== undefined);
     if (mediaIds.length > 0) {
@@ -194,6 +291,19 @@ export default function CollectionsPage() {
     }
   };
 
+  const handleErasSave = async (updatedEras: Era[]) => {
+    if (!selectedCollection) return;
+    await collectionsLogic.saveEras(selectedCollection.id, updatedEras);
+    setEras(await collectionsLogic.getEras(selectedCollection.id));
+    await refreshSelectedCollection(selectedCollection);
+  };
+
+  const handleAssignEra = async (entryId: number, eraId: number | null) => {
+    if (!selectedCollection) return;
+    await collectionsLogic.setItemEra(selectedCollection.id, entryId, eraId);
+    await refreshSelectedCollection(selectedCollection);
+  };
+
   // Handle delete from MediaCard dropdown
   const handleDeleteFromCard = async (id: number) => {
     await dbService.deleteEntry(id);
@@ -258,6 +368,15 @@ export default function CollectionsPage() {
                 Reorder
               </button>
 
+              {/* Eras Button */}
+              <button
+                onClick={() => setErasOpen(true)}
+                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 px-4 py-2.5 rounded-xl font-semibold transition-all"
+              >
+                <Layers size={18} />
+                Eras
+              </button>
+
               <button
                 onClick={() => setPickerOpen(true)}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all hover:scale-[1.02] hover:brightness-110 text-white"
@@ -293,11 +412,52 @@ export default function CollectionsPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div ref={gridRef} className="relative grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+            {/* Era bracket backgrounds (behind cards) */}
+            {brackets.map(b => (
+              <div
+                key={`bg-${b.key}`}
+                className="absolute pointer-events-none rounded-2xl"
+                style={{
+                  left: b.left,
+                  top: b.top,
+                  width: b.width,
+                  height: b.height,
+                  zIndex: 0,
+                  background: `rgba(${hexToRgb(b.eraColor)}, 0.035)`,
+                  border: `1px solid rgba(${hexToRgb(b.eraColor)}, 0.20)`,
+                }}
+              />
+            ))}
+            {/* Era labels (above cards, only on each era's first row) */}
+            {brackets.filter(b => b.firstRow).map(b => (
+              <div
+                key={`label-${b.key}`}
+                className="absolute pointer-events-none z-20 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap"
+                style={{
+                  left: b.left + 8,
+                  top: b.top - 10,
+                  color: b.eraColor,
+                  background: "rgba(12, 12, 12, 0.70)",
+                  border: `1px solid rgba(${hexToRgb(b.eraColor)}, 0.28)`,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.20)",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
+                }}
+              >
+                <span className="w-1 h-1 rounded-full" style={{ background: b.eraColor }} />
+                {b.eraName}
+              </div>
+            ))}
             {items.map((entry, index) => (
               <div
                 key={entry.id}
-                className="relative group collection-item-enter"
+                ref={(el) => {
+                  if (el) cardElsRef.current.set(entry.id, el);
+                  else cardElsRef.current.delete(entry.id);
+                }}
+                data-era-id={entry.era_id ?? ""}
+                className="relative z-10 group collection-item-enter"
                 style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
               >
                 <MediaCard
@@ -314,6 +474,12 @@ export default function CollectionsPage() {
                 >
                   <Trash2 size={14} />
                 </button>
+                {/* Era assignment (hover) */}
+                <EraAssignMenu
+                  eras={eras}
+                  currentEraId={entry.era_id}
+                  onAssign={(eraId) => handleAssignEra(entry.id, eraId)}
+                />
               </div>
             ))}
           </div>
@@ -336,6 +502,14 @@ export default function CollectionsPage() {
           items={items.map(i => ({ ...i, subtitle: i.entry_type ?? undefined }))}
           onSave={handleReorderSave}
           title="Reorder Collection"
+        />
+
+        {/* Manage Eras Modal */}
+        <ErasModal
+          isOpen={erasOpen}
+          onClose={() => setErasOpen(false)}
+          eras={eras}
+          onSave={handleErasSave}
         />
 
         {/* Edit Collection Modal */}

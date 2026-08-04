@@ -43,6 +43,7 @@ async function runSchemaCompatibilityMigrations(db: Database) {
   try {
     await migrateAwardYearsTable(db);
     await migrateCollectionItemsTable(db);
+    await migrateErasTable(db);
     await migrateAwardCategoriesTable(db);
     await migrateAwardWinnersTable(db);
     await migrateProfilesTable(db);
@@ -168,6 +169,36 @@ async function migrateCollectionItemsTable(db: Database) {
 
   await db.execute("DROP TABLE collection_items_old");
   console.log('[DB] collection_items schema migration complete');
+}
+
+/**
+ * Ensure the collection_eras table exists and collection_items gains an
+ * era_id column. Eras are an opt-in overlay: items keep their sort_order and
+ * simply reference an era for the bracket rendering. Runs after
+ * migrateCollectionItemsTable so a legacy rebuild still gets the column.
+ */
+async function migrateErasTable(db: Database) {
+  try {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS collection_eras (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        collection_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        color TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
+        created_date TEXT NOT NULL
+      )
+    `);
+
+    const itemsColumns = await getTableInfo(db, 'collection_items');
+    if (itemsColumns.length > 0 && !itemsColumns.map(c => c.name).includes('era_id')) {
+      console.log('[DB] Adding era_id to collection_items...');
+      await db.execute("ALTER TABLE collection_items ADD COLUMN era_id INTEGER");
+      console.log('[DB] era_id column added successfully');
+    }
+  } catch (error) {
+    console.error('[DB] Eras table migration error:', error);
+  }
 }
 
 async function migrateAwardYearsTable(db: Database) {
@@ -337,8 +368,21 @@ async function createTables(db: Database) {
         collection_id INTEGER NOT NULL,
         media_id INTEGER NOT NULL,
         sort_order INTEGER DEFAULT 0,
+        era_id INTEGER,
         FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
         FOREIGN KEY (media_id) REFERENCES entries(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Create collection eras table (optional sub-groupings over collection items)
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS collection_eras (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        collection_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        color TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
+        created_date TEXT NOT NULL
       )
     `);
 
