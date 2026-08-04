@@ -26,6 +26,11 @@ export interface MultiLogDayEntry {
   name: string;
   entry_type: string | null;
   review_score: number | null;
+  is_rewatch: number;
+  own_local_copy: number;
+  has_subtitles: number;
+  is_platinum: number;
+  is_early_access: number;
 }
 
 export interface MultiLogDay {
@@ -334,6 +339,11 @@ export function selectMultiLogDays(dataset: StatsDataset): MultiLogDay[] {
       name: entry.name,
       entry_type: entry.entry_type,
       review_score: entry.review_score,
+      is_rewatch: entry.is_rewatch,
+      own_local_copy: entry.own_local_copy,
+      has_subtitles: entry.has_subtitles,
+      is_platinum: entry.is_platinum,
+      is_early_access: entry.is_early_access,
     });
     days.set(date, entriesForDay);
   }

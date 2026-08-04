@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Calendar, Star } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Calendar, Captions, Check, Clock, RotateCcw, Star, Trophy } from "lucide-react";
 import type { MultiLogDay } from "../../../lib/stats-logic";
 import { useStatsWidgetEditContext } from "../StatsEditableWidgetFrame";
 import { StatsWidgetShell } from "../StatsWidgetShell";
@@ -12,6 +12,29 @@ interface MultiLogDaysWidgetProps {
 
 const STORAGE_KEY = "stats-section-multi-log-days";
 const PREVIEW_DAY_COUNT = 3;
+
+function isGameType(entryType: string | null) {
+  return (entryType || "").toLowerCase().includes("game");
+}
+
+function Badge({
+  title,
+  colorClass,
+  icon,
+}: {
+  title: string;
+  colorClass: string;
+  icon: ReactNode;
+}) {
+  return (
+    <span
+      title={title}
+      className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium leading-none ${colorClass}`}
+    >
+      {icon}
+    </span>
+  );
+}
 
 function formatMultiLogDate(dateString: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
@@ -120,6 +143,41 @@ export function MultiLogDaysWidget({ multiLogDays, onDayClick }: MultiLogDaysWid
                       <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-gray-300">
                         {entry.entry_type}
                       </span>
+                    ) : null}
+                    {entry.is_rewatch === 1 ? (
+                      <Badge
+                        title="Replay / Rewatch"
+                        colorClass="border-amber-500/40 bg-amber-500/15 text-amber-300"
+                        icon={<RotateCcw size={10} />}
+                      />
+                    ) : null}
+                    {entry.own_local_copy === 1 ? (
+                      <Badge
+                        title="Own Local Copy"
+                        colorClass="border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                        icon={<Check size={10} />}
+                      />
+                    ) : null}
+                    {entry.has_subtitles === 1 ? (
+                      <Badge
+                        title="Subtitles"
+                        colorClass="border-orange-500/40 bg-orange-500/15 text-orange-300"
+                        icon={<Captions size={10} />}
+                      />
+                    ) : null}
+                    {isGameType(entry.entry_type) && entry.is_platinum === 1 ? (
+                      <Badge
+                        title="Platinum / 100%"
+                        colorClass="border-cyan-400/40 bg-cyan-400/15 text-cyan-200"
+                        icon={<Trophy size={10} />}
+                      />
+                    ) : null}
+                    {isGameType(entry.entry_type) && entry.is_early_access === 1 ? (
+                      <Badge
+                        title="Early Access"
+                        colorClass="border-violet-500/40 bg-violet-500/15 text-violet-300"
+                        icon={<Clock size={10} />}
+                      />
                     ) : null}
                     {typeof entry.review_score === "number" ? (
                       <span className="font-medium text-amber-300"><Star size={12} className="inline text-amber-300 align-middle" /> {entry.review_score}</span>
