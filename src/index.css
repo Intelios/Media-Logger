@@ -2551,7 +2551,8 @@ body {
 .media-list-card:hover {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  z-index: 10;
 }
 
 .media-list-card-blur {

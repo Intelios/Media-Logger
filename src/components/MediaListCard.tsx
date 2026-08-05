@@ -68,7 +68,7 @@ export function MediaListCard({
 
   const card = (
     <motion.div
-      whileHover={reduceMotion ? undefined : { y: -2 }}
+      whileHover={reduceMotion ? undefined : { y: -6, scale: 1.02 }}
       transition={cardLiftTransition}
       onClick={interactive ? () => onClick?.(entry) : undefined}
       className={cn("media-list-card", interactive && "media-list-card-interactive")}
