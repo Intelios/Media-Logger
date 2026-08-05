@@ -63,7 +63,6 @@ Entries can include completion date, score, description, notes, local artwork, g
 - Appearance controls with multiple color themes, glass styling, rating display modes (pill or thermometer), and a personalized dashboard greeting.
 - Keyboard shortcuts for fast navigation across all major areas.
 - Local-first storage with SQLite, copied artwork assets, custom data directory support, and backup import/export in JSON or ZIP format.
-- Built-in auto-updater for seamless version upgrades.
 
 ## Main Areas
 
