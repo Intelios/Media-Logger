@@ -35,6 +35,9 @@
         },
         {
           "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$APPCACHE/**"
         }
       ]
     },

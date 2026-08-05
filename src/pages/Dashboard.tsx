@@ -58,13 +58,13 @@ export default function Dashboard() {
     const feat = await dashboardLogic.getFeaturedEntry(excludeId);
     if (loadIdRef.current !== id) return;
 
-    const imageUrl = feat ? await getImageUrl(feat.image_url) : null;
+    const imageUrl = feat ? await getImageUrl(feat.image_url, { variant: 'thumbnail' }) : null;
     if (loadIdRef.current !== id) {
-      if (feat) releaseImageUrl(feat.image_url);
+      if (feat) releaseImageUrl(feat.image_url, 'thumbnail');
       return;
     }
 
-    releaseImageUrl(featuredImagePathRef.current);
+    releaseImageUrl(featuredImagePathRef.current, 'thumbnail');
     featuredImagePathRef.current = feat ? feat.image_url : null;
     setFeatured(feat && imageUrl ? { entry: feat, imageUrl } : null);
   }, []);
@@ -120,7 +120,7 @@ export default function Dashboard() {
       cancelled = true;
       // Invalidate any in-flight featured load and release the displayed image.
       loadIdRef.current++;
-      releaseImageUrl(featuredImagePathRef.current);
+      releaseImageUrl(featuredImagePathRef.current, 'thumbnail');
       featuredImagePathRef.current = null;
       window.removeEventListener(FEATURED_ADULT_VISIBILITY_CHANGED_EVENT, handleFeaturedAdultChange);
     };

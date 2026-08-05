@@ -145,7 +145,7 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
       for (const e of entries) {
         if (cancelled) return;
         if (!e.image_url) continue;
-        const url = await getImageUrl(e.image_url);
+        const url = await getImageUrl(e.image_url, { variant: 'thumbnail' });
         if (cancelled) return;
         acquired.push(e.image_url);
         map[e.id] = url;
@@ -154,7 +154,7 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
     })();
     return () => {
       cancelled = true;
-      acquired.forEach(releaseImageUrl);
+      acquired.forEach((path) => releaseImageUrl(path, 'thumbnail'));
     };
   }, [isOpen, entries]);
 

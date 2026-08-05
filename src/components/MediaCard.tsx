@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import { motion } from "framer-motion";
 import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Tv, MonitorPlay, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, StickyNote, X, Image as ImageIcon, Copy, CopyPlus, Clock, Captions } from "lucide-react";
-import { DEFAULT_COVER_IMAGE, useImageSource, useCoverReveal } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, useImageSource, useCoverReveal, useNearViewport } from "../lib/utils";
 import { dbService, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { getRatingDisplayMode } from "../lib/settings";
@@ -168,13 +168,21 @@ function PortalTooltip({ children, anchorRef }: { children: React.ReactNode; anc
 
 export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys, dateEmphasis = 'default', dateAccentClass, dateTintClass }: MediaCardProps) {
   const navigate = useNavigate();
-  const { src: imgSrc, status: imgStatus } = useImageSource(entry.image_url);
+  const { ref: viewportRef, isNearViewport } = useNearViewport<HTMLDivElement>();
+  const [imageViewOpen, setImageViewOpen] = useState(false);
+  const { src: imgSrc, status: imgStatus } = useImageSource(entry.image_url, {
+    enabled: isNearViewport,
+    variant: 'thumbnail',
+  });
+  const { src: fullImageSrc } = useImageSource(entry.image_url, {
+    enabled: imageViewOpen,
+    variant: 'original',
+  });
   // Reveal the cover with a fade once it has actually loaded; cached/remote
   // images (status already 'ready' on mount) skip the skeleton entirely.
   const { revealed: coverRevealed, reveal: revealCover, attachImg: coverImgRef } = useCoverReveal(imgSrc, imgStatus);
   const [menuOpen, setMenuOpen] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
-  const [imageViewOpen, setImageViewOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [duplicatesModalOpen, setDuplicatesModalOpen] = useState(false);
   const [duplicateEntries, setDuplicateEntries] = useState<MediaEntry[]>([]);
@@ -305,6 +313,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
   return (
     <>
       <motion.div
+        ref={viewportRef}
         whileHover={{ y: -6, scale: 1.02 }}
         transition={cardLiftTransition}
         className={cn(
@@ -839,7 +848,7 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
             >
               {/* Image */}
               <img
-                src={imgSrc || DEFAULT_COVER_IMAGE}
+                src={fullImageSrc || DEFAULT_COVER_IMAGE}
                 alt={entry.name}
                 className="max-w-[90vw] max-h-[80vh] object-contain rounded-2xl shadow-2xl"
                 onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; }}

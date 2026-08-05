@@ -14,7 +14,7 @@ import { formatDate } from "../lib/dates";
 
 // Small helper component for loading images asynchronously (required for Tauri)
 function WinnerThumbnail({ entry }: { entry: MediaEntry }) {
-  const imgSrc = useImageUrl(entry.image_url, "");
+  const imgSrc = useImageUrl(entry.image_url, "", { variant: 'thumbnail' });
 
   return (
     <div className="w-16 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
@@ -31,7 +31,7 @@ function WinnerThumbnail({ entry }: { entry: MediaEntry }) {
 
 // Full-size cover image for award winner cards
 function WinnerCoverImage({ entry }: { entry: MediaEntry }) {
-  const imgSrc = useImageUrl(entry.image_url);
+  const imgSrc = useImageUrl(entry.image_url, undefined, { variant: 'thumbnail' });
 
   return (
     <img

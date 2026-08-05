@@ -29,7 +29,7 @@ function OrphanTile({
     selected: boolean;
     onToggle: () => void;
 }) {
-    const imgSrc = useImageUrl(`images/${orphan.name}`);
+    const imgSrc = useImageUrl(`images/${orphan.name}`, undefined, { variant: 'thumbnail' });
 
     return (
         <div

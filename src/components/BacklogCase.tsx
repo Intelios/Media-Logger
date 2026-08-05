@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Play, Pause, Check, Pencil, Trash2, MoreVertical, Film, Tv, MonitorPlay, Gamepad2, BookOpen, Disc3, Heart, Monitor, Tag, Calendar, CalendarClock, Hourglass } from "lucide-react";
-import { useImageSource, useCoverReveal } from "../lib/utils";
+import { useImageSource, useCoverReveal, useNearViewport } from "../lib/utils";
 import { formatShortDate, getDaysUntil } from "../lib/dates";
 import { cn } from "../lib/utils_ui";
 import type { BacklogItem } from "../lib/db";
@@ -61,7 +61,11 @@ interface BacklogCaseProps {
 }
 
 export function BacklogCase({ item, index, suppressTooltip, onStart, onPause, onComplete, onEdit, onRemove }: BacklogCaseProps) {
-  const { src: imageUrl, status: imgStatus } = useImageSource(item.image_url);
+  const { ref: viewportRef, isNearViewport } = useNearViewport<HTMLDivElement>();
+  const { src: imageUrl, status: imgStatus } = useImageSource(item.image_url, {
+    enabled: isNearViewport,
+    variant: 'thumbnail',
+  });
   const { revealed: coverRevealed, reveal: revealCover, attachImg: coverImgRef } = useCoverReveal(imageUrl, imgStatus);
   const [showMenu, setShowMenu] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -125,7 +129,10 @@ export function BacklogCase({ item, index, suppressTooltip, onStart, onPause, on
 
   return (
     <div
-      ref={caseRef}
+      ref={(node) => {
+        caseRef.current = node;
+        viewportRef(node);
+      }}
       className="backlog-case-enter group relative"
       style={{ animationDelay: `${index * 40}ms` }}
       onMouseEnter={handleMouseEnter}

@@ -40,6 +40,7 @@ import { DB_FILENAME, dbService } from '../lib/db';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CleanupImagesModal } from '../components/CleanupImagesModal';
 import { scanOrphanedImages, type ScanResult } from '../lib/image-cleanup';
+import { resetThumbnailImageCache } from '../lib/utils';
 import {
     getDataDirectory,
     setDataDirectory,
@@ -86,6 +87,7 @@ import tauriConfig from '../../src-tauri/tauri.conf.json';
 
 type SettingsSection = 'general' | 'appearance' | 'ai-access' | 'data' | 'changelog' | 'about';
 type BackupFormat = 'json' | 'zip';
+type ClearThumbnailCacheResult = { filesRemoved: number; bytesRemoved: number };
 
 type ChangelogRelease = {
     version: string;
@@ -285,6 +287,7 @@ export default function Settings() {
 
     // Unused-image cleanup state
     const [isScanning, setIsScanning] = useState(false);
+    const [isClearingThumbnailCache, setIsClearingThumbnailCache] = useState(false);
     const [cleanupScan, setCleanupScan] = useState<ScanResult | null>(null);
     const [showCleanupModal, setShowCleanupModal] = useState(false);
 
@@ -417,6 +420,24 @@ export default function Settings() {
             showToast('Scan failed: ' + String(error));
         } finally {
             setIsScanning(false);
+        }
+    };
+
+    const handleClearThumbnailCache = async () => {
+        if (isClearingThumbnailCache) return;
+        setIsClearingThumbnailCache(true);
+        try {
+            const result = await invoke<ClearThumbnailCacheResult>('clear_thumbnail_cache');
+            resetThumbnailImageCache();
+            const sizeMb = result.bytesRemoved / (1024 * 1024);
+            showToast(result.filesRemoved === 0
+                ? 'Thumbnail cache is already empty'
+                : `Cleared ${result.filesRemoved} thumbnails (${sizeMb.toFixed(1)} MB)`);
+        } catch (error) {
+            console.error('Clear thumbnail cache failed:', error);
+            showToast('Unable to clear thumbnail cache');
+        } finally {
+            setIsClearingThumbnailCache(false);
         }
     };
 
@@ -1724,6 +1745,29 @@ export default function Settings() {
                                         <><Loader2 size={14} className="spin" /> Importing...</>
                                     ) : (
                                         <><Upload size={14} /> Import from File</>
+                                    )}
+                                </button>
+                            </div>
+                        </section>
+
+                        <section className="settings-card">
+                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+                                <div>
+                                    <div className="settings-row-label">Cover Thumbnail Cache</div>
+                                    <div className="settings-row-description">
+                                        Media Logger creates optimized local thumbnails as covers enter view. Clearing them is safe; originals are untouched and thumbnails regenerate automatically.
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleClearThumbnailCache}
+                                    disabled={isClearingThumbnailCache}
+                                    className="settings-btn settings-btn-secondary"
+                                    style={{ alignSelf: 'flex-start' }}
+                                >
+                                    {isClearingThumbnailCache ? (
+                                        <><Loader2 size={14} className="spin" /> Clearing...</>
+                                    ) : (
+                                        <><Trash2 size={14} /> Clear Thumbnail Cache</>
                                     )}
                                 </button>
                             </div>

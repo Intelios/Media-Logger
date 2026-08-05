@@ -1,7 +1,7 @@
 import { Children, isValidElement, useState, useEffect, useCallback, type ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Settings, PartyPopper, Bookmark, Database, X } from "lucide-react";
+import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Settings, PartyPopper, Bookmark, Database, X, ImageOff, RefreshCw } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
 import { WelcomeScreen } from "./WelcomeScreen";
@@ -10,6 +10,7 @@ import { listen } from "@tauri-apps/api/event";
 import { shouldShowWelcome } from "../lib/onboarding-logic";
 import { getNavigationYears } from "../lib/settings";
 import { getAvailableNavigationYears, getCurrentYearString, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
+import { getReportedImageFailures, retryFailedImages, type ImageLoadFailureDetail } from "../lib/utils";
 
 function isMacPlatform(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -73,6 +74,7 @@ export function Layout() {
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showDbMigratedBanner, setShowDbMigratedBanner] = useState(false);
+  const [imageFailures, setImageFailures] = useState<Map<string, ImageLoadFailureDetail>>(new Map());
   const navigate = useNavigate();
   const currentYear = getCurrentYearString();
 
@@ -101,6 +103,22 @@ export function Layout() {
       window.removeEventListener("entry-added", handleYearsChanged as EventListener);
     };
   }, [refreshYears]);
+
+  useEffect(() => {
+    const handleImageFailure = (event: CustomEvent<ImageLoadFailureDetail>) => {
+      setImageFailures((current) => {
+        const key = `${event.detail.operation}:${event.detail.path}`;
+        const next = new Map(current);
+        next.set(key, event.detail);
+        return next;
+      });
+    };
+    window.addEventListener('image-load-failed', handleImageFailure);
+    for (const detail of getReportedImageFailures()) {
+      handleImageFailure(new CustomEvent('image-load-failed', { detail }));
+    }
+    return () => window.removeEventListener('image-load-failed', handleImageFailure);
+  }, []);
 
   // Listen for menu events from Tauri backend.
   // listen() resolves to its unlisten fn asynchronously; under React 19
@@ -192,6 +210,11 @@ export function Layout() {
     setShowDbMigratedBanner(false);
   };
 
+  const handleRetryImages = () => {
+    setImageFailures(new Map());
+    retryFailedImages();
+  };
+
   const handleWelcomeComplete = (openEntryForm?: boolean) => {
     setShowWelcome(false);
     if (openEntryForm) {
@@ -216,6 +239,11 @@ export function Layout() {
       console.error("Failed to save entry:", error);
     }
   };
+
+  const readFailureCount = [...imageFailures.values()].filter(
+    (failure) => failure.operation === 'read'
+  ).length;
+  const thumbnailFailureCount = imageFailures.size - readFailureCount;
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ color: "var(--color-text)" }}>
@@ -347,6 +375,50 @@ export function Layout() {
           style={{ backgroundColor: 'var(--color-background)' }}
         />
         <main className="relative z-[1] h-full overflow-y-auto p-6 scroll-smooth">
+          {imageFailures.size > 0 && (
+            <div
+              className="mb-4 flex items-start gap-3 rounded-xl border px-4 py-3"
+              style={{
+                borderColor: "rgba(245, 158, 11, 0.35)",
+                backgroundColor: "rgba(245, 158, 11, 0.10)",
+              }}
+            >
+              <ImageOff size={18} className="mt-0.5 shrink-0 text-amber-400" />
+              <div className="flex-1 text-sm text-[var(--color-text)]">
+                {readFailureCount > 0 ? (
+                  <>
+                    {readFailureCount === 1
+                      ? 'One cover could not be loaded.'
+                      : `${readFailureCount} covers could not be loaded.`}
+                    {' '}Fallback artwork is being shown.
+                    {thumbnailFailureCount > 0 && ` ${thumbnailFailureCount} other cover thumbnails are using their originals.`}
+                  </>
+                ) : (
+                  <>
+                    {thumbnailFailureCount === 1
+                      ? 'One cover thumbnail could not be generated.'
+                      : `${thumbnailFailureCount} cover thumbnails could not be generated.`}
+                    {' '}Original covers are being used.
+                  </>
+                )}
+              </div>
+              <button
+                onClick={handleRetryImages}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-amber-200 transition-colors hover:bg-amber-500/15"
+              >
+                <RefreshCw size={14} />
+                Retry
+              </button>
+              <button
+                onClick={() => setImageFailures(new Map())}
+                className="shrink-0 rounded-md p-1 text-[var(--color-text-muted)] transition-colors hover:bg-black/5 hover:text-[var(--color-text)]"
+                title="Dismiss image warning"
+                aria-label="Dismiss image warning"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
           {showDbMigratedBanner && (
           <div
             className="mb-4 flex items-start gap-3 rounded-xl border px-4 py-3"

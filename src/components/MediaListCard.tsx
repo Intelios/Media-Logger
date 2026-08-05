@@ -2,7 +2,7 @@ import { type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Star, Calendar, RotateCcw, Captions, Trophy, Clock } from "lucide-react";
 import type { MediaEntry } from "../lib/db";
-import { DEFAULT_COVER_IMAGE, useImageSource, useCoverReveal } from "../lib/utils";
+import { DEFAULT_COVER_IMAGE, useImageSource, useCoverReveal, useNearViewport } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 import { getTypeBadgeStyle, getRatingColor, parseGenres, formatCardRating } from "./MediaCard";
 import { formatDate, getYearsAgo } from "../lib/dates";
@@ -50,7 +50,11 @@ export function MediaListCard({
   surfaceTint,
 }: MediaListCardProps) {
   const yearsAgo = showYearsAgo ? getYearsAgo(entry.completion_date) : null;
-  const { src: imgSrc, status: imgStatus } = useImageSource(entry.image_url);
+  const { ref: viewportRef, isNearViewport } = useNearViewport<HTMLDivElement>();
+  const { src: imgSrc, status: imgStatus } = useImageSource(entry.image_url, {
+    enabled: isNearViewport,
+    variant: 'thumbnail',
+  });
   const { revealed: coverRevealed, reveal: revealCover, attachImg: coverImgRef } = useCoverReveal(imgSrc, imgStatus);
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const genres = parseGenres(entry.genre).slice(0, 2);
@@ -68,7 +72,8 @@ export function MediaListCard({
 
   const card = (
     <motion.div
-      whileHover={reduceMotion ? undefined : { y: -6, scale: 1.02 }}
+      ref={viewportRef}
+      whileHover={reduceMotion ? undefined : { y: -2 }}
       transition={cardLiftTransition}
       onClick={interactive ? () => onClick?.(entry) : undefined}
       className={cn("media-list-card", interactive && "media-list-card-interactive")}

@@ -339,7 +339,7 @@ function ProfileCard({ profile, onClick, onAction, actionLabel, ActionIcon }: {
   actionLabel: string;
   ActionIcon: typeof EyeOff;
 }) {
-  const imgSrc = useImageUrl(profile.image_url, "");
+  const imgSrc = useImageUrl(profile.image_url, "", { variant: 'thumbnail' });
   const typeConfig = getTypeConfig(profile.type);
   const TypeIcon = typeConfig.icon;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -544,7 +544,7 @@ export default function ProfilesPage() {
   // URL params for deep-linking to a specific profile
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const headerImgSrc = useImageUrl(selectedProfile?.image_url, "");
+  const headerImgSrc = useImageUrl(selectedProfile?.image_url, "", { variant: 'thumbnail' });
 
   // Return-to info: where the user came from (e.g., year view)
   const [returnTo, setReturnTo] = useState<{ year: string; entryId: string; entryType: string } | null>(null);

@@ -34,6 +34,7 @@ axum = "0.8"
 base64 = "0.22"
 hex = "0.4"
 http-body-util = "0.1"
+image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 rand = "0.9"
 rmcp = { version = "=2.2.0", features = ["server", "macros", "schemars", "transport-streamable-http-server"] }
 sha2 = "0.10"

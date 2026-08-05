@@ -692,7 +692,7 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
 
     return () => {
       cancelled = true;
-      acquiredPaths.forEach(releaseImageUrl);
+      acquiredPaths.forEach((path) => releaseImageUrl(path));
     };
   }, [data]);
 

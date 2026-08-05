@@ -30,6 +30,19 @@ interface EraBracket {
   firstRow: boolean;
 }
 
+function bracketsEqual(left: EraBracket[], right: EraBracket[]): boolean {
+  return left.length === right.length && left.every((item, index) => {
+    const other = right[index];
+    return item.key === other.key
+      && item.eraName === other.eraName
+      && item.eraColor === other.eraColor
+      && Math.abs(item.left - other.left) < 0.5
+      && Math.abs(item.top - other.top) < 0.5
+      && Math.abs(item.width - other.width) < 0.5
+      && Math.abs(item.height - other.height) < 0.5;
+  });
+}
+
 // Helper for thumbnail grid - Enhanced version
 function CollectionThumbnails({ images }: { images: string[] }) {
   const [urls, setUrls] = useState<string[]>([]);
@@ -44,9 +57,9 @@ function CollectionThumbnails({ images }: { images: string[] }) {
     }
 
     Promise.all(images.map(async (img) => {
-      const url = await getImageUrl(img);
+      const url = await getImageUrl(img, { variant: 'thumbnail' });
       if (cancelled) {
-        releaseImageUrl(img);
+        releaseImageUrl(img, 'thumbnail');
       } else {
         acquiredImages.push(img);
       }
@@ -59,7 +72,7 @@ function CollectionThumbnails({ images }: { images: string[] }) {
 
     return () => {
       cancelled = true;
-      acquiredImages.forEach(releaseImageUrl);
+      acquiredImages.forEach((image) => releaseImageUrl(image, 'thumbnail'));
     };
   }, [images]);
 
@@ -107,6 +120,7 @@ export default function CollectionsPage() {
   const [brackets, setBrackets] = useState<EraBracket[]>([]);
   const gridRef = useRef<HTMLDivElement>(null);
   const cardElsRef = useRef<Map<number, HTMLDivElement>>(new Map());
+  const bracketFrameRef = useRef<number | null>(null);
 
   // Modals
   const [createOpen, setCreateOpen] = useState(false);
@@ -122,6 +136,10 @@ export default function CollectionsPage() {
   // Measure era member cards and compute bracket rects (one per era per visual
   // row). Eras are a pure overlay: this only reads DOM positions.
   const computeBrackets = useCallback(() => {
+    if (eras.length === 0) {
+      setBrackets((current) => current.length === 0 ? current : []);
+      return;
+    }
     const grid = gridRef.current;
     if (!grid) return;
     const gridRect = grid.getBoundingClientRect();
@@ -172,24 +190,38 @@ export default function CollectionsPage() {
         });
       });
     }
-    setBrackets(next);
+    setBrackets((current) => bracketsEqual(current, next) ? current : next);
   }, [eras]);
+
+  const scheduleBracketComputation = useCallback(() => {
+    if (bracketFrameRef.current !== null) return;
+    bracketFrameRef.current = window.requestAnimationFrame(() => {
+      bracketFrameRef.current = null;
+      computeBrackets();
+    });
+  }, [computeBrackets]);
 
   // Recompute whenever items/eras change (runs after DOM commit, so refs are live).
   useLayoutEffect(() => {
-    computeBrackets();
-  }, [computeBrackets, items]);
+    scheduleBracketComputation();
+  }, [items, scheduleBracketComputation]);
 
   // Recompute on container/card resize (window resizes, image loads reflowing
   // the grid). The observer reads the live refs each time it fires.
   useEffect(() => {
+    if (eras.length === 0) return;
     const grid = gridRef.current;
     if (!grid) return;
-    const ro = new ResizeObserver(() => computeBrackets());
+    const ro = new ResizeObserver(scheduleBracketComputation);
     ro.observe(grid);
-    cardElsRef.current.forEach(el => ro.observe(el));
-    return () => ro.disconnect();
-  }, [computeBrackets, items]);
+    return () => {
+      ro.disconnect();
+      if (bracketFrameRef.current !== null) {
+        window.cancelAnimationFrame(bracketFrameRef.current);
+        bracketFrameRef.current = null;
+      }
+    };
+  }, [eras.length, scheduleBracketComputation]);
 
   useEffect(() => {
     loadCollections();
