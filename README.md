@@ -27,116 +27,87 @@
   </p>
 </div>
 
-## Overview
+---
 
-Media Logger is the Tauri + React + TypeScript rebuild of the original Python/Flet app. It keeps the long-term collection mindset intact, adds a much richer interface, and stays forward-compatible with existing data and assets.
+## Why Media Logger
 
-This app is built around completed media rather than a passive backlog. Every entry becomes part of a personal archive you can browse by year, search by metadata, group into collections, and revisit through analytics and awards. A guided onboarding flow gets new users set up on first launch.
+Watchlists end the moment you hit *finish*. Media Logger is built the other way around: it treats
+finished media as a personal archive that grows more interesting the longer you keep it.
+
+Every entry becomes part of a library you can browse by year, search by metadata, group into
+collections, and revisit through analytics and awards — all stored **locally on your machine** in
+a SQLite database, artwork included. No account, no cloud, no ads.
 
 ## What You Can Track
 
-Media Logger supports:
+`Movie` · `Show` · `Anime` · `Book` · `Album` · `K-Drama` · `Game` · `Other` — plus adult categories
+(JAV, Hentai, Adult Visual Novel) that hide completely behind a single setting.
 
-- `Movie`
-- `Show`
-- `Anime`
-- `Book`
-- `Album`
-- `K-Drama`
-- `Game`
-- `Other`
-
-Entries can include completion date, score, description, notes, local artwork, genre, and type-specific metadata like platform, franchise, series, author, artist, director/studio, or actress.
+Entries can carry a completion date, score, description, notes, local artwork, genres, and
+type-specific metadata like platform, franchise, series, author, artist, or director/studio.
 
 ## Highlights
 
-- A polished dashboard with a featured entry, recent completions, an "On This Day" section surfacing entries from previous years, quick navigation, and collection-wide summary cards.
-- Year-based browsing with fast filtering for entry types, local copies, rewatches, and quick presets for gaming, general media, or adult content.
-- Full-library search with advanced filters for type, platform, actress, director, author, franchise, and series.
-- A customizable statistics dashboard built on a widget system with 20 drag-and-drop widgets across two view modes (Overview and Dashboard), including a completion heatmap, score trends, multi-log days, most replayed entries, and average score by type.
-- Profile pages that turn repeated metadata into browsable hubs for studios, actresses, artists, authors, platforms, and franchises.
-- Custom collections for building ranked lists, themed shelves, favorites, or any other hand-picked grouping with drag-and-drop reordering.
-- A yearly awards system with reusable templates and winner history across years.
-- A backlog for tracking what you plan to watch, play, or read next, with in-progress and planning statuses, type filtering, and one-click promotion to a completed entry.
-- Optional local MCP access for querying your completed library and backlog from Codex, VS Code, or OpenCode while Media Logger is running.
-- An animated year-in-review slideshow that generates themed slides for any year or month, covering top genres, perfect tens, biggest months, hidden gems, award winners, genre clouds, and more.
-- Appearance controls with multiple color themes, glass styling, rating display modes (pill or thermometer), and a personalized dashboard greeting.
-- Keyboard shortcuts for fast navigation across all major areas.
-- Local-first storage with SQLite, copied artwork assets, custom data directory support, and backup import/export in JSON or ZIP format.
+- **Dashboard** — a fast read on your library: totals, average rating, a featured pick, recent
+  completions, and an "On This Day" section that resurfaces what you finished in years past.
+- **Year View** — browse any year as a focused shelf, with quick presets for Gaming, Media, and
+  Adult content, plus filters for local copies and rewatches.
+- **Search** — the whole collection, filtered by type, platform, actress, director, author,
+  franchise, and series at once.
+- **Stats** — a customizable widget dashboard with charts, a completion heatmap, score trends,
+  multi-log days, most-replayed timelines, top genres, and average score by type. Show, hide,
+  and rearrange widgets to fit how you think.
+- **Profiles** — recurring metadata becomes navigable hubs for studios, actresses, artists,
+  authors, platforms, and franchises.
+- **Collections** — hand-picked shelves with drag-and-drop ordering, plus named *Eras* to
+  visually group items within a collection.
+- **Awards** — yearly award categories with reusable templates and a winner history across years.
+- **Backlog** — planning and in-progress lanes for what's next, with type filters, drag-and-drop
+  reordering, and one-click promotion to a completed entry.
+- **Review** — an animated year-in-review slideshow with themed slides for any year or month:
+  top genres, perfect tens, hidden gems, award winners, and more.
+- **Appearance** — multiple color themes, glass styling, and rating displays that read as pills
+  or thermometers. ⌘1–⌘9 jump straight to any area.
 
-## Main Areas
+## Local-First, Always
 
-| Area | What it does |
-| --- | --- |
-| Dashboard | Gives you a fast read on the library with totals, average rating, top content type, peak year, a featured pick, recent completions, and an "On This Day" section. |
-| Year View | Lets you browse a single year as a focused shelf with quick presets and status filters. |
-| Search | Searches the full collection and narrows results with stacked metadata filters. |
-| Stats | A customizable widget dashboard with charts, heatmaps, genre drill-downs, scoring trends, monthly activity, and more. Widgets can be shown, hidden, and rearranged. |
-| Profiles | Builds dedicated pages from recurring metadata so creators, performers, platforms, and franchises become navigable archives. |
-| Awards | Lets you create yearly award categories, pick winners, and reuse award templates over time. |
-| Collections | Creates custom shelves with drag-and-drop ordering for favorites, rankings, series rewatches, or themed picks. |
-| Backlog | Tracks upcoming media in planning and in-progress lanes, with type filters and quick completion into the main library. |
-| Review | Generates an animated year-in-review slideshow with themed slides, backdrop artwork, and preset filters for gaming, media, or adult content. |
-| Settings | Manages color themes, display mode, display name, navigation years, backup import/export, storage location, and About/debug information. |
-
-## Data and Compatibility
-
-- Uses a local SQLite database named `media_logger.db`. Installs from before 3.0 used `jav_log.db`; these are migrated automatically on first launch (the original file is kept as a backup).
-- Stores selected artwork inside an `assets/images` folder under the app data directory.
-- Supports a custom data directory if you want to keep the database somewhere specific.
-- Includes schema migrations for older installs, including legacy table compatibility and newer awards, profiles, collections, backlog, and series features.
-- Supports full-library backup export and import through JSON or ZIP files (ZIP bundles artwork assets alongside data).
-- Designed as a forward-compatible rebuild of the previous Python/Flet Media Logger.
+- SQLite database + locally copied artwork — your archive lives on your disk, not a server.
+- Automatic migration from the legacy 2.x database (`jav_log.db`), original kept as a backup.
+- Full backup export/import as JSON or ZIP (ZIP bundles the artwork too).
+- Optional custom data directory.
 
 ## AI Access (Local MCP)
 
-Media Logger can expose a small, read-only Model Context Protocol (MCP) server to supported AI clients on the same computer. It is disabled by default and only listens while Media Logger is running and **Settings → AI Access** is enabled.
+Media Logger can expose a small, read-only [MCP](https://modelcontextprotocol.io/) server to AI
+clients on the same computer — Codex, VS Code, OpenCode. Disabled by default; enabled from
+**Settings → AI Access**.
 
-- The server binds only to `127.0.0.1` and requires a separate bearer token for each configured client.
-- The MCP server makes no outbound network requests; it reads the local SQLite database only after an authenticated tool call.
-- Personal notes, cover-image paths, filesystem paths, and ownership/subtitle flags are never queried or returned.
-- Adult entries are available only when both the app-wide Adult Media setting and the separate MCP adult-data setting are enabled.
-- MCP tools can search completed entries, fetch safe entry details, summarize the library, and list backlog items. They cannot add, edit, or delete anything.
-- Recent access history contains only the client label, tool name, time, outcome, and result count; it does not store media titles, filters, descriptions, or tokens.
+- Binds to `127.0.0.1` only, with a per-client bearer token. No outbound network requests.
+- Personal notes, image paths, and ownership flags are never queried or returned.
+- Tools can search, inspect, summarize, and list your backlog — never add, edit, or delete.
+- Adult entries require both the app-wide Adult Media setting and a separate MCP opt-in.
 
-To connect Codex, VS Code, or OpenCode, enable AI Access, create a named connection, and copy the generated configuration shown by the app. The token is displayed once. Revoke that connection and create a replacement if the token is lost or exposed.
-
-For OpenCode, merge the generated `mcp` object into the global `~/.config/opencode/opencode.json` file, or into a project-level `opencode.json` if access should be limited to one project. The entry uses OpenCode's `remote` transport, disables OAuth discovery because Media Logger uses a bearer token, and sends that token through the `Authorization` header. Restart OpenCode and run `opencode mcp list` to verify the connection. See the [OpenCode MCP server documentation](https://opencode.ai/docs/mcp-servers/) for configuration and troubleshooting details.
-
-The configured client may report that Media Logger is unavailable while the app is closed or AI Access is disabled. This is expected: there is no background service or internet-facing relay. Although the MCP endpoint itself is local, the AI client may send returned metadata to its configured model provider, so review that provider's privacy settings before enabling access.
+For OpenCode, merge the generated `mcp` object into `~/.config/opencode/opencode.json`, restart
+OpenCode, and verify with `opencode mcp list`. The client will report the app unavailable while
+Media Logger is closed or AI Access is off — there is no background service.
 
 ## Tech Stack
 
-- Tauri 2
-- React 19
-- TypeScript
-- Vite
-- Tailwind CSS
-- SQLite via `@tauri-apps/plugin-sql`
-- Recharts and D3 for analytics and visualizations
-- dnd-kit for drag-and-drop
-- Lucide for icons
+Tauri 2 · React 19 · TypeScript · Vite · Tailwind CSS · SQLite · Recharts · d3-force · dnd-kit · Framer Motion · Lucide
 
 ## Development
 
-### Requirements
+Built on macOS, targeting desktop only.
 
-- Node.js
-- Rust
-- Tauri system prerequisites for your operating system
-
-### Run locally
+**Requirements:** Node.js, Rust, and [Tauri system prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ```bash
 npm install
-npm run tauri dev
+npm run tauri dev     # run the desktop app
+npm run tauri build   # production bundle
 ```
 
-### Build
+---
 
-```bash
-npm run build
-npm run tauri build
-```
-
-If you treat finished media like a long-running personal archive instead of a disposable queue, Media Logger is built for that workflow.
+If you treat finished media like a long-running personal archive instead of a disposable queue,
+Media Logger is built for that workflow.
