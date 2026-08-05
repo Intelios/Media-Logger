@@ -1,8 +1,16 @@
 {
-  "generatedAt": "2026-07-28T12:27:03.305Z",
+  "generatedAt": "2026-08-05T15:29:07.094Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "3.11",
+      "title": "Media Logger - 3.11",
+      "date": "2026-08-05",
+      "body": "New Content/Features:\n- The Stats page has had a full visual reworking with proper sections, widgets can only go in their specific section, widget size layout adjustments, top 'authors, franchises etc' are all now in one widget not spread across five and many more improvements.\n- The 'Multiple Logs Per Day' stat widget in 'Stats' now display their badges such as 'Rewatch' or 'Local Copy' for example.\n- 'Most Replayed' widget in the stats screen has been redesigned from a basic bar chart to a proportional timeline strip with a table on expand. Much better looking.\n- Collections receive 'Era' sub groupings that draw a subtle bracket behind member cards. Pure overlay and don't reorder, just a subtle way to keep things (even) more organised.\n- Added a custom liquid glass method for MacOS 26+ devices. No user facing changes.\n- Updated Documentation for Agents & Humans.\n- Media List Cards now have a small hover effect and hover shadow added.\n\nBug Fixes:\n- Fixed a issue where some animations on the dashboard didn't respect reduce motion settings.\n- Removed DashboardStatCard which is completely dead code from the app.\n- Removed dead CSS from Dashboard Stats section.\n- Improved database calls for dashboard to use less calls for same results.\n- In 'YearView' the status filters of 'Rewatch', 'Local Copy' etc have been rewritten to use one shared function to reduce code bloat.\n- Removed un-needed comments in YearView files.\n- Fixed Review Page entrance animations.\n- Deleted 8 Dead Exports from the app.\n- Collapsible Stat Section removed as unimported/unused.\n- MultiLogDay/Award Winner functions removed as replaced elsewhere in code.\n- 3 Dead props removed.\n- 10 Orphaned CSS classes removed.\n- Tauri Plugin Updater dependency removed as never used.\n\nDependencies Updates:\n- Tauri Plugin for Liquid Glass and it's dependencies have been removed and replaced with a built in Liquid Glass method inside the app.\n- Vite updated from 8.1.5 to 8.2.0\n- Lucide React updated from 0.562.0 to 1.28.0\n- PostCSS updated from 8.15.19 to 8.5.25\n- Framer Motion updated from 12.42.2 to 12.43.0\n- Tauri dependencies update.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.11"
+    },
     {
       "version": "3.10",
       "title": "Media Logger - 3.10",
