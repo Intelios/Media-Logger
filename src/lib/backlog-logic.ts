@@ -75,15 +75,6 @@ export const backlogLogic = {
     await dbService.updateBacklogItemOrder(status, ids);
   },
 
-  async getCountsByType(): Promise<Record<string, number>> {
-    const items = await dbService.getAllBacklogItems();
-    const counts: Record<string, number> = {};
-    for (const item of items) {
-      counts[item.entry_type] = (counts[item.entry_type] || 0) + 1;
-    }
-    return counts;
-  },
-
   prepareForCompletion(item: BacklogItem): Partial<MediaEntry> {
     return {
       name: item.name,

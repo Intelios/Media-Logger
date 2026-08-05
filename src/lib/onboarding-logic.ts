@@ -31,13 +31,6 @@ export function markOnboardingComplete(): void {
 }
 
 /**
- * Reset onboarding (useful for testing)
- */
-export function resetOnboarding(): void {
-    localStorage.removeItem(ONBOARDING_KEY);
-}
-
-/**
  * Determine if we should show the welcome screen
  * - Show if user hasn't completed onboarding AND has no entries
  */

@@ -116,13 +116,3 @@ export function ReorderModal<T extends ReorderItem>({ isOpen, onClose, items, on
     document.body
   );
 }
-
-// Helper to convert MediaEntry to ReorderItem
-import type { MediaEntry } from "../lib/db";
-export function mediaEntryToReorderItem(entry: MediaEntry): ReorderItem & MediaEntry {
-  return {
-    ...entry,
-    subtitle: entry.entry_type ?? undefined,
-    imageUrl: entry.image_url ?? undefined
-  };
-}

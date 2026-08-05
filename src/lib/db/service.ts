@@ -18,7 +18,6 @@ import {
 } from './distinct-values';
 import {
   getAllBacklogItems,
-  getBacklogItemsByStatus,
   addBacklogItem,
   getNextBacklogSortOrder,
   updateBacklogItem,
@@ -61,7 +60,6 @@ export const dbService = {
   getAutocompleteOptions,
   invalidateAutocompleteCache,
   getAllBacklogItems,
-  getBacklogItemsByStatus,
   addBacklogItem,
   getNextBacklogSortOrder,
   updateBacklogItem,

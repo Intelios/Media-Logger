@@ -103,13 +103,6 @@ export function hasCustomDataDirectory(): boolean {
 }
 
 /**
- * Get the raw custom path without fallback (returns null if not set).
- */
-export function getCustomDataDirectory(): string | null {
-    return localStorage.getItem(STORAGE_KEY);
-}
-
-/**
  * Get user-configured navigation/filter years.
  * Falls back to the legacy hard-coded years for backward compatibility.
  */

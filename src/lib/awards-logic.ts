@@ -15,7 +15,7 @@ export interface AwardCategory {
   template_id: number | null;
 }
 
-export interface AwardWinner {
+interface AwardWinner {
   category_id: number;
   media_id: number;
   media?: MediaEntry; // Joined data

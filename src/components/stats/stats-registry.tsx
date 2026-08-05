@@ -10,7 +10,6 @@ import { StatsSummaryCard } from "./StatsSummaryCard";
 import {
   DEFAULT_STATS_WIDGET_DISPLAY_MODE,
   STATS_WIDGET_META,
-  type StatsDashboardRenderContext,
   type StatsWidgetDefinition,
   type StatsWidgetId,
   type StatsWidgetZone,
@@ -207,15 +206,4 @@ export function getOrderedStatsWidgetDefinitions(zone: StatsWidgetZone, widgetId
   return widgetIds
     .map((widgetId) => STATS_WIDGET_DEFINITIONS[widgetId])
     .filter((definition) => definition.zone === zone);
-}
-
-export function getVisibleStatsWidgetDefinitions(
-  zone: StatsWidgetZone,
-  widgetIds: StatsWidgetId[],
-  context: StatsDashboardRenderContext
-) {
-  return widgetIds
-    .map((widgetId) => STATS_WIDGET_DEFINITIONS[widgetId])
-    .filter((definition) => definition.zone === zone)
-    .filter((definition) => definition.isAvailable?.(context) ?? true);
 }

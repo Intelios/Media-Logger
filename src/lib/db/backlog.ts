@@ -10,15 +10,6 @@ export async function getAllBacklogItems(): Promise<BacklogItem[]> {
   return filterHiddenEntries(rows);
 }
 
-export async function getBacklogItemsByStatus(status: BacklogItem['status']): Promise<BacklogItem[]> {
-  const db = await connect();
-  const rows = await db.select<BacklogItem[]>(
-    "SELECT * FROM backlog_items WHERE status = $1 ORDER BY sort_order ASC, id DESC",
-    [status]
-  );
-  return filterHiddenEntries(rows);
-}
-
 export async function addBacklogItem(item: Omit<BacklogItem, 'id'>): Promise<number> {
   const db = await connect();
   const keys = Object.keys(item);

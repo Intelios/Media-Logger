@@ -4,10 +4,9 @@ interface AnimatedNumberProps {
   value: number;
   duration?: number;
   decimals?: number;
-  className?: string;
 }
 
-export function AnimatedNumber({ value, duration = 1200, decimals = 0, className }: AnimatedNumberProps) {
+export function AnimatedNumber({ value, duration = 1200, decimals = 0 }: AnimatedNumberProps) {
   const [display, setDisplay] = useState(0);
   const ref = useRef<number>(0);
 
@@ -31,5 +30,5 @@ export function AnimatedNumber({ value, duration = 1200, decimals = 0, className
     return () => cancelAnimationFrame(ref.current);
   }, [value, duration]);
 
-  return <span className={className}>{decimals > 0 ? display.toFixed(decimals) : Math.round(display)}</span>;
+  return <span>{decimals > 0 ? display.toFixed(decimals) : Math.round(display)}</span>;
 }

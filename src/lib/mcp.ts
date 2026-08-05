@@ -8,7 +8,7 @@ import {
 
 export type McpRuntimeState = 'off' | 'starting' | 'running' | 'error';
 
-export type McpCredential = {
+type McpCredential = {
     id: string;
     label: string;
     createdAt: string;

@@ -51,13 +51,12 @@ const SLIDE_ICONS: Record<string, typeof Star> = {
 
 // ─── Entry Thumbnail ─────────────────────────────────────────────────────────
 
-function EntryThumb({ entry, size = "md", delay = 0 }: { entry: MediaEntry; size?: "sm" | "md" | "lg"; delay?: number }) {
+function EntryThumb({ entry, size = "md", delay = 0 }: { entry: MediaEntry; size?: "sm" | "md"; delay?: number }) {
   const imgSrc = useImageUrl(entry.image_url);
 
   const sizeClasses = {
     sm: "w-16 h-20",
     md: "w-24 h-32",
-    lg: "w-32 h-44",
   };
 
   return (

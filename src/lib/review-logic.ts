@@ -434,14 +434,6 @@ export async function generateReview(params: ReviewParams): Promise<ReviewData> 
 }
 
 // Get available years from the database
-export async function getReviewYears(): Promise<number[]> {
-  const db = await dbService.connect();
-  const rows = await db.select<{ year_completed: number }[]>(
-    `SELECT DISTINCT year_completed FROM entries WHERE year_completed IS NOT NULL${adultExclusionSql()} ORDER BY year_completed DESC`
-  );
-  return rows.map(r => r.year_completed);
-}
-
 export async function getReviewYearStats(): Promise<{ year: number; count: number }[]> {
   const db = await dbService.connect();
   const rows = await db.select<{ year_completed: number; count: number }[]>(

@@ -21,7 +21,7 @@ export interface ComparisonSeries {
   scoreTimeline: ScoreTimelinePoint[];
 }
 
-export interface MultiLogDayEntry {
+interface MultiLogDayEntry {
   id: number;
   name: string;
   entry_type: string | null;
@@ -608,24 +608,6 @@ async function getThisMonthEntries(filters: StatsFilters): Promise<MediaEntry[]>
 
   return db.select<MediaEntry[]>(query, params);
 }
-
-export const statsSelectors = {
-  createStatsDataset,
-  selectBasicStats,
-  selectRatingDistribution,
-  selectMonthlyCompletions,
-  selectGenres,
-  selectPlatforms,
-  selectFranchises,
-  selectStudios,
-  selectAuthors,
-  selectActresses,
-  selectMediaTypeBreakdown,
-  selectMultiLogDays,
-  selectScoreTimeline,
-  selectAverageScoreByType,
-  buildFullStatsFromDataset,
-};
 
 export const statsLogic = {
   async getStats(yearFilter?: string, typeFilter: string[] = []): Promise<FullStats> {
