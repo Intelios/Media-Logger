@@ -160,46 +160,29 @@ export default function YearView() {
     return null;
   };
 
-  // Handle local copy filter toggle
-  const handleLocalCopyToggle = () => {
-    const newValue = cycleStatusFilter(localCopyFilter);
-    setLocalCopyFilter(newValue);
+  // Cycle status filter and persist to localStorage
+  const handleStatusToggle = (key: string, setter: (value: StatusFilter) => void, current: StatusFilter) => {
+    const newValue = cycleStatusFilter(current);
+    setter(newValue);
     if (newValue === null) {
-      localStorage.removeItem(LOCAL_COPY_FILTER_KEY);
+      localStorage.removeItem(key);
     } else {
-      localStorage.setItem(LOCAL_COPY_FILTER_KEY, String(newValue));
+      localStorage.setItem(key, String(newValue));
     }
   };
 
-  // Handle rewatch filter toggle
-  const handleRewatchToggle = () => {
-    const newValue = cycleStatusFilter(rewatchFilter);
-    setRewatchFilter(newValue);
-    if (newValue === null) {
-      localStorage.removeItem(REWATCH_FILTER_KEY);
-    } else {
-      localStorage.setItem(REWATCH_FILTER_KEY, String(newValue));
-    }
-  };
-
-  // Handle subtitles filter toggle
-  const handleSubtitlesToggle = () => {
-    const newValue = cycleStatusFilter(subtitlesFilter);
-    setSubtitlesFilter(newValue);
-    if (newValue === null) {
-      localStorage.removeItem(SUBTITLES_FILTER_KEY);
-    } else {
-      localStorage.setItem(SUBTITLES_FILTER_KEY, String(newValue));
-    }
+  // Clear active preset and persist to localStorage
+  const clearPreset = () => {
+    setActivePreset(null);
+    localStorage.removeItem(PRESET_STORAGE_KEY);
   };
 
   // Handle preset button click
   const handlePresetClick = (presetKey: FilterPresetKey) => {
     if (activePreset === presetKey) {
       // Deactivate preset - reset to all visible types
-      setActivePreset(null);
+      clearPreset();
       setSelectedTypes(getVisibleEntryTypes());
-      localStorage.removeItem(PRESET_STORAGE_KEY);
     } else {
       // Activate preset
       setActivePreset(presetKey);
@@ -414,15 +397,13 @@ export default function YearView() {
             onChange={(types) => {
               setSelectedTypes(types);
               // Clear active preset when manually changing filters
-              setActivePreset(null);
-              localStorage.removeItem(PRESET_STORAGE_KEY);
+              clearPreset();
             }}
             onSolo={(option) => {
               const visible = getVisibleEntryTypes();
               const isSoloed = selectedTypes.length === 1 && selectedTypes[0] === option;
               setSelectedTypes(isSoloed ? visible : [option]);
-              setActivePreset(null);
-              localStorage.removeItem(PRESET_STORAGE_KEY);
+              clearPreset();
             }}
             label="Filter Types"
           />
@@ -479,7 +460,7 @@ export default function YearView() {
 
             {/* Local Copy Filter */}
             <button
-              onClick={handleLocalCopyToggle}
+              onClick={() => handleStatusToggle(LOCAL_COPY_FILTER_KEY, setLocalCopyFilter, localCopyFilter)}
               className={`
                 group relative flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm
                 transition-all duration-200
@@ -502,7 +483,7 @@ export default function YearView() {
 
             {/* Rewatch Filter */}
             <button
-              onClick={handleRewatchToggle}
+              onClick={() => handleStatusToggle(REWATCH_FILTER_KEY, setRewatchFilter, rewatchFilter)}
               className={`
                 group relative flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm
                 transition-all duration-200
@@ -525,7 +506,7 @@ export default function YearView() {
 
             {/* Subtitles Filter */}
             <button
-              onClick={handleSubtitlesToggle}
+              onClick={() => handleStatusToggle(SUBTITLES_FILTER_KEY, setSubtitlesFilter, subtitlesFilter)}
               className={`
                 group relative flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm
                 transition-all duration-200
