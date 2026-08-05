@@ -1,3 +1,5 @@
+#[cfg(target_os = "macos")]
+mod glass;
 mod mcp;
 
 use same_file::Handle;
@@ -16,7 +18,6 @@ use tauri::menu::{Menu, MenuItemBuilder, PredefinedMenuItem, Submenu};
 
 #[tauri::command]
 fn apply_glass_style(
-    app: tauri::AppHandle,
     window: tauri::WebviewWindow,
     style: String,
     mode: String,
@@ -25,28 +26,20 @@ fn apply_glass_style(
 
     #[cfg(target_os = "macos")]
     {
-        use tauri_plugin_liquid_glass::{GlassMaterialVariant, LiquidGlassConfig, LiquidGlassExt};
+        use glass::GlassStyle;
         use window_vibrancy::{NSVisualEffectMaterial, apply_vibrancy};
 
         let _ = &mode;
 
         // macOS 26+ can switch between native liquid glass variants.
-        if app.liquid_glass().is_supported() {
+        if glass::is_supported() {
             let variant = if normalized == "clear" {
-                GlassMaterialVariant::Clear
+                GlassStyle::Clear
             } else {
-                GlassMaterialVariant::Sidebar
+                GlassStyle::Sidebar
             };
 
-            app.liquid_glass()
-                .set_effect(
-                    &window,
-                    LiquidGlassConfig {
-                        variant,
-                        ..Default::default()
-                    },
-                )
-                .map_err(|e| e.to_string())?;
+            glass::apply(&window, variant)?;
         } else {
             // Older macOS keeps the same vibrancy fallback regardless of selected style.
             apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None)
@@ -56,13 +49,13 @@ fn apply_glass_style(
 
     #[cfg(target_os = "windows")]
     {
-        let _ = (app, normalized);
+        let _ = normalized;
         apply_windows_backdrop(&window, theme_mode_is_dark(&mode))?;
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let _ = (app, window, normalized, mode);
+        let _ = (window, normalized, mode);
     }
 
     Ok(())
@@ -1361,7 +1354,6 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_liquid_glass::init())
         .invoke_handler(tauri::generate_handler![
             apply_glass_style,
             create_backup_zip,
@@ -1400,21 +1392,12 @@ pub fn run() {
             // Apply platform-native backdrop effects.
             #[cfg(target_os = "macos")]
             {
-                use tauri_plugin_liquid_glass::{
-                    GlassMaterialVariant, LiquidGlassConfig, LiquidGlassExt,
-                };
+                use glass::GlassStyle;
                 use window_vibrancy::{NSVisualEffectMaterial, apply_vibrancy};
 
                 // macOS 26+ gets Liquid Glass; older macOS keeps the existing vibrancy effect.
-                if app.liquid_glass().is_supported() {
-                    app.liquid_glass()
-                        .set_effect(
-                            &window,
-                            LiquidGlassConfig {
-                                variant: GlassMaterialVariant::Sidebar,
-                                ..Default::default()
-                            },
-                        )
+                if glass::is_supported() {
+                    glass::apply(&window, GlassStyle::Sidebar)
                         .expect("Failed to apply liquid glass");
                 } else {
                     apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None)
