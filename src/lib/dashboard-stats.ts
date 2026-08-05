@@ -4,41 +4,63 @@ import { ADULT_ENTRY_TYPES } from "./media-config";
 
 export interface DashboardStats {
   total_entries: number;
-  average_rating: string;
+  average_rating: number;
   most_common_type: string;
-  most_productive_year: string;
+  most_productive_year: { year: number; count: number } | null;
 }
+
+type DashboardStatsRow = {
+  total_entries: number;
+  average_rating: number | null;
+  most_common_type: string | null;
+  most_productive_year: number | null;
+  most_productive_year_count: number | null;
+};
 
 export const dashboardLogic = {
   async getStats(): Promise<DashboardStats> {
     const db = await dbService.connect();
 
-    // 1. Basic Totals
-    const totalResult = await db.select<{count: number}[]>(`SELECT COUNT(*) as count FROM entries WHERE 1=1${adultExclusionSql()}`);
-    const total = totalResult[0].count;
-
-    // 2. Average Rating
-    const avgResult = await db.select<{avg: number}[]>(`SELECT AVG(review_score) as avg FROM entries WHERE review_score IS NOT NULL${adultExclusionSql()}`);
-    const avg = avgResult[0].avg || 0;
-
-    // 3. Most Common Type
-    const typeResult = await db.select<{entry_type: string}[]>(
-      `SELECT entry_type, COUNT(*) as c FROM entries WHERE 1=1${adultExclusionSql()} GROUP BY entry_type ORDER BY c DESC LIMIT 1`
-    );
-    const commonType = typeResult[0]?.entry_type || "N/A";
-
-    // 4. Most Productive Year
-    const yearResult = await db.select<{year_completed: number, c: number}[]>(
-      `SELECT year_completed, COUNT(*) as c FROM entries WHERE year_completed IS NOT NULL${adultExclusionSql()} GROUP BY year_completed ORDER BY c DESC LIMIT 1`
-    );
-    const productiveYear = yearResult[0]?.year_completed ? `${yearResult[0].year_completed}` : "N/A";
-    const productiveYearCount = yearResult[0]?.c || 0;
+    // Keep all dashboard metrics on the same filtered snapshot and round trip.
+    const result = await db.select<DashboardStatsRow[]>(`
+      WITH visible_entries AS (
+        SELECT entry_type, review_score, year_completed
+        FROM entries
+        WHERE 1=1${adultExclusionSql()}
+      ),
+      type_counts AS (
+        SELECT entry_type, COUNT(*) AS entry_count
+        FROM visible_entries
+        GROUP BY entry_type
+        ORDER BY entry_count DESC
+        LIMIT 1
+      ),
+      year_counts AS (
+        SELECT year_completed, COUNT(*) AS entry_count
+        FROM visible_entries
+        WHERE year_completed IS NOT NULL
+        GROUP BY year_completed
+        ORDER BY entry_count DESC
+        LIMIT 1
+      )
+      SELECT
+        COUNT(*) AS total_entries,
+        AVG(review_score) AS average_rating,
+        (SELECT entry_type FROM type_counts) AS most_common_type,
+        (SELECT year_completed FROM year_counts) AS most_productive_year,
+        (SELECT entry_count FROM year_counts) AS most_productive_year_count
+      FROM visible_entries
+    `);
+    const stats = result[0];
+    const productiveYear = stats?.most_productive_year;
 
     return {
-      total_entries: total,
-      average_rating: avg.toFixed(1),
-      most_common_type: commonType,
-      most_productive_year: `${productiveYear} (${productiveYearCount})`,
+      total_entries: stats?.total_entries ?? 0,
+      average_rating: stats?.average_rating ?? 0,
+      most_common_type: stats?.most_common_type || "N/A",
+      most_productive_year: productiveYear != null
+        ? { year: productiveYear, count: stats?.most_productive_year_count ?? 0 }
+        : null,
     };
   },
 

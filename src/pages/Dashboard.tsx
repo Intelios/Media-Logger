@@ -143,7 +143,8 @@ export default function Dashboard() {
     </div>
   );
 
-  const averageRating = Number.parseFloat(stats.average_rating);
+  const averageRating = stats.average_rating;
+  const productiveYear = stats.most_productive_year;
   const greetingWords = greeting.split(" ");
 
   return (
@@ -302,7 +303,9 @@ export default function Dashboard() {
             <Calendar size={24} />
           </div>
           <div className="dashboard-stat-info">
-            <div className="dashboard-stat-value">{stats.most_productive_year}</div>
+            <div className="dashboard-stat-value">
+              {productiveYear ? `${productiveYear.year} (${productiveYear.count})` : "N/A"}
+            </div>
             <div className="dashboard-stat-label">Peak Year</div>
           </div>
         </div>
