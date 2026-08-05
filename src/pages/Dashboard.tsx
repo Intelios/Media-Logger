@@ -314,7 +314,7 @@ export default function Dashboard() {
         <section className="dashboard-recent">
           <div className="dashboard-recent-header">
             <h3 className="dashboard-section-title">
-              <span className="dashboard-section-icon"><Clock size={20} /></span>
+              <Clock size={20} />
               Recent Completions
             </h3>
           </div>
@@ -340,7 +340,7 @@ export default function Dashboard() {
         <section className="dashboard-recent" style={{ animationDelay: '0.1s' }}>
           <div className="dashboard-recent-header">
             <h3 className="dashboard-section-title">
-              <span className="dashboard-section-icon"><Hourglass size={20} /></span>
+              <Hourglass size={20} />
               On This Day
             </h3>
           </div>
