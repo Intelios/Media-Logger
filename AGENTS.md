@@ -35,7 +35,8 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app.
 
 **Backend (`src-tauri/`)**:
 - `main.rs` → calls `media_logger_lib::run()`.
-- `lib.rs` — Tauri builder with plugins (sql, fs, dialog, opener, liquid-glass), native macOS menu bar, and backup zip/unzip commands.
+- `lib.rs` — Tauri builder with plugins (sql, fs, dialog, opener), native macOS menu bar, and backup zip/unzip commands.
+- `glass.rs` — in-app macOS Liquid Glass integration using `objc2`/`objc2-app-kit`; probes the private variant selector for the Sidebar appearance and uses Tauri's main-thread dispatcher.
 - Native commands: `apply_glass_style`, `create_backup_zip`, `read_backup_zip`, `extract_backup_assets`, `list_asset_images`, `move_images_to_trash`.
 - Backup ZIP bundles `backup.json` plus the `assets/` directory. Rust uses the `zip` crate; no external `zip`/`unzip` dependency.
 - Window is transparent for macOS glass/vibrancy; on macOS the native window intentionally toggles opaque↔transparent on focus change.
@@ -70,7 +71,7 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app.
 - CSS variables (`--color-primary`, `--color-surface`, etc.) drive all styling.
 - Only dark modes are supported. `data-theme-mode="dark"` is always applied.
 - macOS native glass/vibrancy is applied via Tauri command `apply_glass_style` in Rust.
-- `tauri-plugin-liquid-glass` requires macOS 26+; older macOS falls back to `window-vibrancy`. Windows uses Mica/blur.
+- The in-app `objc2` Liquid Glass path requires macOS 26+; older macOS falls back to `window-vibrancy`. Windows uses Mica/blur.
 
 ## Native macOS Menu Bar
 

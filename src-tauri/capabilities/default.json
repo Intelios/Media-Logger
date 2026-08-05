@@ -7,7 +7,6 @@
   ],
   "permissions": [
     "core:default",
-    "liquid-glass:default",
     "dialog:default",
     "fs:default",
     "fs:allow-read-file",
