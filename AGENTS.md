@@ -26,7 +26,7 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app.
 **Frontend (`src/`)**:
 - Entry: `src/main.tsx` → `App.tsx` → `<ThemeProvider>` + `<BrowserRouter>` + `<Layout>` + lazy-loaded pages.
 - Pages: `Dashboard`, `YearView`, `Search`, `Stats`, `Profiles`, `Awards`, `Collections`, `Backlog`, `Review`, `Settings`.
-- `src/lib/db/` — data layer (formerly a single `db.ts`). `service.ts` exports the `dbService` singleton facade; `connection.ts` owns `connect()` + legacy-file migration; `migrations.ts` owns schema migrations; `shared.ts` owns adult filtering; `index.ts` is the public barrel. **Submodules must import siblings directly, never the barrel or `service.ts`** — keeps the module graph acyclic.
+- `src/lib/db/` — data layer (formerly a single `db.ts`). `service.ts` exports the `dbService` singleton facade; `connection.ts` owns `connect()` + legacy-file migration; `migrations.ts` owns schema migrations; `shared.ts` owns adult filtering; `index.ts` is the public barrel; feature modules `entries.ts`, `backlog.ts`, `random-pick.ts`, `distinct-values.ts`, `avg-history.ts`, `events.ts`, `types.ts`. **Submodules must import siblings directly, never the barrel or `service.ts`** — keeps the module graph acyclic.
 - `src/lib/stats-logic.ts` — stats computed in-memory from fetched rows, not SQL aggregations.
 - `src/lib/themes.ts` + `src/lib/ThemeContext.tsx` — CSS-variable theming persisted to `localStorage`.
 - `src/lib/settings.ts` — `localStorage`-based settings (data dir, display name, nav years, adult-media toggle, etc.).
@@ -40,8 +40,9 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app.
 - Backup ZIP bundles `backup.json` plus the `assets/` directory. Rust uses the `zip` crate; no external `zip`/`unzip` dependency.
 - Window is transparent for macOS glass/vibrancy; on macOS the native window intentionally toggles opaque↔transparent on focus change.
 - `@tauri-apps/plugin-updater` is in `package.json` but no updater plugin is registered in Rust — auto-update is not actually wired up despite the README claim.
+- `mcp.rs` (~2200 lines) — local read-only MCP server (axum + rmcp). Owns its own read-only sqlx SQLite connection and uses a fixed SELECT allowlist: `notes`, image paths, and ownership/private flags are never selected. Enabled only from Settings → AI Access (`mcp_set_enabled`), binds 127.0.0.1 only. The MCP tools mirror what this session sees: `search_media`, `get_media_details`, `summarize_library`, `list_backlog`.
 
-**Routing** (`react-router-dom`): `/`, `/year/:year`, `/search`, `/stats`, `/profiles`, `/awards`, `/collections`, `/backlog`, `/review`, `/settings`.
+**Routing** (`react-router` v8 — import from `react-router`, **not** `react-router-dom`): `/`, `/year/:year`, `/search`, `/stats`, `/profiles`, `/awards`, `/collections`, `/backlog`, `/review`, `/settings`.
 
 ## Vite / Build Quirks
 
