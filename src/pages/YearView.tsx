@@ -6,7 +6,7 @@ import { awardsLogic } from "../lib/awards-logic";
 import { profilesLogic } from "../lib/profiles-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
-import { MultiSelectFilter } from "../components/MultiSelectFilter"; // Import the component
+import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, getVisibleEntryTypes, getVisiblePresetKeys, useAdultMediaEnabled, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 
 const FILTER_STORAGE_KEY = "yearview-filter-types";
@@ -16,7 +16,6 @@ const LOCAL_COPY_FILTER_KEY = "yearview-local-copy-filter";
 const REWATCH_FILTER_KEY = "yearview-rewatch-filter";
 const SUBTITLES_FILTER_KEY = "yearview-subtitles-filter";
 
-// Status filter types: null = show all, true = show only with status, false = show only without status
 type StatusFilter = boolean | null;
 
 const computeFiltered = (
