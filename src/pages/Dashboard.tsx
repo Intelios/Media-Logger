@@ -32,9 +32,6 @@ const greetingWordVariants: Variants = {
   },
 };
 
-const prefersReducedMotion = (): boolean =>
-  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-
 export default function Dashboard() {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
@@ -74,7 +71,7 @@ export default function Dashboard() {
 
   const handleReroll = useCallback(async () => {
     if (isRerolling) return;
-    if (!prefersReducedMotion()) setSpinKey((k) => k + 1);
+    if (!reduceMotion) setSpinKey((k) => k + 1);
     setIsRerolling(true);
     await loadFeatured(featured?.entry.id);
     setIsRerolling(false);
@@ -161,7 +158,7 @@ export default function Dashboard() {
             <motion.h1
               className="dashboard-title"
               variants={greetingContainerVariants}
-              initial="hidden"
+              initial={reduceMotion ? false : "hidden"}
               animate="visible"
             >
               {greetingWords.map((word, index) => (

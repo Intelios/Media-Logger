@@ -2214,6 +2214,19 @@ body {
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-featured-wrap,
+  .dashboard-featured {
+    transition: none;
+  }
+
+  .dashboard-featured-wrap:hover,
+  .dashboard-featured-wrap:hover .dashboard-featured {
+    transform: none;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  }
+}
+
 @keyframes dashboard-ken-burns {
   0%,
   100% {

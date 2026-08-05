@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Star, Calendar, RotateCcw, Captions, Trophy, Clock } from "lucide-react";
 import type { MediaEntry } from "../lib/db";
 import { DEFAULT_COVER_IMAGE, useImageSource, useCoverReveal } from "../lib/utils";
@@ -64,10 +64,11 @@ export function MediaListCard({
 
   const hasTrailingSlot = Boolean(accentBadge ?? indexLabel);
   const interactive = Boolean(onClick);
+  const reduceMotion = useReducedMotion();
 
   const card = (
     <motion.div
-      whileHover={{ y: -2 }}
+      whileHover={reduceMotion ? undefined : { y: -2 }}
       transition={cardLiftTransition}
       onClick={interactive ? () => onClick?.(entry) : undefined}
       className={cn("media-list-card", interactive && "media-list-card-interactive")}
