@@ -106,6 +106,10 @@ export function Layout() {
 
   useEffect(() => {
     const handleImageFailure = (event: CustomEvent<ImageLoadFailureDetail>) => {
+      // Thumbnail generation failing is a transient, self-healing optimisation
+      // miss — the original cover is still rendered and the next visit usually
+      // succeeds. Only surface failures where the cover itself could not load.
+      if (event.detail.operation !== 'read') return;
       setImageFailures((current) => {
         const key = `${event.detail.operation}:${event.detail.path}`;
         const next = new Map(current);
@@ -240,10 +244,7 @@ export function Layout() {
     }
   };
 
-  const readFailureCount = [...imageFailures.values()].filter(
-    (failure) => failure.operation === 'read'
-  ).length;
-  const thumbnailFailureCount = imageFailures.size - readFailureCount;
+  const readFailureCount = imageFailures.size;
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ color: "var(--color-text)" }}>
@@ -385,22 +386,10 @@ export function Layout() {
             >
               <ImageOff size={18} className="mt-0.5 shrink-0 text-amber-400" />
               <div className="flex-1 text-sm text-[var(--color-text)]">
-                {readFailureCount > 0 ? (
-                  <>
-                    {readFailureCount === 1
-                      ? 'One cover could not be loaded.'
-                      : `${readFailureCount} covers could not be loaded.`}
-                    {' '}Fallback artwork is being shown.
-                    {thumbnailFailureCount > 0 && ` ${thumbnailFailureCount} other cover thumbnails are using their originals.`}
-                  </>
-                ) : (
-                  <>
-                    {thumbnailFailureCount === 1
-                      ? 'One cover thumbnail could not be generated.'
-                      : `${thumbnailFailureCount} cover thumbnails could not be generated.`}
-                    {' '}Original covers are being used.
-                  </>
-                )}
+                {readFailureCount === 1
+                  ? 'One cover could not be loaded.'
+                  : `${readFailureCount} covers could not be loaded.`}
+                {' '}Fallback artwork is being shown.
               </div>
               <button
                 onClick={handleRetryImages}

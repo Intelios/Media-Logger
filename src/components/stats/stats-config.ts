@@ -45,7 +45,7 @@ export const STATS_WIDGET_SECTION_LABELS: Record<StatsWidgetSection, string> = {
   library: "Library",
 };
 
-export const STATS_WIDGET_SECTION_ORDER: StatsWidgetSection[] = ["scores", "activity", "library"];
+export const STATS_WIDGET_SECTION_ORDER: StatsWidgetSection[] = ["activity", "scores", "library"];
 
 export const DEFAULT_STATS_WIDGET_DISPLAY_MODE: StatsWidgetDisplayMode = "bars";
 
