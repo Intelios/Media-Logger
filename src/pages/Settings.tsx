@@ -1,11 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { appLocalDataDir } from '@tauri-apps/api/path';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import {
     FolderOpen,
     RotateCcw,
@@ -24,8 +22,6 @@ import {
     Info,
     Copy,
     ScrollText,
-    ChevronDown,
-    ChevronRight,
     ImageOff,
     Bot,
     ShieldCheck,
@@ -89,9 +85,10 @@ import {
     type McpRuntimeState,
     type McpStatus
 } from '../lib/mcp';
-import changelogData from '../data/changelog.json';
 import packageJson from '../../package.json';
 import tauriConfig from '../../src-tauri/tauri.conf.json';
+
+const SettingsChangelogSection = lazy(() => import('../components/settings/SettingsChangelogSection'));
 
 type SettingsSection = 'general' | 'appearance' | 'ai-access' | 'data' | 'changelog' | 'about';
 type BackupFormat = 'json' | 'zip';
@@ -110,22 +107,6 @@ const IMPORT_TABLE_LABELS: Record<BackupTableName, string> = {
     hidden_profiles: 'Hidden profiles',
     profile_avg_history: 'Profile AVG history',
     backlog_items: 'Backlog items',
-};
-
-type ChangelogRelease = {
-    version: string;
-    title: string;
-    date: string;
-    body: string;
-    prerelease: boolean;
-    url?: string;
-};
-
-type ChangelogData = {
-    generatedAt: string | null;
-    source: string;
-    repository: string | null;
-    releases: ChangelogRelease[];
 };
 
 type EnvironmentInfo = {
@@ -158,38 +139,6 @@ const appMetadata = {
     tauriCliVersion: packageJson.devDependencies['@tauri-apps/cli'] ?? 'Unknown',
     reactVersion: packageJson.dependencies.react ?? 'Unknown',
 };
-
-const changelog = changelogData as ChangelogData;
-const markdownPlugins = [remarkGfm];
-
-function formatReleaseDate(value: string): string {
-    const [year, month, day] = value.split('-').map(Number);
-
-    if (!year || !month || !day) {
-        return value || 'Unknown date';
-    }
-
-    return new Intl.DateTimeFormat(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-    }).format(new Date(year, month - 1, day));
-}
-
-function formatGeneratedAt(value: string | null): string {
-    if (!value) return 'Not synced yet';
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-
-    return new Intl.DateTimeFormat(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    }).format(date);
-}
 
 function formatMcpTimestamp(value: string | null | undefined): string {
     if (!value) return 'Never';
@@ -256,7 +205,6 @@ function AboutInfoRow({ label, value, mono = false }: { label: string; value: Re
 
 export default function Settings() {
     const [activeSection, setActiveSection] = useState<SettingsSection>('general');
-    const [expandedReleaseVersion, setExpandedReleaseVersion] = useState<string | null>(() => changelog.releases[0]?.version ?? null);
     const [currentPath, setCurrentPath] = useState<string>('');
     const [defaultPath, setDefaultPath] = useState<string>('');
     const [isCustom, setIsCustom] = useState(false);
@@ -307,17 +255,9 @@ export default function Settings() {
     const [connectionError, setConnectionError] = useState('');
     const [newCredential, setNewCredential] = useState<McpCredentialSecret | null>(null);
     const [showEndpointConfirm, setShowEndpointConfirm] = useState(false);
+    const pathsLoadedRef = useRef(false);
 
     useEffect(() => {
-        const loadPaths = async () => {
-            const dataDir = await getDataDirectory();
-            const appDir = await appLocalDataDir();
-            setCurrentPath(dataDir);
-            setDefaultPath(appDir);
-            setIsCustom(hasCustomDataDirectory());
-        };
-        loadPaths();
-
         setDisplayNameState(getDisplayName());
         setIsCustomName(hasCustomDisplayName());
         setNavigationYearsState(getNavigationYears());
@@ -325,17 +265,47 @@ export default function Settings() {
         setAdultMediaEnabledState(isAdultMediaEnabled());
         setFeaturedAdultAllowedState(isFeaturedAdultAllowed());
 
-        // Load data stats
-        getDataStats().then(setDataStats).catch(console.error);
+    }, []);
+
+    useEffect(() => {
+        if (activeSection !== 'data' && activeSection !== 'about') return;
+        let cancelled = false;
+
+        const loadPaths = async () => {
+            const [dataDir, appDir] = await Promise.all([getDataDirectory(), appLocalDataDir()]);
+            if (cancelled) return;
+            setCurrentPath(dataDir);
+            setDefaultPath(appDir);
+            setIsCustom(hasCustomDataDirectory());
+            pathsLoadedRef.current = true;
+        };
+
+        if (!pathsLoadedRef.current) void loadPaths();
+        if (!dataStats) {
+            getDataStats()
+                .then((stats) => {
+                    if (!cancelled) setDataStats(stats);
+                })
+                .catch(console.error);
+        }
+
+        return () => {
+            cancelled = true;
+        };
+    }, [activeSection, dataStats]);
+
+    useEffect(() => {
+        if (activeSection !== 'about') return;
 
         const handleEnvironmentChange = () => setEnvironmentInfo(getEnvironmentInfo());
         handleEnvironmentChange();
         window.addEventListener('resize', handleEnvironmentChange);
-
         return () => window.removeEventListener('resize', handleEnvironmentChange);
-    }, []);
+    }, [activeSection]);
 
     useEffect(() => {
+        if (activeSection !== 'ai-access') return;
+
         let cancelled = false;
 
         const refresh = async () => {
@@ -357,12 +327,6 @@ export default function Settings() {
         };
 
         void refresh();
-        if (activeSection !== 'ai-access') {
-            return () => {
-                cancelled = true;
-            };
-        }
-
         const refreshTimer = window.setInterval(() => void refresh(), 5000);
         return () => {
             cancelled = true;
@@ -952,7 +916,6 @@ export default function Settings() {
         }
     };
 
-    const latestRelease = changelog.releases[0];
     const mcpRuntimeState = mcpStatus?.runtimeState ?? (mcpLoadError ? 'error' : null);
     const mcpError = mcpStatus?.error ?? mcpLoadError;
     const codexMcpConfig = newCredential ? buildCodexMcpConfig(newCredential) : '';
@@ -1823,97 +1786,9 @@ export default function Settings() {
 
                 {/* Changelog Section */}
                 {activeSection === 'changelog' && (
-                    <div className="settings-section-enter" key="changelog">
-                        <section className="settings-card changelog-summary">
-                            <div className="settings-row changelog-summary-row">
-                                <div className="changelog-summary-header">
-                                    <div className="changelog-summary-icon">
-                                        <ScrollText size={24} />
-                                    </div>
-                                    <div>
-                                        <div className="settings-row-label">Published GitHub Releases</div>
-                                        <div className="settings-row-description">
-                                            Release notes are synced during development and bundled into the app for offline viewing.
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="changelog-summary-grid">
-                                    <div className="changelog-summary-card">
-                                        <span className="changelog-summary-value">{appMetadata.appVersion}</span>
-                                        <span className="changelog-summary-label">Current Version</span>
-                                    </div>
-                                    <div className="changelog-summary-card">
-                                        <span className="changelog-summary-value">{changelog.releases.length}</span>
-                                        <span className="changelog-summary-label">Releases</span>
-                                    </div>
-                                    <div className="changelog-summary-card">
-                                        <span className="changelog-summary-value">{latestRelease?.version ?? 'None'}</span>
-                                        <span className="changelog-summary-label">Latest Synced</span>
-                                    </div>
-                                    <div className="changelog-summary-card">
-                                        <span className="changelog-summary-value changelog-summary-date">{formatGeneratedAt(changelog.generatedAt)}</span>
-                                        <span className="changelog-summary-label">Last Updated</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-
-                        {changelog.releases.length > 0 ? (
-                            changelog.releases.map((release) => {
-                                const isExpanded = expandedReleaseVersion === release.version;
-
-                                return (
-                                    <section className="settings-card changelog-release" key={release.version}>
-                                        <button
-                                            type="button"
-                                            className="changelog-release-header"
-                                            onClick={() => setExpandedReleaseVersion(isExpanded ? null : release.version)}
-                                            aria-expanded={isExpanded}
-                                        >
-                                            <div className="changelog-release-heading">
-                                                <div className="changelog-release-meta">
-                                                    <span className="changelog-version-badge">{release.version}</span>
-                                                    {release.prerelease && (
-                                                        <span className="changelog-prerelease-badge">Prerelease</span>
-                                                    )}
-                                                </div>
-                                                <div className="changelog-release-title">{release.title}</div>
-                                                <div className="settings-row-description">{formatReleaseDate(release.date)}</div>
-                                            </div>
-                                            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                                        </button>
-
-                                        {isExpanded && (
-                                            <div className="changelog-release-body">
-                                                {release.body ? (
-                                                    <div className="changelog-markdown">
-                                                        <ReactMarkdown remarkPlugins={markdownPlugins}>
-                                                            {release.body}
-                                                        </ReactMarkdown>
-                                                    </div>
-                                                ) : (
-                                                    <p className="changelog-empty-note">No release notes were provided for this release.</p>
-                                                )}
-                                            </div>
-                                        )}
-                                    </section>
-                                );
-                            })
-                        ) : (
-                            <section className="settings-card">
-                                <div className="settings-row changelog-empty-state">
-                                    <ScrollText size={28} />
-                                    <div>
-                                        <div className="settings-row-label">No changelog synced yet</div>
-                                        <div className="settings-row-description">
-                                            Run <code>npm run changelog:sync</code> before building the app to bundle published release notes.
-                                        </div>
-                                    </div>
-                                </div>
-                            </section>
-                        )}
-                    </div>
+                    <Suspense fallback={<div className="settings-section-loading"><Loader2 size={18} className="spin" /></div>}>
+                        <SettingsChangelogSection />
+                    </Suspense>
                 )}
 
                 {/* About Section */}
