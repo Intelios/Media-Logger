@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Award, ChevronLeft, Plus, Trash2, Trophy, ArrowUpDown, Sparkles, History, Star, Calendar, AlertCircle, X } from "lucide-react";
 import { awardsLogic, type AwardYearSummary, type AwardCategory, type AwardTemplate, type TemplateWinnerHistory } from "../lib/awards-logic";
-import { MediaCard, getTypeBadgeStyle, getRatingColor, formatCardRating, parseGenres } from "../components/MediaCard";
+import { MediaCard } from "../components/MediaCard";
+import { formatCardRating, getRatingColor, getTypeBadgeStyle, parseGenres } from "../lib/media-config";
 import { WinnerPicker } from "../components/WinnerPicker";
 import { InputModal } from "../components/InputModal";
 import { ReorderModal, type ReorderItem } from "../components/ReorderModal";

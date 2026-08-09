@@ -4,7 +4,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { cn } from "../../../../lib/utils_ui";
 import type { StatItem } from "../../../../lib/stats-logic";
 import { BarRow, CATEGORY_PALETTE, PanelEmptyState, PanelFrame } from "../plate-ui";
-import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../PlateTooltip";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../../../HoverTooltip";
 
 interface GenresPanelProps {
   genres: StatItem[];
@@ -40,7 +40,7 @@ export function GenresPanel({
   onGenreClick,
   onExpand,
 }: GenresPanelProps) {
-  const { bindTooltip, tooltip } = useHoverTooltip();
+  const { bindTooltip } = useHoverTooltip();
   const [hoveredName, setHoveredName] = useState<string | null>(null);
 
   const isExpanded = variant === "expanded";
@@ -74,7 +74,6 @@ export function GenresPanel({
       onExpand={onExpand}
       bodyClassName={isExpanded ? "gap-4" : "gap-2"}
     >
-      {tooltip}
       {genres.length === 0 ? (
         <PanelEmptyState message="No genres in the current selection." />
       ) : (

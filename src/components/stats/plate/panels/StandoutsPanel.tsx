@@ -4,7 +4,7 @@ import type { MediaEntry } from "../../../../lib/db";
 import type { MostReplayedItem } from "../../../../lib/stats-logic";
 import { formatShortDate } from "../../../../lib/dates";
 import { CoverImage, PanelEmptyState, PanelFrame } from "../plate-ui";
-import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../PlateTooltip";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../../../HoverTooltip";
 
 interface StandoutsPanelProps {
   mostReplayed: MostReplayedItem[];
@@ -33,7 +33,7 @@ const TONE_CLASSES: Record<Standout["tone"], string> = {
 };
 
 function StandoutCover({ standout, compact }: { standout: Standout; compact: boolean }) {
-  const { bindTooltip, tooltip } = useHoverTooltip();
+  const { bindTooltip } = useHoverTooltip();
 
   const body = (
     <>
@@ -60,7 +60,6 @@ function StandoutCover({ standout, compact }: { standout: Standout; compact: boo
 
   return (
     <>
-      {tooltip}
       <button
         type="button"
         onClick={standout.onClick}

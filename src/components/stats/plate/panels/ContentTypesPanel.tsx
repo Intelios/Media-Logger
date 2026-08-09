@@ -1,7 +1,7 @@
 import { PieChart as PieIcon } from "lucide-react";
 import type { StatItem } from "../../../../lib/stats-logic";
 import { BarRow, CATEGORY_PALETTE, PanelEmptyState, PanelFrame } from "../plate-ui";
-import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../PlateTooltip";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../../../HoverTooltip";
 
 interface ContentTypesPanelProps {
   mediaTypeBreakdown: StatItem[];
@@ -11,7 +11,7 @@ interface ContentTypesPanelProps {
 }
 
 export function ContentTypesPanel({ mediaTypeBreakdown, total, variant, onExpand }: ContentTypesPanelProps) {
-  const { bindTooltip, tooltip } = useHoverTooltip();
+  const { bindTooltip } = useHoverTooltip();
   const isExpanded = variant === "expanded";
   const maxCount = mediaTypeBreakdown[0]?.count ?? 0;
   const visible = isExpanded ? mediaTypeBreakdown : mediaTypeBreakdown.slice(0, 5);
@@ -25,7 +25,6 @@ export function ContentTypesPanel({ mediaTypeBreakdown, total, variant, onExpand
       onExpand={onExpand}
       bodyClassName="gap-1.5"
     >
-      {tooltip}
       {mediaTypeBreakdown.length === 0 ? (
         <PanelEmptyState message="No entries in the current selection." />
       ) : (

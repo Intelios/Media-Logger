@@ -2,7 +2,7 @@ import { Star } from "lucide-react";
 import { cn } from "../../../../lib/utils_ui";
 import type { StatItem } from "../../../../lib/stats-logic";
 import { BarRow, PanelEmptyState, PanelFrame } from "../plate-ui";
-import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../PlateTooltip";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../../../HoverTooltip";
 
 interface ScoresPanelProps {
   ratings: StatItem[];
@@ -29,7 +29,7 @@ export function ScoresPanel({
   variant,
   onExpand,
 }: ScoresPanelProps) {
-  const { bindTooltip, tooltip } = useHoverTooltip();
+  const { bindTooltip } = useHoverTooltip();
   const isExpanded = variant === "expanded";
   const ascending = toAscendingScores(ratings);
   const maxCount = ascending.reduce((max, rating) => Math.max(max, rating.count), 0);
@@ -55,7 +55,6 @@ export function ScoresPanel({
       onExpand={onExpand}
       bodyClassName="gap-2"
     >
-      {tooltip}
       {totalRated === 0 ? (
         <PanelEmptyState message="Nothing in the current selection has a score yet." />
       ) : (

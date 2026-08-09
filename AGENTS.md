@@ -62,7 +62,7 @@ Layout is toolbar → figure strip → timeline hero → a fixed 4-panel grid, a
 **Panels.** Six are defined in `plate-config.ts`, four occupy slots. Each renders a `compact` and an `expanded` variant via `renderPlatePanel()`; expanded opens in `PanelExpandOverlay`. Preferences (slots, figures, layers, compare) persist to `localStorage` under `media-logger-stats-plate`.
 
 **Conventions that are easy to break:**
-- **Never use the native `title` attribute for tooltips here.** Use `useHoverTooltip()` from `PlateTooltip.tsx`, which renders the app's `glass-tooltip` through a shared portal. Native titles have a ~1s delay and cannot be styled.
+- **Never use the native `title` attribute for tooltips here.** Use `useHoverTooltip()` from `src/components/HoverTooltip.tsx`; the app-level provider renders one shared `glass-tooltip` portal. Native titles have a ~1s delay and cannot be styled.
 - **No fixed height floors on panels.** `PanelFrame` is `h-full` and fills its grid cell; hard `min-h` values are what made the old dashboard leave dead space.
 - `BarRow` is `w-full` on purpose — a bare `<button>` sizes to its content and silently collapses the flex-1 bar track.
 - Cover art goes through `CoverImage` in `plate-ui.tsx`. `MostReplayedItem` and `MultiLogDayEntry` carry no `image_url`, so covers are matched back by name/id against the selection's rows.

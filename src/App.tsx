@@ -4,6 +4,7 @@ import { Layout } from "./components/Layout";
 import { ThemeProvider } from "./lib/ThemeContext";
 import { useAnimationPause } from "./lib/useAnimationPause";
 import { useMcpLifecycle } from "./lib/mcp";
+import { HoverTooltipProvider } from "./components/HoverTooltip";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const YearView = lazy(() => import("./pages/YearView"));
@@ -40,25 +41,27 @@ function App() {
 
   return (
     <ThemeProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<LazyRoute><Dashboard /></LazyRoute>} />
-            <Route path="year/:year" element={<LazyRoute><YearView /></LazyRoute>} />
-            <Route path="search" element={<LazyRoute><SearchPage /></LazyRoute>} />
-            <Route path="stats" element={<LazyRoute><StatsPage /></LazyRoute>} />
-            <Route path="profiles" element={<LazyRoute><ProfilesPage /></LazyRoute>} />
-            <Route path="awards" element={<LazyRoute><AwardsPage /></LazyRoute>} />
-            <Route path="collections" element={<LazyRoute><CollectionsPage /></LazyRoute>} />
-            <Route path="backlog" element={<LazyRoute><BacklogPage /></LazyRoute>} />
-            <Route path="review" element={<LazyRoute><ReviewPage /></LazyRoute>} />
-            <Route path="settings" element={<LazyRoute><SettingsPage /></LazyRoute>} />
+      <HoverTooltipProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<LazyRoute><Dashboard /></LazyRoute>} />
+              <Route path="year/:year" element={<LazyRoute><YearView /></LazyRoute>} />
+              <Route path="search" element={<LazyRoute><SearchPage /></LazyRoute>} />
+              <Route path="stats" element={<LazyRoute><StatsPage /></LazyRoute>} />
+              <Route path="profiles" element={<LazyRoute><ProfilesPage /></LazyRoute>} />
+              <Route path="awards" element={<LazyRoute><AwardsPage /></LazyRoute>} />
+              <Route path="collections" element={<LazyRoute><CollectionsPage /></LazyRoute>} />
+              <Route path="backlog" element={<LazyRoute><BacklogPage /></LazyRoute>} />
+              <Route path="review" element={<LazyRoute><ReviewPage /></LazyRoute>} />
+              <Route path="settings" element={<LazyRoute><SettingsPage /></LazyRoute>} />
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </HoverTooltipProvider>
     </ThemeProvider>
   );
 }

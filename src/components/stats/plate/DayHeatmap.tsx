@@ -1,7 +1,7 @@
 import { cn } from "../../../lib/utils_ui";
 import type { DailyCompletion } from "../../../lib/stats-logic";
 import { formatShortDate } from "../../../lib/dates";
-import { TooltipDetail, TooltipTitle, useHoverTooltip } from "./PlateTooltip";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../../HoverTooltip";
 
 interface DayHeatmapProps {
   dailyCompletions: DailyCompletion[];
@@ -95,7 +95,7 @@ function buildColumns(dailyCompletions: DailyCompletion[], activeYear: string) {
 }
 
 export function DayHeatmap({ dailyCompletions, activeYear, onDateClick }: DayHeatmapProps) {
-  const { bindTooltip, tooltip } = useHoverTooltip();
+  const { bindTooltip } = useHoverTooltip();
   const { columns, monthTicks } = buildColumns(dailyCompletions, activeYear);
   const maxCount = dailyCompletions.reduce((max, day) => Math.max(max, day.count), 0);
 
@@ -109,7 +109,6 @@ export function DayHeatmap({ dailyCompletions, activeYear, onDateClick }: DayHea
 
   return (
     <div className="flex flex-col gap-3">
-      {tooltip}
       <div className="flex gap-1.5">
         <div className="flex shrink-0 flex-col gap-[3px] pr-1 pt-[22px]">
           {WEEKDAY_LABELS.map((label, index) => (

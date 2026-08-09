@@ -4,8 +4,9 @@ import { Star, Calendar, RotateCcw, Captions, Trophy, Clock } from "lucide-react
 import type { MediaEntry } from "../lib/db";
 import { DEFAULT_COVER_IMAGE, useImageSource, useCoverReveal, useNearViewport } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
-import { getTypeBadgeStyle, getRatingColor, parseGenres, formatCardRating } from "./MediaCard";
+import { formatCardRating, getRatingColor, getTypeBadgeStyle, parseGenres } from "../lib/media-config";
 import { formatDate, getYearsAgo } from "../lib/dates";
+import { useHoverTooltip } from "./HoverTooltip";
 
 const cardLiftTransition = {
   type: "spring",
@@ -49,6 +50,7 @@ export function MediaListCard({
   leadingRail,
   surfaceTint,
 }: MediaListCardProps) {
+  const { bindTooltip } = useHoverTooltip();
   const yearsAgo = showYearsAgo ? getYearsAgo(entry.completion_date) : null;
   const { ref: viewportRef, isNearViewport } = useNearViewport<HTMLDivElement>();
   const { src: imgSrc, status: imgStatus } = useImageSource(entry.image_url, {
@@ -152,32 +154,46 @@ export function MediaListCard({
           ))}
           {hasPlatinum && (
             <span
+              {...bindTooltip(
+                <span className="text-xs font-medium text-cyan-200">Platinum / 100%</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
               className="w-4 h-4 rounded-full bg-gradient-to-br from-amber-400/30 to-cyan-400/30 border border-cyan-300 flex items-center justify-center"
-              title="Platinum / 100%"
             >
               <Trophy size={9} className="text-cyan-100" />
             </span>
           )}
           {isRewatch && (
             <span
+              {...bindTooltip(
+                <span className="text-xs font-medium text-amber-400">Replay / Rewatch</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
               className="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500 flex items-center justify-center"
-              title="Replay / Rewatch"
             >
               <RotateCcw size={9} className="text-amber-500" />
             </span>
           )}
           {hasSubtitles && (
             <span
+              {...bindTooltip(
+                <span className="text-xs font-medium text-orange-400">Subtitles</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
               className="w-4 h-4 rounded-full bg-orange-500/20 border border-orange-500 flex items-center justify-center"
-              title="Subtitles"
             >
               <Captions size={9} className="text-orange-400" />
             </span>
           )}
           {isEarlyAccess && (
             <span
+              {...bindTooltip(
+                <span className="text-xs font-medium text-violet-400">
+                  Early Access{entry.early_access_version ? `: ${entry.early_access_version}` : ""}
+                </span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
               className="w-4 h-4 rounded-full bg-violet-500/20 border border-violet-500 flex items-center justify-center"
-              title={`Early Access${entry.early_access_version ? `: ${entry.early_access_version}` : ""}`}
             >
               <Clock size={9} className="text-violet-400" />
             </span>

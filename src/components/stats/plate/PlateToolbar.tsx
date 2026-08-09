@@ -101,7 +101,7 @@ export function PlateToolbar({
               accent="green"
               disabled={!canCompare}
               onClick={onToggleCompare}
-              title={canCompare ? "Overlay a second period" : "Pick a specific year to compare against"}
+              tooltip={canCompare ? "Overlay a second period" : "Pick a specific year to compare against"}
             >
               <GitCompareArrows size={13} />
               <span>Compare</span>

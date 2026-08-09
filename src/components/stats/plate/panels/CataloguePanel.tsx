@@ -3,7 +3,7 @@ import { Layers } from "lucide-react";
 import { cn } from "../../../../lib/utils_ui";
 import type { StatItem } from "../../../../lib/stats-logic";
 import { BarRow, PanelEmptyState, PanelFrame } from "../plate-ui";
-import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../PlateTooltip";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../../../HoverTooltip";
 
 export const CATALOGUE_KINDS = ["platforms", "franchises", "series", "studios", "authors", "actresses"] as const;
 export type CatalogueKind = (typeof CATALOGUE_KINDS)[number];
@@ -26,7 +26,7 @@ interface CataloguePanelProps {
 }
 
 export function CataloguePanel({ items, comparisonItems, total, variant, onExpand }: CataloguePanelProps) {
-  const { bindTooltip, tooltip } = useHoverTooltip();
+  const { bindTooltip } = useHoverTooltip();
   const isExpanded = variant === "expanded";
   const [requestedKind, setRequestedKind] = useState<CatalogueKind>("platforms");
 
@@ -64,7 +64,6 @@ export function CataloguePanel({ items, comparisonItems, total, variant, onExpan
       onExpand={onExpand}
       bodyClassName="gap-2"
     >
-      {tooltip}
       <div className={cn("flex shrink-0 gap-1", !isExpanded && "overflow-x-auto")}>
         {availableKinds.map((kind) => (
           <button

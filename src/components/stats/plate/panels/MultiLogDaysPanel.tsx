@@ -3,7 +3,7 @@ import { cn } from "../../../../lib/utils_ui";
 import type { MediaEntry } from "../../../../lib/db";
 import type { MultiLogDay } from "../../../../lib/stats-logic";
 import { CoverImage, PanelEmptyState, PanelFrame } from "../plate-ui";
-import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../PlateTooltip";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../../../HoverTooltip";
 
 interface MultiLogDaysPanelProps {
   multiLogDays: MultiLogDay[];
@@ -31,7 +31,7 @@ export function MultiLogDaysPanel({
   onDateClick,
   onExpand,
 }: MultiLogDaysPanelProps) {
-  const { bindTooltip, tooltip } = useHoverTooltip();
+  const { bindTooltip } = useHoverTooltip();
   const isExpanded = variant === "expanded";
 
   const coverById = new Map(rangedEntries.map((entry) => [entry.id, entry.image_url]));
@@ -48,7 +48,6 @@ export function MultiLogDaysPanel({
       onExpand={onExpand}
       bodyClassName="gap-2"
     >
-      {tooltip}
       {multiLogDays.length === 0 ? (
         <PanelEmptyState message="No days with multiple logs in the current selection." />
       ) : (

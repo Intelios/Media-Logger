@@ -2,6 +2,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { Maximize2 } from "lucide-react";
 import { cn } from "../../../lib/utils_ui";
 import { useImageUrl } from "../../../lib/utils";
+import { useHoverTooltip } from "../../HoverTooltip";
 import type { PlateAccent } from "./plate-config";
 
 // Full class strings per accent — Tailwind only sees literals, so these cannot
@@ -74,17 +75,17 @@ interface PlatePillProps {
   active?: boolean;
   accent?: PlateAccent;
   disabled?: boolean;
-  title?: string;
+  tooltip?: string;
   onClick?: () => void;
 }
 
-export function PlatePill({ children, active = false, accent, disabled = false, title, onClick }: PlatePillProps) {
+export function PlatePill({ children, active = false, accent, disabled = false, tooltip, onClick }: PlatePillProps) {
+  const { bindTooltip } = useHoverTooltip();
   const activeClasses = accent ? ACCENT_CLASSES[accent].pill : "border-primary/50 bg-primary/20 text-white";
 
-  return (
+  const button = (
     <button
       type="button"
-      title={title}
       disabled={disabled}
       onClick={onClick}
       className={cn(
@@ -97,6 +98,20 @@ export function PlatePill({ children, active = false, accent, disabled = false, 
     >
       {children}
     </button>
+  );
+
+  if (!tooltip) return button;
+
+  return (
+    <span
+      {...bindTooltip(
+        <span className="text-xs font-medium text-text">{tooltip}</span>,
+        { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+      )}
+      className="inline-flex shrink-0"
+    >
+      {button}
+    </span>
   );
 }
 
@@ -125,6 +140,9 @@ export function PanelFrame({
   className,
   bodyClassName,
 }: PanelFrameProps) {
+  const { bindTooltip } = useHoverTooltip();
+  const resolvedExpandLabel = expandLabel ?? `Expand ${title}`;
+
   return (
     <section
       className={cn(
@@ -152,8 +170,11 @@ export function PanelFrame({
           <button
             type="button"
             onClick={onExpand}
-            aria-label={expandLabel ?? `Expand ${title}`}
-            title={expandLabel ?? `Expand ${title}`}
+            aria-label={resolvedExpandLabel}
+            {...bindTooltip(
+              <span className="text-xs font-medium text-text">{resolvedExpandLabel}</span>,
+              { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+            )}
             className="shrink-0 rounded-md p-1 text-gray-500 transition-colors hover:bg-white/10 hover:text-white"
           >
             <Maximize2 size={13} />

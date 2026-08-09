@@ -12,7 +12,7 @@ import { DEFAULT_COVER_IMAGE, getImageUrl, releaseImageUrl, useImageUrl } from "
 import { generateReview, getReviewYearStats, getReviewFilteredCount, type ReviewData, type ReviewSlide, type ReviewParams } from "../lib/review-logic";
 import { FILTER_PRESETS, getVisibleEntryTypes, getVisiblePresetKeys, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 import { AnimatedNumber } from "../components/AnimatedNumber";
-import { getTypeBadgeStyle } from "../components/MediaCard";
+import { getTypeBadgeStyle } from "../lib/media-config";
 import type { MediaEntry } from "../lib/db";
 
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "../../../lib/utils_ui";
 import { formatShortDate } from "../../../lib/dates";
-import { TooltipDetail, TooltipTitle, useHoverTooltip } from "./PlateTooltip";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../../HoverTooltip";
 import { BUSY_DAY_THRESHOLD, isCellInRange, rangeFromCells, type BrushCell, type StatsRange } from "./plate-data";
 
 interface BrushStripProps {
@@ -24,7 +24,7 @@ function intensityClass(count: number, maxCount: number): string {
 }
 
 export function BrushStrip({ cells, range, onRangeChange }: BrushStripProps) {
-  const { bindTooltip, hideTooltip, tooltip } = useHoverTooltip();
+  const { bindTooltip, hideTooltip } = useHoverTooltip();
   const [drag, setDrag] = useState<{ anchor: number; head: number } | null>(null);
 
   // Commit on pointerup anywhere so a drag that leaves the strip still resolves
@@ -55,7 +55,6 @@ export function BrushStrip({ cells, range, onRangeChange }: BrushStripProps) {
 
   return (
     <div className="flex shrink-0 select-none flex-col gap-1">
-      {tooltip}
       <div
         className="flex items-stretch gap-[2px]"
         onDoubleClick={() => onRangeChange(null)}
