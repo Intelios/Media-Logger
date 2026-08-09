@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X, Upload, Save, Calendar as CalIcon, Sparkles, Image as ImageIcon, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock, RotateCcw, Captions } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
-import { saveImage, getImageUrl, releaseImageUrl, getLocalFileBlobUrl } from "../lib/utils";
 import type { MediaEntry, AutocompleteOptions } from "../lib/db";
 import { dbService } from "../lib/db";
 import { cn } from "../lib/utils_ui";
@@ -10,12 +9,19 @@ import { getVisibleEntryTypeOptions } from "../lib/media-config";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { AutocompleteInput } from "./AutocompleteInput";
+import {
+  cancelCoverImport,
+  commitCoverImport,
+  stageCoverImport,
+  type StagedCoverImport,
+} from "../lib/image-service";
+import { CoverImage } from "./CoverImage";
 
 interface EntryFormProps {
   initialData?: MediaEntry | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: Partial<MediaEntry>) => void;
+  onSave: (data: Partial<MediaEntry>) => void | Promise<void>;
 }
 
 type TabId = "basic" | "details" | "media";
@@ -29,13 +35,10 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormProps) {
   const [formData, setFormData] = useState<Partial<MediaEntry>>({});
   const [previewImage, setPreviewImage] = useState<string>("");
-  const [rawImagePath, setRawImagePath] = useState<string | null>(null);
+  const [, setStagedCover] = useState<StagedCoverImport | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("basic");
-  // Tracks a blob: URL created from a freshly picked file so we can revoke it
-  // when it's replaced or the modal closes. Null when previewImage is either
-  // empty or sourced from getImageUrl (which has its own ref-counted cache).
-  const pickedPreviewUrlRef = useRef<string | null>(null);
+  const stagedCoverRef = useRef<StagedCoverImport | null>(null);
   const [suggestions, setSuggestions] = useState<AutocompleteOptions>({
     platforms: [],
     franchises: [],
@@ -74,19 +77,10 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
   }, [isOpen]);
 
   useEffect(() => {
-    let cancelled = false;
-    let acquiredImagePath: string | null = null;
-
     if (isOpen) {
-      setRawImagePath(null);
+      stagedCoverRef.current = null;
+      setStagedCover(null);
       setActiveTab("basic");
-
-      // Drop any blob URL held over from a previous pick; the preview is
-      // about to be reset/replaced below.
-      if (pickedPreviewUrlRef.current) {
-        URL.revokeObjectURL(pickedPreviewUrlRef.current);
-        pickedPreviewUrlRef.current = null;
-      }
 
       if (initialData) {
         setFormData({
@@ -99,20 +93,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
           is_early_access: initialData.is_early_access ?? 0,
           early_access_version: initialData.early_access_version ?? null,
         });
-        if (initialData.image_url) {
-          const imagePath = initialData.image_url;
-          getImageUrl(imagePath).then((url) => {
-            if (cancelled) {
-              releaseImageUrl(imagePath);
-              return;
-            }
-
-            acquiredImagePath = imagePath;
-            setPreviewImage(url);
-          });
-        } else {
-          setPreviewImage("");
-        }
+        setPreviewImage("");
       } else {
         setFormData({
           entry_type: "Movie",
@@ -131,12 +112,12 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
     }
 
     return () => {
-      cancelled = true;
-      releaseImageUrl(acquiredImagePath);
-      // Revoke any picked-file blob URL still outstanding on unmount/close.
-      if (pickedPreviewUrlRef.current) {
-        URL.revokeObjectURL(pickedPreviewUrlRef.current);
-        pickedPreviewUrlRef.current = null;
+      const staged = stagedCoverRef.current;
+      stagedCoverRef.current = null;
+      if (staged) {
+        void cancelCoverImport(staged.token).catch((error) => {
+          console.error('Failed to cancel staged cover:', error);
+        });
       }
     };
   }, [isOpen, initialData]);
@@ -152,16 +133,12 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
         const path = file as string;
         if (path) {
           try {
-            const blobUrl = await getLocalFileBlobUrl(path);
-            // Revoke the previous picked preview before installing the new one.
-            if (pickedPreviewUrlRef.current) {
-              URL.revokeObjectURL(pickedPreviewUrlRef.current);
-            }
-            pickedPreviewUrlRef.current = blobUrl;
-
-            setRawImagePath(path);
-            setFormData({ ...formData, image_url: path });
-            setPreviewImage(blobUrl);
+            const nextStage = await stageCoverImport(path);
+            const previous = stagedCoverRef.current;
+            stagedCoverRef.current = nextStage;
+            setStagedCover(nextStage);
+            setPreviewImage(nextStage.previewUrl);
+            if (previous) void cancelCoverImport(previous.token);
           } catch (err) {
             console.error("Failed to load preview for picked image:", err);
           }
@@ -179,9 +156,11 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
     try {
       let finalImageUrl = formData.image_url;
 
-      if (rawImagePath) {
-        const savedPath = await saveImage(rawImagePath);
-        if (savedPath) finalImageUrl = savedPath;
+      if (stagedCoverRef.current) {
+        const committed = await commitCoverImport(stagedCoverRef.current.token);
+        stagedCoverRef.current = null;
+        setStagedCover(null);
+        finalImageUrl = committed.imagePath;
       }
 
       let yearCompleted = formData.year_completed;
@@ -189,7 +168,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
         yearCompleted = parseInt(formData.completion_date.split('-')[0]);
       }
 
-      onSave({
+      await onSave({
         ...formData,
         image_url: finalImageUrl,
         year_completed: yearCompleted
@@ -640,13 +619,21 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
           onClick={handleImagePick}
           className="group relative w-full aspect-[2/3] bg-white/5 border-2 border-dashed border-white/20 rounded-2xl overflow-hidden cursor-pointer hover:border-primary/50 transition-all"
         >
-          {previewImage ? (
+          {previewImage || formData.image_url ? (
             <>
-              <img
-                src={previewImage}
-                className="w-full h-full object-cover"
-                alt="Preview"
-              />
+              {previewImage ? (
+                <img src={previewImage} className="w-full h-full object-cover" alt="Preview" />
+              ) : (
+                <CoverImage
+                  path={formData.image_url}
+                  alt="Preview"
+                  variant="card"
+                  priority="high"
+                  sizes="420px"
+                  containerClassName="h-full w-full"
+                  imageClassName="h-full w-full object-cover"
+                />
+              )}
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <div className="flex flex-col items-center gap-2 text-white">
                   <Upload size={32} />
@@ -684,9 +671,21 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
               {/* Mini Preview */}
-              {previewImage && (
+              {(previewImage || formData.image_url) && (
                 <div className="w-14 h-20 rounded-xl overflow-hidden border border-white/20 shadow-lg">
-                  <img src={previewImage} className="w-full h-full object-cover" alt="" />
+                  {previewImage ? (
+                    <img src={previewImage} className="w-full h-full object-cover" alt="" />
+                  ) : (
+                    <CoverImage
+                      path={formData.image_url}
+                      alt=""
+                      variant="small"
+                      priority="high"
+                      sizes="56px"
+                      containerClassName="h-full w-full"
+                      imageClassName="h-full w-full object-cover"
+                    />
+                  )}
                 </div>
               )}
               <div>

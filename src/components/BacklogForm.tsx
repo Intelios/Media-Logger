@@ -2,17 +2,23 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X, Upload, Save, Sparkles, Image as ImageIcon, CalendarClock } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { saveImage, getImageUrl, releaseImageUrl, getLocalFileBlobUrl } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 import { getVisibleEntryTypeOptions } from "../lib/media-config";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import type { BacklogItem } from "../lib/db";
+import {
+  cancelCoverImport,
+  commitCoverImport,
+  stageCoverImport,
+  type StagedCoverImport,
+} from "../lib/image-service";
+import { CoverImage } from "./CoverImage";
 
 interface BacklogFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { name: string; entry_type: string; genre: string | null; image_url: string | null; release_date: string | null; is_unreleased: boolean }) => void;
+  onSave: (data: { name: string; entry_type: string; genre: string | null; image_url: string | null; release_date: string | null; is_unreleased: boolean }) => void | Promise<void>;
   initialData?: BacklogItem | null;
 }
 
@@ -23,30 +29,16 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
   const [isUnreleased, setIsUnreleased] = useState(false);
   const [releaseDate, setReleaseDate] = useState("");
   const [previewImage, setPreviewImage] = useState("");
-  const [rawImagePath, setRawImagePath] = useState<string | null>(null);
+  const stagedCoverRef = useRef<StagedCoverImport | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
-  // Tracks a blob: URL created from a freshly picked file so we can revoke it
-  // when it's replaced or the modal closes. Null when previewImage is either
-  // empty or sourced from getImageUrl (which has its own ref-counted cache).
-  const pickedPreviewUrlRef = useRef<string | null>(null);
-
   useEscapeToClose(isOpen, onClose);
   useFocusTrap(isOpen, modalRef);
 
   useEffect(() => {
-    let cancelled = false;
-    let acquiredImagePath: string | null = null;
-
     if (isOpen) {
-      setRawImagePath(null);
-      // Drop any blob URL held over from a previous pick; the preview is
-      // about to be reset/replaced below.
-      if (pickedPreviewUrlRef.current) {
-        URL.revokeObjectURL(pickedPreviewUrlRef.current);
-        pickedPreviewUrlRef.current = null;
-      }
+      stagedCoverRef.current = null;
       if (initialData) {
         setName(initialData.name);
         setEntryType(initialData.entry_type);
@@ -54,20 +46,7 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
         setIsUnreleased(initialData.status === 'unreleased');
         setReleaseDate(initialData.release_date || "");
         setExistingImageUrl(initialData.image_url);
-        if (initialData.image_url) {
-          const imagePath = initialData.image_url;
-          getImageUrl(imagePath).then((url) => {
-            if (cancelled) {
-              releaseImageUrl(imagePath);
-              return;
-            }
-
-            acquiredImagePath = imagePath;
-            setPreviewImage(url);
-          });
-        } else {
-          setPreviewImage("");
-        }
+        setPreviewImage("");
       } else {
         setName("");
         setEntryType("Movie");
@@ -80,12 +59,12 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
     }
 
     return () => {
-      cancelled = true;
-      releaseImageUrl(acquiredImagePath);
-      // Revoke any picked-file blob URL still outstanding on unmount/close.
-      if (pickedPreviewUrlRef.current) {
-        URL.revokeObjectURL(pickedPreviewUrlRef.current);
-        pickedPreviewUrlRef.current = null;
+      const staged = stagedCoverRef.current;
+      stagedCoverRef.current = null;
+      if (staged) {
+        void cancelCoverImport(staged.token).catch((error) => {
+          console.error('Failed to cancel staged backlog cover:', error);
+        });
       }
     };
   }, [isOpen, initialData]);
@@ -100,15 +79,11 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
         const path = file as string;
         if (path) {
           try {
-            const blobUrl = await getLocalFileBlobUrl(path);
-            // Revoke the previous picked preview before installing the new one.
-            if (pickedPreviewUrlRef.current) {
-              URL.revokeObjectURL(pickedPreviewUrlRef.current);
-            }
-            pickedPreviewUrlRef.current = blobUrl;
-
-            setRawImagePath(path);
-            setPreviewImage(blobUrl);
+            const nextStage = await stageCoverImport(path);
+            const previous = stagedCoverRef.current;
+            stagedCoverRef.current = nextStage;
+            setPreviewImage(nextStage.previewUrl);
+            if (previous) void cancelCoverImport(previous.token);
           } catch (err) {
             console.error("Failed to load preview for picked image:", err);
           }
@@ -127,12 +102,13 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
     try {
       let finalImageUrl = existingImageUrl;
 
-      if (rawImagePath) {
-        const savedPath = await saveImage(rawImagePath);
-        if (savedPath) finalImageUrl = savedPath;
+      if (stagedCoverRef.current) {
+        const committed = await commitCoverImport(stagedCoverRef.current.token);
+        stagedCoverRef.current = null;
+        finalImageUrl = committed.imagePath;
       }
 
-      onSave({
+      await onSave({
         name: name.trim(),
         entry_type: entryType,
         genre: genre.trim() || null,
@@ -259,9 +235,21 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1.5">Cover Image</label>
             <div className="flex items-center gap-4">
-              {previewImage ? (
+              {previewImage || existingImageUrl ? (
                 <div className="relative w-16 h-24 rounded-lg overflow-hidden border border-white/10 shadow-lg">
-                  <img src={previewImage} alt="Cover" className="w-full h-full object-cover" />
+                  {previewImage ? (
+                    <img src={previewImage} alt="Cover" className="w-full h-full object-cover" />
+                  ) : (
+                    <CoverImage
+                      path={existingImageUrl}
+                      alt="Cover"
+                      variant="small"
+                      priority="high"
+                      sizes="64px"
+                      containerClassName="h-full w-full"
+                      imageClassName="h-full w-full object-cover"
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="w-16 h-24 rounded-lg border border-dashed border-white/20 flex items-center justify-center"
@@ -276,7 +264,7 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
               >
                 <Upload size={14} />
-                <span>{previewImage ? "Change Image" : "Choose Image"}</span>
+                <span>{previewImage || existingImageUrl ? "Change Image" : "Choose Image"}</span>
               </button>
             </div>
           </div>

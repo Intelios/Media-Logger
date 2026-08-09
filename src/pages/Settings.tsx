@@ -44,7 +44,6 @@ import { DB_FILENAME, dbService } from '../lib/db';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CleanupImagesModal } from '../components/CleanupImagesModal';
 import { scanOrphanedImages, type ScanResult } from '../lib/image-cleanup';
-import { resetThumbnailImageCache } from '../lib/utils';
 import {
     getDataDirectory,
     setDataDirectory,
@@ -87,12 +86,14 @@ import {
 } from '../lib/mcp';
 import packageJson from '../../package.json';
 import tauriConfig from '../../src-tauri/tauri.conf.json';
+import { IS_PERFORMANCE_BUILD } from '../lib/performance-mode';
+import { initializeImageService } from '../lib/image-service';
 
 const SettingsChangelogSection = lazy(() => import('../components/settings/SettingsChangelogSection'));
+const PerformanceDiagnosticsSection = lazy(() => import('../components/settings/PerformanceDiagnosticsSection'));
 
-type SettingsSection = 'general' | 'appearance' | 'ai-access' | 'data' | 'changelog' | 'about';
+type SettingsSection = 'general' | 'appearance' | 'ai-access' | 'data' | 'performance' | 'changelog' | 'about';
 type BackupFormat = 'json' | 'zip';
-type ClearThumbnailCacheResult = { filesRemoved: number; bytesRemoved: number };
 
 const IMPORT_TABLE_LABELS: Record<BackupTableName, string> = {
     entries: 'Media entries',
@@ -242,7 +243,6 @@ export default function Settings() {
 
     // Unused-image cleanup state
     const [isScanning, setIsScanning] = useState(false);
-    const [isClearingThumbnailCache, setIsClearingThumbnailCache] = useState(false);
     const [cleanupScan, setCleanupScan] = useState<ScanResult | null>(null);
     const [showCleanupModal, setShowCleanupModal] = useState(false);
 
@@ -394,25 +394,11 @@ export default function Settings() {
         }
     };
 
-    const handleClearThumbnailCache = async () => {
-        if (isClearingThumbnailCache) return;
-        setIsClearingThumbnailCache(true);
-        try {
-            const result = await invoke<ClearThumbnailCacheResult>('clear_thumbnail_cache');
-            resetThumbnailImageCache();
-            const sizeMb = result.bytesRemoved / (1024 * 1024);
-            showToast(result.filesRemoved === 0
-                ? 'Thumbnail cache is already empty'
-                : `Cleared ${result.filesRemoved} thumbnails (${sizeMb.toFixed(1)} MB)`);
-        } catch (error) {
-            console.error('Clear thumbnail cache failed:', error);
-            showToast('Unable to clear thumbnail cache');
-        } finally {
-            setIsClearingThumbnailCache(false);
-        }
-    };
-
     const handleBrowse = async () => {
+        if (IS_PERFORMANCE_BUILD) {
+            showToast('Performance Lab data is permanently isolated');
+            return;
+        }
         if (mcpBusyAction) return;
 
         const selected = await open({
@@ -427,6 +413,7 @@ export default function Settings() {
                 const suspendedStatus = await suspendMcpRuntime();
                 setMcpStatus(suspendedStatus);
                 setDataDirectory(selected);
+                await initializeImageService(true);
                 setCurrentPath(selected);
                 setIsCustom(true);
                 const mcpSynced = await syncMcpForDataDirectory();
@@ -452,6 +439,7 @@ export default function Settings() {
             const suspendedStatus = await suspendMcpRuntime();
             setMcpStatus(suspendedStatus);
             clearDataDirectory();
+            await initializeImageService(true);
             setCurrentPath(appDir);
             setIsCustom(false);
             const mcpSynced = await syncMcpForDataDirectory();
@@ -813,6 +801,10 @@ export default function Settings() {
     };
 
     const handleImport = async () => {
+        if (IS_PERFORMANCE_BUILD) {
+            showToast('Backup import is disabled in the Performance Lab');
+            return;
+        }
         try {
             const filePath = await open({
                 multiple: false,
@@ -927,6 +919,7 @@ export default function Settings() {
         { id: 'appearance', label: 'Appearance', icon: <Palette size={18} /> },
         { id: 'ai-access', label: 'AI Access', icon: <Bot size={18} /> },
         { id: 'data', label: 'Data', icon: <Database size={18} /> },
+        { id: 'performance', label: 'Performance', icon: <Activity size={18} /> },
         { id: 'changelog', label: 'Changelog', icon: <ScrollText size={18} /> },
         { id: 'about', label: 'About', icon: <Info size={18} /> },
     ];
@@ -1548,10 +1541,10 @@ export default function Settings() {
                                     <button
                                         onClick={handleBrowse}
                                         className="settings-btn settings-btn-primary"
-                                        disabled={mcpBusyAction === 'data-directory'}
+                                        disabled={IS_PERFORMANCE_BUILD || mcpBusyAction === 'data-directory'}
                                     >
                                         <FolderOpen size={14} />
-                                        Browse...
+                                        {IS_PERFORMANCE_BUILD ? 'Locked to Performance Lab' : 'Browse...'}
                                     </button>
                                     {currentPath && (
                                         <button
@@ -1703,12 +1696,14 @@ export default function Settings() {
                                 <div>
                                     <div className="settings-row-label">Import Data</div>
                                     <div className="settings-row-description">
-                                        Restore data from a JSON or ZIP backup file. Existing entries are skipped only when all exported fields match.
+                                        {IS_PERFORMANCE_BUILD
+                                            ? 'Disabled in the Performance Lab so a real Media Logger backup can never be opened here.'
+                                            : 'Restore data from a JSON or ZIP backup file. Existing entries are skipped only when all exported fields match.'}
                                     </div>
                                 </div>
                                 <button
                                     onClick={handleImport}
-                                    disabled={isImporting}
+                                    disabled={IS_PERFORMANCE_BUILD || isImporting}
                                     className="settings-btn settings-btn-secondary"
                                     style={{ alignSelf: 'flex-start' }}
                                 >
@@ -1716,29 +1711,6 @@ export default function Settings() {
                                         <><Loader2 size={14} className="spin" /> Importing...</>
                                     ) : (
                                         <><Upload size={14} /> Import from File</>
-                                    )}
-                                </button>
-                            </div>
-                        </section>
-
-                        <section className="settings-card">
-                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
-                                <div>
-                                    <div className="settings-row-label">Cover Thumbnail Cache</div>
-                                    <div className="settings-row-description">
-                                        Media Logger creates optimized local thumbnails as covers enter view. Clearing them is safe; originals are untouched and thumbnails regenerate automatically.
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={handleClearThumbnailCache}
-                                    disabled={isClearingThumbnailCache}
-                                    className="settings-btn settings-btn-secondary"
-                                    style={{ alignSelf: 'flex-start' }}
-                                >
-                                    {isClearingThumbnailCache ? (
-                                        <><Loader2 size={14} className="spin" /> Clearing...</>
-                                    ) : (
-                                        <><Trash2 size={14} /> Clear Thumbnail Cache</>
                                     )}
                                 </button>
                             </div>
@@ -1782,6 +1754,13 @@ export default function Settings() {
                             <span>JSON backups include all database data in JSON format with embedded CSVs but do not bundle local assets. ZIP backups include the same backup JSON plus the current <strong style={{ color: 'var(--color-text)' }}>assets/</strong> folder from your data directory.</span>
                         </div>
                     </div>
+                )}
+
+                {/* Performance Diagnostics Section */}
+                {activeSection === 'performance' && (
+                    <Suspense fallback={<div className="settings-section-loading"><Loader2 size={18} className="spin" /></div>}>
+                        <PerformanceDiagnosticsSection />
+                    </Suspense>
                 )}
 
                 {/* Changelog Section */}

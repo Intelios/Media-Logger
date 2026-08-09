@@ -1,6 +1,6 @@
 import { CalendarDays } from "lucide-react";
 import { cn } from "../../../../lib/utils_ui";
-import type { MediaEntry } from "../../../../lib/db";
+import type { StatsEntry } from "../../../../lib/db";
 import type { MultiLogDay } from "../../../../lib/stats-logic";
 import { CoverImage, PanelEmptyState, PanelFrame } from "../plate-ui";
 import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../../../HoverTooltip";
@@ -8,7 +8,7 @@ import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../../../HoverTool
 interface MultiLogDaysPanelProps {
   multiLogDays: MultiLogDay[];
   /** Every entry in the selection — MultiLogDayEntry carries no artwork. */
-  rangedEntries: MediaEntry[];
+  rangedEntries: StatsEntry[];
   variant: "compact" | "expanded";
   onDateClick: (date: string) => void;
   onExpand?: () => void;
@@ -95,7 +95,8 @@ export function MultiLogDaysPanel({
                     >
                       <CoverImage
                         path={coverById.get(entry.id) ?? null}
-                        className="h-full w-full transition-transform duration-200 group-hover:scale-[1.06]"
+                        className="h-full w-full"
+                        imageClassName="transition-transform duration-200 group-hover:scale-[1.06]"
                       />
                     </span>
                   ))}

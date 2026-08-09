@@ -15,11 +15,11 @@ import {
 import { dbService, type MediaEntry } from "../lib/db";
 import { formatDate } from "../lib/dates";
 import { formatCardRating } from "../lib/media-config";
-import { DEFAULT_COVER_IMAGE, useImageSource } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { useHoverTooltip } from "./HoverTooltip";
+import { CoverImage } from "./CoverImage";
 
 export type MediaCardDialogKind = "details" | "image" | "delete" | "duplicates";
 
@@ -40,11 +40,6 @@ export default function MediaCardDialogs({
   const [duplicateEntries, setDuplicateEntries] = useState<MediaEntry[]>([]);
   const [duplicatesLoading, setDuplicatesLoading] = useState(dialog === "duplicates");
   const { bindTooltip } = useHoverTooltip();
-  const { src: fullImageSrc } = useImageSource(entry.image_url, {
-    enabled: dialog === "image",
-    variant: "original",
-  });
-
   useEscapeToClose(true, onClose);
   useFocusTrap(true, modalRef);
 
@@ -182,11 +177,14 @@ export default function MediaCardDialogs({
           className="relative flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-200"
           onClick={(event) => event.stopPropagation()}
         >
-          <img
-            src={fullImageSrc || DEFAULT_COVER_IMAGE}
+          <CoverImage
+            path={entry.image_url}
             alt={entry.name}
-            className="max-w-[90vw] max-h-[80vh] object-contain rounded-2xl shadow-2xl"
-            onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; }}
+            variant="original"
+            priority="high"
+            sizes="90vw"
+            containerClassName="flex max-h-[80vh] max-w-[90vw] items-center justify-center"
+            imageClassName="max-h-[80vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
           />
 
           <div className="mt-4 text-center">

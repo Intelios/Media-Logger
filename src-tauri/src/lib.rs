@@ -1,14 +1,16 @@
 mod database;
 #[cfg(target_os = "macos")]
 mod glass;
+mod image_service;
 mod mcp;
+mod perf_fixture;
 
 use same_file::Handle;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fs;
-use std::io::{BufWriter, Read, Seek, Write};
+use std::io::{Read, Seek, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -60,182 +62,6 @@ fn apply_glass_style(
     }
 
     Ok(())
-}
-
-const THUMBNAIL_MAX_WIDTH: u32 = 480;
-const THUMBNAIL_MAX_HEIGHT: u32 = 720;
-const THUMBNAIL_JPEG_QUALITY: u8 = 82;
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ClearThumbnailCacheResult {
-    files_removed: usize,
-    bytes_removed: u64,
-}
-
-fn validate_asset_path(data_dir: &Path, image_path: &str) -> Result<PathBuf, String> {
-    let relative = Path::new(image_path);
-    if relative.as_os_str().is_empty()
-        || relative
-            .components()
-            .any(|component| !matches!(component, Component::Normal(_)))
-    {
-        return Err(format!("Refusing unsafe image path: {image_path}"));
-    }
-
-    let assets_root = fs::canonicalize(data_dir.join("assets"))
-        .map_err(|error| format!("Failed to resolve assets directory: {error}"))?;
-    let source = fs::canonicalize(assets_root.join(relative))
-        .map_err(|error| format!("Failed to resolve cover {image_path}: {error}"))?;
-    if !source.starts_with(&assets_root) || !source.is_file() {
-        return Err(format!(
-            "Cover resolves outside the assets directory: {image_path}"
-        ));
-    }
-    Ok(source)
-}
-
-fn thumbnail_cache_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_cache_dir()
-        .map(|path| path.join("cover-thumbnails"))
-        .map_err(|error| format!("Failed to resolve application cache directory: {error}"))
-}
-
-fn ensure_cover_thumbnail_blocking(
-    app: tauri::AppHandle,
-    data_dir: String,
-    image_path: String,
-) -> Result<String, String> {
-    use image::ImageReader;
-    use image::codecs::jpeg::JpegEncoder;
-    use sha2::{Digest, Sha256};
-
-    #[cfg(debug_assertions)]
-    eprintln!("[image-loader] thumbnail request: {image_path}");
-
-    let source = validate_asset_path(Path::new(&data_dir), &image_path)?;
-    let metadata = fs::metadata(&source)
-        .map_err(|error| format!("Failed to inspect cover {}: {error}", source.display()))?;
-    let modified = metadata
-        .modified()
-        .ok()
-        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-        .map(|duration| duration.as_nanos())
-        .unwrap_or(0);
-
-    let mut hasher = Sha256::new();
-    hasher.update(source.to_string_lossy().as_bytes());
-    hasher.update(metadata.len().to_le_bytes());
-    hasher.update(modified.to_le_bytes());
-    let cache_name = format!("{:x}.jpg", hasher.finalize());
-    let cache_dir = thumbnail_cache_directory(&app)?;
-    let output = cache_dir.join(cache_name);
-    if output.is_file() {
-        #[cfg(debug_assertions)]
-        eprintln!("[image-loader] thumbnail cache hit: {image_path}");
-        return Ok(output.to_string_lossy().into_owned());
-    }
-
-    fs::create_dir_all(&cache_dir)
-        .map_err(|error| format!("Failed to create thumbnail cache: {error}"))?;
-    let decoded = ImageReader::open(&source)
-        .map_err(|error| format!("Failed to open cover {}: {error}", source.display()))?
-        .with_guessed_format()
-        .map_err(|error| format!("Failed to identify cover {}: {error}", source.display()))?
-        .decode()
-        .map_err(|error| format!("Failed to decode cover {}: {error}", source.display()))?;
-    let thumbnail = decoded
-        .thumbnail(THUMBNAIL_MAX_WIDTH, THUMBNAIL_MAX_HEIGHT)
-        .to_rgb8();
-
-    let temporary = cache_dir.join(format!(
-        ".thumbnail-{}-{}.tmp",
-        std::process::id(),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|duration| duration.as_nanos())
-            .unwrap_or(0)
-    ));
-    let file = fs::File::create(&temporary).map_err(|error| {
-        format!(
-            "Failed to create thumbnail {}: {error}",
-            temporary.display()
-        )
-    })?;
-    let mut writer = BufWriter::new(file);
-    JpegEncoder::new_with_quality(&mut writer, THUMBNAIL_JPEG_QUALITY)
-        .encode_image(&thumbnail)
-        .map_err(|error| format!("Failed to encode thumbnail: {error}"))?;
-    writer
-        .flush()
-        .map_err(|error| format!("Failed to flush thumbnail: {error}"))?;
-
-    if let Err(error) = fs::rename(&temporary, &output) {
-        let _ = fs::remove_file(&temporary);
-        if !output.is_file() {
-            return Err(format!(
-                "Failed to publish thumbnail {}: {error}",
-                output.display()
-            ));
-        }
-    }
-    #[cfg(debug_assertions)]
-    eprintln!("[image-loader] thumbnail generated: {image_path}");
-    Ok(output.to_string_lossy().into_owned())
-}
-
-#[tauri::command]
-async fn ensure_cover_thumbnail(
-    app: tauri::AppHandle,
-    data_dir: String,
-    image_path: String,
-) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        ensure_cover_thumbnail_blocking(app, data_dir, image_path)
-    })
-    .await
-    .map_err(|error| format!("Thumbnail worker failed: {error}"))?
-}
-
-fn clear_thumbnail_cache_blocking(
-    app: tauri::AppHandle,
-) -> Result<ClearThumbnailCacheResult, String> {
-    let cache_dir = thumbnail_cache_directory(&app)?;
-    if !cache_dir.is_dir() {
-        return Ok(ClearThumbnailCacheResult {
-            files_removed: 0,
-            bytes_removed: 0,
-        });
-    }
-
-    let mut files_removed = 0;
-    let mut bytes_removed = 0;
-    for entry in fs::read_dir(&cache_dir)
-        .map_err(|error| format!("Failed to read thumbnail cache: {error}"))?
-    {
-        let entry = entry.map_err(|error| format!("Failed to inspect thumbnail cache: {error}"))?;
-        let metadata = entry
-            .metadata()
-            .map_err(|error| format!("Failed to inspect {}: {error}", entry.path().display()))?;
-        if metadata.is_file() {
-            bytes_removed += metadata.len();
-            fs::remove_file(entry.path())
-                .map_err(|error| format!("Failed to remove {}: {error}", entry.path().display()))?;
-            files_removed += 1;
-        }
-    }
-    Ok(ClearThumbnailCacheResult {
-        files_removed,
-        bytes_removed,
-    })
-}
-
-#[tauri::command]
-async fn clear_thumbnail_cache(app: tauri::AppHandle) -> Result<ClearThumbnailCacheResult, String> {
-    tauri::async_runtime::spawn_blocking(move || clear_thumbnail_cache_blocking(app))
-        .await
-        .map_err(|error| format!("Thumbnail cache worker failed: {error}"))?
 }
 
 #[cfg(target_os = "windows")]
@@ -1011,8 +837,7 @@ fn existing_file_is_regular(path: &Path) -> Result<bool, String> {
     }
 }
 
-#[tauri::command]
-fn create_backup_zip(
+fn create_backup_zip_blocking(
     output_path: String,
     backup_json: String,
     data_dir: String,
@@ -1115,7 +940,19 @@ fn create_backup_zip(
 }
 
 #[tauri::command]
-fn read_backup_zip(file_path: String) -> Result<BackupZipReadResult, String> {
+async fn create_backup_zip(
+    output_path: String,
+    backup_json: String,
+    data_dir: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        create_backup_zip_blocking(output_path, backup_json, data_dir)
+    })
+    .await
+    .map_err(|error| format!("The backup creation worker failed: {error}"))?
+}
+
+fn read_backup_zip_blocking(file_path: String) -> Result<BackupZipReadResult, String> {
     let zip_path = PathBuf::from(file_path);
     let mut archive = open_zip_archive(&zip_path)?;
     let inspected = inspect_backup_archive(&mut archive)?;
@@ -1134,7 +971,13 @@ fn read_backup_zip(file_path: String) -> Result<BackupZipReadResult, String> {
 }
 
 #[tauri::command]
-fn extract_backup_assets(
+async fn read_backup_zip(file_path: String) -> Result<BackupZipReadResult, String> {
+    tauri::async_runtime::spawn_blocking(move || read_backup_zip_blocking(file_path))
+        .await
+        .map_err(|error| format!("The backup inspection worker failed: {error}"))?
+}
+
+fn extract_backup_assets_blocking(
     file_path: String,
     data_dir: String,
 ) -> Result<ExtractBackupAssetsResult, String> {
@@ -1277,6 +1120,18 @@ fn extract_backup_assets(
     })
 }
 
+#[tauri::command]
+async fn extract_backup_assets(
+    file_path: String,
+    data_dir: String,
+) -> Result<ExtractBackupAssetsResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        extract_backup_assets_blocking(file_path, data_dir)
+    })
+    .await
+    .map_err(|error| format!("The backup asset extraction worker failed: {error}"))?
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ScannedImage {
@@ -1318,8 +1173,7 @@ fn system_time_to_epoch_ms(time: SystemTime) -> i64 {
         .unwrap_or(0)
 }
 
-#[tauri::command]
-fn list_asset_images(data_dir: String) -> Result<Vec<ScannedImage>, String> {
+fn list_asset_images_blocking(data_dir: String) -> Result<Vec<ScannedImage>, String> {
     let images_dir = Path::new(&data_dir).join("assets").join("images");
     if !images_dir.is_dir() {
         return Ok(Vec::new());
@@ -1370,6 +1224,13 @@ fn list_asset_images(data_dir: String) -> Result<Vec<ScannedImage>, String> {
     }
 
     Ok(images)
+}
+
+#[tauri::command]
+async fn list_asset_images(data_dir: String) -> Result<Vec<ScannedImage>, String> {
+    tauri::async_runtime::spawn_blocking(move || list_asset_images_blocking(data_dir))
+        .await
+        .map_err(|error| format!("The asset scan worker failed: {error}"))?
 }
 
 fn move_path_to_trash(path: &Path) -> Result<(), String> {
@@ -1527,22 +1388,50 @@ fn set_native_window_opaque(window: &tauri::Window, opaque: bool) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .register_asynchronous_uri_scheme_protocol("media", |context, request, responder| {
+            let Some(state) = context
+                .app_handle()
+                .try_state::<image_service::ImageService>()
+            else {
+                responder.respond(
+                    tauri::http::Response::builder()
+                        .status(tauri::http::StatusCode::SERVICE_UNAVAILABLE)
+                        .body(Vec::new())
+                        .unwrap_or_else(|_| tauri::http::Response::new(Vec::new())),
+                );
+                return;
+            };
+            let service = state.inner().clone();
+            tauri::async_runtime::spawn(async move {
+                responder.respond(service.handle_protocol_request(request).await);
+            });
+        })
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             apply_glass_style,
-            ensure_cover_thumbnail,
-            clear_thumbnail_cache,
+            image_service::configure_image_service,
+            image_service::image_service_status,
+            image_service::clear_image_service_cache,
+            image_service::prewarm_image_cache,
+            image_service::stage_cover_import,
+            image_service::commit_cover_import,
+            image_service::cancel_cover_import,
             create_backup_zip,
             read_backup_zip,
             extract_backup_assets,
             list_asset_images,
             move_images_to_trash,
             database::database_run_migrations,
+            database::database_add_collection_items,
+            database::database_reorder_collection_items,
+            database::database_reorder_award_categories,
+            database::database_reorder_backlog_items,
             database::database_export_snapshot,
             database::database_import_backup,
+            perf_fixture::generate_performance_fixture,
             mcp::mcp_get_status,
             mcp::mcp_sync_runtime,
             mcp::mcp_set_enabled,
@@ -1564,6 +1453,10 @@ pub fn run() {
             let _ = (window, event);
         })
         .setup(|app| {
+            let image_service =
+                image_service::ImageService::new(app.handle()).map_err(std::io::Error::other)?;
+            app.manage(image_service);
+
             let mcp_config_dir = app.path().app_config_dir()?;
             let mcp_state =
                 mcp::McpState::from_config_dir(mcp_config_dir).map_err(std::io::Error::other)?;

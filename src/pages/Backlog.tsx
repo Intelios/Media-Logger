@@ -210,7 +210,7 @@ export default function Backlog() {
     if (!completingItem) return;
 
     try {
-      // EntryForm has already persisted any newly picked image via saveImage()
+      // EntryForm has already committed any newly picked image via the native image service.
       // before onSave fires, so image_url is final here.
       let yearCompleted = entryData.year_completed;
       if (entryData.completion_date) {

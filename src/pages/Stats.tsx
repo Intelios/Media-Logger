@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StatsEntriesModal } from "../components/StatsEntriesModal";
 import { GenreBreakdownModal } from "../components/GenreBreakdownModal";
 import { StatsPlate } from "../components/stats/plate/StatsPlate";
@@ -13,14 +13,13 @@ import {
 } from "../components/stats/plate/plate-config";
 import {
   countEntriesByType,
-  derivePlateData,
-  deriveComparison,
-  filterEntriesByTypes,
+  derivePlateSelection,
   isAllTime,
+  type PlateData,
   type StatsRange,
 } from "../components/stats/plate/plate-data";
 import { getAvailableNavigationYears, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
-import { type MediaEntry } from "../lib/db";
+import { dbService, type MediaEntry, type StatsEntry } from "../lib/db";
 import {
   ENTRY_TYPES,
   FILTER_PRESETS,
@@ -31,7 +30,11 @@ import {
   type FilterPresetKey,
 } from "../lib/media-config";
 import { getNavigationYears } from "../lib/settings";
-import { statsLogic } from "../lib/stats-logic";
+import type {
+  StatsWorkerRequest,
+  StatsWorkerResponse,
+  StatsWorkerResultMessage,
+} from "../workers/stats-worker-protocol";
 
 const STATS_YEAR_KEY = "stats-active-year";
 const STATS_TYPES_KEY = "stats-selected-types";
@@ -43,6 +46,16 @@ type StatsModalSource =
   | { kind: "genre"; value: string }
   | { kind: "date"; value: string }
   | null;
+
+type OpenStatsModalSource = Exclude<StatsModalSource, null>;
+
+interface LoadedStatsDataset {
+  version: number;
+  year: string;
+  entries: StatsEntry[];
+}
+
+type StatsWorkerMode = "initializing" | "worker" | "synchronous";
 
 function loadPersistedPreset(): FilterPresetKey | null {
   try {
@@ -117,6 +130,27 @@ function sortByCompletionDesc(entries: MediaEntry[]): MediaEntry[] {
   return [...entries].sort((left, right) => (right.completion_date ?? "").localeCompare(left.completion_date ?? ""));
 }
 
+function selectModalCandidates(source: OpenStatsModalSource, entries: StatsEntry[]): StatsEntry[] {
+  switch (source.kind) {
+    case "perfect10s":
+      return entries.filter((entry) => entry.review_score === 10);
+    case "thisMonth": {
+      const now = new Date();
+      const prefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      return entries.filter((entry) => entry.completion_date?.startsWith(prefix));
+    }
+    case "genre":
+      return entries.filter((entry) => splitDelimited(entry.genre).includes(source.value));
+    case "date":
+      return entries.filter((entry) => entry.completion_date === source.value);
+  }
+}
+
+async function loadModalEntryDetails(candidates: StatsEntry[]): Promise<MediaEntry[]> {
+  const entries = await dbService.getEntriesByIds(candidates.map((entry) => entry.id));
+  return sortByCompletionDesc(entries);
+}
+
 export default function StatsPage() {
   const adultEnabled = useAdultMediaEnabled();
   const [years, setYears] = useState<string[]>(() => getNavigationYears());
@@ -127,24 +161,113 @@ export default function StatsPage() {
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [range, setRange] = useState<StatsRange | null>(null);
 
-  // Every stat on the page is derived from this one row set. Brushing, type
-  // toggles and comparison all re-derive in memory rather than re-querying.
-  const [yearEntries, setYearEntries] = useState<MediaEntry[] | null>(null);
-  const [comparisonEntries, setComparisonEntries] = useState<MediaEntry[] | null>(null);
+  // The main thread retains thin rows for cover/id lookup. Each version is sent
+  // to the worker exactly once; brush/type changes send only tiny request data.
+  const [activeDataset, setActiveDataset] = useState<LoadedStatsDataset | null>(null);
+  const [comparisonDataset, setComparisonDataset] = useState<LoadedStatsDataset | null>(null);
+  const activeDatasetRef = useRef<LoadedStatsDataset | null>(null);
+  const comparisonDatasetRef = useRef<LoadedStatsDataset | null>(null);
+  const datasetVersionRef = useRef(0);
+  const activeLoadRef = useRef(0);
+  const comparisonLoadRef = useRef(0);
+
+  const workerRef = useRef<Worker | null>(null);
+  const [workerMode, setWorkerMode] = useState<StatsWorkerMode>("initializing");
+  const derivationSequenceRef = useRef(0);
+  const latestDerivationRef = useRef(0);
+  const [derivedResult, setDerivedResult] = useState<StatsWorkerResultMessage | null>(null);
 
   const [modalSource, setModalSource] = useState<StatsModalSource>(null);
+  const [modalEntries, setModalEntries] = useState<MediaEntry[]>([]);
+  const [modalEntriesLoading, setModalEntriesLoading] = useState(false);
+  const modalRequestRef = useRef(0);
   const [genreModalOpen, setGenreModalOpen] = useState(false);
 
   const loadYearEntries = useCallback(async () => {
+    const loadId = ++activeLoadRef.current;
+    activeDatasetRef.current = null;
+    setActiveDataset(null);
+    setDerivedResult(null);
+
     // Fetched without a type filter so the toolbar can count every chip, including
-    // the types currently switched off. Adult exclusion still applies in SQL.
-    const entries = await statsLogic.getFilteredEntries(activeYear);
-    setYearEntries(entries);
+    // the types currently switched off. Adult exclusion still applies in SQL,
+    // while prose/version-note fields are omitted from this StatsEntry projection.
+    try {
+      const entries = await dbService.getStatsEntries(activeYear);
+      if (loadId !== activeLoadRef.current) return;
+      const dataset = {
+        version: ++datasetVersionRef.current,
+        year: activeYear,
+        entries,
+      };
+      activeDatasetRef.current = dataset;
+      setActiveDataset(dataset);
+    } catch (error) {
+      if (loadId === activeLoadRef.current) {
+        console.error("Failed to load the Stats dataset:", error);
+      }
+    }
   }, [activeYear]);
 
   useEffect(() => {
     void loadYearEntries();
   }, [loadYearEntries, adultEnabled]);
+
+  const useSynchronousWorkerFallback = useCallback((reason: unknown) => {
+    console.warn("[Stats] Worker unavailable; using synchronous derivation.", reason);
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    setWorkerMode("synchronous");
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let worker: Worker | null = null;
+
+    const useSynchronousFallback = (reason: unknown) => {
+      if (disposed) return;
+      useSynchronousWorkerFallback(reason);
+    };
+
+    try {
+      worker = new Worker(new URL("../workers/stats-worker.ts", import.meta.url), {
+        type: "module",
+        name: "media-logger-stats",
+      });
+      workerRef.current = worker;
+
+      worker.addEventListener("message", (event: MessageEvent<StatsWorkerResponse>) => {
+        const message = event.data;
+        if (message.requestId !== latestDerivationRef.current) return;
+
+        if (message.type === "error") {
+          useSynchronousFallback(message.message);
+          return;
+        }
+
+        const active = activeDatasetRef.current;
+        if (!active || active.version !== message.activeVersion) return;
+        if (message.comparisonVersion !== null) {
+          const comparison = comparisonDatasetRef.current;
+          if (!comparison || comparison.version !== message.comparisonVersion) return;
+        }
+        setDerivedResult(message);
+      });
+      worker.addEventListener("error", (event) => {
+        event.preventDefault();
+        useSynchronousFallback(event.message || "Stats worker failed to load.");
+      });
+      setWorkerMode("worker");
+    } catch (error) {
+      useSynchronousFallback(error);
+    }
+
+    return () => {
+      disposed = true;
+      worker?.terminate();
+      if (workerRef.current === worker) workerRef.current = null;
+    };
+  }, [useSynchronousWorkerFallback]);
 
   useEffect(() => {
     localStorage.setItem(STATS_YEAR_KEY, activeYear);
@@ -210,29 +333,12 @@ export default function StatsPage() {
     [years, activeYear]
   );
 
-  const typeCounts = useMemo(() => countEntriesByType(yearEntries ?? []), [yearEntries]);
-
-  const typedEntries = useMemo(
-    () => filterEntriesByTypes(yearEntries ?? [], selectedTypes),
-    [yearEntries, selectedTypes]
+  // Chip counts are the only O(n) work kept on the main thread, and run once
+  // per fetched dataset rather than on brush/type requests.
+  const typeCounts = useMemo(
+    () => countEntriesByType(activeDataset?.entries ?? []),
+    [activeDataset],
   );
-
-  const plate = useMemo(
-    () => derivePlateData(typedEntries, activeYear, range),
-    [typedEntries, activeYear, range]
-  );
-
-  const comparison = useMemo(() => {
-    if (!preferences.compareEnabled || !preferences.compareYear || !comparisonEntries) {
-      return null;
-    }
-
-    return deriveComparison(
-      filterEntriesByTypes(comparisonEntries, selectedTypes),
-      preferences.compareYear,
-      range
-    );
-  }, [preferences.compareEnabled, preferences.compareYear, comparisonEntries, selectedTypes, range]);
 
   // Keep the comparison year valid for the current options: pick one when compare
   // is on but nothing is chosen (or the choice became the active year), and clear
@@ -252,21 +358,160 @@ export default function StatsPage() {
   useEffect(() => {
     const compareYear = preferences.compareYear;
     if (!preferences.compareEnabled || !compareYear) {
-      setComparisonEntries(null);
+      comparisonLoadRef.current += 1;
+      comparisonDatasetRef.current = null;
+      setComparisonDataset(null);
       return;
     }
 
-    let cancelled = false;
-    void statsLogic.getFilteredEntries(compareYear).then((entries) => {
-      if (!cancelled) {
-        setComparisonEntries(entries);
+    const loadId = ++comparisonLoadRef.current;
+    comparisonDatasetRef.current = null;
+    setComparisonDataset(null);
+    void dbService.getStatsEntries(compareYear).then(
+      (entries) => {
+        if (loadId !== comparisonLoadRef.current) return;
+        const dataset = {
+          version: ++datasetVersionRef.current,
+          year: compareYear,
+          entries,
+        };
+        comparisonDatasetRef.current = dataset;
+        setComparisonDataset(dataset);
+      },
+      (error) => {
+        if (loadId === comparisonLoadRef.current) {
+          console.error("Failed to load the comparison Stats dataset:", error);
+        }
+      }
+    );
+  }, [preferences.compareEnabled, preferences.compareYear, adultEnabled]);
+
+  // Dataset messages are isolated from selection messages: each thin row set
+  // crosses to the worker once, then remains retained there until its version
+  // is replaced or the comparison slot is cleared.
+  useEffect(() => {
+    if (workerMode !== "worker" || !activeDataset || !workerRef.current) return;
+    const message: StatsWorkerRequest = {
+      type: "set-dataset",
+      slot: "active",
+      version: activeDataset.version,
+      year: activeDataset.year,
+      entries: activeDataset.entries,
+    };
+    try {
+      workerRef.current.postMessage(message);
+    } catch (error) {
+      useSynchronousWorkerFallback(error);
+    }
+  }, [activeDataset, useSynchronousWorkerFallback, workerMode]);
+
+  useEffect(() => {
+    if (workerMode !== "worker" || !workerRef.current) return;
+    const message: StatsWorkerRequest = comparisonDataset
+      ? {
+          type: "set-dataset",
+          slot: "comparison",
+          version: comparisonDataset.version,
+          year: comparisonDataset.year,
+          entries: comparisonDataset.entries,
+        }
+      : { type: "clear-dataset", slot: "comparison" };
+    try {
+      workerRef.current.postMessage(message);
+    } catch (error) {
+      useSynchronousWorkerFallback(error);
+    }
+  }, [comparisonDataset, useSynchronousWorkerFallback, workerMode]);
+
+  // Every change is coalesced at the animation-frame boundary. Brush movement
+  // can therefore enqueue at most one tiny derive request per painted frame;
+  // it never performs SQL and never retransfers the retained dataset.
+  useEffect(() => {
+    if (!activeDataset || workerMode === "initializing") return;
+
+    const requestId = ++derivationSequenceRef.current;
+    latestDerivationRef.current = requestId;
+    const compareYear = preferences.compareEnabled ? preferences.compareYear : null;
+    const usableComparison =
+      compareYear && comparisonDataset?.year === compareYear ? comparisonDataset : null;
+
+    const frame = requestAnimationFrame(() => {
+      const request: StatsWorkerRequest = {
+        type: "derive",
+        requestId,
+        activeVersion: activeDataset.version,
+        comparisonVersion: usableComparison?.version ?? null,
+        activeYear,
+        comparisonYear: usableComparison?.year ?? null,
+        selectedTypes,
+        range,
+      };
+
+      if (workerMode === "worker" && workerRef.current) {
+        try {
+          workerRef.current.postMessage(request);
+        } catch (error) {
+          useSynchronousWorkerFallback(error);
+        }
+        return;
+      }
+
+      try {
+        const result = derivePlateSelection(
+          activeDataset.entries,
+          activeYear,
+          selectedTypes,
+          range,
+          usableComparison
+            ? { entries: usableComparison.entries, year: usableComparison.year }
+            : null,
+        );
+        if (requestId !== latestDerivationRef.current) return;
+        setDerivedResult({
+          type: "result",
+          requestId,
+          activeVersion: activeDataset.version,
+          comparisonVersion: usableComparison?.version ?? null,
+          plate: result.plate,
+          comparison: result.comparison,
+        });
+      } catch (error) {
+        console.error("Failed to derive Stats synchronously:", error);
       }
     });
 
-    return () => {
-      cancelled = true;
+    return () => cancelAnimationFrame(frame);
+  }, [
+    activeDataset,
+    activeYear,
+    comparisonDataset,
+    preferences.compareEnabled,
+    preferences.compareYear,
+    range,
+    selectedTypes,
+    useSynchronousWorkerFallback,
+    workerMode,
+  ]);
+
+  const plate = useMemo<PlateData | null>(() => {
+    if (!activeDataset || !derivedResult || derivedResult.activeVersion !== activeDataset.version) {
+      return null;
+    }
+    const entriesById = new Map(activeDataset.entries.map((entry) => [entry.id, entry]));
+    const rangedEntries = derivedResult.plate.rangedEntryIds
+      .map((id) => entriesById.get(id))
+      .filter((entry): entry is StatsEntry => entry !== undefined);
+    return {
+      stats: derivedResult.plate.stats,
+      timeline: derivedResult.plate.timeline,
+      granularity: derivedResult.plate.granularity,
+      brushCells: derivedResult.plate.brushCells,
+      rangedEntries,
+      genreCount: derivedResult.plate.genreCount,
     };
-  }, [preferences.compareEnabled, preferences.compareYear, adultEnabled]);
+  }, [activeDataset, derivedResult]);
+
+  const comparison = derivedResult?.comparison ?? null;
 
   const handleTypesChange = (types: string[]) => {
     setSelectedTypes(types);
@@ -338,34 +583,43 @@ export default function StatsPage() {
     setPreferences({ ...DEFAULT_PLATE_PREFERENCES, slots: [...DEFAULT_PLATE_PREFERENCES.slots] });
   };
 
-  const handleGenreClick = (genre: string) => {
-    setGenreModalOpen(false);
-    setModalSource({ kind: "genre", value: genre });
+  const openStatsModal = useCallback((source: OpenStatsModalSource) => {
+    if (!plate) return;
+    const requestId = ++modalRequestRef.current;
+    const candidates = selectModalCandidates(source, plate.rangedEntries);
+    setModalSource(source);
+    setModalEntries([]);
+    setModalEntriesLoading(true);
+
+    // The worker/main caches intentionally hold thin rows. Full prose fields
+    // are fetched only for this explicit modal action, never from a range/type
+    // derivation or brush event.
+    void loadModalEntryDetails(candidates).then(
+      (entries) => {
+        if (requestId !== modalRequestRef.current) return;
+        setModalEntries(entries);
+        setModalEntriesLoading(false);
+      },
+      (error) => {
+        if (requestId !== modalRequestRef.current) return;
+        console.error("Failed to load Stats modal entry details:", error);
+        setModalEntries([]);
+        setModalEntriesLoading(false);
+      },
+    );
+  }, [plate]);
+
+  const closeStatsModal = () => {
+    modalRequestRef.current += 1;
+    setModalSource(null);
+    setModalEntries([]);
+    setModalEntriesLoading(false);
   };
 
-  // Modal contents are derived from the same in-memory rows as the plate, so a
-  // brushed selection narrows them too and an edit refreshes them for free.
-  const modalEntries = useMemo(() => {
-    if (!modalSource) {
-      return [];
-    }
-
-    switch (modalSource.kind) {
-      case "perfect10s":
-        return sortByCompletionDesc(plate.rangedEntries.filter((entry) => entry.review_score === 10));
-      case "thisMonth": {
-        const now = new Date();
-        const prefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-        return sortByCompletionDesc(plate.rangedEntries.filter((entry) => entry.completion_date?.startsWith(prefix)));
-      }
-      case "genre":
-        return sortByCompletionDesc(
-          plate.rangedEntries.filter((entry) => splitDelimited(entry.genre).includes(modalSource.value))
-        );
-      case "date":
-        return plate.rangedEntries.filter((entry) => entry.completion_date === modalSource.value);
-    }
-  }, [modalSource, plate.rangedEntries]);
+  const handleGenreClick = (genre: string) => {
+    setGenreModalOpen(false);
+    openStatsModal({ kind: "genre", value: genre });
+  };
 
   const modalTitle = useMemo(() => {
     switch (modalSource?.kind) {
@@ -382,7 +636,7 @@ export default function StatsPage() {
     }
   }, [modalSource]);
 
-  if (!yearEntries) {
+  if (!activeDataset || !plate) {
     return <div className="p-10 text-gray-400">Calculating analytics...</div>;
   }
 
@@ -414,9 +668,9 @@ export default function StatsPage() {
         range={range}
         onRangeChange={setRange}
         onGenreClick={handleGenreClick}
-        onPerfectClick={() => setModalSource({ kind: "perfect10s" })}
-        onThisMonthClick={() => setModalSource({ kind: "thisMonth" })}
-        onDateClick={(date) => setModalSource({ kind: "date", value: date })}
+        onPerfectClick={() => openStatsModal({ kind: "perfect10s" })}
+        onThisMonthClick={() => openStatsModal({ kind: "thisMonth" })}
+        onDateClick={(date) => openStatsModal({ kind: "date", value: date })}
       />
 
       <GenreBreakdownModal
@@ -429,10 +683,14 @@ export default function StatsPage() {
 
       <StatsEntriesModal
         isOpen={modalSource !== null}
-        onClose={() => setModalSource(null)}
+        onClose={closeStatsModal}
         title={modalTitle}
         entries={modalEntries}
-        onEntriesChange={() => void loadYearEntries()}
+        isLoading={modalEntriesLoading}
+        onEntriesChange={() => {
+          void loadYearEntries();
+          if (modalSource) openStatsModal(modalSource);
+        }}
       />
     </>
   );

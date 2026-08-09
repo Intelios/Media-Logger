@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Play, Pause, Check, Pencil, Trash2, MoreVertical, Film, Tv, MonitorPlay, Gamepad2, BookOpen, Disc3, Heart, Monitor, Tag, Calendar, CalendarClock, Hourglass } from "lucide-react";
-import { useImageSource, useCoverReveal, useNearViewport } from "../lib/utils";
 import { formatShortDate, getDaysUntil } from "../lib/dates";
 import { cn } from "../lib/utils_ui";
+import { CoverImage } from "./CoverImage";
 import type { BacklogItem } from "../lib/db";
 
 const getSpineColor = (type: string) => {
@@ -61,12 +61,6 @@ interface BacklogCaseProps {
 }
 
 export function BacklogCase({ item, index, suppressTooltip, onStart, onPause, onComplete, onEdit, onRemove }: BacklogCaseProps) {
-  const { ref: viewportRef, isNearViewport } = useNearViewport<HTMLDivElement>();
-  const { src: imageUrl, status: imgStatus } = useImageSource(item.image_url, {
-    enabled: isNearViewport,
-    variant: 'thumbnail',
-  });
-  const { revealed: coverRevealed, reveal: revealCover, attachImg: coverImgRef } = useCoverReveal(imageUrl, imgStatus);
   const [showMenu, setShowMenu] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -122,7 +116,7 @@ export function BacklogCase({ item, index, suppressTooltip, onStart, onPause, on
     setShowTooltip(false);
   };
 
-  const hasImage = imgStatus === 'ready';
+  const hasImage = Boolean(item.image_url);
   const genres = item.genre?.split(",").map(g => g.trim()).filter(Boolean) || [];
   const spineColor = getSpineColor(item.entry_type);
   const spineGradient = getSpineGradient(item.entry_type);
@@ -131,10 +125,9 @@ export function BacklogCase({ item, index, suppressTooltip, onStart, onPause, on
     <div
       ref={(node) => {
         caseRef.current = node;
-        viewportRef(node);
       }}
       className="backlog-case-enter group relative"
-      style={{ animationDelay: `${index * 40}ms` }}
+      style={{ animationDelay: `${Math.min(index * 40, 300)}ms` }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -148,23 +141,15 @@ export function BacklogCase({ item, index, suppressTooltip, onStart, onPause, on
 
         {/* Cover */}
         <div className="absolute inset-0 rounded-r-md rounded-l-sm overflow-hidden">
-          {(imgStatus === 'loading' || (hasImage && !coverRevealed)) && (
-            <div className="cover-skeleton absolute inset-0" aria-hidden="true" />
-          )}
           {hasImage ? (
-            <img
-              ref={coverImgRef}
-              src={imageUrl}
+            <CoverImage
+              path={item.image_url}
+              variant="small"
               alt={item.name}
-              className={cn(
-                "w-full h-full object-cover transition-opacity duration-500",
-                coverRevealed ? "opacity-100" : "opacity-0"
-              )}
-              draggable={false}
-              onLoad={revealCover}
-              onError={revealCover}
+              containerClassName="absolute inset-0"
+              imageClassName="h-full w-full object-cover"
             />
-          ) : imgStatus === 'empty' ? (
+          ) : (
             <div className={cn(
               "w-full h-full flex flex-col items-center justify-center gap-2",
               spineColor, "bg-opacity-20"
@@ -178,7 +163,7 @@ export function BacklogCase({ item, index, suppressTooltip, onStart, onPause, on
                 {item.name}
               </p>
             </div>
-          ) : null}
+          )}
 
           {/* Top edge shadow for depth */}
           <div className="absolute inset-0 rounded-r-md shadow-[inset_0_2px_4px_rgba(0,0,0,0.3),inset_0_-2px_4px_rgba(0,0,0,0.2)]" />

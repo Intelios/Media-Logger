@@ -2,15 +2,14 @@ import * as React from "react";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
-import { motion } from "framer-motion";
 import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, Image as ImageIcon, Copy, CopyPlus, Clock, Captions } from "lucide-react";
-import { DEFAULT_COVER_IMAGE, useImageSource, useCoverReveal, useNearViewport } from "../lib/utils";
-import type { MediaEntry } from "../lib/db";
+import { dbService, type EntryCardSummary, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { getRatingDisplayMode } from "../lib/settings";
 import { formatDate } from "../lib/dates";
 import { formatCardRating, getRatingColor, getTypeBadgeStyle, parseGenres } from "../lib/media-config";
 import { useHoverTooltip } from "./HoverTooltip";
+import { CoverImage, type CoverPriority } from "./CoverImage";
 import type { MediaCardDialogKind } from "./MediaCardDialogs";
 
 const loadMediaCardDialogs = () => import("./MediaCardDialogs");
@@ -18,7 +17,17 @@ const LazyMediaCardDialogs = React.lazy(loadMediaCardDialogs);
 
 // Get context info based on entry type - returns an array for entries with multiple fields
 // profileType maps to the profile system's type key (null means no profile possible)
-const getContextInfo = (entry: MediaEntry): { label: string; value: string; icon: React.ReactNode; profileType: string | null; badgeClass?: string }[] => {
+type MediaCardEntry = MediaEntry | EntryCardSummary;
+
+function isEntryDetail(entry: MediaCardEntry): entry is MediaEntry {
+  return 'description' in entry && 'notes' in entry;
+}
+
+function materializeSummary(entry: MediaCardEntry): MediaEntry {
+  return isEntryDetail(entry) ? entry : { ...entry, description: null, notes: null };
+}
+
+const getContextInfo = (entry: MediaCardEntry): { label: string; value: string; icon: React.ReactNode; profileType: string | null; badgeClass?: string }[] => {
   const type = (entry.entry_type || "").toLowerCase();
   const items: { label: string; value: string; icon: React.ReactNode; profileType: string | null; badgeClass?: string }[] = [];
 
@@ -54,12 +63,6 @@ const isPerfectTen = (score: number | null | undefined): boolean => {
   return score === 10;
 };
 
-const cardLiftTransition = {
-  type: "spring",
-  stiffness: 380,
-  damping: 26,
-} as const;
-
 // Award type for badges
 export interface MediaAward {
   categoryName: string;
@@ -67,7 +70,7 @@ export interface MediaAward {
 }
 
 interface MediaCardProps {
-  entry: MediaEntry;
+  entry: MediaCardEntry;
   awards?: MediaAward[];
   profileKeys?: Set<string>;
   onEdit?: (entry: MediaEntry) => void;
@@ -80,6 +83,7 @@ interface MediaCardProps {
   dateEmphasis?: 'default' | 'prominent';
   dateAccentClass?: string; // text color, e.g. "text-blue-400"
   dateTintClass?: string;   // gradient bg, e.g. "from-blue-500/12 to-cyan-500/6"
+  imagePriority?: CoverPriority;
 }
 
 function MediaCardDialogFallback() {
@@ -91,19 +95,12 @@ function MediaCardDialogFallback() {
   );
 }
 
-export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys, dateEmphasis = 'default', dateAccentClass, dateTintClass }: MediaCardProps) {
+export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys, dateEmphasis = 'default', dateAccentClass, dateTintClass, imagePriority = 'auto' }: MediaCardProps) {
   const navigate = useNavigate();
   const { bindTooltip } = useHoverTooltip();
-  const { ref: viewportRef, isNearViewport } = useNearViewport<HTMLDivElement>();
-  const { src: imgSrc, status: imgStatus } = useImageSource(entry.image_url, {
-    enabled: isNearViewport,
-    variant: 'thumbnail',
-  });
-  // Reveal the cover with a fade once it has actually loaded; cached/remote
-  // images (status already 'ready' on mount) skip the skeleton entirely.
-  const { revealed: coverRevealed, reveal: revealCover, attachImg: coverImgRef } = useCoverReveal(imgSrc, imgStatus);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeDialog, setActiveDialog] = useState<MediaCardDialogKind | null>(null);
+  const [dialogEntry, setDialogEntry] = useState<MediaEntry | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const menuDropdownRef = useRef<HTMLDivElement>(null);
@@ -159,10 +156,16 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
     setMenuOpen(!menuOpen);
   };
 
-  const handleEdit = (e: React.MouseEvent) => {
+  const getDetail = async (): Promise<MediaEntry> => {
+    if (isEntryDetail(entry)) return entry;
+    return await dbService.getEntryById(entry.id) ?? materializeSummary(entry);
+  };
+
+  const handleEdit = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setMenuOpen(false);
-    onEdit?.(entry);
+    if (!onEdit) return;
+    onEdit(await getDetail());
   };
 
   const handleDelete = (e: React.MouseEvent) => {
@@ -177,32 +180,32 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
     }
   };
 
-  const handleViewDescription = (e: React.MouseEvent) => {
+  const handleViewDescription = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setMenuOpen(false);
+    setDialogEntry(await getDetail());
     setActiveDialog("details");
   };
 
   const handleViewImage = (e: React.MouseEvent) => {
     e.stopPropagation();
     setMenuOpen(false);
+    setDialogEntry(materializeSummary(entry));
     setActiveDialog("image");
   };
 
   const handleFindDuplicates = (e: React.MouseEvent) => {
     e.stopPropagation();
     setMenuOpen(false);
+    setDialogEntry(materializeSummary(entry));
     setActiveDialog("duplicates");
   };
 
   return (
     <>
-      <motion.div
-        ref={viewportRef}
-        whileHover={{ y: -6, scale: 1.02 }}
-        transition={cardLiftTransition}
+      <div
         className={cn(
-          "group relative overflow-visible bg-surface/80 backdrop-blur-md rounded-2xl transition-[box-shadow,border-color,background-color] duration-300 ease-out cursor-pointer",
+          "group relative overflow-visible bg-surface/90 rounded-2xl transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out cursor-pointer motion-safe:hover:-translate-y-1.5 motion-safe:hover:scale-[1.02]",
           hasPlatinum
             ? "border-2 border-cyan-300 hover:border-cyan-200"
             : perfectTen
@@ -233,23 +236,17 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
             className={cn("h-52 w-full relative overflow-hidden", imageTopRadius)}
             style={{ WebkitMaskImage: "-webkit-radial-gradient(white, black)" }}
           >
-            {(imgStatus === 'loading' || !coverRevealed) && (
-              <div className={cn("cover-skeleton absolute inset-0", imageTopRadius)} aria-hidden="true" />
-            )}
-            {imgStatus !== 'loading' && (
-              <img
-                ref={coverImgRef}
-                src={imgSrc || DEFAULT_COVER_IMAGE}
-                alt={entry.name}
-                className={cn(
-                  "w-full h-full object-cover transition duration-500 group-hover:scale-110",
-                  imageTopRadius,
-                  coverRevealed ? "opacity-100" : "opacity-0"
-                )}
-                onLoad={revealCover}
-                onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; revealCover(); }}
-              />
-            )}
+            <CoverImage
+              path={entry.image_url}
+              variant="card"
+              priority={imagePriority}
+              alt={entry.name}
+              containerClassName={cn("absolute inset-0", imageTopRadius)}
+              imageClassName={cn(
+                "h-full w-full object-cover transition-transform duration-300 group-hover:scale-110",
+                imageTopRadius,
+              )}
+            />
 
             {/* Gradient Overlay */}
             <div className={cn("absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300", imageTopRadius)} />
@@ -416,10 +413,10 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
             </button>
             <div className="h-px bg-white/10" />
             <button
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.stopPropagation();
                 setMenuOpen(false);
-                onDuplicate?.(entry);
+                if (onDuplicate) onDuplicate(await getDetail());
               }}
               className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-green-500/20 hover:text-green-400 transition-colors"
             >
@@ -655,13 +652,16 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
           )}
         </div>
 
-      </motion.div>
+      </div>
       {activeDialog && (
         <Suspense fallback={<MediaCardDialogFallback />}>
           <LazyMediaCardDialogs
             dialog={activeDialog}
-            entry={entry}
-            onClose={() => setActiveDialog(null)}
+            entry={dialogEntry ?? materializeSummary(entry)}
+            onClose={() => {
+              setActiveDialog(null);
+              setDialogEntry(null);
+            }}
             onConfirmDelete={confirmDelete}
           />
         </Suspense>

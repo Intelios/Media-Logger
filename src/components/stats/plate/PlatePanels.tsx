@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { MediaEntry } from "../../../lib/db";
+import type { StatsEntry } from "../../../lib/db";
 import type { FullStats, StatItem } from "../../../lib/stats-logic";
 import { PLATE_PANEL_DEFINITIONS, type PlatePanelId } from "./plate-config";
 import { CataloguePanel, type CatalogueKind } from "./panels/CataloguePanel";
@@ -13,7 +13,7 @@ export interface PlatePanelContext {
   stats: FullStats;
   comparisonStats: FullStats | null;
   genreCount: number;
-  rangedEntries: MediaEntry[];
+  rangedEntries: StatsEntry[];
   onGenreClick: (genre: string) => void;
   onPerfectClick: () => void;
   onDateClick: (date: string) => void;
@@ -30,7 +30,7 @@ function toCatalogueItems(stats: FullStats): Record<CatalogueKind, StatItem[]> {
   };
 }
 
-function selectPerfectEntries(entries: MediaEntry[]): MediaEntry[] {
+function selectPerfectEntries(entries: StatsEntry[]): StatsEntry[] {
   return entries
     .filter((entry) => entry.review_score === 10)
     .sort((left, right) => (right.completion_date ?? "").localeCompare(left.completion_date ?? ""));

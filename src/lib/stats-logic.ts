@@ -1,4 +1,4 @@
-import { type MediaEntry, dbService, adultExclusionSql } from "./db";
+import type { StatsEntry } from "./db";
 
 export interface StatItem {
   name: string;
@@ -79,10 +79,10 @@ export interface TimelineBucket {
 }
 
 export interface StatsDataset {
-  entries: MediaEntry[];
-  ratedEntries: Array<MediaEntry & { review_score: number }>;
-  gameEntries: MediaEntry[];
-  tvEntries: MediaEntry[];
+  entries: StatsEntry[];
+  ratedEntries: Array<StatsEntry & { review_score: number }>;
+  gameEntries: StatsEntry[];
+  tvEntries: StatsEntry[];
   now: Date;
 }
 
@@ -98,15 +98,15 @@ type CountableField =
 
 const MONTH_KEYS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
-function hasReviewScore(entry: MediaEntry): entry is MediaEntry & { review_score: number } {
+function hasReviewScore(entry: StatsEntry): entry is StatsEntry & { review_score: number } {
   return typeof entry.review_score === "number" && Number.isFinite(entry.review_score);
 }
 
-function isGameEntry(entry: MediaEntry) {
+function isGameEntry(entry: StatsEntry) {
   return typeof entry.entry_type === "string" && entry.entry_type.trim().toLowerCase() === "game";
 }
 
-function isTvEntry(entry: MediaEntry) {
+function isTvEntry(entry: StatsEntry) {
   return typeof entry.entry_type === "string" && ["show", "k-drama", "anime"].includes(entry.entry_type.trim().toLowerCase());
 }
 
@@ -121,7 +121,7 @@ function getDelimitedValues(value: string | null | undefined) {
     .filter(Boolean);
 }
 
-function countWithScores(entries: MediaEntry[], fieldName: CountableField): StatItem[] {
+function countWithScores(entries: StatsEntry[], fieldName: CountableField): StatItem[] {
   const stats: Record<string, { count: number; totalScore: number; scoreCount: number; perfectCount: number }> = {};
 
   for (const entry of entries) {
@@ -160,7 +160,7 @@ function countWithScores(entries: MediaEntry[], fieldName: CountableField): Stat
     .sort((left, right) => right.count - left.count);
 }
 
-export function createStatsDataset(entries: MediaEntry[], now = new Date()): StatsDataset {
+export function createStatsDataset(entries: StatsEntry[], now = new Date()): StatsDataset {
   return {
     entries,
     ratedEntries: entries.filter(hasReviewScore),
@@ -486,21 +486,12 @@ export function buildFullStatsFromDataset(dataset: StatsDataset): FullStats {
   };
 }
 
-async function getFilteredEntries(yearFilter?: string): Promise<MediaEntry[]> {
-  const db = await dbService.connect();
-  const params: Array<string | number> = [];
-  let query = "SELECT * FROM entries WHERE 1=1";
-
-  if (yearFilter && yearFilter !== "All Time") {
-    params.push(yearFilter);
-    query += ` AND year_completed = $${params.length}`;
-  }
-
-  // Adult exclusion remains in SQL so hidden entries never enter Plate's
-  // in-memory derivations. Type and range filtering happen client-side.
-  query += adultExclusionSql();
-
-  return db.select<MediaEntry[]>(query, params);
+// Compatibility facade for non-Plate callers. Keep the data-layer import lazy
+// so worker bundles that use only the pure selectors never pull Tauri/SQLite
+// code (or Window-only globals) into their execution context.
+async function getFilteredEntries(yearFilter?: string): Promise<StatsEntry[]> {
+  const { dbService } = await import("./db");
+  return dbService.getStatsEntries(yearFilter);
 }
 
 export const statsLogic = { getFilteredEntries };

@@ -1,6 +1,6 @@
 import { Trophy } from "lucide-react";
 import { cn } from "../../../../lib/utils_ui";
-import type { MediaEntry } from "../../../../lib/db";
+import type { StatsEntry } from "../../../../lib/db";
 import type { MostReplayedItem } from "../../../../lib/stats-logic";
 import { formatShortDate } from "../../../../lib/dates";
 import { CoverImage, PanelEmptyState, PanelFrame } from "../plate-ui";
@@ -8,9 +8,9 @@ import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../../../HoverTool
 
 interface StandoutsPanelProps {
   mostReplayed: MostReplayedItem[];
-  perfectEntries: MediaEntry[];
+  perfectEntries: StatsEntry[];
   /** Every entry in the selection — used to find cover art for replayed titles. */
-  rangedEntries: MediaEntry[];
+  rangedEntries: StatsEntry[];
   variant: "compact" | "expanded";
   onPerfectClick: () => void;
   onExpand?: () => void;
@@ -40,7 +40,8 @@ function StandoutCover({ standout, compact }: { standout: Standout; compact: boo
       <span className="relative block w-full overflow-hidden rounded-md border border-white/10 bg-white/[0.04]">
         <CoverImage
           path={standout.imagePath}
-          className="aspect-[3/4] w-full transition-transform duration-200 group-hover:scale-[1.04]"
+          className="aspect-[3/4] w-full"
+          imageClassName="transition-transform duration-200 group-hover:scale-[1.04]"
         />
         <span
           className={cn(

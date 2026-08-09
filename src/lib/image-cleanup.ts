@@ -21,7 +21,7 @@ export interface TrashResult {
 }
 
 // Files modified more recently than this are never offered for cleanup:
-// saveImage() writes the file before the DB row exists, so a very fresh
+// Native cover import commits the file before the DB row exists, so a very fresh
 // file may belong to an in-flight save. The Rust side re-enforces this.
 const MIN_AGE_MS = 5 * 60 * 1000;
 const MIN_AGE_SECONDS = MIN_AGE_MS / 1000;

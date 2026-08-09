@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Search as SearchIcon, X, Filter, ChevronDown, ChevronUp, Sparkles, RotateCcw, Dices } from "lucide-react";
-import { dbService, type MediaEntry, type SearchFilterOptions } from "../lib/db";
+import { dbService, type EntryCardSummary, type MediaEntry, type SearchFilterOptions } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
@@ -8,6 +8,9 @@ import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { RandomPickModal } from "../components/RandomPickModal";
 import { cn } from "../lib/utils_ui";
 import { getVisibleEntryTypes, useAdultMediaEnabled } from "../lib/media-config";
+import { VirtualizedCardGrid } from "../components/VirtualizedCardGrid";
+import { beginPerformanceSpan } from "../lib/performance-diagnostics";
+import { mediaQueryKeys, queryClient } from "../lib/query-client";
 
 const SEARCH_FILTERS_KEY = "search-filters";
 
@@ -57,11 +60,15 @@ export default function SearchPage() {
   const adultEnabled = useAdultMediaEnabled();
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 220);
-  const [results, setResults] = useState<MediaEntry[]>([]);
+  const [results, setResults] = useState<EntryCardSummary[]>([]);
+  const [totalResults, setTotalResults] = useState(0);
+  const [hasMoreResults, setHasMoreResults] = useState(false);
+  const [nextPage, setNextPage] = useState(1);
   const [filters, setFilters] = useState<SearchFilters>(loadPersistedFilters);
   const [filterOptions, setFilterOptions] = useState<SearchFilterOptions>(emptyFilterOptions);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [isLoadingResults, setIsLoadingResults] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isLoadingFilters, setIsLoadingFilters] = useState(true);
   const [refreshToken, setRefreshToken] = useState(0);
 
@@ -69,6 +76,7 @@ export default function SearchPage() {
   const [showRandomPick, setShowRandomPick] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
   const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
+  const searchGenerationRef = useRef(0);
 
   useEffect(() => {
     let isActive = true;
@@ -118,46 +126,93 @@ export default function SearchPage() {
   }, [filters]);
 
   useEffect(() => {
-    let isActive = true;
+    const generation = ++searchGenerationRef.current;
     const hasCriteria = debouncedQuery.trim().length > 0 || hasActiveFilters(filters);
 
     if (!hasCriteria) {
       setResults([]);
+      setTotalResults(0);
+      setHasMoreResults(false);
+      setNextPage(1);
       setAwardsMap(new Map());
       setIsLoadingResults(false);
-      return () => {
-        isActive = false;
-      };
+      setIsLoadingMore(false);
+      return;
     }
 
     setIsLoadingResults(true);
+    setIsLoadingMore(false);
+    const finishTiming = beginPerformanceSpan('search', debouncedQuery.trim().length >= 3 ? 'fts-page' : 'short-page', {
+      page: 0,
+      queryLength: debouncedQuery.trim().length,
+    });
 
-    dbService.searchEntries({
+    const searchFilters = {
       query: debouncedQuery,
       ...filters,
+    };
+    queryClient.fetchQuery({
+      queryKey: mediaQueryKeys.search(searchFilters, 0),
+      queryFn: () => dbService.searchEntriesPaged(searchFilters, 0),
     })
-      .then((entries) => {
-        if (isActive) {
-          setResults(entries);
+      .then((page) => {
+        if (searchGenerationRef.current === generation) {
+          setResults(page.items);
+          setTotalResults(page.total);
+          setHasMoreResults(page.hasMore);
+          setNextPage(1);
         }
       })
       .catch((error) => {
         console.error("Failed to search entries:", error);
-        if (isActive) {
+        if (searchGenerationRef.current === generation) {
           setResults([]);
+          setTotalResults(0);
+          setHasMoreResults(false);
           setAwardsMap(new Map());
         }
       })
       .finally(() => {
-        if (isActive) {
+        finishTiming();
+        if (searchGenerationRef.current === generation) {
           setIsLoadingResults(false);
         }
       });
-
-    return () => {
-      isActive = false;
-    };
   }, [debouncedQuery, filters, refreshToken, adultEnabled]);
+
+  const loadMoreResults = useCallback(() => {
+    if (!hasMoreResults || isLoadingResults || isLoadingMore) return;
+    const generation = searchGenerationRef.current;
+    const pageNumber = nextPage;
+    setIsLoadingMore(true);
+    const finishTiming = beginPerformanceSpan('search', debouncedQuery.trim().length >= 3 ? 'fts-next-page' : 'short-next-page', {
+      page: pageNumber,
+      queryLength: debouncedQuery.trim().length,
+    });
+
+    const searchFilters = { query: debouncedQuery, ...filters };
+    void queryClient.fetchQuery({
+      queryKey: mediaQueryKeys.search(searchFilters, pageNumber),
+      queryFn: () => dbService.searchEntriesPaged(searchFilters, pageNumber),
+    })
+      .then((page) => {
+        if (searchGenerationRef.current !== generation) return;
+        setResults((current) => {
+          const known = new Set(current.map((entry) => entry.id));
+          return [...current, ...page.items.filter((entry) => !known.has(entry.id))];
+        });
+        setTotalResults(page.total);
+        setHasMoreResults(page.hasMore);
+        setNextPage(pageNumber + 1);
+      })
+      .catch((error) => {
+        console.error('Failed to load the next search page:', error);
+      })
+      .finally(() => {
+        finishTiming();
+        if (searchGenerationRef.current === generation) setIsLoadingMore(false);
+      });
+  }, [debouncedQuery, filters, hasMoreResults, isLoadingMore, isLoadingResults, nextPage]);
 
   useEffect(() => {
     let isActive = true;
@@ -390,7 +445,7 @@ export default function SearchPage() {
                 </>
               ) : (
                 <>
-                  Found <span className="text-white font-semibold">{results.length}</span> result{results.length !== 1 ? "s" : ""}
+                  Found <span className="text-white font-semibold">{totalResults}</span> result{totalResults !== 1 ? "s" : ""}
                   {query && <span className="text-gray-500"> for "{query}"</span>}
                   {activeFilterCount > 0 && (
                     <span className="text-gray-500"> with {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} applied</span>
@@ -403,21 +458,33 @@ export default function SearchPage() {
       </header>
 
       {results.length > 0 ? (
-        <div className={cn(
-          "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 transition-opacity duration-150",
-          isLoadingResults && "opacity-80"
-        )}>
-          {results.map((entry) => (
-            <div key={entry.id}>
+        <>
+          <VirtualizedCardGrid
+            items={results}
+            getItemKey={(entry) => entry.id}
+            columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
+            gap={24}
+            estimatedRowHeight={520}
+            onEndReached={loadMoreResults}
+            className={cn('transition-opacity duration-150', isLoadingResults && 'opacity-80')}
+            ariaLabel="Search results"
+            renderItem={(entry, index) => (
               <MediaCard
                 entry={entry}
+                imagePriority={index < 10 ? 'high' : 'auto'}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 awards={entry.id ? awardsMap.get(entry.id) : undefined}
               />
+            )}
+          />
+          {isLoadingMore && (
+            <div className="flex items-center justify-center gap-2 py-6 text-sm text-gray-500">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-primary" />
+              Loading more results…
             </div>
-          ))}
-        </div>
+          )}
+        </>
       ) : isLoadingResults && hasActiveSearch ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 animate-pulse">

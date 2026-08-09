@@ -6,7 +6,6 @@ import {
   extractProfileIdentities,
   getProfileKey,
   isProfileType,
-  type ProfileAggregationEntry,
   type ProfileEntrySource,
   type ProfileIdentity,
   type ProfileType,
@@ -29,10 +28,10 @@ interface ProfileAverageSnapshot extends ProfileIdentity {
   totalCount: number;
 }
 
-interface ProfileAverageAggregate {
-  totalScore: number;
-  ratedCount: number;
-  totalCount: number;
+interface ProfileAverageAggregateRow {
+  average_score: number | null;
+  rated_count: number;
+  total_count: number;
 }
 
 interface HistoryInsertRow extends ProfileIdentity {
@@ -163,6 +162,65 @@ async function getTrackedProfiles(): Promise<Map<string, ProfileIdentity>> {
   return tracked;
 }
 
+function profileEntryTypeConstraint(type: ProfileType): string {
+  if (type === 'platform' || type === 'franchise') {
+    return " AND entry_type = 'Game'";
+  }
+  if (type === 'series') {
+    return " AND entry_type IN ('Show', 'K-Drama', 'Anime')";
+  }
+  return '';
+}
+
+async function selectProfileAverageSnapshot(
+  db: Database,
+  identity: ProfileIdentity,
+): Promise<ProfileAverageSnapshot | null> {
+  // Profile fields are comma-delimited strings. The recursive CTE preserves
+  // splitProfileNames()/entryMatchesProfile semantics (trimmed, exact tokens),
+  // deduplicates repeated names within one entry, and returns only one aggregate
+  // row across the Tauri boundary.
+  const column = PROFILE_FIELD_BY_TYPE[identity.type];
+  const rows = await db.select<ProfileAverageAggregateRow[]>(
+    `WITH RECURSIVE profile_tokens(id, review_score, rest, token) AS (
+       SELECT id, review_score, COALESCE(${column}, '') || ',', ''
+       FROM entries
+       WHERE INSTR(COALESCE(${column}, ''), $1) > 0
+         ${profileEntryTypeConstraint(identity.type)}${adultExclusionSql()}
+       UNION ALL
+       SELECT id,
+              review_score,
+              SUBSTR(rest, INSTR(rest, ',') + 1),
+              TRIM(
+                SUBSTR(rest, 1, INSTR(rest, ',') - 1),
+                char(9) || char(10) || char(11) || char(12) || char(13) || ' '
+              )
+       FROM profile_tokens
+       WHERE rest <> ''
+     ), matching_entries AS (
+       SELECT id, MAX(review_score) AS review_score
+       FROM profile_tokens
+       WHERE token = $1
+       GROUP BY id
+     )
+     SELECT AVG(review_score) AS average_score,
+            COUNT(review_score) AS rated_count,
+            COUNT(*) AS total_count
+     FROM matching_entries`,
+    [identity.name],
+  );
+  const aggregate = rows[0];
+  if (!aggregate || aggregate.rated_count === 0 || aggregate.average_score == null) {
+    return null;
+  }
+  return {
+    ...identity,
+    averageScore: Number(aggregate.average_score.toFixed(1)),
+    ratedCount: aggregate.rated_count,
+    totalCount: aggregate.total_count,
+  };
+}
+
 async function appendSnapshotsForTrackedProfiles(
   affectedProfiles?: ReadonlyMap<string, ProfileIdentity>,
 ): Promise<void> {
@@ -174,39 +232,10 @@ async function appendSnapshotsForTrackedProfiles(
   if (targets.size === 0) return;
 
   const db = await connect();
-  const entries = await db.select<ProfileAggregationEntry[]>(
-    `SELECT entry_type, review_score, director, actress, artist, author, platform, franchise, series
-     FROM entries
-     WHERE 1 = 1${adultExclusionSql()}
-     ORDER BY id ASC`,
-  );
-  const aggregates = new Map<string, ProfileAverageAggregate>();
-  for (const key of targets.keys()) {
-    aggregates.set(key, { totalScore: 0, ratedCount: 0, totalCount: 0 });
-  }
-
-  for (const entry of entries) {
-    for (const identity of extractProfileIdentities(entry)) {
-      const aggregate = aggregates.get(getProfileKey(identity));
-      if (!aggregate) continue;
-      aggregate.totalCount += 1;
-      if (entry.review_score != null) {
-        aggregate.totalScore += entry.review_score;
-        aggregate.ratedCount += 1;
-      }
-    }
-  }
-
   const snapshots: ProfileAverageSnapshot[] = [];
-  for (const [key, identity] of targets) {
-    const aggregate = aggregates.get(key);
-    if (!aggregate || aggregate.ratedCount === 0) continue;
-    snapshots.push({
-      ...identity,
-      averageScore: Number((aggregate.totalScore / aggregate.ratedCount).toFixed(1)),
-      ratedCount: aggregate.ratedCount,
-      totalCount: aggregate.totalCount,
-    });
+  for (const identity of targets.values()) {
+    const snapshot = await selectProfileAverageSnapshot(db, identity);
+    if (snapshot) snapshots.push(snapshot);
   }
   await appendCurrentSnapshots(db, snapshots, 'mutation');
 }

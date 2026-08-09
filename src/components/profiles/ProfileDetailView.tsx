@@ -24,14 +24,17 @@ import { open } from '@tauri-apps/plugin-dialog';
 import type { MediaEntry } from '../../lib/db';
 import { formatShortDate } from '../../lib/dates';
 import { DEFAULT_CROP, type CropData, type ProfileSummary } from '../../lib/profiles-logic';
-import { useImageUrl } from '../../lib/utils';
 import { AvgHistoryModal } from '../AvgHistoryModal';
 import { MediaCard, type MediaAward } from '../MediaCard';
+import { CoverImage } from '../CoverImage';
+import { VirtualizedCardGrid } from '../VirtualizedCardGrid';
 import { AwardCard, TimelineCard } from './ProfileCards';
 import { getTypeConfig, type ProfileSortOrder } from './profile-config';
 import type { ProfileAwardYearGroup } from './useProfilesPageData';
 
 type ViewMode = 'collection' | 'timeline' | 'awards';
+
+const getMediaEntryKey = (entry: MediaEntry) => entry.id;
 
 interface ProfileDetailViewProps {
   profile: ProfileSummary;
@@ -84,7 +87,7 @@ export function ProfileDetailView({
   } | null>(null);
   const detailMenuButtonRef = useRef<HTMLButtonElement>(null);
   const detailMenuDropdownRef = useRef<HTMLDivElement>(null);
-  const headerImgSrc = useImageUrl(profile.image_url, '', { variant: 'thumbnail' });
+  const hasHeaderImage = Boolean(profile.image_url);
   const profileConfig = getTypeConfig(profile.type);
   const activeCrop = isCropEditing ? draftCrop : (profile.crop ?? DEFAULT_CROP);
   const TypeIcon = profileConfig.icon;
@@ -167,8 +170,16 @@ export function ProfileDetailView({
     <>
       <div className="animate-in fade-in duration-500 -mx-6 -mt-6">
         <div className="relative flex flex-col md:flex-row min-h-[340px] overflow-hidden rounded-b-3xl rounded-tl-3xl profile-header-enter">
-          {headerImgSrc ? (
-            <img src={headerImgSrc} className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-25" alt="" />
+          {hasHeaderImage ? (
+            <CoverImage
+              path={profile.image_url}
+              variant="hero"
+              priority="high"
+              alt=""
+              showSkeleton={false}
+              containerClassName="absolute inset-0"
+              imageClassName="h-full w-full scale-110 object-cover opacity-25 blur-2xl"
+            />
           ) : (
             <div className={`absolute inset-0 bg-gradient-to-br ${profileConfig.bgGradient}`} />
           )}
@@ -231,12 +242,15 @@ export function ProfileDetailView({
             onPointerCancel={() => { dragStateRef.current = null; }}
             className={`relative group w-full md:w-[40%] lg:w-[36%] min-h-[260px] md:min-h-[340px] flex-shrink-0 z-10 overflow-hidden ${isCropEditing && activeCrop.fit === 'cover' ? 'cursor-grab active:cursor-grabbing touch-none select-none' : ''}`}
           >
-            {headerImgSrc ? (
-              <img
-                src={headerImgSrc}
+            {hasHeaderImage ? (
+              <CoverImage
+                path={profile.image_url}
+                variant="hero"
+                priority="high"
                 draggable={false}
-                className="absolute inset-0 h-full w-full"
-                style={{
+                containerClassName="absolute inset-0"
+                imageClassName="h-full w-full"
+                imageStyle={{
                   objectFit: activeCrop.fit,
                   objectPosition: `${activeCrop.x}% ${activeCrop.y}%`,
                   transform: activeCrop.fit === 'cover' ? `scale(${activeCrop.scale})` : undefined,
@@ -255,7 +269,7 @@ export function ProfileDetailView({
                 <div className="absolute inset-x-0 bottom-0 h-24 md:hidden bg-gradient-to-t from-[#0d0d0d]/80 to-transparent pointer-events-none" />
               </>
             )}
-            {!isCropEditing && headerImgSrc && (
+            {!isCropEditing && hasHeaderImage && (
               <div className="absolute top-4 right-4 z-10 flex items-center gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
                 <button
                   onClick={handleUpdateImage}
@@ -275,7 +289,7 @@ export function ProfileDetailView({
                 </button>
               </div>
             )}
-            {!isCropEditing && !headerImgSrc && (
+            {!isCropEditing && !hasHeaderImage && (
               <button
                 onClick={handleUpdateImage}
                 className="absolute inset-0 z-10 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer backdrop-blur-sm"
@@ -456,24 +470,31 @@ export function ProfileDetailView({
         </div>
 
         {viewMode === 'collection' ? (
-          <div className="px-6 pb-10">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 auto-rows-fr">
-              {collectionEntries.map((entry, index) => (
+          <div className="px-6">
+            <VirtualizedCardGrid
+              items={collectionEntries}
+              getItemKey={getMediaEntryKey}
+              columns={{ base: 2, sm: 3, md: 4, lg: 5, xl: 6 }}
+              gap={16}
+              estimatedRowHeight={420}
+              className="pb-10"
+              ariaLabel={`${profile.name} collection`}
+              renderItem={(entry, index) => (
                 <div
-                  key={entry.id}
                   className={`${index % 5 === 0 ? 'row-span-1' : ''} transform hover:scale-[1.02] transition-transform duration-200`}
-                  style={{ animationDelay: `${index * 50}ms`, animation: 'fadeInUp 0.4s ease-out forwards', opacity: 0 }}
+                  style={{ animationDelay: `${Math.min(index * 50, 300)}ms`, animation: 'fadeInUp 0.4s ease-out forwards', opacity: 0 }}
                 >
                   <MediaCard
                     entry={entry}
+                    imagePriority={index < 10 ? 'high' : 'auto'}
                     awards={awardsMap.get(entry.id)}
                     dateEmphasis="prominent"
                     dateAccentClass={profileConfig.color}
                     dateTintClass={profileConfig.surfaceTintClass}
                   />
                 </div>
-              ))}
-            </div>
+              )}
+            />
           </div>
         ) : viewMode === 'timeline' ? (
           <div className="px-6 pb-10">

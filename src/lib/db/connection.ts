@@ -14,12 +14,21 @@ export const LEGACY_DB_FILENAME = 'jav_log.db';
 // sqlx opens SQLite in WAL mode, so the main DB file may be accompanied by these
 // sidecar files carrying uncommitted data. They must be migrated as a consistent set.
 const DB_SIDECAR_SUFFIXES = ['', '-wal', '-shm'];
+// Mirrors the key owned by settings.ts. Reading this synchronous value lets us
+// retain automatic path switching when Settings changes the directory, without
+// repeating async Tauri path/filesystem work on every query.
+const DATA_DIRECTORY_STORAGE_KEY = 'media-logger-data-directory';
 // localStorage key set after a successful legacy migration; consumed once by the UI
 // to show a one-time banner.
 export const DB_MIGRATED_FLAG_KEY = 'media-logger-db-migrated';
 
 let dbInstance: Database | null = null;
 let currentDbPath: string = '';
+// Path resolution crosses the Tauri boundary and probes the filesystem. Keep
+// one resolved path for the live connection; reconnect() invalidates it when
+// Settings changes the data directory.
+let resolvedDatabasePath: Promise<string> | null = null;
+let resolvedDatabasePathSetting: string | null | undefined;
 // Guards the one-time legacy file migration so concurrent connect() calls
 // (multiple components mounting at once) only migrate once.
 const legacyMigration: Map<string, Promise<void>> = new Map();
@@ -91,7 +100,7 @@ async function migrateLegacyDatabase(dataDir: string): Promise<void> {
   }
 }
 
-async function resolveDatabasePath(): Promise<string> {
+async function resolveDatabasePathUncached(): Promise<string> {
   // Get the current data directory
   const dataDir = await getDataDirectory();
 
@@ -107,6 +116,27 @@ async function resolveDatabasePath(): Promise<string> {
   await legacyMigration.get(dataDir);
 
   return join(dataDir, DB_FILENAME);
+}
+
+function resolveDatabasePath(): Promise<string> {
+  const configuredDirectory = localStorage.getItem(DATA_DIRECTORY_STORAGE_KEY);
+  if (
+    resolvedDatabasePath &&
+    configuredDirectory === resolvedDatabasePathSetting
+  ) {
+    return resolvedDatabasePath;
+  }
+
+  const pending = resolveDatabasePathUncached();
+  resolvedDatabasePath = pending;
+  resolvedDatabasePathSetting = configuredDirectory;
+  void pending.catch(() => {
+    if (resolvedDatabasePath === pending) {
+      resolvedDatabasePath = null;
+      resolvedDatabasePathSetting = undefined;
+    }
+  });
+  return pending;
 }
 
 export async function connect(): Promise<Database> {
@@ -144,6 +174,15 @@ async function doConnect(dbPath: string): Promise<Database> {
   const candidate = await Database.load(`sqlite:${dbPath}`);
   try {
     await runMigrations(candidate);
+    // The long-lived connection asks SQLite to refresh planner statistics
+    // (0x10002 = run ANALYZE without persisting schema changes). It is
+    // bounded by SQLite itself and a failure must not make a healthy database
+    // unusable on older runtimes.
+    try {
+      await candidate.execute('PRAGMA optimize=0x10002');
+    } catch (optimizeError) {
+      console.warn('[DB] PRAGMA optimize was unavailable:', optimizeError);
+    }
   } catch (error) {
     try {
       await candidate.close(candidate.path);
@@ -162,6 +201,8 @@ async function doConnect(dbPath: string): Promise<Database> {
  * Force reconnect to database (useful when settings change)
  */
 export async function reconnect(): Promise<Database> {
+  resolvedDatabasePath = null;
+  resolvedDatabasePathSetting = undefined;
   if (dbInstance) {
     await dbInstance.close(dbInstance.path);
     dbInstance = null;

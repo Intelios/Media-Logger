@@ -4,10 +4,10 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 import { LineChart as LineChartIcon, X } from "lucide-react";
 import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
 import type { AvgHistoryPoint, MediaEntry } from "../lib/db";
-import { getImageUrl, releaseImageUrl } from "../lib/utils";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { formatShortDate } from "../lib/dates";
+import { CoverImage } from "./CoverImage";
 
 interface AvgHistoryModalProps {
   isOpen: boolean;
@@ -86,7 +86,6 @@ function AvgHistoryTooltip({ active, payload }: {
 export function AvgHistoryModal({ isOpen, profile, entries, onClose }: AvgHistoryModalProps) {
   const [points, setPoints] = useState<AvgHistoryPoint[]>([]);
   const [loading, setLoading] = useState(false);
-  const [imageMap, setImageMap] = useState<Record<number, string>>({});
   const [hovering, setHovering] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
@@ -123,7 +122,6 @@ export function AvgHistoryModal({ isOpen, profile, entries, onClose }: AvgHistor
     if (!isOpen || !profile) return;
     let cancelled = false;
     setLoading(true);
-    setImageMap({});
     profilesLogic.getAvgHistory(profile.type, profile.name).then((pts) => {
       if (cancelled) return;
       setPoints(pts);
@@ -133,29 +131,6 @@ export function AvgHistoryModal({ isOpen, profile, entries, onClose }: AvgHistor
     });
     return () => { cancelled = true; };
   }, [isOpen, profile]);
-
-  // Preload cover thumbnails for chart markers, releasing blob refs on cleanup.
-  useEffect(() => {
-    if (!isOpen || chartEntries.length === 0) return;
-    let cancelled = false;
-    const acquired: string[] = [];
-    (async () => {
-      const map: Record<number, string> = {};
-      for (const e of chartEntries) {
-        if (cancelled) return;
-        if (!e.image_url) continue;
-        const url = await getImageUrl(e.image_url, { variant: 'thumbnail' });
-        if (cancelled) return;
-        acquired.push(e.image_url);
-        map[e.id] = url;
-      }
-      if (!cancelled) setImageMap(map);
-    })();
-    return () => {
-      cancelled = true;
-      acquired.forEach((path) => releaseImageUrl(path, 'thumbnail'));
-    };
-  }, [isOpen, chartEntries]);
 
   const chartData = useMemo<ChartRow[]>(() => {
     if (points.length === 0) return [];
@@ -340,7 +315,6 @@ export function AvgHistoryModal({ isOpen, profile, entries, onClose }: AvgHistor
                         />
                         <div style={{ opacity: markerOpacity }}>
                           {visibleMarkers.map((m, i) => {
-                            const url = imageMap[m.entryId];
                             const shift = i * MARKER_STACK_OFFSET;
                             return (
                               <div
@@ -353,12 +327,14 @@ export function AvgHistoryModal({ isOpen, profile, entries, onClose }: AvgHistor
                                   height: MARKER_SIZE,
                                 }}
                               >
-                                {url ? (
-                                  <img
-                                    src={url}
+                                {m.imageUrl ? (
+                                  <CoverImage
+                                    path={m.imageUrl}
                                     alt=""
-                                    className="h-full w-full object-cover"
-                                    draggable={false}
+                                    variant="small"
+                                    sizes={`${MARKER_SIZE}px`}
+                                    containerClassName="h-full w-full"
+                                    imageClassName="h-full w-full object-cover"
                                   />
                                 ) : (
                                   <div className="h-full w-full bg-white/10" />

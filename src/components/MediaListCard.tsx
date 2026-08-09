@@ -1,18 +1,12 @@
-import { type ReactNode } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { useMemo, type ReactNode } from "react";
 import { Star, Calendar, RotateCcw, Captions, Trophy, Clock } from "lucide-react";
 import type { MediaEntry } from "../lib/db";
-import { DEFAULT_COVER_IMAGE, useImageSource, useCoverReveal, useNearViewport } from "../lib/utils";
 import { cn } from "../lib/utils_ui";
 import { formatCardRating, getRatingColor, getTypeBadgeStyle, parseGenres } from "../lib/media-config";
 import { formatDate, getYearsAgo } from "../lib/dates";
 import { useHoverTooltip } from "./HoverTooltip";
-
-const cardLiftTransition = {
-  type: "spring",
-  stiffness: 380,
-  damping: 26,
-} as const;
+import { CoverImage } from "./CoverImage";
+import { createMediaUrl, useImageServiceStatus } from "../lib/image-service";
 
 interface MediaListCardProps {
   entry: MediaEntry;
@@ -52,12 +46,12 @@ export function MediaListCard({
 }: MediaListCardProps) {
   const { bindTooltip } = useHoverTooltip();
   const yearsAgo = showYearsAgo ? getYearsAgo(entry.completion_date) : null;
-  const { ref: viewportRef, isNearViewport } = useNearViewport<HTMLDivElement>();
-  const { src: imgSrc, status: imgStatus } = useImageSource(entry.image_url, {
-    enabled: isNearViewport,
-    variant: 'thumbnail',
-  });
-  const { revealed: coverRevealed, reveal: revealCover, attachImg: coverImgRef } = useCoverReveal(imgSrc, imgStatus);
+  const service = useImageServiceStatus();
+  // Same `small` variant the thumbnail loads, so the ambient wash is a cache hit.
+  const washSrc = useMemo(
+    () => createMediaUrl(entry.image_url, "small"),
+    [entry.image_url, service?.protocolBase, service?.generation]
+  );
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const genres = parseGenres(entry.genre).slice(0, 2);
   const hasScore = entry.review_score !== null && entry.review_score !== undefined;
@@ -70,22 +64,16 @@ export function MediaListCard({
 
   const hasTrailingSlot = Boolean(accentBadge ?? indexLabel);
   const interactive = Boolean(onClick);
-  const reduceMotion = useReducedMotion();
-
   const card = (
-    <motion.div
-      ref={viewportRef}
-      whileHover={reduceMotion ? undefined : { y: -2 }}
-      transition={cardLiftTransition}
+    <div
       onClick={interactive ? () => onClick?.(entry) : undefined}
-      className={cn("media-list-card", interactive && "media-list-card-interactive")}
-      style={{ animationDelay: `${index * 0.05}s` }}
+      className={cn("media-list-card motion-safe:transition-transform motion-safe:duration-200 motion-safe:hover:-translate-y-0.5", interactive && "media-list-card-interactive")}
+      style={{ animationDelay: `${Math.min(index * 0.05, 0.3)}s` }}
     >
       {/* Ambient blurred wash of the cover, fading out across the card */}
-      <div
-        className="media-list-card-blur"
-        style={{ backgroundImage: imgStatus === 'ready' ? `url("${imgSrc}")` : undefined }}
-      />
+      {washSrc && (
+        <div className="media-list-card-blur" style={{ backgroundImage: `url("${washSrc}")` }} />
+      )}
       <div className="media-list-card-overlay" />
 
       {/* Optional profile-color surface tint (sits above overlay, below content) */}
@@ -94,19 +82,14 @@ export function MediaListCard({
       )}
 
       {/* Cover thumbnail — uniform left section, image zoomed to fill (cover + center) */}
-      {(imgStatus === 'loading' || !coverRevealed) && (
-        <div className="cover-skeleton absolute left-0 top-0 h-full z-[3]" style={{ width: '110px' }} aria-hidden="true" />
-      )}
-      {imgStatus !== 'loading' && (
-        <img
-          ref={coverImgRef}
-          src={imgSrc || DEFAULT_COVER_IMAGE}
-          alt={entry.name}
-          onLoad={revealCover}
-          onError={(event) => { event.currentTarget.src = DEFAULT_COVER_IMAGE; revealCover(); }}
-          className={cn("media-list-card-thumb transition-opacity duration-500", coverRevealed ? "opacity-100" : "opacity-0")}
-        />
-      )}
+      <CoverImage
+        path={entry.image_url}
+        variant="small"
+        alt={entry.name}
+        priority={index < 2 ? 'high' : 'auto'}
+        containerClassName="media-list-card-thumb"
+        imageClassName="h-full w-full object-cover object-center"
+      />
 
       {/* Optional top-right overlay badge (milestone) */}
       {cornerBadge && (
@@ -229,7 +212,7 @@ export function MediaListCard({
           {accentBadge ?? indexLabel}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 
   if (!leadingRail) return card;

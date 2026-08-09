@@ -5,15 +5,21 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:perf": "vite --mode performance",
     "build": "tsc && vite build",
+    "build:perf": "tsc && vite build --mode performance",
     "changelog:sync": "node scripts/sync-changelog.mjs",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:perf:dev": "tauri dev --config src-tauri/tauri.perf.conf.json",
+    "tauri:perf:build": "tauri build --config src-tauri/tauri.perf.conf.json"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@tanstack/react-query": "^5.101.4",
+    "@tanstack/react-virtual": "^3.14.9",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",

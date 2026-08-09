@@ -4,8 +4,9 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use tauri::State;
 use tauri_plugin_sql::{DbInstances, DbPool};
 
-const DATABASE_SCHEMA_VERSION: i64 = 2;
+const DATABASE_SCHEMA_VERSION: i64 = 3;
 const MAX_SQLITE_BIND_PARAMS: usize = 999;
+const MAX_BULK_MUTATION_ITEMS: usize = 10_000;
 
 #[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
 pub struct EntryRow {
@@ -709,6 +710,118 @@ async fn migrate_to_v2(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
     Ok(())
 }
 
+async fn migrate_to_v3(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
+    // Read-heavy screens substantially outnumber writes in Media Logger. These
+    // indexes cover the stable filter/order/join patterns used by year views,
+    // search filters, dashboard dates, collections, awards, profiles, and backlog.
+    for sql in [
+        r#"CREATE INDEX IF NOT EXISTS idx_entries_year_completion_id
+           ON entries (year_completed, completion_date, id)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_entries_completion_id
+           ON entries (completion_date DESC, id DESC)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_entries_type_completion_id
+           ON entries (entry_type, completion_date DESC, id DESC)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_entries_name_completion_id
+           ON entries (name, completion_date, id)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_entries_platform_completion_id
+           ON entries (platform, completion_date DESC, id DESC)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_entries_director_completion_id
+           ON entries (director, completion_date DESC, id DESC)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_entries_author_completion_id
+           ON entries (author, completion_date DESC, id DESC)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_entries_franchise_completion_id
+           ON entries (franchise, completion_date DESC, id DESC)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_entries_series_completion_id
+           ON entries (series, completion_date DESC, id DESC)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_entries_month_day_completion_id
+           ON entries (substr(completion_date, 6, 5), completion_date DESC, id DESC)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_collection_items_collection_sort_id
+           ON collection_items (collection_id, sort_order, id)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_collection_items_media
+           ON collection_items (media_id)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_collection_eras_collection_sort_id
+           ON collection_eras (collection_id, sort_order, id)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_award_categories_year_sort_id
+           ON award_categories (year, sort_order, id)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_award_winners_media
+           ON award_winners (media_id)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_backlog_status_sort_id
+           ON backlog_items (status, sort_order, id)"#,
+        r#"CREATE INDEX IF NOT EXISTS idx_profiles_track_avg_type_name
+           ON profiles (track_avg_history, type, name)"#,
+    ] {
+        execute_schema_sql(tx, sql, "Failed to create a performance index").await?;
+    }
+
+    // External-content FTS keeps entries as the single source of truth and
+    // avoids duplicating large description/notes fields. The trigram tokenizer
+    // preserves the existing substring-search behavior for queries >= 3 chars.
+    execute_schema_sql(
+        tx,
+        r#"CREATE VIRTUAL TABLE IF NOT EXISTS entries_fts USING fts5(
+             name,
+             author,
+             artist,
+             genre,
+             director,
+             actress,
+             platform,
+             series,
+             content='entries',
+             content_rowid='id',
+             tokenize='trigram'
+           )"#,
+        "Failed to create the media search index",
+    )
+    .await?;
+
+    for sql in [
+        r#"CREATE TRIGGER IF NOT EXISTS entries_fts_ai
+           AFTER INSERT ON entries BEGIN
+             INSERT INTO entries_fts(
+               rowid, name, author, artist, genre, director, actress, platform, series
+             ) VALUES (
+               new.id, new.name, new.author, new.artist, new.genre, new.director,
+               new.actress, new.platform, new.series
+             );
+           END"#,
+        r#"CREATE TRIGGER IF NOT EXISTS entries_fts_ad
+           AFTER DELETE ON entries BEGIN
+             INSERT INTO entries_fts(
+               entries_fts, rowid, name, author, artist, genre, director, actress, platform, series
+             ) VALUES (
+               'delete', old.id, old.name, old.author, old.artist, old.genre, old.director,
+               old.actress, old.platform, old.series
+             );
+           END"#,
+        r#"CREATE TRIGGER IF NOT EXISTS entries_fts_au
+           AFTER UPDATE OF name, author, artist, genre, director, actress, platform, series
+           ON entries BEGIN
+             INSERT INTO entries_fts(
+               entries_fts, rowid, name, author, artist, genre, director, actress, platform, series
+             ) VALUES (
+               'delete', old.id, old.name, old.author, old.artist, old.genre, old.director,
+               old.actress, old.platform, old.series
+             );
+             INSERT INTO entries_fts(
+               rowid, name, author, artist, genre, director, actress, platform, series
+             ) VALUES (
+               new.id, new.name, new.author, new.artist, new.genre, new.director,
+               new.actress, new.platform, new.series
+             );
+           END"#,
+    ] {
+        execute_schema_sql(tx, sql, "Failed to create a media search trigger").await?;
+    }
+
+    execute_schema_sql(
+        tx,
+        "INSERT INTO entries_fts(entries_fts) VALUES('rebuild')",
+        "Failed to populate the media search index",
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn database_run_migrations(
     database_url: String,
@@ -726,7 +839,8 @@ pub async fn database_run_migrations(
     }
 
     let mut applied = Vec::new();
-    if current_version < DATABASE_SCHEMA_VERSION {
+    let mut migrated_version = current_version;
+    if migrated_version < 2 {
         let mut tx = pool
             .begin_with("BEGIN IMMEDIATE")
             .await
@@ -735,7 +849,7 @@ pub async fn database_run_migrations(
             migrate_to_v2(&mut tx).await?;
             execute_schema_sql(
                 &mut tx,
-                &format!("PRAGMA user_version = {DATABASE_SCHEMA_VERSION}"),
+                "PRAGMA user_version = 2",
                 "Failed to record the database schema version",
             )
             .await
@@ -752,9 +866,224 @@ pub async fn database_run_migrations(
         tx.commit()
             .await
             .map_err(|error| database_error("Failed to commit database migration", error))?;
-        applied.push(DATABASE_SCHEMA_VERSION);
+        applied.push(2);
+        migrated_version = 2;
+    }
+
+    if migrated_version < 3 {
+        let mut tx = pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(|error| database_error("Failed to begin database migration", error))?;
+        let migration_result = async {
+            migrate_to_v3(&mut tx).await?;
+            execute_schema_sql(
+                &mut tx,
+                "PRAGMA user_version = 3",
+                "Failed to record the database schema version",
+            )
+            .await
+        }
+        .await;
+        if let Err(error) = migration_result {
+            return match tx.rollback().await {
+                Ok(()) => Err(error),
+                Err(rollback_error) => Err(format!(
+                    "{error}; migration rollback also failed: {rollback_error}"
+                )),
+            };
+        }
+        tx.commit()
+            .await
+            .map_err(|error| database_error("Failed to commit database migration", error))?;
+        applied.push(3);
+    }
+    if !applied.is_empty() {
+        // Schema/plan changes may invalidate cached statistics. This is a
+        // best-effort optimization hint and must never block app startup.
+        let _ = sqlx::query("PRAGMA optimize").execute(&pool).await;
     }
     Ok(applied)
+}
+
+fn validate_bulk_ids(ids: &[i64], label: &str) -> Result<(), String> {
+    if ids.len() > MAX_BULK_MUTATION_ITEMS {
+        return Err(format!(
+            "{label} contains {} items; the maximum is {MAX_BULK_MUTATION_ITEMS}",
+            ids.len()
+        ));
+    }
+    if ids.iter().any(|id| *id <= 0) {
+        return Err(format!("{label} contains an invalid identifier"));
+    }
+    let unique: HashSet<i64> = ids.iter().copied().collect();
+    if unique.len() != ids.len() {
+        return Err(format!("{label} contains duplicate identifiers"));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn database_add_collection_items(
+    database_url: String,
+    collection_id: i64,
+    media_ids: Vec<i64>,
+    instances: State<'_, DbInstances>,
+) -> Result<(), String> {
+    if collection_id <= 0 {
+        return Err("Collection identifier is invalid".to_string());
+    }
+    validate_bulk_ids(&media_ids, "Collection item batch")?;
+    if media_ids.is_empty() {
+        return Ok(());
+    }
+
+    let pool = sqlite_pool(&instances, &database_url).await?;
+    let mut tx = pool
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|error| database_error("Failed to begin collection item transaction", error))?;
+    let mut next_order = sqlx::query_scalar::<_, i64>(
+        "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM collection_items WHERE collection_id = ?",
+    )
+    .bind(collection_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|error| database_error("Failed to resolve collection sort order", error))?;
+
+    for media_id in media_ids {
+        let result = sqlx::query(
+            "INSERT OR IGNORE INTO collection_items (collection_id, media_id, sort_order) VALUES (?, ?, ?)",
+        )
+        .bind(collection_id)
+        .bind(media_id)
+        .bind(next_order)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| database_error("Failed to add a collection item", error))?;
+        if result.rows_affected() > 0 {
+            next_order += 1;
+        }
+    }
+
+    tx.commit()
+        .await
+        .map_err(|error| database_error("Failed to commit collection item transaction", error))
+}
+
+#[tauri::command]
+pub async fn database_reorder_collection_items(
+    database_url: String,
+    collection_id: i64,
+    media_ids: Vec<i64>,
+    instances: State<'_, DbInstances>,
+) -> Result<(), String> {
+    if collection_id <= 0 {
+        return Err("Collection identifier is invalid".to_string());
+    }
+    validate_bulk_ids(&media_ids, "Collection order")?;
+    let pool = sqlite_pool(&instances, &database_url).await?;
+    let mut tx = pool
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|error| database_error("Failed to begin collection reorder", error))?;
+
+    for (sort_order, media_id) in media_ids.into_iter().enumerate() {
+        let result = sqlx::query(
+            "UPDATE collection_items SET sort_order = ? WHERE collection_id = ? AND media_id = ?",
+        )
+        .bind(sort_order as i64)
+        .bind(collection_id)
+        .bind(media_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| database_error("Failed to reorder a collection item", error))?;
+        if result.rows_affected() != 1 {
+            return Err(format!(
+                "Collection item {media_id} does not belong to collection {collection_id}"
+            ));
+        }
+    }
+
+    tx.commit()
+        .await
+        .map_err(|error| database_error("Failed to commit collection reorder", error))
+}
+
+#[tauri::command]
+pub async fn database_reorder_award_categories(
+    database_url: String,
+    year: i64,
+    category_ids: Vec<i64>,
+    instances: State<'_, DbInstances>,
+) -> Result<(), String> {
+    if !(1..=9999).contains(&year) {
+        return Err("Award year is invalid".to_string());
+    }
+    validate_bulk_ids(&category_ids, "Award category order")?;
+    let pool = sqlite_pool(&instances, &database_url).await?;
+    let mut tx = pool
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|error| database_error("Failed to begin award reorder", error))?;
+
+    for (sort_order, category_id) in category_ids.into_iter().enumerate() {
+        let result =
+            sqlx::query("UPDATE award_categories SET sort_order = ? WHERE id = ? AND year = ?")
+                .bind(sort_order as i64)
+                .bind(category_id)
+                .bind(year)
+                .execute(&mut *tx)
+                .await
+                .map_err(|error| database_error("Failed to reorder an award category", error))?;
+        if result.rows_affected() != 1 {
+            return Err(format!(
+                "Award category {category_id} does not belong to year {year}"
+            ));
+        }
+    }
+
+    tx.commit()
+        .await
+        .map_err(|error| database_error("Failed to commit award reorder", error))
+}
+
+#[tauri::command]
+pub async fn database_reorder_backlog_items(
+    database_url: String,
+    status: String,
+    item_ids: Vec<i64>,
+    instances: State<'_, DbInstances>,
+) -> Result<(), String> {
+    if !matches!(status.as_str(), "planning" | "in_progress" | "unreleased") {
+        return Err("Backlog status is invalid".to_string());
+    }
+    validate_bulk_ids(&item_ids, "Backlog order")?;
+    let pool = sqlite_pool(&instances, &database_url).await?;
+    let mut tx = pool
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|error| database_error("Failed to begin backlog reorder", error))?;
+
+    for (sort_order, item_id) in item_ids.into_iter().enumerate() {
+        let result =
+            sqlx::query("UPDATE backlog_items SET sort_order = ? WHERE id = ? AND status = ?")
+                .bind(sort_order as i64)
+                .bind(item_id)
+                .bind(&status)
+                .execute(&mut *tx)
+                .await
+                .map_err(|error| database_error("Failed to reorder a backlog item", error))?;
+        if result.rows_affected() != 1 {
+            return Err(format!(
+                "Backlog item {item_id} does not belong to status {status}"
+            ));
+        }
+    }
+
+    tx.commit()
+        .await
+        .map_err(|error| database_error("Failed to commit backlog reorder", error))
 }
 
 #[tauri::command]
@@ -1570,13 +1899,13 @@ async fn import_backup_transaction(
             )?),
             None => None,
         };
-        if let Some(template_id) = target_template_id {
-            if let Some(conflict_id) = categories_by_template.get(&(category.year, template_id)) {
-                return Err(format!(
-                    "Award category '{}' conflicts with existing category ID {} for the same year and template",
-                    category.name, conflict_id
-                ));
-            }
+        if let Some(conflict_id) = target_template_id
+            .and_then(|template_id| categories_by_template.get(&(category.year, template_id)))
+        {
+            return Err(format!(
+                "Award category '{}' conflicts with existing category ID {} for the same year and template",
+                category.name, conflict_id
+            ));
         }
         let target_id = next_category_id;
         next_category_id += 1;
@@ -1775,6 +2104,14 @@ async fn import_backup_transaction(
     insert_hidden_profiles(tx, &planned_hidden).await?;
     insert_profile_history(tx, &planned_history).await?;
     insert_backlog_items(tx, &planned_backlog).await?;
+    // Entry INSERT triggers update FTS incrementally. Rebuild once at the end
+    // as an integrity boundary for large/legacy imports and future raw writers.
+    execute_schema_sql(
+        tx,
+        "INSERT INTO entries_fts(entries_fts) VALUES('rebuild')",
+        "Failed to synchronize the media search index after import",
+    )
+    .await?;
 
     Ok(DatabaseImportResult {
         table_counts: counts,
@@ -1806,5 +2143,8 @@ pub async fn database_import_backup(
     tx.commit()
         .await
         .map_err(|error| database_error("Failed to commit database import", error))?;
+    // Bulk imports change row distributions significantly; refresh planner
+    // statistics without failing the import itself.
+    let _ = sqlx::query("PRAGMA optimize").execute(&pool).await;
     Ok(result)
 }

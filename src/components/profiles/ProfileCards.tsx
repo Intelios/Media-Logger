@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import { Activity, Flag, Flame, Hash, MoreVertical, Star, Trophy, type LucideIcon } from 'lucide-react';
 import type { MediaEntry } from '../../lib/db';
 import type { ProfileSummary } from '../../lib/profiles-logic';
-import { useImageUrl } from '../../lib/utils';
 import { MediaListCard } from '../MediaListCard';
+import { CoverImage } from '../CoverImage';
 import { getTypeConfig, type ProfileTypeConfig } from './profile-config';
 
 export function TimelineCard({
@@ -129,7 +129,7 @@ export function ProfileCard({
   actionLabel: string;
   ActionIcon: LucideIcon;
 }) {
-  const imgSrc = useImageUrl(profile.image_url, '', { variant: 'thumbnail' });
+  const hasImage = Boolean(profile.image_url);
   const typeConfig = getTypeConfig(profile.type);
   const TypeIcon = typeConfig.icon;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -163,18 +163,14 @@ export function ProfileCard({
         onClick={() => onClick(profile)}
         className={`relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-sm border ${typeConfig.borderColor} rounded-2xl overflow-hidden hover:border-white/25 transition-all duration-300 text-left h-32 w-full flex items-stretch hover:scale-[1.02] hover:shadow-2xl ${typeConfig.shadowColor}`}
       >
-        {imgSrc && (
-          <>
-            <div className="media-list-card-blur" style={{ backgroundImage: `url("${imgSrc}")` }} />
-            <div className="media-list-card-overlay" />
-          </>
-        )}
-        {imgSrc ? (
-          <img
-            src={imgSrc}
+        {hasImage ? (
+          <CoverImage
+            path={profile.image_url}
+            variant="small"
             alt={profile.name}
-            className="relative z-[2] w-28 h-full min-h-0 flex-shrink-0 self-stretch object-cover object-center"
-            style={profile.crop ? { objectPosition: `${profile.crop.x}% ${profile.crop.y}%` } : undefined}
+            containerClassName="relative z-[2] h-full w-28 min-h-0 flex-shrink-0 self-stretch"
+            imageClassName="h-full w-full object-cover object-center"
+            imageStyle={profile.crop ? { objectPosition: `${profile.crop.x}% ${profile.crop.y}%` } : undefined}
           />
         ) : (
           <div className={`relative z-[2] w-28 flex-shrink-0 self-stretch flex items-center justify-center bg-gradient-to-br ${typeConfig.placeholderGradient}`}>

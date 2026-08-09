@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Eye, EyeOff, Users } from 'lucide-react';
-import type { ProfileSummary, ProfileType } from '../../lib/profiles-logic';
+import { getProfileKey, type ProfileSummary, type ProfileType } from '../../lib/profiles-logic';
+import { VirtualizedCardGrid } from '../VirtualizedCardGrid';
 import { ProfileCard } from './ProfileCards';
 import {
   PROFILE_FILTER_STORAGE_KEY,
@@ -150,12 +151,18 @@ export function ProfileIndexView({
       </header>
 
       {filteredProfiles.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-10">
-          {filteredProfiles.map((profile, index) => (
+        <VirtualizedCardGrid
+          items={filteredProfiles}
+          getItemKey={getProfileKey}
+          columns={{ base: 1, sm: 2, lg: 3, xl: 4 }}
+          gap={16}
+          estimatedRowHeight={128}
+          className="pb-10"
+          ariaLabel={showHidden ? 'Hidden profiles' : 'Profiles'}
+          renderItem={(profile, index) => (
             <div
-              key={`${profile.type}-${profile.name}-${index}`}
               className="profile-card-enter h-full"
-              style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
+              style={{ animationDelay: `${Math.min(index * 50, 300)}ms` }}
             >
               <ProfileCard
                 profile={profile}
@@ -165,8 +172,8 @@ export function ProfileIndexView({
                 ActionIcon={showHidden ? Eye : EyeOff}
               />
             </div>
-          ))}
-        </div>
+          )}
+        />
       ) : (
         <div className="flex flex-col items-center justify-center py-20">
           <div className="text-gray-500 text-center">

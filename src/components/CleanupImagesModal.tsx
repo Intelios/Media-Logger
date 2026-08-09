@@ -3,7 +3,8 @@ import { Check, CheckCircle2, Trash2, X } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { useFocusTrap } from '../lib/useFocusTrap';
-import { useImageUrl } from '../lib/utils';
+import { CoverImage } from './CoverImage';
+import { VirtualizedCardGrid } from './VirtualizedCardGrid';
 import {
     trashOrphanedImages,
     formatBytes,
@@ -20,6 +21,8 @@ interface CleanupImagesModalProps {
     showToast: (message: string) => void;
 }
 
+const getOrphanKey = (orphan: OrphanedImage) => orphan.name;
+
 function OrphanTile({
     orphan,
     selected,
@@ -29,8 +32,6 @@ function OrphanTile({
     selected: boolean;
     onToggle: () => void;
 }) {
-    const imgSrc = useImageUrl(`images/${orphan.name}`, undefined, { variant: 'thumbnail' });
-
     return (
         <div
             role="button"
@@ -42,7 +43,7 @@ function OrphanTile({
                     onToggle();
                 }
             }}
-            className={`relative rounded-xl overflow-hidden border text-left transition-colors cursor-pointer ${
+            className={`relative h-full rounded-xl overflow-hidden border text-left transition-colors cursor-pointer ${
                 selected ? '' : 'border-white/10 hover:border-white/25'
             }`}
             style={{
@@ -55,12 +56,15 @@ function OrphanTile({
                     : {}),
             }}
         >
-            <img
-                src={imgSrc}
+            <CoverImage
+                path={`images/${orphan.name}`}
                 alt={orphan.name}
-                loading="lazy"
-                className="w-full object-cover"
-                style={{ height: 180, display: 'block' }}
+                variant="small"
+                sizes="180px"
+                containerClassName="w-full"
+                imageClassName="w-full object-cover"
+                containerStyle={{ height: 180, display: 'block' }}
+                imageStyle={{ height: 180, display: 'block' }}
             />
             <div
                 className={`absolute top-2 left-2 w-5 h-5 rounded-md flex items-center justify-center border ${
@@ -102,6 +106,7 @@ export function CleanupImagesModal({
     const [showConfirm, setShowConfirm] = useState(false);
     const [lastResult, setLastResult] = useState<TrashResult | null>(null);
     const modalRef = useRef<HTMLDivElement>(null);
+    const tilesScrollRef = useRef<HTMLDivElement>(null);
 
     useEscapeToClose(isOpen && !showConfirm, onClose);
     useFocusTrap(isOpen, modalRef);
@@ -257,27 +262,31 @@ export function CleanupImagesModal({
                             </div>
 
                             <div
-                                className="grid grid-cols-3 sm:grid-cols-4 gap-3"
+                                ref={tilesScrollRef}
                                 style={{
                                     overflowY: 'auto',
                                     flex: 1,
                                     minHeight: 0,
                                     paddingRight: 4,
-                                    // Explicit row height: WebKit measures blob images as
-                                    // 0-height during intrinsic grid sizing, which collapses
-                                    // auto rows. 180px image + ~44px caption.
-                                    gridAutoRows: 226,
-                                    alignContent: 'start',
                                 }}
                             >
-                                {orphans.map((orphan) => (
-                                    <OrphanTile
-                                        key={orphan.name}
+                                <VirtualizedCardGrid
+                                    items={orphans}
+                                    getItemKey={getOrphanKey}
+                                    columns={{ base: 3, sm: 4 }}
+                                    gap={12}
+                                    estimatedRowHeight={226}
+                                    itemClassName="h-[226px]"
+                                    scrollContainerRef={tilesScrollRef}
+                                    ariaLabel="Unused images"
+                                    renderItem={(orphan) => (
+                                      <OrphanTile
                                         orphan={orphan}
                                         selected={selected.has(orphan.name)}
                                         onToggle={() => toggle(orphan.name)}
-                                    />
-                                ))}
+                                      />
+                                    )}
+                                />
                             </div>
                         </>
                     )}

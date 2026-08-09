@@ -10,36 +10,34 @@ import { CategoryPicker } from "../components/CategoryPicker";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
-import { useImageUrl } from "../lib/utils";
 import { formatDate } from "../lib/dates";
+import { CoverImage } from "../components/CoverImage";
 
 // Small helper component for loading images asynchronously (required for Tauri)
 function WinnerThumbnail({ entry }: { entry: MediaEntry }) {
-  const imgSrc = useImageUrl(entry.image_url, "", { variant: 'thumbnail' });
-
   return (
     <div className="w-16 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
-      {imgSrc && (
-        <img
-          src={imgSrc}
-          alt={entry.name}
-          className="w-full h-full object-cover"
-        />
-      )}
+      <CoverImage
+        path={entry.image_url}
+        alt={entry.name}
+        variant="small"
+        containerClassName="h-full w-full"
+        imageClassName="h-full w-full object-cover"
+      />
     </div>
   );
 }
 
 // Full-size cover image for award winner cards
 function WinnerCoverImage({ entry }: { entry: MediaEntry }) {
-  const imgSrc = useImageUrl(entry.image_url, undefined, { variant: 'thumbnail' });
-
   return (
-    <img
-      src={imgSrc}
+    <CoverImage
+      path={entry.image_url}
       alt={entry.name}
-      className="w-full h-full object-cover"
-      loading="lazy"
+      variant="card"
+      sizes="(min-width: 1280px) 18vw, 28vw"
+      containerClassName="h-full w-full"
+      imageClassName="h-full w-full object-cover"
     />
   );
 }
@@ -275,7 +273,7 @@ export default function AwardsPage() {
               <div
                 key={y.year}
                 className="relative group min-h-[140px] award-card-enter"
-                style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
+                style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
               >
                 <button
                   onClick={() => handleYearSelect(y.year)}
@@ -338,7 +336,7 @@ export default function AwardsPage() {
                   key={template.id}
                   onClick={() => handleTemplateSelect(template.id)}
                   className="relative bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl p-5 text-left hover:border-amber-500/40 transition-all group overflow-hidden award-card-enter"
-                  style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
+                  style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
                 >
                   <div className="absolute -top-10 -right-10 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-all" />
                   <div className="relative z-10 flex items-start gap-3">
@@ -455,7 +453,7 @@ export default function AwardsPage() {
               {pastWinners.map((entry, index) => (
                 <div
                   key={entry.category_id}
-                  style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
+                  style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
                   className={cn(
                     "award-item-enter",
                     "flex items-center gap-4 p-4 rounded-xl border transition-all",
@@ -564,7 +562,7 @@ export default function AwardsPage() {
           return (
             <div
               key={cat.id}
-              style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
+              style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
               className={cn(
                 "relative overflow-visible rounded-2xl p-6 transition-all border group award-item-enter",
                 winner

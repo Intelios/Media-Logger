@@ -1,7 +1,7 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { Maximize2 } from "lucide-react";
 import { cn } from "../../../lib/utils_ui";
-import { useImageUrl } from "../../../lib/utils";
+import { CoverImage as MediaCoverImage } from "../../CoverImage";
 import { useHoverTooltip } from "../../HoverTooltip";
 import type { PlateAccent } from "./plate-config";
 
@@ -267,12 +267,27 @@ export function BarRow({
 
 /**
  * Cover art for a panel. Sizing lives on the caller so the same loader serves a
- * poster grid and a 32px strip; the parent supplies the box, this fills it.
+ * poster grid and a 32px strip: `className` is the box, `imageClassName` styles
+ * the art that fills it (hover zooms belong there, or they scale the box too).
  */
-export function CoverImage({ path, className }: { path: string | null; className?: string }) {
-  const src = useImageUrl(path, undefined, { variant: "thumbnail" });
-
-  return <img src={src} alt="" loading="lazy" className={cn("object-cover", className)} />;
+export function CoverImage({
+  path,
+  className,
+  imageClassName,
+}: {
+  path: string | null;
+  className?: string;
+  imageClassName?: string;
+}) {
+  return (
+    <MediaCoverImage
+      path={path}
+      variant="small"
+      alt=""
+      containerClassName={className}
+      imageClassName={cn("h-full w-full object-cover", imageClassName)}
+    />
+  );
 }
 
 export function PanelEmptyState({ message }: { message: string }) {

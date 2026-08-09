@@ -1,4 +1,4 @@
-import type { MediaEntry } from "../../../lib/db";
+import type { StatsEntry } from "../../../lib/db";
 import {
   buildFullStatsFromDataset,
   createStatsDataset,
@@ -8,7 +8,7 @@ import {
 } from "../../../lib/stats-logic";
 
 // An inclusive calendar range, both bounds stored as "YYYY-MM-DD" so they compare
-// lexicographically against MediaEntry.completion_date without any Date parsing.
+// lexicographically against StatsEntry.completion_date without any Date parsing.
 export interface StatsRange {
   from: string;
   to: string;
@@ -40,7 +40,7 @@ export interface PlateData {
   granularity: "month" | "year";
   brushCells: BrushCell[];
   /** Entries inside the active range — what every panel and figure is derived from. */
-  rangedEntries: MediaEntry[];
+  rangedEntries: StatsEntry[];
   /** True distinct genre count, uncapped by the 25-item display list. */
   genreCount: number;
 }
@@ -50,6 +50,21 @@ export interface PlateComparison {
   stats: FullStats;
   timeline: TimelineBucket[];
   genreCount: number;
+}
+
+/** Serializable worker result. Entry rows stay in the worker/main caches. */
+export interface PlateAggregateData {
+  stats: FullStats;
+  timeline: TimelineBucket[];
+  granularity: "month" | "year";
+  brushCells: BrushCell[];
+  rangedEntryIds: number[];
+  genreCount: number;
+}
+
+export interface PlateSelectionResult {
+  plate: PlateAggregateData;
+  comparison: PlateComparison | null;
 }
 
 function formatDate(date: Date): string {
@@ -75,7 +90,7 @@ export function getGranularity(activeYear: string): "month" | "year" {
   return isAllTime(activeYear) ? "year" : "month";
 }
 
-export function filterEntriesByRange(entries: MediaEntry[], range: StatsRange | null): MediaEntry[] {
+export function filterEntriesByRange(entries: StatsEntry[], range: StatsRange | null): StatsEntry[] {
   if (!range) {
     return entries;
   }
@@ -92,7 +107,7 @@ export function filterEntriesByRange(entries: MediaEntry[], range: StatsRange | 
  * live count on every chip — including the types you have switched off — and so
  * toggling a type never costs a query.
  */
-export function filterEntriesByTypes(entries: MediaEntry[], selectedTypes: string[]): MediaEntry[] {
+export function filterEntriesByTypes(entries: StatsEntry[], selectedTypes: string[]): StatsEntry[] {
   if (selectedTypes.length === 0) {
     return [];
   }
@@ -116,7 +131,7 @@ function splitDelimited(value: string | null): string[] {
  * selectGenres caps its list at 25 for display, so the headline genre count has
  * to be counted separately or it silently plateaus at 25.
  */
-export function countDistinctGenres(entries: MediaEntry[]): number {
+export function countDistinctGenres(entries: StatsEntry[]): number {
   const genres = new Set<string>();
 
   for (const entry of entries) {
@@ -128,7 +143,7 @@ export function countDistinctGenres(entries: MediaEntry[]): number {
   return genres.size;
 }
 
-export function countEntriesByType(entries: MediaEntry[]): Map<string, number> {
+export function countEntriesByType(entries: StatsEntry[]): Map<string, number> {
   const counts = new Map<string, number>();
 
   for (const entry of entries) {
@@ -143,7 +158,7 @@ export function countEntriesByType(entries: MediaEntry[]): Map<string, number> {
   return counts;
 }
 
-function countsByDate(entries: MediaEntry[]): Map<string, number> {
+function countsByDate(entries: StatsEntry[]): Map<string, number> {
   const counts = new Map<string, number>();
 
   for (const entry of entries) {
@@ -160,7 +175,7 @@ function countsByDate(entries: MediaEntry[]): Map<string, number> {
 
 // Weekly cells covering the whole calendar year, Sunday-aligned like the old
 // completion heatmap so a cell always represents the same seven weekdays.
-function buildWeekCells(entries: MediaEntry[], year: number): BrushCell[] {
+function buildWeekCells(entries: StatsEntry[], year: number): BrushCell[] {
   const counts = countsByDate(entries);
   const cells: BrushCell[] = [];
 
@@ -207,7 +222,7 @@ function buildWeekCells(entries: MediaEntry[], year: number): BrushCell[] {
 
 // One cell per year that actually has entries, so All Time brushes by year and
 // lines up with the year-granularity chart above it.
-function buildYearCells(entries: MediaEntry[]): BrushCell[] {
+function buildYearCells(entries: StatsEntry[]): BrushCell[] {
   const perYear = new Map<string, number>();
 
   for (const [date, count] of countsByDate(entries)) {
@@ -228,7 +243,7 @@ function buildYearCells(entries: MediaEntry[]): BrushCell[] {
     }));
 }
 
-export function buildBrushCells(entries: MediaEntry[], activeYear: string): BrushCell[] {
+export function buildBrushCells(entries: StatsEntry[], activeYear: string): BrushCell[] {
   if (isAllTime(activeYear)) {
     return buildYearCells(entries);
   }
@@ -267,23 +282,40 @@ export function isCellInRange(cell: BrushCell, range: StatsRange | null): boolea
  * set. Brushing re-runs this and nothing else — there is no query behind it.
  */
 export function derivePlateData(
-  entries: MediaEntry[],
+  entries: StatsEntry[],
   activeYear: string,
   range: StatsRange | null
 ): PlateData {
   const granularity = getGranularity(activeYear);
   const rangedEntries = filterEntriesByRange(entries, range);
-  const dataset = createStatsDataset(rangedEntries);
+  const fullDataset = createStatsDataset(entries);
+  const rangedDataset = rangedEntries === entries ? fullDataset : createStatsDataset(rangedEntries);
 
   return {
-    stats: buildFullStatsFromDataset(dataset),
-    timeline: selectTimelineSeries(createStatsDataset(entries), granularity),
+    stats: buildFullStatsFromDataset(rangedDataset),
+    timeline: selectTimelineSeries(fullDataset, granularity),
     granularity,
     // The brush strip always shows the whole year so you can see what you are
     // selecting from, even while a narrower range is active.
     brushCells: buildBrushCells(entries, activeYear),
     rangedEntries,
     genreCount: countDistinctGenres(rangedEntries),
+  };
+}
+
+export function derivePlateAggregateData(
+  entries: StatsEntry[],
+  activeYear: string,
+  range: StatsRange | null,
+): PlateAggregateData {
+  const data = derivePlateData(entries, activeYear, range);
+  return {
+    stats: data.stats,
+    timeline: data.timeline,
+    granularity: data.granularity,
+    brushCells: data.brushCells,
+    rangedEntryIds: data.rangedEntries.map((entry) => entry.id),
+    genreCount: data.genreCount,
   };
 }
 
@@ -303,17 +335,44 @@ export function projectRangeOntoYear(range: StatsRange | null, year: string): St
 }
 
 export function deriveComparison(
-  comparisonEntries: MediaEntry[],
+  comparisonEntries: StatsEntry[],
   comparisonYear: string,
   range: StatsRange | null
 ): PlateComparison {
   const projected = projectRangeOntoYear(range, comparisonYear);
   const rangedEntries = filterEntriesByRange(comparisonEntries, projected);
+  const fullDataset = createStatsDataset(comparisonEntries);
+  const rangedDataset = rangedEntries === comparisonEntries
+    ? fullDataset
+    : createStatsDataset(rangedEntries);
 
   return {
     year: comparisonYear,
-    stats: buildFullStatsFromDataset(createStatsDataset(rangedEntries)),
-    timeline: selectTimelineSeries(createStatsDataset(comparisonEntries), "month"),
+    stats: buildFullStatsFromDataset(rangedDataset),
+    timeline: selectTimelineSeries(fullDataset, "month"),
     genreCount: countDistinctGenres(rangedEntries),
+  };
+}
+
+/** Shared by the Worker and the synchronous fallback to keep results identical. */
+export function derivePlateSelection(
+  activeEntries: StatsEntry[],
+  activeYear: string,
+  selectedTypes: string[],
+  range: StatsRange | null,
+  comparisonDataset: { entries: StatsEntry[]; year: string } | null,
+): PlateSelectionResult {
+  const typedEntries = filterEntriesByTypes(activeEntries, selectedTypes);
+  const comparison = comparisonDataset
+    ? deriveComparison(
+        filterEntriesByTypes(comparisonDataset.entries, selectedTypes),
+        comparisonDataset.year,
+        range,
+      )
+    : null;
+
+  return {
+    plate: derivePlateAggregateData(typedEntries, activeYear, range),
+    comparison,
   };
 }

@@ -1,7 +1,7 @@
-import { Children, isValidElement, useState, useEffect, useCallback, type ReactNode } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router";
+import { Children, isValidElement, useState, useEffect, useCallback, useLayoutEffect, useRef, type ReactNode, type SyntheticEvent } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Settings, PartyPopper, Bookmark, Database, X, ImageOff, RefreshCw } from "lucide-react";
+import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Settings, PartyPopper, Bookmark, Database, X, RefreshCw } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
 import { WelcomeScreen } from "./WelcomeScreen";
@@ -10,7 +10,8 @@ import { listen } from "@tauri-apps/api/event";
 import { shouldShowWelcome } from "../lib/onboarding-logic";
 import { getNavigationYears } from "../lib/settings";
 import { getAvailableNavigationYears, getCurrentYearString, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
-import { getReportedImageFailures, retryFailedImages, type ImageLoadFailureDetail } from "../lib/utils";
+import { MainScrollContainerProvider } from "../lib/scroll-container";
+import { recordRouteCommit } from "../lib/performance-diagnostics";
 
 function isMacPlatform(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -65,7 +66,11 @@ const yearTrailTransition = {
   damping: 30,
 } as const;
 
-export function Layout() {
+interface LayoutProps {
+  onPrefetchRoute?: (pathname: string) => void;
+}
+
+export function Layout({ onPrefetchRoute }: LayoutProps) {
   const [years, setYears] = useState<string[]>(() => getNavigationYears());
   const [isCompact, setIsCompact] = useState(() => {
     const saved = localStorage.getItem("sidebar-compact");
@@ -76,9 +81,43 @@ export function Layout() {
   const [showDbMigratedBanner, setShowDbMigratedBanner] = useState(false);
   const [dbInitializationError, setDbInitializationError] = useState<string | null>(null);
   const [isRetryingDatabase, setIsRetryingDatabase] = useState(false);
-  const [imageFailures, setImageFailures] = useState<Map<string, ImageLoadFailureDetail>>(new Map());
   const navigate = useNavigate();
+  const location = useLocation();
+  const mainScrollRef = useRef<HTMLElement>(null);
+  const routeStartedAtRef = useRef<number | null>(null);
   const currentYear = getCurrentYearString();
+
+  useLayoutEffect(() => {
+    mainScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    let secondFrame: number | null = null;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        recordRouteCommit(location.pathname, routeStartedAtRef.current ?? undefined);
+        routeStartedAtRef.current = null;
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame != null) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [location.pathname]);
+
+  const handleNavigationIntent = useCallback((event: SyntheticEvent<HTMLElement>) => {
+    if (!onPrefetchRoute || !(event.target instanceof Element)) return;
+    const link = event.target.closest("a[href]");
+    const href = link?.getAttribute("href");
+    if (!href?.startsWith("/")) return;
+    const pathname = new URL(href, window.location.origin).pathname;
+    onPrefetchRoute(pathname);
+  }, [location.pathname, onPrefetchRoute]);
+
+  const handleNavigationStart = useCallback((event: SyntheticEvent<HTMLElement>) => {
+    if (!(event.target instanceof Element)) return;
+    const href = event.target.closest("a[href]")?.getAttribute("href");
+    if (!href?.startsWith("/")) return;
+    const pathname = new URL(href, window.location.origin).pathname;
+    if (pathname !== location.pathname) routeStartedAtRef.current = performance.now();
+  }, [location.pathname]);
 
   // Persist compact mode
   useEffect(() => {
@@ -110,26 +149,6 @@ export function Layout() {
     };
   }, [refreshYears]);
 
-  useEffect(() => {
-    const handleImageFailure = (event: CustomEvent<ImageLoadFailureDetail>) => {
-      // Thumbnail generation failing is a transient, self-healing optimisation
-      // miss — the original cover is still rendered and the next visit usually
-      // succeeds. Only surface failures where the cover itself could not load.
-      if (event.detail.operation !== 'read') return;
-      setImageFailures((current) => {
-        const key = `${event.detail.operation}:${event.detail.path}`;
-        const next = new Map(current);
-        next.set(key, event.detail);
-        return next;
-      });
-    };
-    window.addEventListener('image-load-failed', handleImageFailure);
-    for (const detail of getReportedImageFailures()) {
-      handleImageFailure(new CustomEvent('image-load-failed', { detail }));
-    }
-    return () => window.removeEventListener('image-load-failed', handleImageFailure);
-  }, []);
-
   // Listen for menu events from Tauri backend.
   // listen() resolves to its unlisten fn asynchronously; under React 19
   // StrictMode the effect mounts→unmounts→mounts in dev, so we guard with a
@@ -141,6 +160,7 @@ export function Layout() {
     let offNewEntry: (() => void) | undefined;
 
     listen<string>("menu-navigate", (event) => {
+      routeStartedAtRef.current = performance.now();
       navigate(event.payload);
     }).then((fn) => {
       if (cancelled) fn();
@@ -247,11 +267,6 @@ export function Layout() {
     setShowDbMigratedBanner(false);
   };
 
-  const handleRetryImages = () => {
-    setImageFailures(new Map());
-    retryFailedImages();
-  };
-
   const handleWelcomeComplete = (openEntryForm?: boolean) => {
     setShowWelcome(false);
     if (openEntryForm) {
@@ -276,8 +291,6 @@ export function Layout() {
       console.error("Failed to save entry:", error);
     }
   };
-
-  const readFailureCount = imageFailures.size;
 
   if (dbInitializationError) {
     return (
@@ -317,7 +330,12 @@ export function Layout() {
         style={{ borderColor: "var(--color-border)" }}
       >
         {/* Navigation Items */}
-        <nav className="flex-1 -ml-3 space-y-1 overflow-y-auto pl-3 pr-1 custom-scrollbar">
+        <nav
+          className="flex-1 -ml-3 space-y-1 overflow-y-auto pl-3 pr-1 custom-scrollbar"
+          onPointerOver={handleNavigationIntent}
+          onFocus={handleNavigationIntent}
+          onClickCapture={handleNavigationStart}
+        >
 
           <NavItem to="/" icon={<Home size={18} />} label="Home" shortcut={getShortcutLabel("1")} isCompact={isCompact} />
 
@@ -435,39 +453,8 @@ export function Layout() {
           className="pointer-events-none absolute inset-0 z-0"
           style={{ backgroundColor: 'var(--color-background)' }}
         />
-        <main className="relative z-[1] h-full overflow-y-auto p-6 scroll-smooth">
-          {imageFailures.size > 0 && (
-            <div
-              className="mb-4 flex items-start gap-3 rounded-xl border px-4 py-3"
-              style={{
-                borderColor: "rgba(245, 158, 11, 0.35)",
-                backgroundColor: "rgba(245, 158, 11, 0.10)",
-              }}
-            >
-              <ImageOff size={18} className="mt-0.5 shrink-0 text-amber-400" />
-              <div className="flex-1 text-sm text-[var(--color-text)]">
-                {readFailureCount === 1
-                  ? 'One cover could not be loaded.'
-                  : `${readFailureCount} covers could not be loaded.`}
-                {' '}Fallback artwork is being shown.
-              </div>
-              <button
-                onClick={handleRetryImages}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-amber-200 transition-colors hover:bg-amber-500/15"
-              >
-                <RefreshCw size={14} />
-                Retry
-              </button>
-              <button
-                onClick={() => setImageFailures(new Map())}
-                className="shrink-0 rounded-md p-1 text-[var(--color-text-muted)] transition-colors hover:bg-black/5 hover:text-[var(--color-text)]"
-                title="Dismiss image warning"
-                aria-label="Dismiss image warning"
-              >
-                <X size={16} />
-              </button>
-            </div>
-          )}
+        <MainScrollContainerProvider scrollRef={mainScrollRef}>
+        <main ref={mainScrollRef} className="relative z-[1] h-full overflow-y-auto p-6 scroll-smooth">
           {showDbMigratedBanner && (
           <div
             className="mb-4 flex items-start gap-3 rounded-xl border px-4 py-3"
@@ -493,6 +480,7 @@ export function Layout() {
         )}
         <Outlet />
         </main>
+        </MainScrollContainerProvider>
       </div>
 
       {showEntryForm && (
