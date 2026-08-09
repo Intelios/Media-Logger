@@ -138,7 +138,7 @@ export default function StatsPage() {
   const loadYearEntries = useCallback(async () => {
     // Fetched without a type filter so the toolbar can count every chip, including
     // the types currently switched off. Adult exclusion still applies in SQL.
-    const entries = await statsLogic.getFilteredEntries(activeYear, []);
+    const entries = await statsLogic.getFilteredEntries(activeYear);
     setYearEntries(entries);
   }, [activeYear]);
 
@@ -218,8 +218,8 @@ export default function StatsPage() {
   );
 
   const plate = useMemo(
-    () => derivePlateData(typedEntries, activeYear, selectedTypes, range),
-    [typedEntries, activeYear, selectedTypes, range]
+    () => derivePlateData(typedEntries, activeYear, range),
+    [typedEntries, activeYear, range]
   );
 
   const comparison = useMemo(() => {
@@ -230,7 +230,6 @@ export default function StatsPage() {
     return deriveComparison(
       filterEntriesByTypes(comparisonEntries, selectedTypes),
       preferences.compareYear,
-      selectedTypes,
       range
     );
   }, [preferences.compareEnabled, preferences.compareYear, comparisonEntries, selectedTypes, range]);
@@ -258,7 +257,7 @@ export default function StatsPage() {
     }
 
     let cancelled = false;
-    void statsLogic.getFilteredEntries(compareYear, []).then((entries) => {
+    void statsLogic.getFilteredEntries(compareYear).then((entries) => {
       if (!cancelled) {
         setComparisonEntries(entries);
       }

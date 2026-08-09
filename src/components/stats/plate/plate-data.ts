@@ -269,7 +269,6 @@ export function isCellInRange(cell: BrushCell, range: StatsRange | null): boolea
 export function derivePlateData(
   entries: MediaEntry[],
   activeYear: string,
-  selectedTypes: string[],
   range: StatsRange | null
 ): PlateData {
   const granularity = getGranularity(activeYear);
@@ -277,7 +276,7 @@ export function derivePlateData(
   const dataset = createStatsDataset(rangedEntries);
 
   return {
-    stats: buildFullStatsFromDataset(dataset, { year: activeYear, types: selectedTypes }),
+    stats: buildFullStatsFromDataset(dataset),
     timeline: selectTimelineSeries(createStatsDataset(entries), granularity),
     granularity,
     // The brush strip always shows the whole year so you can see what you are
@@ -306,7 +305,6 @@ export function projectRangeOntoYear(range: StatsRange | null, year: string): St
 export function deriveComparison(
   comparisonEntries: MediaEntry[],
   comparisonYear: string,
-  selectedTypes: string[],
   range: StatsRange | null
 ): PlateComparison {
   const projected = projectRangeOntoYear(range, comparisonYear);
@@ -314,10 +312,7 @@ export function deriveComparison(
 
   return {
     year: comparisonYear,
-    stats: buildFullStatsFromDataset(createStatsDataset(rangedEntries), {
-      year: comparisonYear,
-      types: selectedTypes,
-    }),
+    stats: buildFullStatsFromDataset(createStatsDataset(rangedEntries)),
     timeline: selectTimelineSeries(createStatsDataset(comparisonEntries), "month"),
     genreCount: countDistinctGenres(rangedEntries),
   };

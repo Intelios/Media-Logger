@@ -10,17 +10,6 @@ export interface StatItem {
   [key: string]: string | number | undefined;
 }
 
-export interface ScoreTimelinePoint {
-  label: string;
-  averageScore: number | null;
-  count: number;
-}
-
-export interface ComparisonSeries {
-  monthlyCompletions: { month: string; count: number }[];
-  scoreTimeline: ScoreTimelinePoint[];
-}
-
 interface MultiLogDayEntry {
   id: number;
   name: string;
@@ -73,11 +62,8 @@ export interface FullStats {
   actresses: StatItem[];
   perfectTenCount: number;
   entriesThisMonth: number;
-  monthlyCompletions: { month: string; count: number }[];
   mediaTypeBreakdown: StatItem[];
   multiLogDays: MultiLogDay[];
-  scoreTimeline: ScoreTimelinePoint[];
-  scoreTimelineGranularity: "month" | "year";
   averageScoreByType: StatItem[];
   dailyCompletions: DailyCompletion[];
   mostReplayed: MostReplayedItem[];
@@ -90,11 +76,6 @@ export interface TimelineBucket {
   averageScore: number | null;
   rewatches: number;
   platinums: number;
-}
-
-export interface StatsFilters {
-  year?: string;
-  types?: string[];
 }
 
 export interface StatsDataset {
@@ -117,32 +98,6 @@ type CountableField =
 
 const MONTH_KEYS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
-function getTimelineGranularity(filters: StatsFilters): "month" | "year" {
-  return filters.year && filters.year !== "All Time" ? "month" : "year";
-}
-
-function appendStatsFilters(query: string, params: Array<string | number>, filters: StatsFilters) {
-  let nextQuery = query;
-
-  if (filters.year && filters.year !== "All Time") {
-    params.push(filters.year);
-    nextQuery += ` AND year_completed = $${params.length}`;
-  }
-
-  if ((filters.types ?? []).length > 0) {
-    const selectedTypes = filters.types ?? [];
-    const placeholders = selectedTypes.map((_, index) => `$${params.length + index + 1}`).join(", ");
-    nextQuery += ` AND entry_type IN (${placeholders})`;
-    params.push(...selectedTypes);
-  }
-
-  // Exclude adult entries from every stat (totals, averages, breakdowns,
-  // widgets) when the Adult Media setting is off. No-op when enabled.
-  nextQuery += adultExclusionSql();
-
-  return nextQuery;
-}
-
 function hasReviewScore(entry: MediaEntry): entry is MediaEntry & { review_score: number } {
   return typeof entry.review_score === "number" && Number.isFinite(entry.review_score);
 }
@@ -153,13 +108,6 @@ function isGameEntry(entry: MediaEntry) {
 
 function isTvEntry(entry: MediaEntry) {
   return typeof entry.entry_type === "string" && ["show", "k-drama", "anime"].includes(entry.entry_type.trim().toLowerCase());
-}
-
-function getMonthFromDate(dateStr: string) {
-  // completion_date is stored as "YYYY-MM-DD"; parse the month directly so the
-  // label is locale-independent and always matches MONTH_KEYS.
-  const monthIndex = Number(dateStr.slice(5, 7)) - 1;
-  return MONTH_KEYS[monthIndex] ?? "Unknown";
 }
 
 function getDelimitedValues(value: string | null | undefined) {
@@ -285,29 +233,6 @@ export function selectRatingDistribution(dataset: StatsDataset): StatItem[] {
   return ratings;
 }
 
-export function selectMonthlyCompletions(dataset: StatsDataset) {
-  const monthlyMap = MONTH_KEYS.reduce<Record<(typeof MONTH_KEYS)[number], number>>((accumulator, month) => {
-    accumulator[month] = 0;
-    return accumulator;
-  }, {} as Record<(typeof MONTH_KEYS)[number], number>);
-
-  for (const entry of dataset.entries) {
-    if (!entry.completion_date) {
-      continue;
-    }
-
-    const month = getMonthFromDate(entry.completion_date);
-    if (month in monthlyMap) {
-      monthlyMap[month as keyof typeof monthlyMap] += 1;
-    }
-  }
-
-  return MONTH_KEYS.map((month) => ({
-    month,
-    count: monthlyMap[month],
-  }));
-}
-
 export function selectGenres(dataset: StatsDataset) {
   return countWithScores(dataset.entries, "genre").slice(0, 25);
 }
@@ -373,61 +298,6 @@ export function selectMultiLogDays(dataset: StatsDataset): MultiLogDay[] {
         const idDiff = right.id - left.id;
         return idDiff !== 0 ? idDiff : left.name.localeCompare(right.name);
       }),
-    }));
-}
-
-export function selectScoreTimeline(dataset: StatsDataset, granularity: "month" | "year"): ScoreTimelinePoint[] {
-  if (granularity === "month") {
-    const monthlyScores = MONTH_KEYS.reduce<
-      Record<(typeof MONTH_KEYS)[number], { totalScore: number; count: number }>
-    >((accumulator, month) => {
-      accumulator[month] = { totalScore: 0, count: 0 };
-      return accumulator;
-    }, {} as Record<(typeof MONTH_KEYS)[number], { totalScore: number; count: number }>);
-
-    for (const entry of dataset.ratedEntries) {
-      if (!entry.completion_date) {
-        continue;
-      }
-
-      const month = getMonthFromDate(entry.completion_date);
-      if (month in monthlyScores) {
-        monthlyScores[month as keyof typeof monthlyScores].totalScore += entry.review_score;
-        monthlyScores[month as keyof typeof monthlyScores].count += 1;
-      }
-    }
-
-    return MONTH_KEYS.map((month) => ({
-      label: month,
-      averageScore: monthlyScores[month].count > 0 ? monthlyScores[month].totalScore / monthlyScores[month].count : null,
-      count: monthlyScores[month].count,
-    }));
-  }
-
-  const yearlyScores = new Map<string, { totalScore: number; count: number }>();
-
-  for (const entry of dataset.ratedEntries) {
-    if (!entry.completion_date) {
-      continue;
-    }
-
-    try {
-      const yearLabel = new Date(entry.completion_date).getFullYear().toString();
-      const current = yearlyScores.get(yearLabel) ?? { totalScore: 0, count: 0 };
-      current.totalScore += entry.review_score;
-      current.count += 1;
-      yearlyScores.set(yearLabel, current);
-    } catch {
-      // Ignore invalid dates.
-    }
-  }
-
-  return [...yearlyScores.entries()]
-    .sort(([leftYear], [rightYear]) => Number(leftYear) - Number(rightYear))
-    .map(([label, value]) => ({
-      label,
-      averageScore: value.count > 0 ? value.totalScore / value.count : null,
-      count: value.count,
     }));
 }
 
@@ -595,9 +465,8 @@ export function selectMostReplayed(dataset: StatsDataset): MostReplayedItem[] {
     }));
 }
 
-export function buildFullStatsFromDataset(dataset: StatsDataset, filters: StatsFilters = {}): FullStats {
+export function buildFullStatsFromDataset(dataset: StatsDataset): FullStats {
   const basicStats = selectBasicStats(dataset);
-  const timelineGranularity = getTimelineGranularity(filters);
 
   return {
     ...basicStats,
@@ -609,121 +478,29 @@ export function buildFullStatsFromDataset(dataset: StatsDataset, filters: StatsF
     studios: selectStudios(dataset),
     authors: selectAuthors(dataset),
     actresses: selectActresses(dataset),
-    monthlyCompletions: selectMonthlyCompletions(dataset),
     mediaTypeBreakdown: selectMediaTypeBreakdown(dataset),
     multiLogDays: selectMultiLogDays(dataset),
-    scoreTimeline: selectScoreTimeline(dataset, timelineGranularity),
-    scoreTimelineGranularity: timelineGranularity,
     averageScoreByType: selectAverageScoreByType(dataset),
     dailyCompletions: selectDailyCompletions(dataset),
     mostReplayed: selectMostReplayed(dataset),
   };
 }
 
-async function getFilteredEntries(filters: StatsFilters): Promise<MediaEntry[]> {
+async function getFilteredEntries(yearFilter?: string): Promise<MediaEntry[]> {
   const db = await dbService.connect();
   const params: Array<string | number> = [];
   let query = "SELECT * FROM entries WHERE 1=1";
 
-  query = appendStatsFilters(query, params, filters);
+  if (yearFilter && yearFilter !== "All Time") {
+    params.push(yearFilter);
+    query += ` AND year_completed = $${params.length}`;
+  }
+
+  // Adult exclusion remains in SQL so hidden entries never enter Plate's
+  // in-memory derivations. Type and range filtering happen client-side.
+  query += adultExclusionSql();
 
   return db.select<MediaEntry[]>(query, params);
 }
 
-async function getPerfect10Entries(filters: StatsFilters): Promise<MediaEntry[]> {
-  const db = await dbService.connect();
-  const params: Array<string | number> = [];
-  let query = "SELECT * FROM entries WHERE review_score = 10";
-
-  query = appendStatsFilters(query, params, filters);
-  query += " ORDER BY completion_date DESC";
-
-  return db.select<MediaEntry[]>(query, params);
-}
-
-async function getEntriesByGenre(genre: string, filters: StatsFilters): Promise<MediaEntry[]> {
-  const db = await dbService.connect();
-  const params: Array<string | number> = [`%${genre}%`];
-  let query = "SELECT * FROM entries WHERE genre LIKE $1";
-
-  query = appendStatsFilters(query, params, filters);
-  query += " ORDER BY review_score DESC, completion_date DESC";
-
-  const entries = await db.select<MediaEntry[]>(query, params);
-
-  return entries.filter((entry) => getDelimitedValues(entry.genre).includes(genre));
-}
-
-async function getEntriesByCompletionDate(date: string, filters: StatsFilters): Promise<MediaEntry[]> {
-  const db = await dbService.connect();
-  const params: Array<string | number> = [date];
-  let query = "SELECT * FROM entries WHERE completion_date = $1";
-
-  query = appendStatsFilters(query, params, filters);
-  query += " ORDER BY id DESC";
-
-  return db.select<MediaEntry[]>(query, params);
-}
-
-function formatLocalDate(year: number, monthIndex: number, day: number): string {
-  // Build a "YYYY-MM-DD" string directly from local components so the range
-  // bounds are not shifted by toISOString()'s UTC conversion (which can pull
-  // the start of a local month into the previous day/previous month in
-  // timezones ahead of UTC, leaking the last day of the prior month in).
-  const mm = String(monthIndex + 1).padStart(2, "0");
-  const dd = String(day).padStart(2, "0");
-  return `${year}-${mm}-${dd}`;
-}
-
-async function getThisMonthEntries(filters: StatsFilters): Promise<MediaEntry[]> {
-  const db = await dbService.connect();
-  const now = new Date();
-  const startDate = formatLocalDate(now.getFullYear(), now.getMonth(), 1);
-  const endDate = formatLocalDate(now.getFullYear(), now.getMonth() + 1, 1);
-  const params: Array<string | number> = [startDate, endDate];
-  let query = "SELECT * FROM entries WHERE completion_date >= $1 AND completion_date < $2";
-
-  query = appendStatsFilters(query, params, filters);
-  query += " ORDER BY completion_date DESC";
-
-  return db.select<MediaEntry[]>(query, params);
-}
-
-export const statsLogic = {
-  async getStats(yearFilter?: string, typeFilter: string[] = []): Promise<FullStats> {
-    const entries = await getFilteredEntries({ year: yearFilter, types: typeFilter });
-    return buildFullStatsFromDataset(createStatsDataset(entries), { year: yearFilter, types: typeFilter });
-  },
-
-  // Lightweight fetch for the per-widget "Compare year" overlay. A comparison year is always a
-  // specific year, so the score timeline is computed at month granularity to line up with the
-  // active chart's Jan–Dec axis. Filters (types + adult exclusion) are honoured via getFilteredEntries.
-  async getComparisonSeries(year: string, typeFilter: string[] = []): Promise<ComparisonSeries> {
-    const entries = await getFilteredEntries({ year, types: typeFilter });
-    const dataset = createStatsDataset(entries);
-    return {
-      monthlyCompletions: selectMonthlyCompletions(dataset),
-      scoreTimeline: selectScoreTimeline(dataset, "month"),
-    };
-  },
-
-  async getFilteredEntries(yearFilter?: string, typeFilter: string[] = []) {
-    return getFilteredEntries({ year: yearFilter, types: typeFilter });
-  },
-
-  async getPerfect10Entries(yearFilter?: string, typeFilter: string[] = []) {
-    return getPerfect10Entries({ year: yearFilter, types: typeFilter });
-  },
-
-  async getEntriesByGenre(genre: string, yearFilter?: string, typeFilter: string[] = []) {
-    return getEntriesByGenre(genre, { year: yearFilter, types: typeFilter });
-  },
-
-  async getEntriesByCompletionDate(date: string, yearFilter?: string, typeFilter: string[] = []) {
-    return getEntriesByCompletionDate(date, { year: yearFilter, types: typeFilter });
-  },
-
-  async getThisMonthEntries(yearFilter?: string, typeFilter: string[] = []) {
-    return getThisMonthEntries({ year: yearFilter, types: typeFilter });
-  },
-};
+export const statsLogic = { getFilteredEntries };
