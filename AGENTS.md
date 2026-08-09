@@ -46,9 +46,11 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app.
 
 **Routing** (`react-router` v8 — import from `react-router`, **not** `react-router-dom`): `/`, `/year/:year`, `/search`, `/stats`, `/profiles`, `/awards`, `/collections`, `/backlog`, `/review`, `/settings`.
 
-## Stats Screen (Plate · Spine)
+## Stats Screen (Plate UI)
 
 A **single screen that never scrolls**. The old widget dashboard (`StatsDashboard`, `StatsSectionGrid`, `StatsWidgetGrid`, `StatsSummaryRibbon`, `StatsWidgetShell`, `stats-registry.tsx`, `stats-layout.ts`, `src/components/stats/widgets/`) is deleted — do not reintroduce that structure. Everything lives in `src/components/stats/plate/`.
+
+The design of this stats page is under the codename 'Plate'.
 
 Layout is toolbar → figure strip → timeline hero → a fixed 4-panel grid, all inside one `h-full` column.
 
