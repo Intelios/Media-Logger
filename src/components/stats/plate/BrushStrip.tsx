@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { cn } from "../../../lib/utils_ui";
-import { isCellInRange, rangeFromCells, type BrushCell, type StatsRange } from "./plate-data";
+import { formatShortDate } from "../../../lib/dates";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "./PlateTooltip";
+import { BUSY_DAY_THRESHOLD, isCellInRange, rangeFromCells, type BrushCell, type StatsRange } from "./plate-data";
 
 interface BrushStripProps {
   cells: BrushCell[];
@@ -22,6 +24,7 @@ function intensityClass(count: number, maxCount: number): string {
 }
 
 export function BrushStrip({ cells, range, onRangeChange }: BrushStripProps) {
+  const { bindTooltip, hideTooltip, tooltip } = useHoverTooltip();
   const [drag, setDrag] = useState<{ anchor: number; head: number } | null>(null);
 
   // Commit on pointerup anywhere so a drag that leaves the strip still resolves
@@ -48,8 +51,11 @@ export function BrushStrip({ cells, range, onRangeChange }: BrushStripProps) {
   const previewRange = drag ? rangeFromCells(cells, drag.anchor, drag.head) : range;
   const hasSelection = previewRange !== null;
 
+  const isSingleDay = (cell: BrushCell) => cell.from === cell.to;
+
   return (
-    <div className="flex shrink-0 flex-col gap-1 select-none">
+    <div className="flex shrink-0 select-none flex-col gap-1">
+      {tooltip}
       <div
         className="flex items-stretch gap-[2px]"
         onDoubleClick={() => onRangeChange(null)}
@@ -58,22 +64,46 @@ export function BrushStrip({ cells, range, onRangeChange }: BrushStripProps) {
       >
         {cells.map((cell, index) => {
           const isSelected = isCellInRange(cell, previewRange);
+          const tooltipHandlers = bindTooltip(
+            <>
+              <TooltipTitle>
+                {cell.from.length === 4 || cell.label.length === 4
+                  ? cell.label
+                  : isSingleDay(cell)
+                    ? formatShortDate(cell.from)
+                    : `${formatShortDate(cell.from)} — ${formatShortDate(cell.to)}`}
+              </TooltipTitle>
+              <TooltipDetail>
+                {cell.count} {cell.count === 1 ? "entry" : "entries"}
+                {cell.peakDayCount > 1 ? ` · busiest day had ${cell.peakDayCount}` : ""}
+              </TooltipDetail>
+            </>
+          );
 
           return (
             <button
               key={cell.key}
               type="button"
-              title={`${cell.label} · ${cell.count} ${cell.count === 1 ? "entry" : "entries"}`}
               onPointerDown={(event) => {
                 event.preventDefault();
+                // A tooltip trailing the cursor through a drag is noise.
+                hideTooltip();
                 setDrag({ anchor: index, head: index });
               }}
-              onPointerEnter={() => {
-                setDrag((current) => (current ? { ...current, head: index } : null));
+              onPointerEnter={(event) => {
+                if (drag) {
+                  setDrag({ ...drag, head: index });
+                  return;
+                }
+
+                tooltipHandlers.onPointerEnter(event);
               }}
+              onPointerLeave={tooltipHandlers.onPointerLeave}
               className={cn(
                 "h-3.5 min-w-0 flex-1 rounded-[2px] transition-all",
-                cell.hasMultiLog ? "bg-amber-400/90" : intensityClass(cell.count, maxCount),
+                cell.peakDayCount >= BUSY_DAY_THRESHOLD
+                  ? "bg-amber-400/90"
+                  : intensityClass(cell.count, maxCount),
                 // Dimming everything outside the selection reads instantly; an
                 // outline alone disappears against a strip of mostly-empty cells.
                 hasSelection && !isSelected && "opacity-25",

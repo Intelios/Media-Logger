@@ -3,6 +3,7 @@ import { Layers } from "lucide-react";
 import { cn } from "../../../../lib/utils_ui";
 import type { StatItem } from "../../../../lib/stats-logic";
 import { BarRow, PanelEmptyState, PanelFrame } from "../plate-ui";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../PlateTooltip";
 
 export const CATALOGUE_KINDS = ["platforms", "franchises", "series", "studios", "authors", "actresses"] as const;
 export type CatalogueKind = (typeof CATALOGUE_KINDS)[number];
@@ -19,11 +20,13 @@ const KIND_LABELS: Record<CatalogueKind, string> = {
 interface CataloguePanelProps {
   items: Record<CatalogueKind, StatItem[]>;
   comparisonItems: Record<CatalogueKind, StatItem[]> | null;
+  total: number;
   variant: "compact" | "expanded";
   onExpand?: () => void;
 }
 
-export function CataloguePanel({ items, comparisonItems, variant, onExpand }: CataloguePanelProps) {
+export function CataloguePanel({ items, comparisonItems, total, variant, onExpand }: CataloguePanelProps) {
+  const { bindTooltip, tooltip } = useHoverTooltip();
   const isExpanded = variant === "expanded";
   const [requestedKind, setRequestedKind] = useState<CatalogueKind>("platforms");
 
@@ -61,6 +64,7 @@ export function CataloguePanel({ items, comparisonItems, variant, onExpand }: Ca
       onExpand={onExpand}
       bodyClassName="gap-2"
     >
+      {tooltip}
       <div className={cn("flex shrink-0 gap-1", !isExpanded && "overflow-x-auto")}>
         {availableKinds.map((kind) => (
           <button
@@ -89,9 +93,19 @@ export function CataloguePanel({ items, comparisonItems, variant, onExpand }: Ca
             ghostFraction={
               comparisonList && comparisonMax > 0 ? (comparisonByName.get(item.name) ?? 0) / comparisonMax : undefined
             }
+            share={total > 0 ? item.count / total : undefined}
             color="#38bdf8"
             nameWidth={isExpanded ? "11rem" : "4.5rem"}
-            title={item.avgScore !== undefined ? `avg ${item.avgScore.toFixed(1)}` : undefined}
+            hoverProps={bindTooltip(
+              <>
+                <TooltipTitle>{item.name}</TooltipTitle>
+                <TooltipDetail>
+                  {item.count} {item.count === 1 ? "entry" : "entries"}
+                  {total > 0 ? ` · ${((item.count / total) * 100).toFixed(1)}% of selection` : ""}
+                  {item.avgScore !== undefined ? ` · avg ${item.avgScore.toFixed(1)}` : ""}
+                </TooltipDetail>
+              </>
+            )}
           />
         ))}
       </div>

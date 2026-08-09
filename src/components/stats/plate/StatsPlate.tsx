@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import type { MediaFilterPreset } from "../../../lib/media-config";
 import {
   PLATE_PANEL_DEFINITIONS,
@@ -83,6 +84,19 @@ export function StatsPlate({
   onDateClick,
 }: StatsPlateProps) {
   const [expanded, setExpanded] = useState<ExpandedTarget>(null);
+  const prefersReducedMotion = useReducedMotion();
+
+  // Mount-only reveal. StatsPlate mounts once the first row set has loaded, so
+  // this fires on page entry — deliberately not keyed to the range, or the whole
+  // plate would re-animate on every frame of a brush drag.
+  const reveal = (order: number) =>
+    prefersReducedMotion
+      ? {}
+      : {
+          initial: { opacity: 0, y: 10 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.3, delay: order * 0.05, ease: "easeOut" as const },
+        };
 
   const panelContext: PlatePanelContext = {
     stats: plate.stats,
@@ -98,8 +112,9 @@ export function StatsPlate({
 
   return (
     <div className="relative flex h-full min-h-[860px] flex-col gap-3 xl:min-h-[620px]">
-      <PlateToolbar
-        activeYear={activeYear}
+      <motion.div className="shrink-0" {...reveal(0)}>
+        <PlateToolbar
+          activeYear={activeYear}
         yearOptions={yearOptions}
         onActiveYearChange={onActiveYearChange}
         entryTypes={entryTypes}
@@ -114,41 +129,49 @@ export function StatsPlate({
         comparisonYearOptions={comparisonYearOptions}
         onToggleCompare={onToggleCompare}
         onCompareYearChange={onCompareYearChange}
-        isCustomizing={isCustomizing}
-        onToggleCustomize={onToggleCustomize}
-      />
+          isCustomizing={isCustomizing}
+          onToggleCustomize={onToggleCustomize}
+        />
+      </motion.div>
 
-      <FigureStrip
-        stats={plate.stats}
-        comparisonStats={comparison?.stats ?? null}
-        genreCount={plate.genreCount}
-        comparisonGenreCount={comparison?.genreCount ?? null}
-        figures={preferences.figures}
-        range={range}
-        onPerfectClick={onPerfectClick}
-        onThisMonthClick={onThisMonthClick}
-      />
+      <motion.div className="shrink-0" {...reveal(1)}>
+        <FigureStrip
+          stats={plate.stats}
+          comparisonStats={comparison?.stats ?? null}
+          genreCount={plate.genreCount}
+          comparisonGenreCount={comparison?.genreCount ?? null}
+          figures={preferences.figures}
+          range={range}
+          onPerfectClick={onPerfectClick}
+          onThisMonthClick={onThisMonthClick}
+        />
+      </motion.div>
 
-      <TimelineHero
-        timeline={plate.timeline}
-        comparisonTimeline={comparison?.timeline ?? null}
-        comparisonYear={comparison?.year ?? null}
-        layers={preferences.layers}
-        onToggleLayer={onToggleLayer}
-        brushCells={plate.brushCells}
-        range={range}
-        onRangeChange={onRangeChange}
-        activeYear={activeYear}
-        rangedTotal={plate.stats.total}
-        onExpand={() => setExpanded("timeline")}
-        className="flex-1"
-      />
+      <motion.div className="flex min-h-0 flex-1 flex-col" {...reveal(2)}>
+        <TimelineHero
+          timeline={plate.timeline}
+          comparisonTimeline={comparison?.timeline ?? null}
+          comparisonYear={comparison?.year ?? null}
+          layers={preferences.layers}
+          onToggleLayer={onToggleLayer}
+          brushCells={plate.brushCells}
+          range={range}
+          onRangeChange={onRangeChange}
+          activeYear={activeYear}
+          rangedTotal={plate.stats.total}
+          onExpand={() => setExpanded("timeline")}
+        />
+      </motion.div>
 
       <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-3 xl:grid-cols-4 xl:grid-rows-1">
         {preferences.slots.map((panelId, slotIndex) => (
-          <div key={`${panelId}-${slotIndex}`} className="flex min-h-0 min-w-0 flex-col">
+          <motion.div
+            key={`${panelId}-${slotIndex}`}
+            className="flex min-h-0 min-w-0 flex-col"
+            {...reveal(3 + slotIndex)}
+          >
             {renderPlatePanel(panelId, panelContext, "compact", () => setExpanded(panelId))}
-          </div>
+          </motion.div>
         ))}
       </div>
 

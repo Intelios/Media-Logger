@@ -78,6 +78,7 @@ export function renderPlatePanel(
         <CataloguePanel
           items={toCatalogueItems(stats)}
           comparisonItems={comparisonStats ? toCatalogueItems(comparisonStats) : null}
+          total={stats.total}
           variant={variant}
           onExpand={onExpand}
         />
@@ -87,6 +88,7 @@ export function renderPlatePanel(
         <StandoutsPanel
           mostReplayed={stats.mostReplayed}
           perfectEntries={selectPerfectEntries(rangedEntries)}
+          rangedEntries={rangedEntries}
           variant={variant}
           onPerfectClick={onPerfectClick}
           onExpand={onExpand}

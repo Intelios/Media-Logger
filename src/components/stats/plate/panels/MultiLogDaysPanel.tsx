@@ -3,6 +3,7 @@ import { cn } from "../../../../lib/utils_ui";
 import type { MultiLogDay } from "../../../../lib/stats-logic";
 import { formatShortDate } from "../../../../lib/dates";
 import { PanelEmptyState, PanelFrame } from "../plate-ui";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../PlateTooltip";
 
 interface MultiLogDaysPanelProps {
   multiLogDays: MultiLogDay[];
@@ -12,6 +13,7 @@ interface MultiLogDaysPanelProps {
 }
 
 export function MultiLogDaysPanel({ multiLogDays, variant, onDateClick, onExpand }: MultiLogDaysPanelProps) {
+  const { bindTooltip, tooltip } = useHoverTooltip();
   const isExpanded = variant === "expanded";
   const visible = isExpanded ? multiLogDays : multiLogDays.slice(0, 4);
 
@@ -24,6 +26,7 @@ export function MultiLogDaysPanel({ multiLogDays, variant, onDateClick, onExpand
       onExpand={onExpand}
       bodyClassName="gap-1.5"
     >
+      {tooltip}
       {multiLogDays.length === 0 ? (
         <PanelEmptyState message="No days with multiple logs in the current selection." />
       ) : (
@@ -33,6 +36,14 @@ export function MultiLogDaysPanel({ multiLogDays, variant, onDateClick, onExpand
               key={day.date}
               type="button"
               onClick={() => onDateClick(day.date)}
+              {...bindTooltip(
+                <>
+                  <TooltipTitle>{formatShortDate(day.date)}</TooltipTitle>
+                  {day.entries.map((entry) => (
+                    <TooltipDetail key={entry.id}>{entry.name}</TooltipDetail>
+                  ))}
+                </>
+              )}
               className="flex items-center gap-2 rounded-md px-1 py-[3px] text-[11px] transition-colors hover:bg-white/5"
             >
               <span className="shrink-0 text-gray-400">{formatShortDate(day.date)}</span>

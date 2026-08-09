@@ -1,6 +1,7 @@
 import { cn } from "../../../lib/utils_ui";
 import type { DailyCompletion } from "../../../lib/stats-logic";
 import { formatShortDate } from "../../../lib/dates";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "./PlateTooltip";
 
 interface DayHeatmapProps {
   dailyCompletions: DailyCompletion[];
@@ -94,6 +95,7 @@ function buildColumns(dailyCompletions: DailyCompletion[], activeYear: string) {
 }
 
 export function DayHeatmap({ dailyCompletions, activeYear, onDateClick }: DayHeatmapProps) {
+  const { bindTooltip, tooltip } = useHoverTooltip();
   const { columns, monthTicks } = buildColumns(dailyCompletions, activeYear);
   const maxCount = dailyCompletions.reduce((max, day) => Math.max(max, day.count), 0);
 
@@ -107,6 +109,7 @@ export function DayHeatmap({ dailyCompletions, activeYear, onDateClick }: DayHea
 
   return (
     <div className="flex flex-col gap-3">
+      {tooltip}
       <div className="flex gap-1.5">
         <div className="flex shrink-0 flex-col gap-[3px] pr-1 pt-[22px]">
           {WEEKDAY_LABELS.map((label, index) => (
@@ -139,7 +142,16 @@ export function DayHeatmap({ dailyCompletions, activeYear, onDateClick }: DayHea
                       type="button"
                       disabled={!day.date || day.count === 0}
                       onClick={() => day.date && onDateClick(day.date)}
-                      title={day.date ? `${formatShortDate(day.date)} · ${day.count} entries` : undefined}
+                      {...bindTooltip(
+                        day.date && day.count > 0 ? (
+                          <>
+                            <TooltipTitle>{formatShortDate(day.date)}</TooltipTitle>
+                            <TooltipDetail>
+                              {day.count} {day.count === 1 ? "entry" : "entries"} · click to open
+                            </TooltipDetail>
+                          </>
+                        ) : null
+                      )}
                       className={cn(
                         "h-3 w-3 rounded-[2px]",
                         day.date ? levelClass(day.count) : "bg-transparent",

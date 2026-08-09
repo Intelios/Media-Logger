@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { Maximize2 } from "lucide-react";
 import { cn } from "../../../lib/utils_ui";
 import type { PlateAccent } from "./plate-config";
@@ -173,9 +173,12 @@ interface BarRowProps {
   color: string;
   /** 0–1 share for the comparison period, drawn as a hairline above the bar. */
   ghostFraction?: number;
+  /** 0–1 share of the whole selection, printed beside the count. */
+  share?: number;
   nameWidth?: string;
   onClick?: () => void;
-  title?: string;
+  /** Handlers from useHoverTooltip's bindTooltip. */
+  hoverProps?: HTMLAttributes<HTMLElement>;
 }
 
 export function BarRow({
@@ -184,9 +187,10 @@ export function BarRow({
   fraction,
   color,
   ghostFraction,
+  share,
   nameWidth = "5.5rem",
   onClick,
-  title,
+  hoverProps,
 }: BarRowProps) {
   const content = (
     <>
@@ -205,20 +209,29 @@ export function BarRow({
           />
         ) : null}
       </span>
-      <span className="w-8 shrink-0 text-right tabular-nums text-gray-400">{value}</span>
+      <span className="flex shrink-0 items-baseline justify-end gap-1 tabular-nums" style={{ width: share === undefined ? "2rem" : "3.4rem" }}>
+        <span className="text-gray-300">{value}</span>
+        {share !== undefined ? (
+          <span className="text-[9px] text-gray-600">{Math.round(share * 100)}%</span>
+        ) : null}
+      </span>
     </>
   );
 
   if (!onClick) {
-    return <div className="flex items-center gap-2 text-[11px]">{content}</div>;
+    return (
+      <div className="flex items-center gap-2 text-[11px]" {...hoverProps}>
+        {content}
+      </div>
+    );
   }
 
   return (
     <button
       type="button"
       onClick={onClick}
-      title={title}
       className="flex items-center gap-2 rounded-md px-1 py-0.5 text-[11px] transition-colors hover:bg-white/5"
+      {...hoverProps}
     >
       {content}
     </button>

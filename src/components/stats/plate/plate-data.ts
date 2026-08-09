@@ -22,9 +22,17 @@ export interface BrushCell {
   from: string;
   to: string;
   count: number;
-  hasMultiLog: boolean;
+  /** Busiest single day in the cell — the strip marks only exceptional ones. */
+  peakDayCount: number;
   label: string;
 }
+
+/**
+ * Two logs in a day is ordinary in an active year — marking every such week
+ * turns the whole strip one colour and destroys the density read. Three is rare
+ * enough to be worth flagging.
+ */
+export const BUSY_DAY_THRESHOLD = 3;
 
 export interface PlateData {
   stats: FullStats;
@@ -172,15 +180,13 @@ function buildWeekCells(entries: MediaEntry[], year: number): BrushCell[] {
     const to = weekEnd.getFullYear() > year ? formatDate(yearEnd) : formatDate(weekEnd);
 
     let count = 0;
-    let hasMultiLog = false;
+    let peakDayCount = 0;
     const day = new Date(weekStart);
 
     while (day <= weekEnd) {
       const dayCount = counts.get(formatDate(day)) ?? 0;
       count += dayCount;
-      if (dayCount > 1) {
-        hasMultiLog = true;
-      }
+      peakDayCount = Math.max(peakDayCount, dayCount);
       day.setDate(day.getDate() + 1);
     }
 
@@ -189,7 +195,7 @@ function buildWeekCells(entries: MediaEntry[], year: number): BrushCell[] {
       from,
       to,
       count,
-      hasMultiLog,
+      peakDayCount,
       label: formatCellLabel(from, to),
     });
 
@@ -216,9 +222,8 @@ function buildYearCells(entries: MediaEntry[]): BrushCell[] {
       from: `${year}-01-01`,
       to: `${year}-12-31`,
       count,
-      // Multi-log is a day-level signal; at year resolution every year would be
-      // marked, which says nothing.
-      hasMultiLog: false,
+      // A day-level signal says nothing at year resolution.
+      peakDayCount: 0,
       label: year,
     }));
 }

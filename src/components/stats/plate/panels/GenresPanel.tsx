@@ -2,6 +2,7 @@ import { PieChart as PieIcon } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import type { StatItem } from "../../../../lib/stats-logic";
 import { BarRow, CATEGORY_PALETTE, PanelEmptyState, PanelFrame } from "../plate-ui";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../PlateTooltip";
 
 interface GenresPanelProps {
   genres: StatItem[];
@@ -37,6 +38,7 @@ export function GenresPanel({
   onGenreClick,
   onExpand,
 }: GenresPanelProps) {
+  const { bindTooltip, tooltip } = useHoverTooltip();
   const isExpanded = variant === "expanded";
   const maxCount = genres[0]?.count ?? 0;
   const comparisonMax = comparisonGenres?.[0]?.count ?? 0;
@@ -63,6 +65,7 @@ export function GenresPanel({
       onExpand={onExpand}
       bodyClassName={isExpanded ? "gap-4" : "gap-2"}
     >
+      {tooltip}
       {genres.length === 0 ? (
         <PanelEmptyState message="No genres in the current selection." />
       ) : (
@@ -96,16 +99,22 @@ export function GenresPanel({
                 value={genre.count}
                 fraction={maxCount > 0 ? genre.count / maxCount : 0}
                 ghostFraction={ghostFor(genre.name)}
+                share={total > 0 ? genre.count / total : undefined}
                 color={CATEGORY_PALETTE[index % CATEGORY_PALETTE.length]}
                 nameWidth={isExpanded ? "9rem" : "4.5rem"}
                 onClick={() => onGenreClick(genre.name)}
-                title={
-                  isExpanded
-                    ? `${genre.count} entries · ${total > 0 ? Math.round((genre.count / total) * 100) : 0}% of selection${
-                        genre.avgScore !== undefined ? ` · avg ${genre.avgScore.toFixed(1)}` : ""
-                      }`
-                    : `View ${genre.name} entries`
-                }
+                hoverProps={bindTooltip(
+                  <>
+                    <TooltipTitle>{genre.name}</TooltipTitle>
+                    <TooltipDetail>
+                      {genre.count} {genre.count === 1 ? "entry" : "entries"}
+                      {total > 0 ? ` · ${((genre.count / total) * 100).toFixed(1)}% of selection` : ""}
+                      {genre.avgScore !== undefined ? ` · avg ${genre.avgScore.toFixed(1)}` : ""}
+                      {genre.perfectCount ? ` · ${genre.perfectCount} perfect` : ""}
+                    </TooltipDetail>
+                    <TooltipDetail>Click to open these entries</TooltipDetail>
+                  </>
+                )}
               />
             ))}
           </div>

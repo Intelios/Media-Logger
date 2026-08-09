@@ -16,7 +16,7 @@ import { formatShortDate } from "../../../lib/dates";
 import { TIMELINE_LAYER_DEFINITIONS, TIMELINE_LAYER_IDS, type TimelineLayerId } from "./plate-config";
 import { PanelFrame, PlatePill } from "./plate-ui";
 import { BrushStrip } from "./BrushStrip";
-import { isAllTime, type BrushCell, type StatsRange } from "./plate-data";
+import { BUSY_DAY_THRESHOLD, isAllTime, type BrushCell, type StatsRange } from "./plate-data";
 
 const COMPARISON_COLOR = "#94a3b8";
 
@@ -258,7 +258,7 @@ export function TimelineHero({
           <p className="shrink-0 text-[9px] leading-tight text-gray-600">
             {isAllTime(activeYear)
               ? "One cell per year · drag to select, double-click to reset"
-              : "Weekly completions · amber marks weeks containing a multi-log day · drag to select, double-click to reset"}
+              : `Weekly completions · amber marks a week with a ${BUSY_DAY_THRESHOLD}+ log day · drag to select, double-click to reset`}
           </p>
         </>
       ) : null}

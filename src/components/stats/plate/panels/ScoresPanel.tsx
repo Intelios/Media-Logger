@@ -2,6 +2,7 @@ import { Star } from "lucide-react";
 import { cn } from "../../../../lib/utils_ui";
 import type { StatItem } from "../../../../lib/stats-logic";
 import { BarRow, PanelEmptyState, PanelFrame } from "../plate-ui";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../PlateTooltip";
 
 interface ScoresPanelProps {
   ratings: StatItem[];
@@ -28,6 +29,7 @@ export function ScoresPanel({
   variant,
   onExpand,
 }: ScoresPanelProps) {
+  const { bindTooltip, tooltip } = useHoverTooltip();
   const isExpanded = variant === "expanded";
   const ascending = toAscendingScores(ratings);
   const maxCount = ascending.reduce((max, rating) => Math.max(max, rating.count), 0);
@@ -53,6 +55,7 @@ export function ScoresPanel({
       onExpand={onExpand}
       bodyClassName="gap-2"
     >
+      {tooltip}
       {totalRated === 0 ? (
         <PanelEmptyState message="Nothing in the current selection has a score yet." />
       ) : (
@@ -63,14 +66,30 @@ export function ScoresPanel({
               const ghostHeight =
                 comparisonMax > 0 ? ((comparisonByScore.get(rating.name) ?? 0) / comparisonMax) * 100 : null;
 
+              const comparisonCount = comparisonByScore.get(rating.name);
+
               return (
                 <div
                   key={rating.name}
-                  className="relative flex min-w-0 flex-1 items-end self-stretch"
-                  title={`Score ${rating.name} · ${rating.count} ${rating.count === 1 ? "entry" : "entries"}`}
+                  // The hit area is the whole column, not just the drawn bar, so
+                  // low-count scores are still hoverable.
+                  className="group relative flex min-w-0 flex-1 items-end self-stretch"
+                  {...bindTooltip(
+                    <>
+                      <TooltipTitle>Score {rating.name}</TooltipTitle>
+                      <TooltipDetail>
+                        {rating.count} {rating.count === 1 ? "entry" : "entries"}
+                        {totalRated > 0 ? ` · ${((rating.count / totalRated) * 100).toFixed(1)}% of rated` : ""}
+                      </TooltipDetail>
+                      {comparisonCount !== undefined ? (
+                        <TooltipDetail>Comparison: {comparisonCount}</TooltipDetail>
+                      ) : null}
+                    </>
+                  )}
                 >
+                  <div className="absolute inset-0 rounded-sm bg-white/0 transition-colors group-hover:bg-white/[0.06]" />
                   <div
-                    className="w-full rounded-t-sm bg-gradient-to-t from-amber-500/40 to-amber-400"
+                    className="relative w-full rounded-t-sm bg-gradient-to-t from-amber-500/40 to-amber-400 transition-[filter] group-hover:brightness-110"
                     style={{ height: `${Math.max(height, rating.count > 0 ? 3 : 0)}%` }}
                   />
                   {ghostHeight !== null ? (
@@ -106,7 +125,15 @@ export function ScoresPanel({
                     fraction={typeMax > 0 ? (type.avgScore ?? 0) / typeMax : 0}
                     color="#fbbf24"
                     nameWidth="9rem"
-                    title={`${type.count} entries`}
+                    hoverProps={bindTooltip(
+                      <>
+                        <TooltipTitle>{type.name}</TooltipTitle>
+                        <TooltipDetail>
+                          avg {(type.avgScore ?? 0).toFixed(1)} across {type.count}{" "}
+                          {type.count === 1 ? "entry" : "entries"}
+                        </TooltipDetail>
+                      </>
+                    )}
                   />
                 ))}
               </div>
