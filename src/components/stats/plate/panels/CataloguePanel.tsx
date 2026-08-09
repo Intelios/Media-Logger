@@ -83,7 +83,7 @@ export function CataloguePanel({ items, comparisonItems, total, variant, onExpan
         ))}
       </div>
 
-      <div className={cn("flex min-h-0 flex-1 flex-col gap-1.5", isExpanded && "overflow-y-auto pr-1")}>
+      <div className={cn("flex min-h-0 flex-1 flex-col", isExpanded ? "gap-1.5 overflow-y-auto pr-1" : "gap-2")}>
         {visible.map((item) => (
           <BarRow
             key={item.name}

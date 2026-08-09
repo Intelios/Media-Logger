@@ -78,9 +78,17 @@ export function GenresPanel({
       {genres.length === 0 ? (
         <PanelEmptyState message="No genres in the current selection." />
       ) : (
-        <div className={cn("flex min-h-0 flex-1 gap-3", isExpanded ? "gap-6" : "items-center")}>
-          <div className="flex shrink-0 flex-col items-center gap-1">
-            <div className={cn("relative", isExpanded ? "h-56 w-56" : "h-[92px] w-[92px]")}>
+        <div
+          className={cn(
+            "flex min-h-0 flex-1",
+            // Side by side in a quarter-width panel starves both the donut and
+            // the bars. Stacking gives the donut real size and the bars the full
+            // panel width; the expanded view has the width to spare.
+            isExpanded ? "gap-6" : "flex-col gap-2.5"
+          )}
+        >
+          <div className={cn("flex flex-col items-center", isExpanded ? "shrink-0 gap-1" : "min-h-0 flex-1")}>
+            <div className={cn("relative", isExpanded ? "h-56 w-56" : "min-h-[104px] w-full flex-1")}>
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie
@@ -108,28 +116,27 @@ export function GenresPanel({
                 <span
                   className={cn(
                     "font-bold leading-none tabular-nums text-white",
-                    isExpanded ? "text-3xl" : "text-[15px]"
+                    isExpanded ? "text-3xl" : "text-2xl"
                   )}
                 >
                   {Math.round(highlightedShare * 100)}%
                 </span>
-                {isExpanded ? (
-                  <span className="mt-1 max-w-[9rem] truncate text-[12px] text-gray-400">{highlighted?.name}</span>
-                ) : null}
+                <span
+                  className={cn(
+                    "mt-1 truncate text-gray-400",
+                    isExpanded ? "max-w-[9rem] text-[12px]" : "max-w-[7.5rem] text-[11px]"
+                  )}
+                >
+                  {highlighted?.name}
+                </span>
               </div>
             </div>
-
-            {!isExpanded ? (
-              <span className="max-w-[92px] truncate text-center text-[9px] leading-tight text-gray-500">
-                {highlighted?.name}
-              </span>
-            ) : null}
           </div>
 
           <div
             className={cn(
-              "flex min-w-0 flex-1 flex-col gap-1.5",
-              isExpanded && "min-h-0 overflow-y-auto pr-1"
+              "flex min-w-0 flex-col",
+              isExpanded ? "min-h-0 flex-1 gap-1.5 overflow-y-auto pr-1" : "shrink-0 gap-2"
             )}
             onPointerLeave={() => setHoveredName(null)}
           >
@@ -141,7 +148,7 @@ export function GenresPanel({
                   fraction={maxCount > 0 ? genre.count / maxCount : 0}
                   ghostFraction={ghostFor(genre.name)}
                   color={CATEGORY_PALETTE[index % CATEGORY_PALETTE.length]}
-                  nameWidth={isExpanded ? "9rem" : "4.5rem"}
+                  nameWidth={isExpanded ? "9rem" : "6rem"}
                   onClick={() => onGenreClick(genre.name)}
                   hoverProps={bindTooltip(
                     <>
