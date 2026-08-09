@@ -83,6 +83,15 @@ export interface FullStats {
   mostReplayed: MostReplayedItem[];
 }
 
+export interface TimelineBucket {
+  key: string;
+  label: string;
+  completions: number;
+  averageScore: number | null;
+  rewatches: number;
+  platinums: number;
+}
+
 export interface StatsFilters {
   year?: string;
   types?: string[];
@@ -419,6 +428,77 @@ export function selectScoreTimeline(dataset: StatsDataset, granularity: "month" 
       label,
       averageScore: value.count > 0 ? value.totalScore / value.count : null,
       count: value.count,
+    }));
+}
+
+// One row per month (specific year) or per year (All Time), carrying every series
+// the stats timeline can draw. Month buckets are pre-seeded so the axis stays
+// Jan–Dec regardless of activity; year buckets only exist where there is data.
+export function selectTimelineSeries(dataset: StatsDataset, granularity: "month" | "year"): TimelineBucket[] {
+  type Accumulator = {
+    label: string;
+    completions: number;
+    totalScore: number;
+    scoredCount: number;
+    rewatches: number;
+    platinums: number;
+  };
+
+  const buckets = new Map<string, Accumulator>();
+
+  const ensureBucket = (key: string, label: string) => {
+    const existing = buckets.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const created: Accumulator = { label, completions: 0, totalScore: 0, scoredCount: 0, rewatches: 0, platinums: 0 };
+    buckets.set(key, created);
+    return created;
+  };
+
+  if (granularity === "month") {
+    MONTH_KEYS.forEach((month, index) => ensureBucket(String(index).padStart(2, "0"), month));
+  }
+
+  for (const entry of dataset.entries) {
+    if (!entry.completion_date) {
+      continue;
+    }
+
+    const monthIndex = Number(entry.completion_date.slice(5, 7)) - 1;
+    const key = granularity === "month" ? String(monthIndex).padStart(2, "0") : entry.completion_date.slice(0, 4);
+
+    if (granularity === "month" && (monthIndex < 0 || monthIndex > 11)) {
+      continue;
+    }
+
+    const bucket = ensureBucket(key, granularity === "month" ? MONTH_KEYS[monthIndex] : key);
+    bucket.completions += 1;
+
+    if (hasReviewScore(entry)) {
+      bucket.totalScore += entry.review_score;
+      bucket.scoredCount += 1;
+    }
+
+    if (entry.is_rewatch) {
+      bucket.rewatches += 1;
+    }
+
+    if (entry.is_platinum) {
+      bucket.platinums += 1;
+    }
+  }
+
+  return [...buckets.entries()]
+    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+    .map(([key, bucket]) => ({
+      key,
+      label: bucket.label,
+      completions: bucket.completions,
+      averageScore: bucket.scoredCount > 0 ? bucket.totalScore / bucket.scoredCount : null,
+      rewatches: bucket.rewatches,
+      platinums: bucket.platinums,
     }));
 }
 

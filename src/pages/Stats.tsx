@@ -1,30 +1,37 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { StatsEntriesModal } from "../components/StatsEntriesModal";
 import { GenreBreakdownModal } from "../components/GenreBreakdownModal";
-import { StatsDashboard } from "../components/stats/StatsDashboard";
+import { StatsPlate } from "../components/stats/plate/StatsPlate";
 import {
-  MAIN_WIDGET_IDS,
-  SUMMARY_WIDGET_IDS,
-  type StatsDashboardViewId,
-  type StatsPresetKey,
-  type StatsWidgetId,
-} from "../components/stats/stats-config";
+  DEFAULT_PLATE_PREFERENCES,
+  loadPlatePreferences,
+  savePlatePreferences,
+  type PlateFigureId,
+  type PlatePanelId,
+  type PlatePreferences,
+  type TimelineLayerId,
+} from "../components/stats/plate/plate-config";
 import {
-  applyVisibleWidgetOrder,
-  createDefaultStatsDashboardViewLayout,
-  hideStatsDashboardWidget,
-  loadStatsDashboardPreferences,
-  saveStatsDashboardPreferences,
-  setStatsDashboardWidgetDisplayMode,
-  showStatsDashboardWidget,
-  type StatsDashboardPreferences,
-} from "../components/stats/stats-layout";
+  countEntriesByType,
+  derivePlateData,
+  deriveComparison,
+  filterEntriesByTypes,
+  isAllTime,
+  type StatsRange,
+} from "../components/stats/plate/plate-data";
 import { getAvailableNavigationYears, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
 import { type MediaEntry } from "../lib/db";
-import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, getVisibleEntryTypes, getVisiblePresetKeys, useAdultMediaEnabled, type FilterPresetKey } from "../lib/media-config";
-import { profilesLogic } from "../lib/profiles-logic";
+import {
+  ENTRY_TYPES,
+  FILTER_PRESETS,
+  FILTER_PRESET_KEYS,
+  getVisibleEntryTypes,
+  getVisiblePresetKeys,
+  useAdultMediaEnabled,
+  type FilterPresetKey,
+} from "../lib/media-config";
 import { getNavigationYears } from "../lib/settings";
-import { statsLogic, type FullStats } from "../lib/stats-logic";
+import { statsLogic } from "../lib/stats-logic";
 
 const STATS_YEAR_KEY = "stats-active-year";
 const STATS_TYPES_KEY = "stats-selected-types";
@@ -34,45 +41,58 @@ type StatsModalSource =
   | { kind: "perfect10s" }
   | { kind: "thisMonth" }
   | { kind: "genre"; value: string }
-  | { kind: "loggedDate"; value: string }
-  | { kind: "completedDate"; value: string }
+  | { kind: "date"; value: string }
   | null;
 
-const loadPersistedPreset = (): StatsPresetKey => {
+function loadPersistedPreset(): FilterPresetKey | null {
   try {
     const stored = localStorage.getItem(STATS_PRESET_KEY);
     if (stored && FILTER_PRESET_KEYS.includes(stored as FilterPresetKey)) {
-      return stored as StatsPresetKey;
+      return stored as FilterPresetKey;
     }
   } catch {
-    // Fall back to default state.
+    // Fall back to no preset.
   }
 
   return null;
-};
+}
 
-const loadPersistedYear = (): string => {
-  try {
-    const stored = localStorage.getItem(STATS_YEAR_KEY);
-    if (stored) {
-      return stored;
-    }
-  } catch {
-    // Fall back to the default year.
+// The preset and the type selection are stored separately and can drift apart
+// (change types, and the old preset key is still on disk). A preset badge that
+// does not describe the actual selection is worse than no badge.
+function loadConsistentPreset(): FilterPresetKey | null {
+  const preset = loadPersistedPreset();
+  if (!preset) {
+    return null;
   }
 
-  return "All Time";
-};
+  const selected = loadPersistedTypes();
+  const presetTypes = FILTER_PRESETS[preset].types;
+  const matches =
+    presetTypes.length === selected.length && presetTypes.every((type) => selected.includes(type));
 
-const loadPersistedTypes = (): string[] => {
+  return matches ? preset : null;
+}
+
+function loadPersistedYear(): string {
+  try {
+    return localStorage.getItem(STATS_YEAR_KEY) ?? "All Time";
+  } catch {
+    return "All Time";
+  }
+}
+
+function loadPersistedTypes(): string[] {
   try {
     const stored = localStorage.getItem(STATS_TYPES_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.every((type) => ENTRY_TYPES.includes(type))) {
-        // Drop any adult types when the setting is off (entries are filtered at the data layer).
         const visible = getVisibleEntryTypes();
-        return parsed.filter((type) => visible.includes(type));
+        const filtered = parsed.filter((type) => visible.includes(type));
+        if (filtered.length > 0) {
+          return filtered;
+        }
       }
     }
   } catch {
@@ -80,48 +100,51 @@ const loadPersistedTypes = (): string[] => {
   }
 
   return getVisibleEntryTypes();
-};
+}
+
+function splitDelimited(value: string | null): string[] {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function sortByCompletionDesc(entries: MediaEntry[]): MediaEntry[] {
+  return [...entries].sort((left, right) => (right.completion_date ?? "").localeCompare(left.completion_date ?? ""));
+}
 
 export default function StatsPage() {
   const adultEnabled = useAdultMediaEnabled();
   const [years, setYears] = useState<string[]>(() => getNavigationYears());
   const [activeYear, setActiveYear] = useState(loadPersistedYear);
   const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedTypes);
-  const [activePreset, setActivePreset] = useState<StatsPresetKey>(loadPersistedPreset);
-  const [dashboardPreferences, setDashboardPreferences] = useState<StatsDashboardPreferences>(loadStatsDashboardPreferences);
+  const [activePreset, setActivePreset] = useState<FilterPresetKey | null>(loadConsistentPreset);
+  const [preferences, setPreferences] = useState<PlatePreferences>(loadPlatePreferences);
   const [isCustomizing, setIsCustomizing] = useState(false);
-  const [data, setData] = useState<FullStats | null>(null);
-  const [profileKeys, setProfileKeys] = useState<Set<string>>(new Set());
-  const [profileKeysReady, setProfileKeysReady] = useState(false);
+  const [range, setRange] = useState<StatsRange | null>(null);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalTitle, setModalTitle] = useState("");
+  // Every stat on the page is derived from this one row set. Brushing, type
+  // toggles and comparison all re-derive in memory rather than re-querying.
+  const [yearEntries, setYearEntries] = useState<MediaEntry[] | null>(null);
+  const [comparisonEntries, setComparisonEntries] = useState<MediaEntry[] | null>(null);
+
   const [modalSource, setModalSource] = useState<StatsModalSource>(null);
-  const [modalEntries, setModalEntries] = useState<MediaEntry[]>([]);
   const [genreModalOpen, setGenreModalOpen] = useState(false);
 
-  const handleTypesChange = (types: string[]) => {
-    setSelectedTypes(types);
-    setActivePreset(null);
-    localStorage.removeItem(STATS_PRESET_KEY);
-  };
+  const loadYearEntries = useCallback(async () => {
+    // Fetched without a type filter so the toolbar can count every chip, including
+    // the types currently switched off. Adult exclusion still applies in SQL.
+    const entries = await statsLogic.getFilteredEntries(activeYear, []);
+    setYearEntries(entries);
+  }, [activeYear]);
 
-  const handleResetPreset = () => {
-    setActivePreset(null);
-    setSelectedTypes(getVisibleEntryTypes());
-    localStorage.removeItem(STATS_PRESET_KEY);
-  };
-
-  const handlePresetClick = (presetKey: Exclude<StatsPresetKey, null>) => {
-    if (activePreset === presetKey) {
-      handleResetPreset();
-      return;
-    }
-
-    setActivePreset(presetKey);
-    setSelectedTypes([...FILTER_PRESETS[presetKey].types]);
-    localStorage.setItem(STATS_PRESET_KEY, presetKey);
-  };
+  useEffect(() => {
+    void loadYearEntries();
+  }, [loadYearEntries, adultEnabled]);
 
   useEffect(() => {
     localStorage.setItem(STATS_YEAR_KEY, activeYear);
@@ -132,17 +155,23 @@ export default function StatsPage() {
   }, [selectedTypes]);
 
   useEffect(() => {
-    saveStatsDashboardPreferences(dashboardPreferences);
-  }, [dashboardPreferences]);
+    savePlatePreferences(preferences);
+  }, [preferences]);
+
+  // A range is expressed in dates of the active year, so it cannot survive a
+  // year change.
+  useEffect(() => {
+    setRange(null);
+  }, [activeYear]);
 
   useEffect(() => {
     const refreshYears = async () => {
-      const availableYears = await getAvailableNavigationYears();
-      setYears(availableYears);
+      setYears(await getAvailableNavigationYears());
     };
 
     const handleYearsChanged = () => {
       void refreshYears();
+      void loadYearEntries();
     };
 
     void refreshYears();
@@ -154,27 +183,7 @@ export default function StatsPage() {
       window.removeEventListener(NAVIGATION_YEARS_UPDATED_EVENT, handleYearsChanged);
       window.removeEventListener("entry-added", handleYearsChanged as EventListener);
     };
-  }, []);
-
-  useEffect(() => {
-    const refreshProfileKeys = async () => {
-      const keys = await profilesLogic.getProfileKeys();
-      setProfileKeys(keys);
-      setProfileKeysReady(true);
-    };
-
-    const handleEntryAdded = () => {
-      void refreshProfileKeys();
-    };
-
-    void refreshProfileKeys();
-
-    window.addEventListener("entry-added", handleEntryAdded as EventListener);
-
-    return () => {
-      window.removeEventListener("entry-added", handleEntryAdded as EventListener);
-    };
-  }, []);
+  }, [loadYearEntries]);
 
   useEffect(() => {
     if (activeYear !== "All Time" && !years.includes(activeYear)) {
@@ -182,182 +191,249 @@ export default function StatsPage() {
     }
   }, [activeYear, years]);
 
-  // When Adult Media is toggled, drop hidden types from the selection and clear
-  // the adult preset so the stats UI and dataset stay consistent.
+  // When Adult Media is toggled off, drop hidden types and clear the adult preset
+  // so the visible selection and the fetched data stay consistent.
   useEffect(() => {
     const visible = getVisibleEntryTypes();
-    setSelectedTypes((prev) => (prev.every((t) => visible.includes(t)) ? prev : prev.filter((t) => visible.includes(t))));
-    setActivePreset((prev) => (prev === "adult" ? null : prev));
+    setSelectedTypes((current) => {
+      const filtered = current.filter((type) => visible.includes(type));
+      return filtered.length === current.length ? current : filtered.length > 0 ? filtered : visible;
+    });
+    setActivePreset((current) => (current === "adult" ? null : current));
   }, [adultEnabled]);
 
-  useEffect(() => {
-    void statsLogic.getStats(activeYear, selectedTypes).then(setData);
-  }, [activeYear, selectedTypes, adultEnabled]);
+  const yearOptions = useMemo(() => ["All Time", ...years], [years]);
 
-  const handlePerfect10Click = async () => {
-    const entries = await statsLogic.getPerfect10Entries(activeYear, selectedTypes);
-    setModalTitle("Perfect 10s");
-    setModalSource({ kind: "perfect10s" });
-    setModalEntries(entries);
-    setModalOpen(true);
-  };
+  // Comparison only makes sense against a specific year, so All Time offers none.
+  const comparisonYearOptions = useMemo(
+    () => (isAllTime(activeYear) ? [] : years.filter((year) => year !== activeYear)),
+    [years, activeYear]
+  );
 
-  const handleThisMonthClick = async () => {
-    const entries = await statsLogic.getThisMonthEntries(activeYear, selectedTypes);
-    setModalTitle("This Month");
-    setModalSource({ kind: "thisMonth" });
-    setModalEntries(entries);
-    setModalOpen(true);
-  };
+  const typeCounts = useMemo(() => countEntriesByType(yearEntries ?? []), [yearEntries]);
 
-  const handleGenreClick = async (genreName: string) => {
-    const entries = await statsLogic.getEntriesByGenre(genreName, activeYear, selectedTypes);
-    setModalTitle(`Genre: ${genreName}`);
-    setModalSource({ kind: "genre", value: genreName });
-    setModalEntries(entries);
-    setGenreModalOpen(false);
-    setModalOpen(true);
-  };
+  const typedEntries = useMemo(
+    () => filterEntriesByTypes(yearEntries ?? [], selectedTypes),
+    [yearEntries, selectedTypes]
+  );
 
-  const handleMultiLogDayClick = async (date: string) => {
-    const entries = await statsLogic.getEntriesByCompletionDate(date, activeYear, selectedTypes);
-    setModalTitle(`Logged on: ${date}`);
-    setModalSource({ kind: "loggedDate", value: date });
-    setModalEntries(entries);
-    setModalOpen(true);
-  };
+  const plate = useMemo(
+    () => derivePlateData(typedEntries, activeYear, selectedTypes, range),
+    [typedEntries, activeYear, selectedTypes, range]
+  );
 
-  const handleHeatmapDateClick = async (date: string) => {
-    const entries = await statsLogic.getEntriesByCompletionDate(date, activeYear, selectedTypes);
-    setModalTitle(`Completed on: ${date}`);
-    setModalSource({ kind: "completedDate", value: date });
-    setModalEntries(entries);
-    setModalOpen(true);
-  };
-
-  const handleModalEntriesChange = () => {
-    void statsLogic.getStats(activeYear, selectedTypes).then(setData);
-    void profilesLogic.getProfileKeys().then(setProfileKeys);
-
-    if (modalSource?.kind === "perfect10s") {
-      void statsLogic.getPerfect10Entries(activeYear, selectedTypes).then(setModalEntries);
-    } else if (modalSource?.kind === "thisMonth") {
-      void statsLogic.getThisMonthEntries(activeYear, selectedTypes).then(setModalEntries);
-    } else if (modalSource?.kind === "genre") {
-      void statsLogic.getEntriesByGenre(modalSource.value, activeYear, selectedTypes).then(setModalEntries);
-    } else if (modalSource?.kind === "loggedDate" || modalSource?.kind === "completedDate") {
-      void statsLogic.getEntriesByCompletionDate(modalSource.value, activeYear, selectedTypes).then(setModalEntries);
+  const comparison = useMemo(() => {
+    if (!preferences.compareEnabled || !preferences.compareYear || !comparisonEntries) {
+      return null;
     }
+
+    return deriveComparison(
+      filterEntriesByTypes(comparisonEntries, selectedTypes),
+      preferences.compareYear,
+      selectedTypes,
+      range
+    );
+  }, [preferences.compareEnabled, preferences.compareYear, comparisonEntries, selectedTypes, range]);
+
+  // Keep the comparison year valid for the current options: pick one when compare
+  // is on but nothing is chosen (or the choice became the active year), and clear
+  // it when compare is off. Without this the picker can display a year that is not
+  // actually selected, and no comparison is ever fetched.
+  useEffect(() => {
+    setPreferences((current) => {
+      if (current.compareYear !== null && comparisonYearOptions.includes(current.compareYear)) {
+        return current;
+      }
+
+      const nextYear = current.compareEnabled ? (comparisonYearOptions[0] ?? null) : null;
+      return nextYear === current.compareYear ? current : { ...current, compareYear: nextYear };
+    });
+  }, [comparisonYearOptions]);
+
+  useEffect(() => {
+    const compareYear = preferences.compareYear;
+    if (!preferences.compareEnabled || !compareYear) {
+      setComparisonEntries(null);
+      return;
+    }
+
+    let cancelled = false;
+    void statsLogic.getFilteredEntries(compareYear, []).then((entries) => {
+      if (!cancelled) {
+        setComparisonEntries(entries);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [preferences.compareEnabled, preferences.compareYear, adultEnabled]);
+
+  const handleTypesChange = (types: string[]) => {
+    setSelectedTypes(types);
+    setActivePreset(null);
+    localStorage.removeItem(STATS_PRESET_KEY);
   };
 
-  const handleModalClose = () => {
-    setModalOpen(false);
-    setModalSource(null);
+  const handlePresetClick = (presetKey: string) => {
+    const key = presetKey as FilterPresetKey;
+
+    if (activePreset === key) {
+      setActivePreset(null);
+      setSelectedTypes(getVisibleEntryTypes());
+      localStorage.removeItem(STATS_PRESET_KEY);
+      return;
+    }
+
+    setActivePreset(key);
+    setSelectedTypes([...FILTER_PRESETS[key].types]);
+    localStorage.setItem(STATS_PRESET_KEY, key);
   };
 
-  const activeView = dashboardPreferences.activeView;
-  const activeLayout = dashboardPreferences.views[activeView];
+  const handleSlotChange = (slotIndex: number, panelId: PlatePanelId) => {
+    setPreferences((current) => {
+      const slots = [...current.slots];
+      const existingIndex = slots.indexOf(panelId);
 
-  const updateActiveViewLayout = (
-    updater: (layout: StatsDashboardPreferences["views"][StatsDashboardViewId]) => StatsDashboardPreferences["views"][StatsDashboardViewId]
-  ) => {
-    setDashboardPreferences((currentPreferences) => ({
-      ...currentPreferences,
-      views: {
-        ...currentPreferences.views,
-        [currentPreferences.activeView]: updater(currentPreferences.views[currentPreferences.activeView]),
-      },
+      // Swap rather than duplicate when the chosen panel already occupies a slot.
+      if (existingIndex !== -1) {
+        slots[existingIndex] = slots[slotIndex];
+      }
+
+      slots[slotIndex] = panelId;
+      return { ...current, slots };
+    });
+  };
+
+  const handleToggleFigure = (figureId: PlateFigureId) => {
+    setPreferences((current) => ({
+      ...current,
+      figures: current.figures.includes(figureId)
+        ? current.figures.filter((candidate) => candidate !== figureId)
+        : [...current.figures, figureId],
     }));
   };
 
-  const handleSummaryOrderChange = (nextVisibleOrder: (typeof SUMMARY_WIDGET_IDS)[number][]) => {
-    updateActiveViewLayout((layout) => ({
-      ...layout,
-      summaryOrder: applyVisibleWidgetOrder(layout.summaryOrder, nextVisibleOrder),
+  const handleToggleLayer = (layerId: TimelineLayerId) => {
+    setPreferences((current) => ({
+      ...current,
+      layers: current.layers.includes(layerId)
+        ? current.layers.filter((candidate) => candidate !== layerId)
+        : [...current.layers, layerId],
     }));
   };
 
-  const handleMainOrderChange = (nextVisibleOrder: (typeof MAIN_WIDGET_IDS)[number][]) => {
-    updateActiveViewLayout((layout) => ({
-      ...layout,
-      mainOrder: applyVisibleWidgetOrder(layout.mainOrder, nextVisibleOrder),
+  const handleToggleCompare = () => {
+    setPreferences((current) => ({
+      ...current,
+      compareEnabled: !current.compareEnabled,
+      compareYear: current.compareYear ?? comparisonYearOptions[0] ?? null,
     }));
   };
 
-  const handleHideWidget = (widgetId: StatsWidgetId) => {
-    updateActiveViewLayout((layout) => hideStatsDashboardWidget(layout, widgetId));
+  const handleCompareYearChange = (year: string) => {
+    setPreferences((current) => ({ ...current, compareYear: year }));
   };
 
-  const handleShowWidget = (widgetId: StatsWidgetId) => {
-    updateActiveViewLayout((layout) => showStatsDashboardWidget(layout, widgetId));
+  const handleResetPreferences = () => {
+    setPreferences({ ...DEFAULT_PLATE_PREFERENCES, slots: [...DEFAULT_PLATE_PREFERENCES.slots] });
   };
 
-  const handleDisplayModeChange = (widgetId: StatsWidgetId, displayMode: "bars" | "donut") => {
-    updateActiveViewLayout((layout) => setStatsDashboardWidgetDisplayMode(layout, widgetId, displayMode));
+  const handleGenreClick = (genre: string) => {
+    setGenreModalOpen(false);
+    setModalSource({ kind: "genre", value: genre });
   };
 
-  const handleResetActiveView = () => {
-    setDashboardPreferences((currentPreferences) => ({
-      ...currentPreferences,
-      views: {
-        ...currentPreferences.views,
-        [currentPreferences.activeView]: createDefaultStatsDashboardViewLayout(currentPreferences.activeView),
-      },
-    }));
-  };
+  // Modal contents are derived from the same in-memory rows as the plate, so a
+  // brushed selection narrows them too and an edit refreshes them for free.
+  const modalEntries = useMemo(() => {
+    if (!modalSource) {
+      return [];
+    }
 
-  if (!data) {
+    switch (modalSource.kind) {
+      case "perfect10s":
+        return sortByCompletionDesc(plate.rangedEntries.filter((entry) => entry.review_score === 10));
+      case "thisMonth": {
+        const now = new Date();
+        const prefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        return sortByCompletionDesc(plate.rangedEntries.filter((entry) => entry.completion_date?.startsWith(prefix)));
+      }
+      case "genre":
+        return sortByCompletionDesc(
+          plate.rangedEntries.filter((entry) => splitDelimited(entry.genre).includes(modalSource.value))
+        );
+      case "date":
+        return plate.rangedEntries.filter((entry) => entry.completion_date === modalSource.value);
+    }
+  }, [modalSource, plate.rangedEntries]);
+
+  const modalTitle = useMemo(() => {
+    switch (modalSource?.kind) {
+      case "perfect10s":
+        return "Perfect 10s";
+      case "thisMonth":
+        return "This Month";
+      case "genre":
+        return `Genre: ${modalSource.value}`;
+      case "date":
+        return `Logged on: ${modalSource.value}`;
+      default:
+        return "";
+    }
+  }, [modalSource]);
+
+  if (!yearEntries) {
     return <div className="p-10 text-gray-400">Calculating analytics...</div>;
   }
 
   return (
     <>
-      <StatsDashboard
+      <StatsPlate
         activeYear={activeYear}
-        yearOptions={["All Time", ...years]}
+        yearOptions={yearOptions}
+        onActiveYearChange={setActiveYear}
         entryTypes={getVisibleEntryTypes()}
+        typeCounts={typeCounts}
         selectedTypes={selectedTypes}
-        profileKeys={profileKeys}
-        profileKeysReady={profileKeysReady}
         onSelectedTypesChange={handleTypesChange}
         presets={getVisiblePresetKeys().map((key) => FILTER_PRESETS[key])}
         activePreset={activePreset}
         onPresetClick={handlePresetClick}
-        onResetPreset={handleResetPreset}
-        onActiveYearChange={setActiveYear}
-        activeView={activeView}
+        preferences={preferences}
+        onSlotChange={handleSlotChange}
+        onToggleFigure={handleToggleFigure}
+        onToggleLayer={handleToggleLayer}
+        onResetPreferences={handleResetPreferences}
+        onToggleCompare={handleToggleCompare}
+        onCompareYearChange={handleCompareYearChange}
+        comparisonYearOptions={comparisonYearOptions}
         isCustomizing={isCustomizing}
         onToggleCustomize={() => setIsCustomizing((current) => !current)}
-        layout={activeLayout}
-        onSummaryOrderChange={handleSummaryOrderChange}
-        onMainOrderChange={handleMainOrderChange}
-        onHideWidget={handleHideWidget}
-        onShowWidget={handleShowWidget}
-        onDisplayModeChange={handleDisplayModeChange}
-        onResetActiveView={handleResetActiveView}
-        data={data}
-        onPerfect10Click={handlePerfect10Click}
-        onThisMonthClick={handleThisMonthClick}
-        onViewAllGenres={() => setGenreModalOpen(true)}
+        plate={plate}
+        comparison={comparison}
+        range={range}
+        onRangeChange={setRange}
         onGenreClick={handleGenreClick}
-        onMultiLogDayClick={handleMultiLogDayClick}
-        onHeatmapDateClick={handleHeatmapDateClick}
+        onPerfectClick={() => setModalSource({ kind: "perfect10s" })}
+        onThisMonthClick={() => setModalSource({ kind: "thisMonth" })}
+        onDateClick={(date) => setModalSource({ kind: "date", value: date })}
       />
 
       <GenreBreakdownModal
         isOpen={genreModalOpen}
         onClose={() => setGenreModalOpen(false)}
-        genres={data.genres}
-        totalEntries={data.total}
+        genres={plate.stats.genres}
+        totalEntries={plate.stats.total}
         onGenreClick={handleGenreClick}
       />
 
       <StatsEntriesModal
-        isOpen={modalOpen}
-        onClose={handleModalClose}
+        isOpen={modalSource !== null}
+        onClose={() => setModalSource(null)}
         title={modalTitle}
         entries={modalEntries}
-        onEntriesChange={handleModalEntriesChange}
+        onEntriesChange={() => void loadYearEntries()}
       />
     </>
   );
