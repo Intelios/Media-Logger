@@ -2,7 +2,7 @@ import { ADULT_ENTRY_TYPES } from '../media-config';
 import { connect } from './connection';
 import { filterHiddenEntries, escapeLike } from './shared';
 import { notifyEntriesMutated } from './events';
-import { appendAvgHistoryForAffectedProfiles } from './avg-history';
+import { recordAvgHistoryForEntryMutation } from './avg-history';
 import type { MediaEntry, EntrySearchFilters } from './types';
 
 // Writable columns of the entries table. addEntry/updateEntry build their SQL
@@ -174,7 +174,7 @@ export async function addEntry(entry: Omit<MediaEntry, "id">): Promise<number> {
     values
   );
   notifyEntriesMutated();
-  await appendAvgHistoryForAffectedProfiles(entry as MediaEntry);
+  await recordAvgHistoryForEntryMutation(null, entry);
   return result.lastInsertId;
 }
 
@@ -198,10 +198,7 @@ export async function updateEntry(entry: MediaEntry): Promise<void> {
   );
   notifyEntriesMutated();
 
-  if (oldEntry) {
-    await appendAvgHistoryForAffectedProfiles(oldEntry);
-  }
-  await appendAvgHistoryForAffectedProfiles(entry);
+  await recordAvgHistoryForEntryMutation(oldEntry, entry);
 }
 
 export async function deleteEntry(id: number): Promise<void> {
@@ -211,7 +208,7 @@ export async function deleteEntry(id: number): Promise<void> {
   await db.execute("DELETE FROM entries WHERE id = $1", [id]);
   notifyEntriesMutated();
   if (entry) {
-    await appendAvgHistoryForAffectedProfiles(entry);
+    await recordAvgHistoryForEntryMutation(entry, null);
   }
 }
 

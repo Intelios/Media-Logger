@@ -1,373 +1,250 @@
-import { dbService, type MediaEntry, type AvgHistoryPoint, filterHiddenEntries, onEntriesMutated } from "./db";
-import { ADULT_MEDIA_VISIBILITY_CHANGED_EVENT, isAdultMediaEnabled } from "./settings";
-import { saveImage } from "./utils";
+import {
+  dbService,
+  type AvgHistoryPoint,
+  type MediaEntry,
+  adultExclusionSql,
+  onEntriesMutated,
+} from './db';
+import { ADULT_MEDIA_VISIBILITY_CHANGED_EVENT, isAdultMediaEnabled } from './settings';
+import { saveImage } from './utils';
+import {
+  PROFILE_FIELD_BY_TYPE,
+  PROFILE_TYPES,
+  entryMatchesProfile,
+  extractProfileIdentities,
+  getProfileKey,
+  makeProfileKey,
+  parseCropData,
+  type CropData,
+  type ProfileAggregationEntry,
+  type ProfileIdentity,
+  type ProfileIndex,
+  type ProfileSummary,
+  type ProfileType,
+} from './profiles/domain';
 
-// Non-destructive crop/reframe descriptor for a profile's cover image.
-// Stored as JSON in the profiles.crop_data column; applied at render via CSS.
-export interface CropData {
-  x: number;      // focal point X, 0-100 (object-position / transform-origin)
-  y: number;      // focal point Y, 0-100
-  scale: number;  // zoom, >= 1 (transform: scale)
-  fit: "cover" | "contain";
-}
+export { DEFAULT_CROP, PROFILE_TYPES, getProfileKey, isProfileType } from './profiles/domain';
+export type { CropData, ProfileIdentity, ProfileIndex, ProfileSummary, ProfileType } from './profiles/domain';
 
-// Defaults reproduce plain object-cover (today's behavior) — unedited profiles look identical.
-export const DEFAULT_CROP: CropData = { x: 50, y: 50, scale: 1, fit: "cover" };
-
-export interface ProfileSummary {
+interface ProfileMetadataRow {
   type: string;
   name: string;
+  image_url: string;
+  crop_data: string | null;
+  track_avg_history: number;
+}
+
+interface ProfileAggregate {
+  identity: ProfileIdentity;
   count: number;
-  average_score: number;
-  image_url?: string;
-  crop?: CropData;
-  track_avg_history?: boolean;
+  totalScore: number;
+  ratedCount: number;
 }
 
-// Parse a crop_data JSON string into a CropData, falling back to undefined on any problem.
-function parseCropData(raw: string | null | undefined): CropData | undefined {
-  if (!raw) return undefined;
-  try {
-    const parsed = JSON.parse(raw);
-    if (
-      parsed && typeof parsed.x === "number" && typeof parsed.y === "number" &&
-      typeof parsed.scale === "number" && (parsed.fit === "cover" || parsed.fit === "contain")
-    ) {
-      return { x: parsed.x, y: parsed.y, scale: parsed.scale, fit: parsed.fit };
-    }
-  } catch {
-    // Ignore malformed crop data → treat as no crop.
-  }
-  return undefined;
+let profileIndexRevision = 0;
+let profileIndexCache: { key: string; value: ProfileIndex } | null = null;
+let profileIndexInFlight: { key: string; promise: Promise<ProfileIndex> } | null = null;
+
+function profileIndexCacheKey(): string {
+  return `${profileIndexRevision}:${isAdultMediaEnabled() ? 'adult' : 'filtered'}`;
 }
-
-export const PROFILE_TYPES = ["director", "actress", "artist", "author", "franchise", "series"];
-
-let profileKeysCache: Set<string> | null = null;
-let profileKeysCacheAdultEnabled: boolean | null = null;
-let profileKeysPromise: Promise<Set<string>> | null = null;
-let profileKeysPromiseAdultEnabled: boolean | null = null;
-let profileKeysCacheVersion = 0;
 
 export function invalidateProfilesCache(): void {
-  profileKeysCacheVersion += 1;
-  profileKeysCache = null;
-  profileKeysCacheAdultEnabled = null;
-  profileKeysPromise = null;
-  profileKeysPromiseAdultEnabled = null;
+  profileIndexRevision += 1;
+  profileIndexCache = null;
+  profileIndexInFlight = null;
 }
 
 onEntriesMutated(invalidateProfilesCache);
 
-if (typeof window !== "undefined") {
-  window.addEventListener(ADULT_MEDIA_VISIBILITY_CHANGED_EVENT, () => {
-    invalidateProfilesCache();
-    // Append a snapshot for every tracked profile so the chart visibly reflects
-    // the rule change (which entries count toward the average).
-    void snapshotTrackedProfiles();
-  });
+if (typeof window !== 'undefined') {
+  window.addEventListener(ADULT_MEDIA_VISIBILITY_CHANGED_EVENT, invalidateProfilesCache);
 }
 
-/**
- * Recompute and append a current-state AVG snapshot for every profile that has
- * tracking enabled. Used when the Adult Media visibility setting flips.
- */
-async function snapshotTrackedProfiles(): Promise<void> {
+async function buildProfileIndex(): Promise<ProfileIndex> {
   const db = await dbService.connect();
-  const tracked = await db.select<{ type: string; name: string }[]>(
-    "SELECT type, name FROM profiles WHERE track_avg_history = 1"
-  );
-  if (tracked.length === 0) return;
+  const [entries, metadataRows, hiddenRows] = await Promise.all([
+    db.select<ProfileAggregationEntry[]>(
+      `SELECT entry_type, review_score, director, actress, artist, author, platform, franchise, series
+       FROM entries
+       WHERE 1 = 1${adultExclusionSql()}
+       ORDER BY id ASC`,
+    ),
+    db.select<ProfileMetadataRow[]>(
+      `SELECT type, name, image_url, crop_data, track_avg_history
+       FROM profiles`,
+    ),
+    db.select<{ type: string; name: string }[]>(
+      `SELECT type, name
+       FROM hidden_profiles`,
+    ),
+  ]);
 
-  const allRows = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
-  const matchesProfile = (type: string, name: string, e: MediaEntry): boolean => {
-    const field = type as keyof MediaEntry;
-    const val = e[field];
-    if (typeof val !== 'string' || !val) return false;
-    return val.split(',').map(s => s.trim()).includes(name);
-  };
-
-  for (const { type, name } of tracked) {
-    let totalCount = 0;
-    let totalScore = 0;
-    let ratedCount = 0;
-    for (const e of allRows) {
-      if (!matchesProfile(type, name, e)) continue;
-      totalCount++;
-      if (e.review_score != null) {
-        totalScore += e.review_score;
-        ratedCount++;
+  const aggregates = new Map<string, ProfileAggregate>();
+  for (const entry of entries) {
+    for (const identity of extractProfileIdentities(entry)) {
+      const key = getProfileKey(identity);
+      const aggregate = aggregates.get(key) ?? {
+        identity,
+        count: 0,
+        totalScore: 0,
+        ratedCount: 0,
+      };
+      aggregate.count += 1;
+      if (entry.review_score != null) {
+        aggregate.totalScore += entry.review_score;
+        aggregate.ratedCount += 1;
       }
+      aggregates.set(key, aggregate);
     }
-    if (ratedCount === 0) continue;
-    const avg = parseFloat((totalScore / ratedCount).toFixed(1));
-    await dbService.appendAvgHistoryPoint(type, name, avg, ratedCount, totalCount, 'mutation');
   }
-}
 
-async function aggregateAllProfiles(): Promise<ProfileSummary[]> {
-  const db = await dbService.connect();
-  const entries = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
+  const metadata = new Map<string, ProfileMetadataRow>();
+  for (const row of metadataRows) {
+    if (!isProfileTypeFromMetadata(row.type)) continue;
+    metadata.set(makeProfileKey(row.type, row.name), row);
+  }
 
-  const customImages = await db.select<{ type: string, name: string, image_url: string, crop_data?: string | null, track_avg_history?: number }[]>(
-    "SELECT * FROM profiles"
+  const hiddenKeys = new Set(
+    hiddenRows
+      .filter((row): row is { type: ProfileType; name: string } => isProfileTypeFromMetadata(row.type))
+      .map((row) => makeProfileKey(row.type, row.name)),
   );
 
-  const imageMap = new Map<string, string>();
-  const cropMap = new Map<string, CropData>();
-  const trackingMap = new Map<string, boolean>();
-  customImages.forEach(img => {
-    const key = `${img.type}:${img.name}`;
-    imageMap.set(key, img.image_url);
-    const crop = parseCropData(img.crop_data);
-    if (crop) cropMap.set(key, crop);
-    trackingMap.set(key, img.track_avg_history === 1);
+  const profiles: ProfileSummary[] = [];
+  for (const [key, aggregate] of aggregates) {
+    if (aggregate.count < 3) continue;
+    const row = metadata.get(key);
+    profiles.push({
+      ...aggregate.identity,
+      count: aggregate.count,
+      average_score: aggregate.ratedCount > 0
+        ? Number((aggregate.totalScore / aggregate.ratedCount).toFixed(1))
+        : 0,
+      image_url: row?.image_url,
+      crop: parseCropData(row?.crop_data),
+      track_avg_history: row?.track_avg_history === 1,
+    });
+  }
+  profiles.sort((a, b) => b.count - a.count);
+
+  const visible: ProfileSummary[] = [];
+  const hidden: ProfileSummary[] = [];
+  for (const profile of profiles) {
+    (hiddenKeys.has(getProfileKey(profile)) ? hidden : visible).push(profile);
+  }
+  return { visible, hidden };
+}
+
+function isProfileTypeFromMetadata(value: string): value is ProfileType {
+  return (PROFILE_TYPES as readonly string[]).includes(value);
+}
+
+async function getProfileIndex(): Promise<ProfileIndex> {
+  const key = profileIndexCacheKey();
+  if (profileIndexCache?.key === key) return profileIndexCache.value;
+  if (profileIndexInFlight?.key === key) return profileIndexInFlight.promise;
+
+  const promise = buildProfileIndex().then((value) => {
+    if (profileIndexCacheKey() === key) {
+      profileIndexCache = { key, value };
+    }
+    return value;
   });
-
-  const profileMap = new Map<string, { count: number; totalScore: number; scoreCount: number }>();
-
-  const processField = (entry: MediaEntry, field: keyof MediaEntry, type: string) => {
-    const value = entry[field];
-    if (typeof value === 'string' && value) {
-      // Only commas delimit multi-value fields (matching EntryForm, MediaCard
-      // and the SQL actress matching) — titles like "Fate/Stay Night" or
-      // "Steins;Gate" must stay intact.
-      const names = value.split(',').map(s => s.trim()).filter(s => s);
-
-      names.forEach(name => {
-        const key = `${type}:${name}`;
-        if (!profileMap.has(key)) {
-          profileMap.set(key, { count: 0, totalScore: 0, scoreCount: 0 });
-        }
-
-        const data = profileMap.get(key)!;
-        data.count++;
-        if (entry.review_score != null) {
-          data.totalScore += entry.review_score;
-          data.scoreCount++;
-        }
-      });
-    }
-  };
-
-  entries.forEach(entry => {
-    processField(entry, "director", "director");
-    processField(entry, "actress", "actress");
-    processField(entry, "artist", "artist");
-    processField(entry, "author", "author");
-    if (entry.entry_type === "Game") {
-      if (entry.platform) {
-        processField(entry, "platform", "platform");
-      }
-      if (entry.franchise) {
-        processField(entry, "franchise", "franchise");
-      }
-    }
-    if (["Show", "K-Drama", "Anime"].includes(entry.entry_type || "")) {
-      if (entry.series) {
-        processField(entry, "series", "series");
-      }
-    }
-  });
-
-  const results: ProfileSummary[] = [];
-  profileMap.forEach((data, key) => {
-    // Split on the first colon only — the type never contains one, but
-    // profile names can (e.g. a "Re:Zero" series).
-    const sep = key.indexOf(':');
-    const type = key.slice(0, sep);
-    const name = key.slice(sep + 1);
-    if (data.count >= 3) {
-      results.push({
-        type,
-        name,
-        count: data.count,
-        average_score: data.scoreCount > 0 ? parseFloat((data.totalScore / data.scoreCount).toFixed(1)) : 0,
-        image_url: imageMap.get(key),
-        crop: cropMap.get(key),
-        track_avg_history: trackingMap.get(key) === true
-      });
-    }
-  });
-
-  return results.sort((a, b) => b.count - a.count);
+  const record = { key, promise };
+  profileIndexInFlight = record;
+  promise
+    .finally(() => {
+      if (profileIndexInFlight === record) profileIndexInFlight = null;
+    })
+    .catch(() => undefined);
+  return promise;
 }
 
 export const profilesLogic = {
+  getProfileIndex,
+
   async getAllProfiles(): Promise<ProfileSummary[]> {
-    const db = await dbService.connect();
-    const allProfiles = await aggregateAllProfiles();
-
-    const hiddenRows = await db.select<{ type: string; name: string }[]>(
-      "SELECT type, name FROM hidden_profiles"
-    );
-    const hiddenSet = new Set(hiddenRows.map(r => `${r.type}:${r.name}`));
-
-    return allProfiles.filter(p => !hiddenSet.has(`${p.type}:${p.name}`));
+    return (await getProfileIndex()).visible;
   },
 
   async getHiddenProfiles(): Promise<ProfileSummary[]> {
-    const db = await dbService.connect();
-    const allProfiles = await aggregateAllProfiles();
-
-    const hiddenRows = await db.select<{ type: string; name: string }[]>(
-      "SELECT type, name FROM hidden_profiles"
-    );
-    const hiddenSet = new Set(hiddenRows.map(r => `${r.type}:${r.name}`));
-
-    if (hiddenSet.size === 0) return [];
-    return allProfiles.filter(p => hiddenSet.has(`${p.type}:${p.name}`));
+    return (await getProfileIndex()).hidden;
   },
 
-  async hideProfile(type: string, name: string): Promise<void> {
+  async hideProfile(type: ProfileType, name: string): Promise<void> {
     const db = await dbService.connect();
     await db.execute(
-      "INSERT OR IGNORE INTO hidden_profiles (type, name, hidden_date) VALUES ($1, $2, $3)",
-      [type, name, new Date().toISOString()]
+      'INSERT OR IGNORE INTO hidden_profiles (type, name, hidden_date) VALUES ($1, $2, $3)',
+      [type, name, new Date().toISOString()],
     );
     invalidateProfilesCache();
   },
 
-  async unhideProfile(type: string, name: string): Promise<void> {
+  async unhideProfile(type: ProfileType, name: string): Promise<void> {
     const db = await dbService.connect();
     await db.execute(
-      "DELETE FROM hidden_profiles WHERE type = $1 AND name = $2",
-      [type, name]
+      'DELETE FROM hidden_profiles WHERE type = $1 AND name = $2',
+      [type, name],
     );
     invalidateProfilesCache();
   },
 
-  async getProfileDetails(type: string, name: string, ascending: boolean = false): Promise<MediaEntry[]> {
+  async getProfileEntries(type: ProfileType, name: string): Promise<MediaEntry[]> {
     const db = await dbService.connect();
-    const allEntries = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
-
-    const filtered = allEntries.filter(e => {
-      const column = type as keyof MediaEntry;
-      const val = e[column];
-      if (typeof val === 'string') {
-        const parts = val.split(',').map(s => s.trim());
-        return parts.includes(name);
-      }
-      return false;
-    });
-
-    return filtered.sort((a, b) => {
-      const dateA = a.completion_date || '';
-      const dateB = b.completion_date || '';
-      return ascending
-        ? dateA.localeCompare(dateB)
-        : dateB.localeCompare(dateA);
-    });
+    const column = PROFILE_FIELD_BY_TYPE[type];
+    const candidates = await db.select<MediaEntry[]>(
+      `SELECT *
+       FROM entries
+       WHERE INSTR(COALESCE(${column}, ''), $1) > 0${adultExclusionSql()}
+       ORDER BY id ASC`,
+      [name],
+    );
+    return candidates.filter((entry) => entryMatchesProfile(entry, type, name));
   },
 
   async getProfileKeys(): Promise<Set<string>> {
-    const adultMediaEnabled = isAdultMediaEnabled();
-
-    if (profileKeysCache && profileKeysCacheAdultEnabled === adultMediaEnabled) {
-      return profileKeysCache;
-    }
-
-    if (profileKeysPromise && profileKeysPromiseAdultEnabled === adultMediaEnabled) {
-      return profileKeysPromise;
-    }
-
-    profileKeysPromiseAdultEnabled = adultMediaEnabled;
-    const cacheVersion = profileKeysCacheVersion;
-    const promise = (async () => {
-      const profiles = await profilesLogic.getAllProfiles();
-      const keys = new Set(profiles.map(p => `${p.type}:${p.name}`));
-
-      if (profileKeysCacheVersion === cacheVersion && isAdultMediaEnabled() === adultMediaEnabled) {
-        profileKeysCache = keys;
-        profileKeysCacheAdultEnabled = adultMediaEnabled;
-      }
-
-      return keys;
-    })();
-
-    profileKeysPromise = promise;
-    promise
-      .finally(() => {
-        if (profileKeysPromise === promise) {
-          profileKeysPromise = null;
-          profileKeysPromiseAdultEnabled = null;
-        }
-      })
-      .catch(() => undefined);
-
-    return promise;
+    const index = await getProfileIndex();
+    return new Set(index.visible.map(getProfileKey));
   },
 
-  async setProfileImage(type: string, name: string, sysPath: string): Promise<string | null> {
+  async setProfileImage(type: ProfileType, name: string, sysPath: string): Promise<string | null> {
     const db = await dbService.connect();
-
     const relativePath = await saveImage(sysPath);
     if (!relativePath) return null;
 
     await db.execute(
-      "INSERT OR REPLACE INTO profiles (type, name, image_url) VALUES ($1, $2, $3)",
-      [type, name, relativePath]
+      `INSERT INTO profiles (type, name, image_url)
+       VALUES ($1, $2, $3)
+       ON CONFLICT(type, name) DO UPDATE SET image_url = excluded.image_url`,
+      [type, name, relativePath],
     );
-
+    invalidateProfilesCache();
     return relativePath;
   },
 
-  async setProfileCrop(type: string, name: string, crop: CropData): Promise<void> {
+  async setProfileCrop(type: ProfileType, name: string, crop: CropData): Promise<void> {
     const db = await dbService.connect();
-
-    // Upsert crop while preserving any existing image_url for this profile.
     await db.execute(
       `INSERT INTO profiles (type, name, image_url, crop_data)
-       VALUES ($1, $2, COALESCE((SELECT image_url FROM profiles WHERE type = $1 AND name = $2), ''), $3)
+       VALUES ($1, $2, '', $3)
        ON CONFLICT(type, name) DO UPDATE SET crop_data = excluded.crop_data`,
-      [type, name, JSON.stringify(crop)]
+      [type, name, JSON.stringify(crop)],
     );
-
     invalidateProfilesCache();
   },
 
-  // --- AVG history tracking ---
-
-  async isAvgHistoryEnabled(type: string, name: string): Promise<boolean> {
+  async isAvgHistoryEnabled(type: ProfileType, name: string): Promise<boolean> {
     return dbService.isAvgHistoryEnabled(type, name);
   },
 
-  async setAvgHistoryEnabled(type: string, name: string, enabled: boolean): Promise<void> {
+  async setAvgHistoryEnabled(type: ProfileType, name: string, enabled: boolean): Promise<void> {
     await dbService.setAvgHistoryEnabled(type, name, enabled);
-    if (enabled) {
-      // Backfill from existing entries so the chart has immediate value.
-      await dbService.backfillAvgHistory(type, name);
-    }
+    if (enabled) await dbService.backfillAvgHistory(type, name);
     invalidateProfilesCache();
   },
 
-  async getAvgHistory(type: string, name: string): Promise<AvgHistoryPoint[]> {
+  async getAvgHistory(type: ProfileType, name: string): Promise<AvgHistoryPoint[]> {
     return dbService.getAvgHistory(type, name);
   },
-
-  /**
-   * Entries that belong to a profile, with a completion_date AND a review_score
-   * (only rated, dated entries can move the average — and only those make sense
-   * as markers on the avg history chart). Sorted ascending by completion_date so
-   * they line up left→right with the chart's x-axis. Respects the adult-media
-   * visibility filter via filterHiddenEntries.
-   */
-  async getProfileEntriesForChart(type: string, name: string): Promise<MediaEntry[]> {
-    const db = await dbService.connect();
-    const allEntries = filterHiddenEntries(await db.select<MediaEntry[]>("SELECT * FROM entries"));
-
-    const filtered = allEntries.filter(e => {
-      if (!e.completion_date || e.review_score == null) return false;
-      const column = type as keyof MediaEntry;
-      const val = e[column];
-      if (typeof val !== 'string' || !val) return false;
-      return val.split(',').map(s => s.trim()).includes(name);
-    });
-
-    return filtered.sort((a, b) => {
-      const dateA = a.completion_date || '';
-      const dateB = b.completion_date || '';
-      return dateA.localeCompare(dateB);
-    });
-  }
 };
