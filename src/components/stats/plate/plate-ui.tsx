@@ -209,18 +209,23 @@ export function BarRow({
           />
         ) : null}
       </span>
-      <span className="flex shrink-0 items-baseline justify-end gap-1 tabular-nums" style={{ width: share === undefined ? "2rem" : "3.4rem" }}>
-        <span className="text-gray-300">{value}</span>
-        {share !== undefined ? (
-          <span className="text-[9px] text-gray-600">{Math.round(share * 100)}%</span>
-        ) : null}
-      </span>
+      <span className="w-8 shrink-0 text-right tabular-nums text-gray-300">{value}</span>
+      {/* Its own fixed column rather than trailing the count — counts vary in
+          width, so a shared column makes the percentages jitter row to row. */}
+      {share !== undefined ? (
+        <span className="w-9 shrink-0 text-right text-[10px] tabular-nums text-gray-600">
+          {Math.round(share * 100)}%
+        </span>
+      ) : null}
     </>
   );
 
+  // w-full on both variants: a bare <button> sizes to its content, which
+  // collapses the flex-1 bar track whenever the row is not a direct child of a
+  // stretching flex column.
   if (!onClick) {
     return (
-      <div className="flex items-center gap-2 text-[11px]" {...hoverProps}>
+      <div className="flex w-full items-center gap-2 text-[11px]" {...hoverProps}>
         {content}
       </div>
     );
@@ -230,7 +235,7 @@ export function BarRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-2 rounded-md px-1 py-0.5 text-[11px] transition-colors hover:bg-white/5"
+      className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-[11px] transition-colors hover:bg-white/5"
       {...hoverProps}
     >
       {content}
