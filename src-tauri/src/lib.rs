@@ -1,3 +1,4 @@
+mod database;
 #[cfg(target_os = "macos")]
 mod glass;
 mod mcp;
@@ -1539,6 +1540,9 @@ pub fn run() {
             extract_backup_assets,
             list_asset_images,
             move_images_to_trash,
+            database::database_run_migrations,
+            database::database_export_snapshot,
+            database::database_import_backup,
             mcp::mcp_get_status,
             mcp::mcp_sync_runtime,
             mcp::mcp_set_enabled,

@@ -74,6 +74,8 @@ export function Layout() {
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showDbMigratedBanner, setShowDbMigratedBanner] = useState(false);
+  const [dbInitializationError, setDbInitializationError] = useState<string | null>(null);
+  const [isRetryingDatabase, setIsRetryingDatabase] = useState(false);
   const [imageFailures, setImageFailures] = useState<Map<string, ImageLoadFailureDetail>>(new Map());
   const navigate = useNavigate();
   const currentYear = getCurrentYearString();
@@ -84,8 +86,12 @@ export function Layout() {
   }, [isCompact]);
 
   const refreshYears = useCallback(async () => {
-    const availableYears = await getAvailableNavigationYears();
-    setYears(availableYears);
+    try {
+      const availableYears = await getAvailableNavigationYears();
+      setYears(availableYears);
+    } catch (error) {
+      setDbInitializationError(String(error));
+    }
   }, []);
 
   useEffect(() => {
@@ -200,14 +206,41 @@ export function Layout() {
   // reliably read the migration flag to decide whether to show the one-time banner.
   useEffect(() => {
     const checkWelcome = async () => {
-      const show = await shouldShowWelcome();
+      try {
+        const show = await shouldShowWelcome();
+        setShowWelcome(show);
+        setDbInitializationError(null);
+        if (localStorage.getItem(DB_MIGRATED_FLAG_KEY)) {
+          setShowDbMigratedBanner(true);
+        }
+      } catch (error) {
+        console.error('[DB] Initialization failed:', error);
+        setDbInitializationError(String(error));
+      }
+    };
+    void checkWelcome();
+  }, []);
+
+  const handleRetryDatabase = async () => {
+    setIsRetryingDatabase(true);
+    try {
+      await dbService.reconnect();
+      const [show] = await Promise.all([
+        shouldShowWelcome(),
+        refreshYears(),
+      ]);
       setShowWelcome(show);
+      setDbInitializationError(null);
       if (localStorage.getItem(DB_MIGRATED_FLAG_KEY)) {
         setShowDbMigratedBanner(true);
       }
-    };
-    checkWelcome();
-  }, []);
+    } catch (error) {
+      console.error('[DB] Retry failed:', error);
+      setDbInitializationError(String(error));
+    } finally {
+      setIsRetryingDatabase(false);
+    }
+  };
 
   const handleDismissDbMigratedBanner = () => {
     localStorage.removeItem(DB_MIGRATED_FLAG_KEY);
@@ -245,6 +278,33 @@ export function Layout() {
   };
 
   const readFailureCount = imageFailures.size;
+
+  if (dbInitializationError) {
+    return (
+      <div className="flex h-screen items-center justify-center p-8" style={{ color: 'var(--color-text)' }}>
+        <div className="modal-content" style={{ width: 'min(520px, 100%)', textAlign: 'center' }}>
+          <Database size={34} style={{ margin: '0 auto 16px', color: '#EF4444' }} />
+          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>Database could not be opened</h1>
+          <p style={{ color: 'var(--color-text-muted)', lineHeight: 1.55, marginBottom: 14 }}>
+            No failed migration changes were committed. You can retry after resolving the problem.
+          </p>
+          <div style={{ padding: 12, borderRadius: 8, background: 'rgba(239, 68, 68, 0.08)', color: '#EF4444', fontSize: 13, overflowWrap: 'anywhere', marginBottom: 18 }}>
+            {dbInitializationError}
+          </div>
+          <button
+            type="button"
+            className="settings-btn settings-btn-primary"
+            disabled={isRetryingDatabase}
+            onClick={() => void handleRetryDatabase()}
+            style={{ width: '100%' }}
+          >
+            <RefreshCw size={14} className={isRetryingDatabase ? 'animate-spin' : undefined} />
+            {isRetryingDatabase ? 'Retrying…' : 'Retry database'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ color: "var(--color-text)" }}>

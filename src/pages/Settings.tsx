@@ -35,7 +35,15 @@ import {
     Activity,
     Server
 } from 'lucide-react';
-import { exportToFile, importFromFile, getDataStats, type ImportResult } from '../lib/csv-logic';
+import {
+    BACKUP_TABLE_NAMES,
+    createFailedImportResult,
+    exportToFile,
+    importFromFile,
+    getDataStats,
+    type BackupTableName,
+    type ImportResult
+} from '../lib/csv-logic';
 import { DB_FILENAME, dbService } from '../lib/db';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CleanupImagesModal } from '../components/CleanupImagesModal';
@@ -88,6 +96,21 @@ import tauriConfig from '../../src-tauri/tauri.conf.json';
 type SettingsSection = 'general' | 'appearance' | 'ai-access' | 'data' | 'changelog' | 'about';
 type BackupFormat = 'json' | 'zip';
 type ClearThumbnailCacheResult = { filesRemoved: number; bytesRemoved: number };
+
+const IMPORT_TABLE_LABELS: Record<BackupTableName, string> = {
+    entries: 'Media entries',
+    collections: 'Collections',
+    collection_eras: 'Collection eras',
+    collection_items: 'Collection items',
+    award_years: 'Award years',
+    award_templates: 'Award templates',
+    award_categories: 'Award categories',
+    award_winners: 'Award winners',
+    profiles: 'Profiles',
+    hidden_profiles: 'Hidden profiles',
+    profile_avg_history: 'Profile AVG history',
+    backlog_items: 'Backlog items',
+};
 
 type ChangelogRelease = {
     version: string;
@@ -229,22 +252,6 @@ function AboutInfoRow({ label, value, mono = false }: { label: string; value: Re
             </div>
         </div>
     );
-}
-
-function createFailedImportResult(error: unknown): ImportResult {
-    return {
-        success: false,
-        mediaEntriesImported: 0,
-        mediaEntriesSkipped: 0,
-        collectionsImported: 0,
-        collectionsSkipped: 0,
-        awardTemplatesImported: 0,
-        awardCategoriesImported: 0,
-        awardWinnersImported: 0,
-        profilesImported: 0,
-        assetsRestored: 0,
-        errors: [String(error)],
-    };
 }
 
 export default function Settings() {
@@ -865,12 +872,12 @@ export default function Settings() {
                             result = {
                                 ...result,
                                 assetsRestored,
-                                errors: [...result.errors, ...cleanupWarnings]
+                                warnings: [...result.warnings, ...cleanupWarnings]
                             };
                         } catch (assetError) {
                             result = {
                                 ...result,
-                                errors: [...result.errors, `Assets could not be fully restored: ${String(assetError)}`]
+                                warnings: [...result.warnings, `Assets could not be fully restored: ${String(assetError)}`]
                             };
                         }
                     }
@@ -884,13 +891,14 @@ export default function Settings() {
 
                 // Imported entries may introduce new years — refresh the
                 // sidebar year list (Layout/Stats listen for this).
-                if (result.mediaEntriesImported > 0) {
+                if (result.success && result.tableCounts.entries.inserted > 0) {
                     window.dispatchEvent(new CustomEvent('entry-added'));
                 }
 
-                // Refresh stats after import
-                const newStats = await getDataStats();
-                setDataStats(newStats);
+                if (result.success) {
+                    const newStats = await getDataStats();
+                    setDataStats(newStats);
+                }
             }
         } catch (error) {
             console.error('Import error:', error);
@@ -2065,7 +2073,7 @@ export default function Settings() {
                         <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 450 }}>
                             <h2 style={{ marginBottom: 16 }}>
                                 {importResult.success
-                                    ? importResult.errors.length > 0
+                                    ? importResult.warnings.length > 0
                                         ? 'Import Complete With Warnings'
                                         : 'Import Complete'
                                     : 'Import Failed'}
@@ -2073,45 +2081,30 @@ export default function Settings() {
                             {importResult.success ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Media entries imported:</span>
-                                            <strong style={{ color: 'var(--color-primary)' }}>{importResult.mediaEntriesImported}</strong>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px 58px 58px', gap: 8, color: 'var(--color-text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                            <span>Data</span>
+                                            <span style={{ textAlign: 'right' }}>Added</span>
+                                            <span style={{ textAlign: 'right' }}>Reused</span>
+                                            <span style={{ textAlign: 'right' }}>Updated</span>
                                         </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Media entries already present (exact matches):</span>
-                                            <strong>{importResult.mediaEntriesSkipped}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Collections imported:</span>
-                                            <strong style={{ color: 'var(--color-secondary)' }}>{importResult.collectionsImported}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Collections skipped:</span>
-                                            <strong>{importResult.collectionsSkipped}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Award templates imported:</span>
-                                            <strong>{importResult.awardTemplatesImported}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Award categories imported:</span>
-                                            <strong>{importResult.awardCategoriesImported}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Award winners imported:</span>
-                                            <strong>{importResult.awardWinnersImported}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Profile mappings imported:</span>
-                                            <strong>{importResult.profilesImported}</strong>
-                                        </div>
+                                        {BACKUP_TABLE_NAMES.map((table) => {
+                                            const count = importResult.tableCounts[table];
+                                            return (
+                                                <div key={table} style={{ display: 'grid', gridTemplateColumns: '1fr 58px 58px 58px', gap: 8 }}>
+                                                    <span>{IMPORT_TABLE_LABELS[table]}</span>
+                                                    <strong style={{ textAlign: 'right', color: count.inserted > 0 ? 'var(--color-primary)' : undefined }}>{count.inserted}</strong>
+                                                    <strong style={{ textAlign: 'right' }}>{count.reused}</strong>
+                                                    <strong style={{ textAlign: 'right', color: count.updated > 0 ? 'var(--color-secondary)' : undefined }}>{count.updated}</strong>
+                                                </div>
+                                            );
+                                        })}
                                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                             <span>Assets restored:</span>
                                             <strong>{importResult.assetsRestored}</strong>
                                         </div>
                                     </div>
 
-                                    {importResult.errors.length > 0 && (
+                                    {importResult.warnings.length > 0 && (
                                         <div
                                             style={{
                                                 display: 'flex',
@@ -2125,8 +2118,8 @@ export default function Settings() {
                                         >
                                             <strong style={{ color: '#D97706' }}>Warnings</strong>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, color: 'var(--color-text-muted)', fontSize: 13 }}>
-                                                {importResult.errors.map((error, index) => (
-                                                    <span key={`${error}-${index}`}>{error}</span>
+                                                {importResult.warnings.map((warning, index) => (
+                                                    <span key={`${warning}-${index}`}>{warning}</span>
                                                 ))}
                                             </div>
                                         </div>
