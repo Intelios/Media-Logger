@@ -4,7 +4,7 @@ import { ResponsiveContainer, Treemap } from "recharts";
 import type { TreemapNode } from "recharts";
 import { cn } from "../../../../lib/utils_ui";
 import type { StatItem } from "../../../../lib/stats-logic";
-import { BarRow, CATEGORY_PALETTE, PanelEmptyState, PanelFrame } from "../plate-ui";
+import { BarRow, PanelEmptyState, PanelFrame } from "../plate-ui";
 import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../../../HoverTooltip";
 
 export const CATALOGUE_KINDS = ["platforms", "franchises", "series", "studios", "authors", "actresses"] as const;
@@ -18,6 +18,48 @@ const KIND_LABELS: Record<CatalogueKind, string> = {
   authors: "Authors",
   actresses: "Actresses",
 };
+
+// Each catalogue kind is a field that only a specific entry type carries, so
+// the tabs, bars and treemap take that type's badge colour instead of the
+// panel's generic blue. Series spans Show/K-Drama/Anime — cyan (Show) stands
+// in for the family; studios and actresses are both JAV fields, so both are
+// rose. Hexes match getTypeBadgeStyle in media-config.
+const KIND_COLORS: Record<CatalogueKind, string> = {
+  platforms: "#9333ea", // Game
+  franchises: "#9333ea", // Game
+  series: "#0891b2", // Show / K-Drama / Anime
+  studios: "#e11d48", // JAV
+  authors: "#d97706", // Book
+  actresses: "#e11d48", // JAV
+};
+
+// Full class strings per kind — Tailwind only sees literals, so these cannot
+// be assembled from fragments at runtime.
+const KIND_TAB_ACTIVE: Record<CatalogueKind, string> = {
+  platforms: "border-purple-400/40 bg-purple-500/15 font-semibold text-purple-200",
+  franchises: "border-purple-400/40 bg-purple-500/15 font-semibold text-purple-200",
+  series: "border-cyan-400/40 bg-cyan-500/15 font-semibold text-cyan-200",
+  studios: "border-rose-400/40 bg-rose-500/15 font-semibold text-rose-200",
+  authors: "border-amber-400/40 bg-amber-500/15 font-semibold text-amber-200",
+  actresses: "border-rose-400/40 bg-rose-500/15 font-semibold text-rose-200",
+};
+
+// Monochromatic ramp around the kind's colour: the treemap reads as one family
+// per kind instead of the shared categorical palette, so switching tabs feels
+// like a different panel. Cycling five tones keeps adjacent cells distinct.
+const TREEMAP_SHADES = [0.4, 0.2, 0, -0.2, -0.4];
+
+function shadeHex(hex: string, amount: number): string {
+  const value = parseInt(hex.slice(1), 16);
+  const r = (value >> 16) & 0xff;
+  const g = (value >> 8) & 0xff;
+  const b = value & 0xff;
+  const mix = (channel: number) => {
+    const target = amount < 0 ? 0 : 255;
+    return Math.round(channel + (target - channel) * Math.abs(amount));
+  };
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
 
 interface CataloguePanelProps {
   items: Record<CatalogueKind, StatItem[]>;
@@ -83,7 +125,7 @@ export function CataloguePanel({ items, comparisonItems, total, variant, onExpan
 
   const renderTreemapCell = (node: TreemapNode) => {
     const { x, y, width, height, index, name, value } = node;
-    const color = CATEGORY_PALETTE[index % CATEGORY_PALETTE.length];
+    const color = shadeHex(KIND_COLORS[activeKind], TREEMAP_SHADES[index % TREEMAP_SHADES.length]);
     const dimmed = hoveredName !== null && name !== hoveredName;
     // Name + value labels only on cells big enough to hold them; slivers stay
     // clean and let the rectangle's size carry the proportion.
@@ -136,7 +178,7 @@ export function CataloguePanel({ items, comparisonItems, total, variant, onExpan
             className={cn(
               "shrink-0 rounded-md border px-2 py-0.5 text-[10px] transition-colors",
               kind === activeKind
-                ? "border-sky-400/40 bg-sky-500/15 font-semibold text-sky-200"
+                ? KIND_TAB_ACTIVE[kind]
                 : "border-transparent bg-white/[0.05] text-gray-500 hover:text-gray-300"
             )}
           >
@@ -189,7 +231,7 @@ export function CataloguePanel({ items, comparisonItems, total, variant, onExpan
                 comparisonList && comparisonMax > 0 ? (comparisonByName.get(item.name) ?? 0) / comparisonMax : undefined
               }
               share={total > 0 ? item.count / total : undefined}
-              color="#38bdf8"
+              color={KIND_COLORS[activeKind]}
               nameWidth={isExpanded ? "11rem" : "4.5rem"}
               hoverProps={bindTooltip(
                 <>
