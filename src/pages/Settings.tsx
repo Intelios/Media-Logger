@@ -87,12 +87,11 @@ import {
 import packageJson from '../../package.json';
 import tauriConfig from '../../src-tauri/tauri.conf.json';
 import { IS_PERFORMANCE_BUILD } from '../lib/performance-mode';
-import { initializeImageService } from '../lib/image-service';
+import { getImageCacheLimitGiB, initializeImageService, setImageCacheLimitGiB } from '../lib/image-service';
 
 const SettingsChangelogSection = lazy(() => import('../components/settings/SettingsChangelogSection'));
-const PerformanceDiagnosticsSection = lazy(() => import('../components/settings/PerformanceDiagnosticsSection'));
 
-type SettingsSection = 'general' | 'appearance' | 'ai-access' | 'data' | 'performance' | 'changelog' | 'about';
+type SettingsSection = 'general' | 'appearance' | 'ai-access' | 'data' | 'changelog' | 'about';
 type BackupFormat = 'json' | 'zip';
 
 const IMPORT_TABLE_LABELS: Record<BackupTableName, string> = {
@@ -240,6 +239,8 @@ export default function Settings() {
     const [importResult, setImportResult] = useState<ImportResult | null>(null);
     const [showImportModal, setShowImportModal] = useState(false);
     const [showExportFormatModal, setShowExportFormatModal] = useState(false);
+    const [cacheLimit, setCacheLimit] = useState<1 | 3 | 5>(() => getImageCacheLimitGiB());
+    const [isCacheLimitBusy, setIsCacheLimitBusy] = useState(false);
 
     // Unused-image cleanup state
     const [isScanning, setIsScanning] = useState(false);
@@ -919,7 +920,6 @@ export default function Settings() {
         { id: 'appearance', label: 'Appearance', icon: <Palette size={18} /> },
         { id: 'ai-access', label: 'AI Access', icon: <Bot size={18} /> },
         { id: 'data', label: 'Data', icon: <Database size={18} /> },
-        { id: 'performance', label: 'Performance', icon: <Activity size={18} /> },
         { id: 'changelog', label: 'Changelog', icon: <ScrollText size={18} /> },
         { id: 'about', label: 'About', icon: <Info size={18} /> },
     ];
@@ -1739,6 +1739,42 @@ export default function Settings() {
                             </div>
                         </section>
 
+                        <section className="settings-card">
+                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+                                <div>
+                                    <div className="settings-row-label">Derivative Image Cache Limit</div>
+                                    <div className="settings-row-description">
+                                        Maximum disk space for derivative covers. Originals are never counted or evicted.
+                                        Cache usage, rebuild, and clear operations live on the Performance page.
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    {([1, 3, 5] as const).map((limit) => (
+                                        <button
+                                            key={limit}
+                                            className={`settings-btn ${cacheLimit === limit ? 'settings-btn-primary' : 'settings-btn-secondary'}`}
+                                            disabled={isCacheLimitBusy}
+                                            onClick={() => {
+                                                setIsCacheLimitBusy(true);
+                                                void setImageCacheLimitGiB(limit)
+                                                    .then(() => setCacheLimit(limit))
+                                                    .catch((error) => {
+                                                        console.error('[Settings] Failed to set image cache limit:', error);
+                                                    })
+                                                    .finally(() => setIsCacheLimitBusy(false));
+                                            }}
+                                        >
+                                            {isCacheLimitBusy && cacheLimit === limit ? (
+                                                <><Loader2 size={14} className="spin" /> {limit} GB</>
+                                            ) : (
+                                                `${limit} GB`
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </section>
+
                         <div style={{
                             display: 'flex',
                             alignItems: 'flex-start',
@@ -1754,13 +1790,6 @@ export default function Settings() {
                             <span>JSON backups include all database data in JSON format with embedded CSVs but do not bundle local assets. ZIP backups include the same backup JSON plus the current <strong style={{ color: 'var(--color-text)' }}>assets/</strong> folder from your data directory.</span>
                         </div>
                     </div>
-                )}
-
-                {/* Performance Diagnostics Section */}
-                {activeSection === 'performance' && (
-                    <Suspense fallback={<div className="settings-section-loading"><Loader2 size={18} className="spin" /></div>}>
-                        <PerformanceDiagnosticsSection />
-                    </Suspense>
                 )}
 
                 {/* Changelog Section */}

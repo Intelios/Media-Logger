@@ -1,7 +1,7 @@
 import { Children, isValidElement, useState, useEffect, useCallback, useLayoutEffect, useRef, type ReactNode, type SyntheticEvent } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Settings, PartyPopper, Bookmark, Database, X, RefreshCw } from "lucide-react";
+import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Settings, PartyPopper, Bookmark, Database, X, RefreshCw, Gauge } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
 import { WelcomeScreen } from "./WelcomeScreen";
@@ -10,6 +10,7 @@ import { listen } from "@tauri-apps/api/event";
 import { shouldShowWelcome } from "../lib/onboarding-logic";
 import { getNavigationYears } from "../lib/settings";
 import { getAvailableNavigationYears, getCurrentYearString, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
+import { IS_DEV_OR_PERFORMANCE_BUILD } from "../lib/performance-mode";
 import { MainScrollContainerProvider } from "../lib/scroll-container";
 import { recordRouteCommit } from "../lib/performance-diagnostics";
 
@@ -386,6 +387,9 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
             {(isCollapsed) => (
               <StaggerContainer isCollapsed={isCollapsed}>
                 <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" shortcut={getShortcutLabel(",")} isCompact={isCompact} />
+                {IS_DEV_OR_PERFORMANCE_BUILD && (
+                  <NavItem to="/performance" icon={<Gauge size={18} />} label="Performance" isCompact={isCompact} />
+                )}
               </StaggerContainer>
             )}
           </CollapsibleSection>

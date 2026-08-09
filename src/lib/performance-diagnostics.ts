@@ -54,6 +54,12 @@ export interface PerformanceDiagnosticsSnapshot {
   /** rAF-derived stalls over 50 ms. Available in every engine. */
   longFrameCount: number;
   frameCount: number;
+  /** Rolling per-frame interval series (~10 Hz while capturing), for live charts. */
+  frameIntervalSeries: { t: number; intervalMs: number }[];
+  /** Rolling JS-heap series (~10 Hz while capturing), when `performance.memory` exists. */
+  memorySeries: { t: number; bytes: number }[];
+  /** 1 ms buckets of every recorded frame interval, 0–255 ms; index is the interval. */
+  frameHistogramBuckets: number[];
   /** Against the fixed 16.7 ms release gate. Comparable across machines. */
   framesWithinBudgetPercent: number | null;
   /**
@@ -114,6 +120,10 @@ const MAXIMUM_DISPLAY_INTERVAL_MS = 34;
 const PARKED_COMPOSITOR_MS = 1_000;
 const LONG_FRAME_MS = 50;
 const INTERACTION_THRESHOLD_MS = 40;
+/** Rolling series length for live charts. 300 points at ~10 Hz is a 30 s window. */
+const SERIES_MAX_POINTS = 300;
+/** Push one series point per N recorded frames — ~10 Hz at a 60 Hz display. */
+const SERIES_FRAME_STRIDE = 6;
 
 const listeners = new Set<Listener>();
 const buckets = new Map<PerformanceCategory, PerformanceSample[]>();
@@ -130,6 +140,9 @@ let longFrameCount = 0;
 let ignoredFrameGapCount = 0;
 let frameIntervals: number[] = [];
 let frameHistogram = new Uint32Array(FRAME_HISTOGRAM_BUCKETS);
+let frameIntervalSeries: { t: number; intervalMs: number }[] = [];
+let memorySeries: { t: number; bytes: number }[] = [];
+let framesSinceSeriesSample = 0;
 let displayIntervalMs: number | null = null;
 let longTaskObserver: PerformanceObserver | null = null;
 let interactionObserver: PerformanceObserver | null = null;
@@ -313,6 +326,21 @@ function frameTick(now: number): void {
       } else if (elapsed <= displayIntervalMs + 1) {
         onDisplayIntervalFrameCount += 1;
       }
+      framesSinceSeriesSample += 1;
+      if (framesSinceSeriesSample >= SERIES_FRAME_STRIDE) {
+        framesSinceSeriesSample = 0;
+        frameIntervalSeries.push({ t: now, intervalMs: round(elapsed) });
+        if (frameIntervalSeries.length > SERIES_MAX_POINTS) {
+          frameIntervalSeries.splice(0, frameIntervalSeries.length - SERIES_MAX_POINTS);
+        }
+        const memory = (performance as MemoryPerformance).memory?.usedJSHeapSize;
+        if (typeof memory === 'number') {
+          memorySeries.push({ t: now, bytes: memory });
+          if (memorySeries.length > SERIES_MAX_POINTS) {
+            memorySeries.splice(0, memorySeries.length - SERIES_MAX_POINTS);
+          }
+        }
+      }
     }
   }
   previousFrameAt = now;
@@ -389,6 +417,9 @@ function resetFrameState(): void {
   previousFrameAt = 0;
   frameIntervals = [];
   frameHistogram = new Uint32Array(FRAME_HISTOGRAM_BUCKETS);
+  frameIntervalSeries = [];
+  memorySeries = [];
+  framesSinceSeriesSample = 0;
   displayIntervalMs = null;
 }
 
@@ -462,6 +493,9 @@ export function getPerformanceDiagnosticsSnapshot(): PerformanceDiagnosticsSnaps
     longTaskCount,
     longFrameCount,
     frameCount,
+    frameIntervalSeries: [...frameIntervalSeries],
+    memorySeries: [...memorySeries],
+    frameHistogramBuckets: [...frameHistogram],
     framesWithinBudgetPercent:
       frameCount > 0 ? round((onBudgetFrameCount / frameCount) * 100) : null,
     framesWithinDisplayIntervalPercent:

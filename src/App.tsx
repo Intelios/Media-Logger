@@ -46,7 +46,9 @@ function createPreloadableRoute(loader: () => Promise<LazyRouteModule>) {
   };
 }
 
-const routeChunks = {
+type RouteChunk = ReturnType<typeof createPreloadableRoute>;
+
+const routeChunks: Record<string, RouteChunk> = {
   dashboard: createPreloadableRoute(() => import("./pages/Dashboard")),
   year: createPreloadableRoute(() => import("./pages/YearView")),
   search: createPreloadableRoute(() => import("./pages/Search")),
@@ -59,6 +61,14 @@ const routeChunks = {
   backlog: createPreloadableRoute(() => import("./pages/Backlog")),
 };
 
+// Debug & Performance Lab builds only. The literal `import.meta.env.MODE !==
+// "production"` must be inlined here (rather than referencing the exported
+// constant) so Rollup can fold it to false before it decides which chunks to
+// emit — that is what keeps the Performance page chunk out of release bundles.
+if (import.meta.env.MODE !== "production") {
+  routeChunks.performance = createPreloadableRoute(() => import("./pages/Performance"));
+}
+
 const Dashboard = routeChunks.dashboard.Component;
 const YearView = routeChunks.year.Component;
 const SearchPage = routeChunks.search.Component;
@@ -69,6 +79,9 @@ const CollectionsPage = routeChunks.collections.Component;
 const SettingsPage = routeChunks.settings.Component;
 const ReviewPage = routeChunks.review.Component;
 const BacklogPage = routeChunks.backlog.Component;
+const PerformancePage = import.meta.env.MODE !== "production"
+  ? routeChunks.performance?.Component
+  : undefined;
 
 function prefetchRouteChunk(pathname: string): void {
   if (pathname === "/") routeChunks.dashboard.preload();
@@ -81,6 +94,9 @@ function prefetchRouteChunk(pathname: string): void {
   else if (pathname.startsWith("/settings")) routeChunks.settings.preload();
   else if (pathname.startsWith("/review")) routeChunks.review.preload();
   else if (pathname.startsWith("/backlog")) routeChunks.backlog.preload();
+  else if (import.meta.env.MODE !== "production" && pathname.startsWith("/performance")) {
+    routeChunks.performance?.preload();
+  }
 }
 
 function RouteFallback() {
@@ -171,6 +187,11 @@ function App() {
                   <Route path="backlog" element={<LazyRoute><BacklogPage /></LazyRoute>} />
                   <Route path="review" element={<LazyRoute><ReviewPage /></LazyRoute>} />
                   <Route path="settings" element={<LazyRoute><SettingsPage /></LazyRoute>} />
+
+                  {/* Debug & Performance Lab builds only — absent from release bundles */}
+                  {import.meta.env.MODE !== "production" && PerformancePage && (
+                    <Route path="performance" element={<LazyRoute><PerformancePage /></LazyRoute>} />
+                  )}
 
                   {/* Fallback */}
                   <Route path="*" element={<Navigate to="/" replace />} />
