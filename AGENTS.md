@@ -27,7 +27,8 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app.
 - Entry: `src/main.tsx` → `App.tsx` → `<ThemeProvider>` + `<BrowserRouter>` + `<Layout>` + lazy-loaded pages.
 - Pages: `Dashboard`, `YearView`, `Search`, `Stats`, `Profiles`, `Awards`, `Collections`, `Backlog`, `Review`, `Settings`.
 - `src/lib/db/` — data layer (formerly a single `db.ts`). `service.ts` exports the `dbService` singleton facade; `connection.ts` owns `connect()` + legacy-file migration; `migrations.ts` owns schema migrations; `shared.ts` owns adult filtering; `index.ts` is the public barrel; feature modules `entries.ts`, `backlog.ts`, `random-pick.ts`, `distinct-values.ts`, `avg-history.ts`, `events.ts`, `types.ts`. **Submodules must import siblings directly, never the barrel or `service.ts`** — keeps the module graph acyclic.
-- `src/lib/stats-logic.ts` — stats computed in-memory from fetched rows, not SQL aggregations.
+- `src/lib/stats-logic.ts` — stats computed in-memory from fetched rows, not SQL aggregations. `createStatsDataset()` + `buildFullStatsFromDataset()` are pure and exported; the Stats page relies on that to re-derive everything client-side (see **Stats Screen**).
+- `src/components/stats/plate/` — the entire Stats screen. See **Stats Screen** below before changing it.
 - `src/lib/themes.ts` + `src/lib/ThemeContext.tsx` — CSS-variable theming persisted to `localStorage`.
 - `src/lib/settings.ts` — `localStorage`-based settings (data dir, display name, nav years, adult-media toggle, etc.).
 - `src/lib/utils.ts` — image loading via `@tauri-apps/plugin-fs` (reads local files → blob URLs), ref-counted cache (`releaseImageUrl`). The asset protocol is **not** enabled — `convertFileSrc()` URLs would fail; never use it.
@@ -44,6 +45,28 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app.
 - `mcp.rs` (~2200 lines) — local read-only MCP server (axum + rmcp). Owns its own read-only sqlx SQLite connection and uses a fixed SELECT allowlist: `notes`, image paths, and ownership/private flags are never selected. Enabled only from Settings → AI Access (`mcp_set_enabled`), binds 127.0.0.1 only. The MCP tools mirror what this session sees: `search_media`, `get_media_details`, `summarize_library`, `list_backlog`.
 
 **Routing** (`react-router` v8 — import from `react-router`, **not** `react-router-dom`): `/`, `/year/:year`, `/search`, `/stats`, `/profiles`, `/awards`, `/collections`, `/backlog`, `/review`, `/settings`.
+
+## Stats Screen (Plate · Spine)
+
+A **single screen that never scrolls**. The old widget dashboard (`StatsDashboard`, `StatsSectionGrid`, `StatsWidgetGrid`, `StatsSummaryRibbon`, `StatsWidgetShell`, `stats-registry.tsx`, `stats-layout.ts`, `src/components/stats/widgets/`) is deleted — do not reintroduce that structure. Everything lives in `src/components/stats/plate/`.
+
+Layout is toolbar → figure strip → timeline hero → a fixed 4-panel grid, all inside one `h-full` column.
+
+**Data flow — brushing costs nothing.** `Stats.tsx` fetches rows **once per year with no type filter** (`statsLogic.getFilteredEntries(year, [])`), then `derivePlateData()` in `plate-data.ts` re-derives every stat in memory. Type filtering, date-range brushing and the comparison period are all client-side.
+- Types are filtered in JS so the toolbar can show a live count on chips that are switched **off**; adult exclusion still happens in SQL.
+- Brushing a range must never trigger a query. If you find yourself adding SQL for it, you have taken a wrong turn.
+- `selectTimelineSeries()` in `stats-logic.ts` returns one bucket row carrying completions, average score, rewatches and platinums, so the four former time widgets share one axis.
+
+**Panels.** Six are defined in `plate-config.ts`, four occupy slots. Each renders a `compact` and an `expanded` variant via `renderPlatePanel()`; expanded opens in `PanelExpandOverlay`. Preferences (slots, figures, layers, compare) persist to `localStorage` under `media-logger-stats-plate`.
+
+**Conventions that are easy to break:**
+- **Never use the native `title` attribute for tooltips here.** Use `useHoverTooltip()` from `PlateTooltip.tsx`, which renders the app's `glass-tooltip` through a shared portal. Native titles have a ~1s delay and cannot be styled.
+- **No fixed height floors on panels.** `PanelFrame` is `h-full` and fills its grid cell; hard `min-h` values are what made the old dashboard leave dead space.
+- `BarRow` is `w-full` on purpose — a bare `<button>` sizes to its content and silently collapses the flex-1 bar track.
+- Cover art goes through `CoverImage` in `plate-ui.tsx`. `MostReplayedItem` and `MultiLogDayEntry` carry no `image_url`, so covers are matched back by name/id against the selection's rows.
+- `selectGenres()` caps its list at 25 for display — use `countDistinctGenres()` for any headline count, or it silently plateaus.
+- The entrance animation is **mount-only**. Do not key it to the range, or the plate re-animates on every frame of a brush drag.
+- The brush strip is weekly cells for a specific year and yearly cells on All Time, so its granularity always matches the chart above it. Amber marks a week containing a `BUSY_DAY_THRESHOLD`+ log day.
 
 ## Vite / Build Quirks
 
@@ -62,7 +85,7 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app.
 - Legacy table renamed: `javs` → `entries`.
 - Boolean-like fields (`is_rewatch`, `is_platinum`, `is_completed`, `own_local_copy`, `has_subtitles`, `is_early_access`) are stored as SQLite integers (0/1), not booleans.
 - `actress` is a comma-delimited string, not a normalized column. Search uses comma-aware `INSTR` matching.
-- Stats fetch all matching rows then compute in JS — be mindful of large datasets.
+- Stats fetch all matching rows then compute in JS — be mindful of large datasets. The Stats screen leans on this deliberately: one fetch per year, everything else derived in memory.
 - Adult entry types (`JAV`, `Hentai`, `Adult Visual Novel`) are hidden via `adultExclusionSql()` / `filterHiddenEntries()` when the Adult Media setting is off; data is never deleted, only filtered from queries.
 
 ## Theming
@@ -88,3 +111,4 @@ Defined in Rust (`lib.rs`). Sends Tauri events to the frontend:
 - Do not assume `npm run dev` gives you a desktop app — use `npm run tauri dev`.
 - Do not delete the legacy `jav_log.db` backup.
 - Do not use `convertFileSrc()` / asset-protocol URLs for images — read via plugin-fs into blob URLs.
+- Do not add SQL, queries or refetching for Stats range brushing, and do not use native `title` tooltips or fixed panel heights on the Stats screen — see **Stats Screen**.
