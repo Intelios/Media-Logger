@@ -107,6 +107,7 @@ export function renderPlatePanel(
       return (
         <MultiLogDaysPanel
           multiLogDays={stats.multiLogDays}
+          rangedEntries={rangedEntries}
           variant={variant}
           onDateClick={onDateClick}
           onExpand={onExpand}

@@ -3,8 +3,7 @@ import { cn } from "../../../../lib/utils_ui";
 import type { MediaEntry } from "../../../../lib/db";
 import type { MostReplayedItem } from "../../../../lib/stats-logic";
 import { formatShortDate } from "../../../../lib/dates";
-import { useImageUrl } from "../../../../lib/utils";
-import { PanelEmptyState, PanelFrame } from "../plate-ui";
+import { CoverImage, PanelEmptyState, PanelFrame } from "../plate-ui";
 import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../PlateTooltip";
 
 interface StandoutsPanelProps {
@@ -35,16 +34,13 @@ const TONE_CLASSES: Record<Standout["tone"], string> = {
 
 function StandoutCover({ standout, compact }: { standout: Standout; compact: boolean }) {
   const { bindTooltip, tooltip } = useHoverTooltip();
-  const src = useImageUrl(standout.imagePath, undefined, { variant: "thumbnail" });
 
   const body = (
     <>
       <span className="relative block w-full overflow-hidden rounded-md border border-white/10 bg-white/[0.04]">
-        <img
-          src={src}
-          alt=""
-          loading="lazy"
-          className="aspect-[3/4] w-full object-cover transition-transform duration-200 group-hover:scale-[1.04]"
+        <CoverImage
+          path={standout.imagePath}
+          className="aspect-[3/4] w-full transition-transform duration-200 group-hover:scale-[1.04]"
         />
         <span
           className={cn(

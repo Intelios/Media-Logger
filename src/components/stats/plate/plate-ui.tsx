@@ -1,6 +1,7 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { Maximize2 } from "lucide-react";
 import { cn } from "../../../lib/utils_ui";
+import { useImageUrl } from "../../../lib/utils";
 import type { PlateAccent } from "./plate-config";
 
 // Full class strings per accent — Tailwind only sees literals, so these cannot
@@ -241,6 +242,16 @@ export function BarRow({
       {content}
     </button>
   );
+}
+
+/**
+ * Cover art for a panel. Sizing lives on the caller so the same loader serves a
+ * poster grid and a 32px strip; the parent supplies the box, this fills it.
+ */
+export function CoverImage({ path, className }: { path: string | null; className?: string }) {
+  const src = useImageUrl(path, undefined, { variant: "thumbnail" });
+
+  return <img src={src} alt="" loading="lazy" className={cn("object-cover", className)} />;
 }
 
 export function PanelEmptyState({ message }: { message: string }) {
