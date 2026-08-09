@@ -21,12 +21,15 @@ const KIND_LABELS: Record<CatalogueKind, string> = {
 
 // Each catalogue kind is a field that only a specific entry type carries, so
 // the tabs, bars and treemap take that type's badge colour instead of the
-// panel's generic blue. Series spans Show/K-Drama/Anime — cyan (Show) stands
-// in for the family; studios and actresses are both JAV fields, so both are
-// rose. Hexes match getTypeBadgeStyle in media-config.
+// panel's generic blue. Franchises and platforms are both Game fields, but
+// they appear as separate tabs in this panel, so franchises get their own
+// indigo instead of sharing the Game/platform purple — otherwise the two
+// tabs read as the same category. Series spans Show/K-Drama/Anime — cyan
+// (Show) stands in for the family; studios and actresses are both JAV
+// fields, so both are rose. Hexes match getTypeBadgeStyle in media-config.
 const KIND_COLORS: Record<CatalogueKind, string> = {
   platforms: "#9333ea", // Game
-  franchises: "#9333ea", // Game
+  franchises: "#4f46e5", // Game franchise — indigo, distinct from platforms
   series: "#0891b2", // Show / K-Drama / Anime
   studios: "#e11d48", // JAV
   authors: "#d97706", // Book
@@ -37,7 +40,7 @@ const KIND_COLORS: Record<CatalogueKind, string> = {
 // be assembled from fragments at runtime.
 const KIND_TAB_ACTIVE: Record<CatalogueKind, string> = {
   platforms: "border-purple-400/40 bg-purple-500/15 font-semibold text-purple-200",
-  franchises: "border-purple-400/40 bg-purple-500/15 font-semibold text-purple-200",
+  franchises: "border-indigo-400/40 bg-indigo-500/15 font-semibold text-indigo-200",
   series: "border-cyan-400/40 bg-cyan-500/15 font-semibold text-cyan-200",
   studios: "border-rose-400/40 bg-rose-500/15 font-semibold text-rose-200",
   authors: "border-amber-400/40 bg-amber-500/15 font-semibold text-amber-200",
