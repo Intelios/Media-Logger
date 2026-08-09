@@ -148,7 +148,11 @@ export const CoverImage = forwardRef<HTMLImageElement, CoverImageProps>(function
 
   return (
     <span
-      className={cn('relative block overflow-hidden', containerClassName)}
+      // `isolate` keeps the skeleton/image z-indexes below scoped to this
+      // wrapper. Without it the image's z-[1] competes in the *caller's*
+      // stacking context and paints over sibling overlays (badges, gradients)
+      // that are rendered after the cover and expect to sit on top of it.
+      className={cn('relative isolate block overflow-hidden', containerClassName)}
       style={containerStyle}
       data-cover-variant={variant}
     >
