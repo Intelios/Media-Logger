@@ -5,7 +5,7 @@
     src="https://github.com/user-attachments/assets/4e542ada-8e0a-473d-abd3-83e985d505bb"
   />
 
-  <h1>Media Logger 3</h1>
+  <h1>Media Logger 4</h1>
 
   <p><strong>A desktop-first media journal for people who want more than a watchlist.</strong></p>
 
