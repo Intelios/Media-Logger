@@ -25,6 +25,7 @@ import type { MediaEntry } from '../../lib/db';
 import { formatShortDate } from '../../lib/dates';
 import { DEFAULT_CROP, type CropData, type ProfileSummary } from '../../lib/profiles-logic';
 import { AvgHistoryModal } from '../AvgHistoryModal';
+import { useHoverTooltip } from '../HoverTooltip';
 import { MediaCard, type MediaAward } from '../MediaCard';
 import { CoverImage } from '../CoverImage';
 import { VirtualizedCardGrid } from '../VirtualizedCardGrid';
@@ -76,6 +77,7 @@ export function ProfileDetailView({
   const [detailMenuOpen, setDetailMenuOpen] = useState(false);
   const [detailMenuPosition, setDetailMenuPosition] = useState({ top: 0, right: 0 });
   const [avgTrackingBusy, setAvgTrackingBusy] = useState(false);
+  const { bindTooltip } = useHoverTooltip();
   const cropFrameRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<{
     startX: number;
@@ -200,10 +202,14 @@ export function ProfileDetailView({
             <button
               ref={detailMenuButtonRef}
               onClick={handleDetailMenuClick}
+              {...bindTooltip(
+                <span className="text-xs font-medium text-text">Profile settings</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
               className="p-3 bg-black/40 backdrop-blur-md hover:bg-black/60 rounded-full transition-all border border-white/10 hover:border-white/30"
-              title="Profile settings"
             >
               <MoreVertical size={20} className="text-white" />
+              <span className="sr-only">Profile settings</span>
             </button>
           </div>
           {detailMenuOpen && createPortal(
@@ -273,7 +279,10 @@ export function ProfileDetailView({
               <div className="absolute top-4 right-4 z-10 flex items-center gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
                 <button
                   onClick={handleUpdateImage}
-                  title="Replace image"
+                  {...bindTooltip(
+                    <span className="text-xs font-medium text-text">Replace image</span>,
+                    { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                  )}
                   className="p-2.5 rounded-full bg-black/55 hover:bg-black/75 backdrop-blur-md border border-white/15 hover:border-white/30 text-white shadow-lg transition-colors"
                 >
                   <Camera size={18} />
@@ -281,7 +290,10 @@ export function ProfileDetailView({
                 </button>
                 <button
                   onClick={handleEnterCropEdit}
-                  title="Adjust crop"
+                  {...bindTooltip(
+                    <span className="text-xs font-medium text-text">Adjust crop</span>,
+                    { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                  )}
                   className="p-2.5 rounded-full bg-black/55 hover:bg-black/75 backdrop-blur-md border border-white/15 hover:border-white/30 text-white shadow-lg transition-colors"
                 >
                   <Crop size={18} />

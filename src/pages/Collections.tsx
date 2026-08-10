@@ -5,6 +5,7 @@ import { collectionsLogic, type Collection, type Era, type CollectionItemView } 
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
+import { useHoverTooltip } from "../components/HoverTooltip";
 import { CollectionModal } from "../components/CollectionModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { WinnerPicker } from "../components/WinnerPicker"; // Reusing the picker for adding items
@@ -87,6 +88,7 @@ export default function CollectionsPage() {
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [items, setItems] = useState<CollectionItemView[]>([]);
   const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
+  const { bindTooltip } = useHoverTooltip();
 
   // Eras
   const [eras, setEras] = useState<Era[]>([]);
@@ -353,10 +355,14 @@ export default function CollectionsPage() {
       {/* Hover Remove Button */}
       <button
         onClick={() => setItemToRemove(entry)}
+        {...bindTooltip(
+          <span className="text-xs font-medium text-text">Remove from collection</span>,
+          { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+        )}
         className="absolute top-2 left-2 bg-red-600 hover:bg-red-500 p-2 rounded-xl text-white opacity-0 group-hover:opacity-100 transition-all shadow-lg z-30 hover:scale-110"
-        title="Remove from collection"
       >
         <Trash2 size={14} />
+        <span className="sr-only">Remove from collection</span>
       </button>
       {/* Era assignment (hover) */}
       <EraAssignMenu

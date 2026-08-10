@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Eye, EyeOff, Users } from 'lucide-react';
 import { getProfileKey, type ProfileSummary, type ProfileType } from '../../lib/profiles-logic';
+import { useHoverTooltip } from '../HoverTooltip';
 import { VirtualizedCardGrid } from '../VirtualizedCardGrid';
 import { ProfileCard } from './ProfileCards';
 import {
@@ -27,6 +28,7 @@ export function ProfileIndexView({
   const [showHidden, setShowHidden] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<ProfileType[]>(loadPersistedProfileFilters);
   const [searchQuery, setSearchQuery] = useState('');
+  const { bindTooltip } = useHoverTooltip();
 
   useEffect(() => {
     localStorage.setItem(PROFILE_FILTER_STORAGE_KEY, JSON.stringify(selectedTypes));
@@ -102,6 +104,11 @@ export function ProfileIndexView({
                   key={type.key}
                   onClick={() => toggleType(type.key)}
                   onDoubleClick={() => setSelectedTypes([type.key])}
+                  {...bindTooltip(
+                    <span className="text-xs font-medium text-text">
+                      {isActive ? 'Click to toggle off, double-click to select only this' : 'Click to add filter'}
+                    </span>
+                  )}
                   className={`
                     flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm
                     transition-all duration-200
@@ -110,7 +117,6 @@ export function ProfileIndexView({
                       : 'bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/10 hover:border-white/20'}
                     ${isOnlySelected ? 'ring-2 ring-white/30' : ''}
                   `}
-                  title={isActive ? 'Click to toggle off, double-click to select only this' : 'Click to add filter'}
                 >
                   <Icon size={16} />
                   <span>{type.label}</span>
