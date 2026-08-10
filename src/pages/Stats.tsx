@@ -241,7 +241,16 @@ export default function StatsPage() {
         if (message.requestId !== latestDerivationRef.current) return;
 
         if (message.type === "error") {
-          useSynchronousFallback(message.message);
+          // A worker-posted error is a per-request derivation failure caught
+          // inside the worker (e.g. a malformed date tripping
+          // derivePlateSelection), not a worker crash. The worker is still
+          // alive and retaining its datasets, so terminating it here would
+          // permanently sacrifice off-main-thread derivation for the rest of
+          // the session over a single recoverable exception. Log and keep the
+          // last good result visible; the next input change re-derives on the
+          // worker. Truly fatal failures surface through the Worker "error"
+          // event below, which still falls back synchronously.
+          console.error("[Stats] Worker derivation failed (recoverable):", message.message);
           return;
         }
 
