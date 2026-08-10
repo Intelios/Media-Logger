@@ -1,0 +1,115 @@
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useDroppable } from "@dnd-kit/core";
+import { SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
+import { cn } from "../../lib/utils_ui";
+import { HOVER_LIFT, ITEM_HEIGHT } from "./backlog-visuals";
+import type { BacklogItem } from "../../lib/db";
+
+interface BacklogShelfProps {
+  /** Droppable id for cross-section drags. */
+  containerId: string;
+  items: BacklogItem[];
+  itemWidth: number;
+  itemGap: number;
+  /** Hides the items but keeps the plank and its label rail on screen. */
+  collapsed?: boolean;
+  renderItem: (item: BacklogItem, index: number) => ReactNode;
+  /** Optional shelf-edge label printed on the plank beneath each item. */
+  renderLabel?: (item: BacklogItem) => ReactNode;
+  emptyState: ReactNode;
+}
+
+/**
+ * How many items fit one shelf at the current width. Measured rather than
+ * wrapped with flex so each shelf can carry a full-width plank and a label rail
+ * whose cells line up with the items above them.
+ */
+function useItemsPerShelf(itemWidth: number, itemGap: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [perShelf, setPerShelf] = useState(0);
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const measure = () => {
+      const width = element.clientWidth;
+      if (width <= 0) return;
+      // n items and n-1 gaps: n = (width + gap) / (itemWidth + gap)
+      setPerShelf(Math.max(1, Math.floor((width + itemGap) / (itemWidth + itemGap))));
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [itemWidth, itemGap]);
+
+  return { ref, perShelf };
+}
+
+// A run of shelves holding one backlog section. Items flow left to right and
+// wrap onto the next plank down, so the section reads as a bookcase rather than
+// a grid — and 30-odd items fit where seven cards used to.
+export function BacklogShelf({
+  containerId,
+  items,
+  itemWidth,
+  itemGap,
+  collapsed = false,
+  renderItem,
+  renderLabel,
+  emptyState,
+}: BacklogShelfProps) {
+  const { setNodeRef } = useDroppable({ id: containerId });
+  const { ref: measureRef, perShelf } = useItemsPerShelf(itemWidth, itemGap);
+
+  // Before the first measurement lands (same frame, via layout effect) keep
+  // everything on one shelf rather than guessing one-per-shelf.
+  const chunkSize = perShelf > 0 ? perShelf : items.length || 1;
+  const shelves: BacklogItem[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    shelves.push(items.slice(i, i + chunkSize));
+  }
+
+  return (
+    <div ref={setNodeRef}>
+      <div ref={measureRef}>
+        {items.length === 0 ? (
+          emptyState
+        ) : (
+          <SortableContext items={items.map((item) => item.id)} strategy={rectSortingStrategy}>
+            {shelves.map((shelf, shelfIndex) => (
+              <div key={shelfIndex} className="backlog-shelf-unit">
+                <div
+                  className={cn("backlog-shelf-collapse", collapsed && "backlog-shelf-collapse-closed")}
+                >
+                  <div
+                    className="flex items-end overflow-visible"
+                    style={{ gap: itemGap, minHeight: ITEM_HEIGHT + HOVER_LIFT }}
+                  >
+                    {shelf.map((item, indexInShelf) =>
+                      renderItem(item, shelfIndex * chunkSize + indexInShelf)
+                    )}
+                  </div>
+                </div>
+
+                <div aria-hidden className="backlog-plank" />
+
+                {renderLabel && (
+                  <div className="flex" style={{ gap: itemGap }}>
+                    {shelf.map((item) => (
+                      <div key={item.id} className="backlog-rail-cell" style={{ width: itemWidth }}>
+                        {renderLabel(item)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </SortableContext>
+        )}
+      </div>
+    </div>
+  );
+}
