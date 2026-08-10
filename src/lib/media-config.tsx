@@ -1,5 +1,21 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Book, Film, Gamepad, Gamepad2, Heart, Music, Sparkles, Star, Tag, type LucideIcon } from "lucide-react";
+import {
+  Book,
+  BookOpen,
+  Disc3,
+  Film,
+  Gamepad,
+  Gamepad2,
+  Heart,
+  Monitor,
+  MonitorPlay,
+  Music,
+  Sparkles,
+  Star,
+  Tag,
+  Tv,
+  type LucideIcon,
+} from "lucide-react";
 import { isAdultMediaEnabled, ADULT_MEDIA_VISIBILITY_CHANGED_EVENT } from "./settings";
 
 export const ENTRY_TYPES: string[] = [
@@ -29,6 +45,40 @@ export const ENTRY_TYPE_OPTIONS: { value: string; icon: ReactNode }[] = [
   { value: "Adult Visual Novel", icon: <Gamepad size={14} /> },
   { value: "Other", icon: <Tag size={14} /> },
 ];
+
+// Shared card display helpers live here rather than in either card component so
+// lightweight consumers do not pull the full MediaCard implementation into
+// their route chunk.
+export const getTypeBadgeStyle = (type: string | null) => {
+  const normalizedType = (type || "").toLowerCase();
+  if (normalizedType.includes("album")) return { bg: "bg-emerald-600", icon: <Disc3 size={12} /> };
+  if (normalizedType.includes("game")) return { bg: "bg-purple-600", icon: <Gamepad2 size={12} /> };
+  if (normalizedType.includes("anime")) return { bg: "bg-pink-500", icon: <MonitorPlay size={12} /> };
+  if (normalizedType.includes("k-drama")) return { bg: "bg-teal-600", icon: <Tv size={12} /> };
+  if (normalizedType.includes("movie")) return { bg: "bg-blue-600", icon: <Film size={12} /> };
+  if (normalizedType.includes("show")) return { bg: "bg-cyan-600", icon: <Tv size={12} /> };
+  if (normalizedType.includes("book")) return { bg: "bg-amber-600", icon: <BookOpen size={12} /> };
+  if (normalizedType.includes("jav") || normalizedType.includes("hentai")) {
+    return { bg: "bg-rose-600", icon: <Heart size={12} /> };
+  }
+  if (normalizedType.includes("visual novel")) return { bg: "bg-indigo-600", icon: <Monitor size={12} /> };
+  return { bg: "bg-gray-600", icon: <MonitorPlay size={12} /> };
+};
+
+export const getRatingColor = (score: number | null) => {
+  if (!score && score !== 0) return "bg-gray-700/80 text-gray-300";
+  if (score >= 9) return "bg-emerald-500 text-white";
+  if (score >= 7) return "bg-blue-500 text-white";
+  if (score >= 5) return "bg-yellow-500 text-white";
+  return "bg-red-500 text-white";
+};
+
+export const formatCardRating = (score: number) => Math.round(score).toString();
+
+export const parseGenres = (genre: string | null): string[] => {
+  if (!genre) return [];
+  return genre.split(",").map((value) => value.trim()).filter((value) => value.length > 0);
+};
 
 export type FilterPresetKey = "gaming" | "media" | "adult";
 export type ActiveFilterPresetKey = FilterPresetKey | null;

@@ -7,19 +7,22 @@ import { EntryForm } from "./EntryForm";
 import { dbService } from "../lib/db";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
+import { VirtualizedCardGrid } from "./VirtualizedCardGrid";
 
 interface StatsEntriesModalProps {
     isOpen: boolean;
     onClose: () => void;
     title: string;
     entries: MediaEntry[];
+    isLoading?: boolean;
     onEntriesChange: () => void;
 }
 
-export function StatsEntriesModal({ isOpen, onClose, title, entries, onEntriesChange }: StatsEntriesModalProps) {
+export function StatsEntriesModal({ isOpen, onClose, title, entries, isLoading = false, onEntriesChange }: StatsEntriesModalProps) {
     const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     useEscapeToClose(isOpen, onClose);
     useFocusTrap(isOpen, modalRef);
@@ -72,18 +75,29 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, onEntriesCh
                 </header>
 
                 {/* Scrollable Content */}
-                <div className="flex-1 overflow-y-auto p-6">
-                    {entries.length > 0 ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                            {entries.map(entry => (
+                <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
+                    {isLoading ? (
+                        <div className="flex h-full items-center justify-center text-sm text-text-muted">
+                            Loading entry details...
+                        </div>
+                    ) : entries.length > 0 ? (
+                        <VirtualizedCardGrid
+                            items={entries}
+                            getItemKey={(entry) => entry.id}
+                            columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
+                            gap={24}
+                            estimatedRowHeight={520}
+                            scrollContainerRef={scrollRef}
+                            ariaLabel={title}
+                            renderItem={(entry, index) => (
                                 <MediaCard
-                                    key={entry.id}
                                     entry={entry}
+                                    imagePriority={index < 10 ? 'high' : 'auto'}
                                     onEdit={handleEdit}
                                     onDelete={handleDelete}
                                 />
-                            ))}
-                        </div>
+                            )}
+                        />
                     ) : (
                         <div className="flex flex-col items-center justify-center py-20 text-text-subtle">
                             <p className="text-lg">No entries found.</p>

@@ -95,7 +95,7 @@ export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
                                     key={feature.title}
                                     className="welcome-feature-card"
                                     style={{
-                                        animationDelay: `${index * 0.1}s`,
+                                        animationDelay: `${Math.min(index * 0.1, 0.3)}s`,
                                         background: feature.bg
                                     }}
                                 >

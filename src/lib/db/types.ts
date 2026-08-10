@@ -27,6 +27,34 @@ export interface MediaEntry {
   series: string | null;
 }
 
+/** Full row used by edit/detail surfaces. */
+export type EntryDetail = MediaEntry;
+
+/**
+ * Lightweight row for cards and lists. Large free-form text fields are loaded
+ * only when a detail/edit surface asks for them.
+ */
+export type EntryCardSummary = Omit<MediaEntry, 'description' | 'notes'>;
+
+/**
+ * Projection consumed by the in-memory Stats pipeline. Stats deliberately
+ * keeps all filtering/brush derivation client-side, but does not need prose or
+ * version-note fields from SQLite.
+ */
+export type StatsEntry = Omit<
+  MediaEntry,
+  'description' | 'notes' | 'early_access_version' | 'update_version'
+>;
+
+/** A zero-based page of query results. Search pages are capped at 100 rows. */
+export interface PagedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  hasMore: boolean;
+}
+
 export interface BacklogItem {
   id: number;
   name: string;

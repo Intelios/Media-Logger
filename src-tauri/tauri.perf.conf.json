@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Media Logger Performance Lab",
+  "identifier": "com.medialogger.perf",
+  "build": {
+    "beforeDevCommand": "npm run dev:perf",
+    "beforeBuildCommand": "npm run build:perf"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Media Logger Performance Lab — Synthetic Data Only",
+        "width": 800,
+        "height": 600,
+        "transparent": true
+      }
+    ]
+  }
+}

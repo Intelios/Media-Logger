@@ -58,6 +58,46 @@ export const getDaysUntil = (dateString: string | null): number | null => {
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 };
 
+// Whole days from a date until today — the mirror of getDaysUntil.
+// Returns null for invalid/missing input, 0 for today, negative for future dates.
+export const getDaysSince = (dateString: string | null): number | null => {
+  const until = getDaysUntil(dateString);
+  return until === null ? null : -until;
+};
+
+const DAYS_PER_MONTH = 30.44;
+const DAYS_PER_YEAR = 365.25;
+
+// Compact duration for tight UI — the foot of a backlog spine is 34px wide, so
+// this has to stay under about six characters: "3d", "18d", "2mo", "1y 2mo".
+export const formatDurationShort = (days: number | null): string => {
+  if (days === null || days < 0) return "";
+  if (days === 0) return "today";
+  if (days < 30) return `${days}d`;
+  const months = Math.round(days / DAYS_PER_MONTH);
+  if (months < 12) return `${months}mo`;
+  const years = Math.floor(days / DAYS_PER_YEAR);
+  const trailingMonths = Math.round((days - years * DAYS_PER_YEAR) / DAYS_PER_MONTH);
+  if (trailingMonths <= 0) return `${years}y`;
+  if (trailingMonths >= 12) return `${years + 1}y`;
+  return `${years}y ${trailingMonths}mo`;
+};
+
+// Readable duration for prose, e.g. the Backlog header stat line.
+export const formatDurationLong = (days: number | null): string => {
+  if (days === null || days < 0) return "";
+  if (days === 0) return "today";
+  if (days === 1) return "1 day";
+  if (days < 30) return `${days} days`;
+  const months = Math.round(days / DAYS_PER_MONTH);
+  if (months < 12) return months === 1 ? "1 month" : `${months} months`;
+  const years = Math.floor(days / DAYS_PER_YEAR);
+  const trailingMonths = Math.round((days - years * DAYS_PER_YEAR) / DAYS_PER_MONTH);
+  const yearLabel = years === 1 ? "1 year" : `${years} years`;
+  if (trailingMonths <= 0 || trailingMonths >= 12) return yearLabel;
+  return `${yearLabel} ${trailingMonths}mo`;
+};
+
 // Today as month + ordinal day, e.g. "June 9th"
 export const formatTodayMD = (): string => {
   const today = new Date();

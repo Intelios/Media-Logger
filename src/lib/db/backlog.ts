@@ -1,4 +1,5 @@
 import { connect } from './connection';
+import { invoke } from '@tauri-apps/api/core';
 import { filterHiddenEntries } from './shared';
 import type { BacklogItem } from './types';
 
@@ -56,12 +57,11 @@ export async function updateBacklogStatus(id: number, status: BacklogItem['statu
 
 export async function updateBacklogItemOrder(status: BacklogItem['status'], ids: number[]): Promise<void> {
   const db = await connect();
-  for (let i = 0; i < ids.length; i++) {
-    await db.execute(
-      "UPDATE backlog_items SET sort_order = $1 WHERE id = $2 AND status = $3",
-      [i, ids[i], status]
-    );
-  }
+  await invoke('database_reorder_backlog_items', {
+    databaseUrl: db.path,
+    status,
+    itemIds: ids,
+  });
 }
 
 export async function deleteBacklogItem(id: number): Promise<void> {

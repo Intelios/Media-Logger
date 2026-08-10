@@ -5,16 +5,19 @@ import { collectionsLogic, type Collection, type Era, type CollectionItemView } 
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
+import { useHoverTooltip } from "../components/HoverTooltip";
 import { CollectionModal } from "../components/CollectionModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { WinnerPicker } from "../components/WinnerPicker"; // Reusing the picker for adding items
-import { getImageUrl, releaseImageUrl } from "../lib/utils";
 import { ArrowUpDown } from "lucide-react"; // Import ArrowUpDown icon
 import { ReorderModal } from "../components/ReorderModal"; // Import Modal
 import { EntryForm } from "../components/EntryForm"; // Import EntryForm for editing
 import { ErasModal } from "../components/ErasModal";
 import { EraAssignMenu } from "../components/EraAssignMenu";
 import { hexToRgb } from "../lib/themes";
+import { CoverImage } from "../components/CoverImage";
+import { VirtualizedCardGrid, DEFAULT_GRID_VIRTUALIZATION_THRESHOLD } from "../components/VirtualizedCardGrid";
+import { useOptionalMainScrollContainer } from "../lib/scroll-container";
 
 // A bracket rectangle drawn behind a run of era members on one visual row of
 // the grid. Era members that wrap to a second row produce one bracket per row.
@@ -45,38 +48,7 @@ function bracketsEqual(left: EraBracket[], right: EraBracket[]): boolean {
 
 // Helper for thumbnail grid - Enhanced version
 function CollectionThumbnails({ images }: { images: string[] }) {
-  const [urls, setUrls] = useState<string[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const acquiredImages: string[] = [];
-
-    if (images.length === 0) {
-      setUrls([]);
-      return;
-    }
-
-    Promise.all(images.map(async (img) => {
-      const url = await getImageUrl(img, { variant: 'thumbnail' });
-      if (cancelled) {
-        releaseImageUrl(img, 'thumbnail');
-      } else {
-        acquiredImages.push(img);
-      }
-      return url;
-    })).then((nextUrls) => {
-      if (!cancelled) {
-        setUrls(nextUrls);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      acquiredImages.forEach((image) => releaseImageUrl(image, 'thumbnail'));
-    };
-  }, [images]);
-
-  if (urls.length === 0) {
+  if (images.length === 0) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-white/5 to-white/[0.02] text-gray-600">
         <div className="flex flex-col items-center gap-2">
@@ -93,11 +65,14 @@ function CollectionThumbnails({ images }: { images: string[] }) {
       {/* Fill up to 4 slots, use placeholders if needed */}
       {[0, 1, 2, 3].map(i => (
         <div key={i} className="bg-white/5 overflow-hidden relative rounded-md group/thumb">
-          {urls[i] ? (
-            <img
-              src={urls[i]}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover/thumb:scale-110"
+          {images[i] ? (
+            <CoverImage
+              path={images[i]}
               alt=""
+              variant="small"
+              sizes="10vw"
+              containerClassName="h-full w-full"
+              imageClassName="h-full w-full object-cover transition-transform duration-500 group-hover/thumb:scale-110"
             />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-white/[0.03] to-transparent" />
@@ -113,6 +88,7 @@ export default function CollectionsPage() {
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [items, setItems] = useState<CollectionItemView[]>([]);
   const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
+  const { bindTooltip } = useHoverTooltip();
 
   // Eras
   const [eras, setEras] = useState<Era[]>([]);
@@ -132,6 +108,8 @@ export default function CollectionsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [collectionToDelete, setCollectionToDelete] = useState<Collection | null>(null);
   const [itemToRemove, setItemToRemove] = useState<MediaEntry | null>(null);
+  const mainScroll = useOptionalMainScrollContainer();
+  const isVirtualized = items.length >= DEFAULT_GRID_VIRTUALIZATION_THRESHOLD;
 
   // Measure era member cards and compute bracket rects (one per era per visual
   // row). Eras are a pure overlay: this only reads DOM positions.
@@ -222,6 +200,16 @@ export default function CollectionsPage() {
       }
     };
   }, [eras.length, scheduleBracketComputation]);
+
+  // When the grid is virtualized, only mounted rows carry card refs, so the
+  // bracket overlay must refresh as the user scrolls new rows into view.
+  useEffect(() => {
+    if (!isVirtualized || eras.length === 0) return;
+    const scrollEl = mainScroll?.scrollRef.current;
+    if (!scrollEl) return;
+    scrollEl.addEventListener('scroll', scheduleBracketComputation, { passive: true });
+    return () => scrollEl.removeEventListener('scroll', scheduleBracketComputation);
+  }, [isVirtualized, eras.length, mainScroll, scheduleBracketComputation]);
 
   useEffect(() => {
     loadCollections();
@@ -346,6 +334,45 @@ export default function CollectionsPage() {
   };
 
   // --- VIEW 1: DETAIL (Grid of Items) ---
+  const renderCollectionItem = (entry: CollectionItemView, index: number) => (
+    <div
+      key={entry.id}
+      ref={(el) => {
+        if (el) cardElsRef.current.set(entry.id, el);
+        else cardElsRef.current.delete(entry.id);
+      }}
+      data-era-id={entry.era_id ?? ""}
+      className="relative z-10 group collection-item-enter"
+      style={{ animationDelay: `${Math.min(index * 50, 300)}ms` }}
+    >
+      <MediaCard
+        entry={entry}
+        imagePriority={index < 10 ? 'high' : 'auto'}
+        onEdit={handleEditFromCard}
+        onDelete={handleDeleteFromCard}
+        awards={entry.id ? awardsMap.get(entry.id) : undefined}
+      />
+      {/* Hover Remove Button */}
+      <button
+        onClick={() => setItemToRemove(entry)}
+        {...bindTooltip(
+          <span className="text-xs font-medium text-text">Remove from collection</span>,
+          { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+        )}
+        className="absolute top-2 left-2 bg-red-600 hover:bg-red-500 p-2 rounded-xl text-white opacity-0 group-hover:opacity-100 transition-all shadow-lg z-30 hover:scale-110"
+      >
+        <Trash2 size={14} />
+        <span className="sr-only">Remove from collection</span>
+      </button>
+      {/* Era assignment (hover) */}
+      <EraAssignMenu
+        eras={eras}
+        currentEraId={entry.era_id}
+        onAssign={(eraId) => handleAssignEra(entry.id, eraId)}
+      />
+    </div>
+  );
+
   if (selectedCollection) {
     return (
       <div className="space-y-6">
@@ -444,7 +471,7 @@ export default function CollectionsPage() {
             </div>
           </div>
         ) : (
-          <div ref={gridRef} className="relative grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div ref={gridRef} className={`relative ${isVirtualized ? '' : 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6'}`}>
             {/* Era bracket backgrounds (behind cards) */}
             {brackets.map(b => (
               <div
@@ -481,39 +508,21 @@ export default function CollectionsPage() {
                 {b.eraName}
               </div>
             ))}
-            {items.map((entry, index) => (
-              <div
-                key={entry.id}
-                ref={(el) => {
-                  if (el) cardElsRef.current.set(entry.id, el);
-                  else cardElsRef.current.delete(entry.id);
-                }}
-                data-era-id={entry.era_id ?? ""}
-                className="relative z-10 group collection-item-enter"
-                style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
-              >
-                <MediaCard
-                  entry={entry}
-                  onEdit={handleEditFromCard}
-                  onDelete={handleDeleteFromCard}
-                  awards={entry.id ? awardsMap.get(entry.id) : undefined}
-                />
-                {/* Hover Remove Button */}
-                <button
-                  onClick={() => setItemToRemove(entry)}
-                  className="absolute top-2 left-2 bg-red-600 hover:bg-red-500 p-2 rounded-xl text-white opacity-0 group-hover:opacity-100 transition-all shadow-lg z-30 hover:scale-110"
-                  title="Remove from collection"
-                >
-                  <Trash2 size={14} />
-                </button>
-                {/* Era assignment (hover) */}
-                <EraAssignMenu
-                  eras={eras}
-                  currentEraId={entry.era_id}
-                  onAssign={(eraId) => handleAssignEra(entry.id, eraId)}
-                />
-              </div>
-            ))}
+            {isVirtualized ? (
+              <VirtualizedCardGrid
+                items={items}
+                getItemKey={(entry) => entry.id}
+                columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
+                gap={24}
+                estimatedRowHeight={520}
+                threshold={1}
+                className="relative z-10"
+                ariaLabel={`${selectedCollection.name} collection`}
+                renderItem={(entry, index) => renderCollectionItem(entry, index)}
+              />
+            ) : (
+              items.map((entry, index) => renderCollectionItem(entry, index))
+            )}
           </div>
         )}
 
@@ -629,7 +638,7 @@ export default function CollectionsPage() {
               key={col.id}
               onClick={() => handleSelectCollection(col)}
               className="relative collection-card-gradient border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer group hover:shadow-2xl card-shine collection-card-enter"
-              style={{ animationDelay: `${Math.min(index * 60, 480)}ms` }}
+              style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
             >
               {/* Watermark number */}
               <div className="collection-watermark -top-4 -right-2 group-hover:text-white/[0.04] transition-all">
