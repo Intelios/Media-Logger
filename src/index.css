@@ -609,6 +609,32 @@ body {
   color: var(--color-text-subtle);
 }
 
+/* ── Theme-aware form controls ───────────────────────────────────────────────
+   Tailwind's `focus:border-primary/50` / `bg-primary/90` style utilities emit
+   NOTHING: the theme colours are defined in tailwind.config.js as full
+   `var(--color-primary, …)` strings with no `<alpha-value>` placeholder, so the
+   opacity modifier can't be applied and the utility is dropped. Any accent tint
+   therefore has to come from real CSS using color-mix. */
+
+.themed-field:focus {
+  border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.themed-chip-active {
+  background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  color: color-mix(in srgb, var(--color-primary) 45%, white);
+}
+
+.themed-cta {
+  background: linear-gradient(to right, var(--color-primary), var(--color-secondary));
+}
+
+.themed-cta:hover {
+  box-shadow: 0 10px 15px -3px color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
 /* Apple-Style Buttons */
 .settings-btn {
   padding: 8px 16px;
