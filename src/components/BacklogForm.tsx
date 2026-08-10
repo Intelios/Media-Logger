@@ -135,9 +135,20 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
         style={{ backgroundColor: "var(--color-surface)" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-r from-amber-500/10 to-orange-500/10">
+        <div
+          className="flex items-center justify-between px-6 py-4 border-b border-white/10"
+          style={{
+            background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 12%, transparent), color-mix(in srgb, var(--color-secondary) 8%, transparent))`,
+          }}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg"
+              style={{
+                background: `linear-gradient(to bottom right, var(--color-primary), var(--color-secondary))`,
+                boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)`,
+              }}
+            >
               <Sparkles size={18} className="text-white" />
             </div>
             <h2 className="text-lg font-bold text-white">
@@ -161,7 +172,7 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="What do you want to watch, play, or read?"
-              className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-black/30 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 transition-colors"
+              className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-black/30 text-white placeholder-gray-500 themed-field focus:outline-none transition-colors"
               autoFocus
             />
           </div>
@@ -177,9 +188,10 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
                   onClick={() => setEntryType(t.value)}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                    "border",
                     entryType === t.value
-                      ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-                      : "bg-white/5 text-gray-400 border border-white/5 hover:bg-white/10 hover:text-gray-300"
+                      ? "themed-chip-active"
+                      : "bg-white/5 text-gray-400 border-white/5 hover:bg-white/10 hover:text-gray-300"
                   )}
                 >
                   {t.icon}
@@ -197,7 +209,7 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
               value={genre}
               onChange={e => setGenre(e.target.value)}
               placeholder="Action, RPG, Drama... (comma-separated)"
-              className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-black/30 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 transition-colors"
+              className="w-full px-4 py-2.5 rounded-xl border border-white/10 bg-black/30 text-white placeholder-gray-500 themed-field focus:outline-none transition-colors"
             />
           </div>
 
@@ -284,7 +296,7 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
               className={cn(
                 "flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all",
                 name.trim() && !isSaving
-                  ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-lg hover:shadow-amber-500/25 hover:scale-[1.02] active:scale-[0.98]"
+                  ? "themed-cta text-white hover:scale-[1.02] active:scale-[0.98]"
                   : "bg-gray-700 text-gray-500 cursor-not-allowed"
               )}
             >

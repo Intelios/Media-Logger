@@ -1,30 +1,33 @@
-import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Bookmark, Plus, Play, Clock, Package, CalendarClock, ChevronDown, ChevronUp } from "lucide-react";
+import { Bookmark, Plus, Play, Package, CalendarClock, ChevronDown, ChevronUp } from "lucide-react";
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  useDroppable,
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { BacklogShelf } from "../components/backlog/BacklogShelf";
+import { SortableShelfItem } from "../components/backlog/SortableShelfItem";
+import { BacklogSpine } from "../components/backlog/BacklogSpine";
+import { BacklogFaceout } from "../components/backlog/BacklogFaceout";
+import { BacklogItemMenu, type MenuAnchor } from "../components/backlog/BacklogItemMenu";
 import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  rectSortingStrategy,
-} from "@dnd-kit/sortable";
-import { SortableBacklogCase } from "../components/SortableBacklogCase";
+  FACEOUT_GAP, FACEOUT_WIDTH, SPINE_GAP, SPINE_WIDTH,
+} from "../components/backlog/backlog-visuals";
 import { BacklogForm } from "../components/BacklogForm";
 import { EntryForm } from "../components/EntryForm";
 import { backlogLogic, type BacklogItemsByStatus } from "../lib/backlog-logic";
 import { dbService, type BacklogItem, type MediaEntry } from "../lib/db";
 import { getVisibleEntryTypes, useAdultMediaEnabled } from "../lib/media-config";
 import { isUnreleasedSectionCollapsed, setUnreleasedSectionCollapsed } from "../lib/settings";
+import { formatDurationLong, getDaysSince, getDaysUntil } from "../lib/dates";
 import { cn } from "../lib/utils_ui";
 
 type SectionKey = "inProgress" | "planning" | "unreleased";
@@ -41,67 +44,83 @@ const SECTION_STATUS: Record<SectionKey, BacklogItem["status"]> = {
   unreleased: "unreleased",
 };
 
-interface SortableSectionGridProps {
-  containerId: string;
-  list: BacklogItem[];
-  dragEnabled: boolean;
-  suppressTooltip: boolean;
-  emptyState: ReactNode;
-  onStart: (id: number) => void;
-  onPause: (id: number) => void;
-  onComplete: (item: BacklogItem) => void;
-  onEdit: (item: BacklogItem) => void;
-  onRemove: (id: number) => void;
-}
+/** Compact plank label date, e.g. "14 Sep". */
+const formatRailDate = (dateString: string | null): string => {
+  if (!dateString) return "TBA";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "TBA";
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+};
 
-// A droppable card grid for one backlog section. The whole grid (including its
-// empty-state placeholder) is a droppable, so an empty section is still a valid
-// cross-section drop target; each card inside is individually sortable.
-function SortableSectionGrid({
-  containerId,
-  list,
-  dragEnabled,
-  suppressTooltip,
-  emptyState,
-  onStart,
-  onPause,
-  onComplete,
-  onEdit,
-  onRemove,
-}: SortableSectionGridProps) {
-  const { setNodeRef } = useDroppable({ id: containerId });
+const HEADING_TONES = {
+  amber: { icon: "text-amber-400", badge: "bg-amber-500/15 text-amber-400 border-amber-500/20" },
+  neutral: { icon: "text-gray-400", badge: "bg-white/10 text-gray-400 border-white/10" },
+  sky: { icon: "text-sky-400", badge: "bg-sky-500/15 text-sky-400 border-sky-500/20" },
+};
+
+function ShelfHeading({
+  icon,
+  label,
+  count,
+  total,
+  tone,
+  hint,
+  onToggle,
+  collapsed,
+}: {
+  icon: ReactNode;
+  label: string;
+  count: number;
+  total: number;
+  tone: keyof typeof HEADING_TONES;
+  hint?: string;
+  onToggle?: () => void;
+  collapsed?: boolean;
+}) {
+  const toneStyle = HEADING_TONES[tone];
+
+  const heading = (
+    <>
+      <span className={cn("flex items-center gap-2", toneStyle.icon)}>{icon}</span>
+      <h2 className="text-lg font-bold text-white">{label}</h2>
+      <span className={cn("rounded-md border px-2 py-0.5 text-xs font-bold tabular-nums", toneStyle.badge)}>
+        {count === total ? total : `${count}/${total}`}
+      </span>
+    </>
+  );
 
   return (
-    <div ref={setNodeRef}>
-      {list.length > 0 ? (
-        <SortableContext items={list.map((i) => i.id)} strategy={rectSortingStrategy}>
-          <div className="flex flex-wrap gap-4">
-            {list.map((item, i) => (
-              <SortableBacklogCase
-                key={item.id}
-                item={item}
-                index={i}
-                disabled={!dragEnabled}
-                suppressTooltip={suppressTooltip}
-                onStart={onStart}
-                onPause={onPause}
-                onComplete={onComplete}
-                onEdit={onEdit}
-                onRemove={onRemove}
-              />
-            ))}
-          </div>
-        </SortableContext>
+    <div className="mb-3 flex items-center gap-3">
+      {onToggle ? (
+        <button type="button" onClick={onToggle} aria-expanded={!collapsed} className="group flex items-center gap-3">
+          {heading}
+          <span className="text-gray-500 transition-colors group-hover:text-white">
+            {collapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+          </span>
+        </button>
       ) : (
-        emptyState
+        heading
       )}
+      <span className="h-px flex-1 bg-white/[0.07]" />
+      {hint && <span className="text-xs text-gray-500">{hint}</span>}
+    </div>
+  );
+}
+
+function EmptyShelf({ icon, message }: { icon: ReactNode; message: string }) {
+  return (
+    <div
+      className="rounded-2xl border border-dashed border-white/10 py-10 text-center"
+      style={{ backgroundColor: "var(--color-surface)" }}
+    >
+      <div className="mx-auto mb-2 flex justify-center text-gray-600">{icon}</div>
+      <p className="text-sm text-gray-500">{message}</p>
     </div>
   );
 }
 
 export default function Backlog() {
   const adultEnabled = useAdultMediaEnabled();
-  const TYPE_FILTERS = ["All", ...getVisibleEntryTypes()];
   const [items, setItems] = useState<BacklogItemsByStatus>({ inProgress: [], planning: [], unreleased: [] });
   const [activeFilter, setActiveFilter] = useState("All");
   const [unreleasedCollapsed, setUnreleasedCollapsed] = useState(() => isUnreleasedSectionCollapsed());
@@ -110,6 +129,7 @@ export default function Backlog() {
   const [completingItem, setCompletingItem] = useState<BacklogItem | null>(null);
   const [completionInitialData, setCompletionInitialData] = useState<Partial<MediaEntry> | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const [activeId, setActiveId] = useState<number | null>(null);
   const loadIdRef = useRef(0);
 
@@ -134,30 +154,62 @@ export default function Backlog() {
     loadItems();
   }, [adultEnabled, loadItems]);
 
-  const availableTypes = (() => {
-    const allItems = [...items.inProgress, ...items.planning, ...items.unreleased];
-    const types = new Set(allItems.map(i => i.entry_type));
-    return TYPE_FILTERS.filter(t => t === "All" || types.has(t));
-  })();
+  const allItems = useMemo(
+    () => [...items.inProgress, ...items.planning, ...items.unreleased],
+    [items]
+  );
 
-  const filterItems = (list: BacklogItem[]) => {
-    if (activeFilter === "All") return list;
-    return list.filter(i => i.entry_type === activeFilter);
-  };
+  const availableTypes = useMemo(() => {
+    const present = new Set(allItems.map((item) => item.entry_type));
+    return ["All", ...getVisibleEntryTypes().filter((type) => present.has(type))];
+  }, [allItems]);
 
-  const filteredInProgress = filterItems(items.inProgress);
-  const filteredPlanning = filterItems(items.planning);
-  const filteredUnreleased = filterItems(items.unreleased);
-  const totalCount = items.inProgress.length + items.planning.length + items.unreleased.length;
-  const isEmpty = totalCount === 0;
+  // A type filter dims non-matching spines in place rather than removing them.
+  // The shelf stays intact, the queue keeps its numbering, and — unlike the old
+  // grid — reordering stays safe while a filter is on, because no item is ever
+  // hidden from the list being reordered.
   const isFiltering = activeFilter !== "All";
-  // Reordering a filtered subset would leave hidden items' sort_order untouched
-  // and corrupt the overall order, so dragging is only enabled with no filter.
-  const dragEnabled = !isFiltering;
+  const matches = useCallback(
+    (item: BacklogItem) => !isFiltering || item.entry_type === activeFilter,
+    [isFiltering, activeFilter]
+  );
+  const countMatching = (list: BacklogItem[]) => (isFiltering ? list.filter(matches).length : list.length);
+
+  const totalCount = allItems.length;
+  const isEmpty = totalCount === 0;
   const isDragging = activeId !== null;
 
+  // The item under the cursor, rendered into the DragOverlay so a drag has a
+  // visible subject. Without it the source just dims in place and a
+  // cross-section move gives no feedback at all.
+  const dragged = useMemo(() => {
+    if (activeId === null) return null;
+    const faceout = items.inProgress.find((item) => item.id === activeId);
+    if (faceout) return { item: faceout, kind: "faceout" as const, rank: null };
+    const planningIndex = items.planning.findIndex((item) => item.id === activeId);
+    if (planningIndex !== -1) {
+      return { item: items.planning[planningIndex], kind: "spine" as const, rank: planningIndex + 1 };
+    }
+    const unreleased = items.unreleased.find((item) => item.id === activeId);
+    if (unreleased) return { item: unreleased, kind: "spine" as const, rank: null };
+    return null;
+  }, [activeId, items]);
+
+  const stats = useMemo(() => {
+    const waits = items.planning
+      .map((item) => getDaysSince(item.added_date))
+      .filter((days): days is number => days !== null && days > 0);
+    const upcoming = items.unreleased
+      .map((item) => getDaysUntil(item.release_date))
+      .filter((days): days is number => days !== null && days >= 0);
+    return {
+      oldestWait: waits.length > 0 ? Math.max(...waits) : null,
+      nextRelease: upcoming.length > 0 ? Math.min(...upcoming) : null,
+    };
+  }, [items]);
+
   const toggleUnreleasedCollapsed = () => {
-    setUnreleasedCollapsed(prev => {
+    setUnreleasedCollapsed((prev) => {
       const next = !prev;
       setUnreleasedSectionCollapsed(next);
       return next;
@@ -170,9 +222,9 @@ export default function Backlog() {
       await backlogLogic.updateItem(editingItem.id, fields);
       // Only touch status when the unreleased toggle actually changed, so
       // editing an in-progress item leaves it in progress.
-      if (is_unreleased && editingItem.status !== 'unreleased') {
+      if (is_unreleased && editingItem.status !== "unreleased") {
         await backlogLogic.moveToUnreleased(editingItem.id);
-      } else if (!is_unreleased && editingItem.status === 'unreleased') {
+      } else if (!is_unreleased && editingItem.status === "unreleased") {
         await backlogLogic.moveToPlanning(editingItem.id);
       }
     } else {
@@ -181,7 +233,7 @@ export default function Backlog() {
         fields.entry_type,
         fields.genre,
         fields.image_url,
-        is_unreleased ? 'unreleased' : 'planning',
+        is_unreleased ? "unreleased" : "planning",
         fields.release_date
       );
     }
@@ -210,7 +262,7 @@ export default function Backlog() {
     if (!completingItem) return;
 
     try {
-      // EntryForm has already committed any newly picked image via the native image service.
+      // EntryForm has already committed any newly picked image via the native image service
       // before onSave fires, so image_url is final here.
       let yearCompleted = entryData.year_completed;
       if (entryData.completion_date) {
@@ -241,10 +293,6 @@ export default function Backlog() {
     setShowForm(true);
   };
 
-  const handleRemove = (id: number) => {
-    setShowDeleteConfirm(id);
-  };
-
   const confirmRemove = async () => {
     if (showDeleteConfirm !== null) {
       await backlogLogic.removeItem(showDeleteConfirm);
@@ -253,19 +301,20 @@ export default function Backlog() {
     }
   };
 
-  // Resolve a dnd id to its section: a section droppable id (string) or, for a
-  // card id (number), whichever list currently holds it.
+  // Resolve a dnd id to its section: a section droppable id (string) or, for an
+  // item id (number), whichever list currently holds it.
   const findContainer = (id: string | number): SectionKey | null => {
-    const asSection = (Object.keys(CONTAINER_IDS) as SectionKey[]).find((k) => CONTAINER_IDS[k] === id);
+    const asSection = (Object.keys(CONTAINER_IDS) as SectionKey[]).find((key) => CONTAINER_IDS[key] === id);
     if (asSection) return asSection;
     const numId = typeof id === "number" ? id : Number(id);
-    if (items.inProgress.some((i) => i.id === numId)) return "inProgress";
-    if (items.planning.some((i) => i.id === numId)) return "planning";
-    if (items.unreleased.some((i) => i.id === numId)) return "unreleased";
+    if (items.inProgress.some((item) => item.id === numId)) return "inProgress";
+    if (items.planning.some((item) => item.id === numId)) return "planning";
+    if (items.unreleased.some((item) => item.id === numId)) return "unreleased";
     return null;
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    setMenuAnchor(null);
     setActiveId(Number(event.active.id));
   };
 
@@ -287,13 +336,13 @@ export default function Backlog() {
       // no-op — it would just snap back to the release-date order on next load.
       if (from === "unreleased" || active.id === over.id) return;
       const list = items[from];
-      const oldIndex = list.findIndex((i) => i.id === activeItemId);
-      const newIndex = list.findIndex((i) => i.id === Number(over.id));
+      const oldIndex = list.findIndex((item) => item.id === activeItemId);
+      const newIndex = list.findIndex((item) => item.id === Number(over.id));
       if (oldIndex === -1 || newIndex === -1) return;
       const newOrder = arrayMove(list, oldIndex, newIndex);
-      setItems((cur) => ({ ...cur, [from]: newOrder })); // optimistic
+      setItems((current) => ({ ...current, [from]: newOrder })); // optimistic
       backlogLogic
-        .updateItemOrder(SECTION_STATUS[from], newOrder.map((i) => i.id))
+        .updateItemOrder(SECTION_STATUS[from], newOrder.map((item) => item.id))
         .catch(() => loadItems());
       return;
     }
@@ -312,22 +361,22 @@ export default function Backlog() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-7xl">
       {/* Header */}
-      <div className="flex items-center justify-between backlog-header-enter">
+      <div className="backlog-header-enter flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
           <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
+            className="flex h-12 w-12 items-center justify-center rounded-2xl shadow-lg"
             style={{
               background: `linear-gradient(to bottom right, var(--color-primary), var(--color-secondary))`,
               boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)`,
             }}
           >
-            <Bookmark size={24} style={{ color: 'white' }} />
+            <Bookmark size={24} style={{ color: "white" }} />
           </div>
           <div>
             <h1
-              className="text-2xl font-bold bg-clip-text text-transparent"
+              className="bg-clip-text text-2xl font-bold text-transparent"
               style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}
             >
               Backlog
@@ -340,34 +389,65 @@ export default function Backlog() {
 
         <button
           onClick={() => { setEditingItem(null); setShowForm(true); }}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-          style={{
-            background: `linear-gradient(to right, var(--color-primary), var(--color-secondary))`,
-          }}
+          className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
+          style={{ background: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}
           onMouseEnter={(e) => {
             e.currentTarget.style.boxShadow = `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 25%, transparent)`;
           }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.boxShadow = '';
-          }}
+          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = ""; }}
         >
           <Plus size={16} />
           <span>Add to Backlog</span>
         </button>
       </div>
 
-      {/* Filter Chips */}
+      {/* Stat line — the sentence that used to require reading the whole page. */}
       {!isEmpty && (
-        <div className="flex flex-wrap gap-2">
-          {availableTypes.map(type => (
+        <div
+          className="backlog-header-enter mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500"
+          style={{ animationDelay: "60ms" }}
+        >
+          <span><b className="font-semibold tabular-nums text-gray-200">{items.inProgress.length}</b> in progress</span>
+          <span className="text-gray-700">·</span>
+          <span><b className="font-semibold tabular-nums text-gray-200">{items.planning.length}</b> planned</span>
+          {items.unreleased.length > 0 && (
+            <>
+              <span className="text-gray-700">·</span>
+              <span><b className="font-semibold tabular-nums text-gray-200">{items.unreleased.length}</b> unreleased</span>
+            </>
+          )}
+          {stats.oldestWait !== null && (
+            <>
+              <span className="text-gray-700">·</span>
+              <span>oldest has waited <span className="text-amber-400">{formatDurationLong(stats.oldestWait)}</span></span>
+            </>
+          )}
+          {stats.nextRelease !== null && (
+            <>
+              <span className="text-gray-700">·</span>
+              <span>
+                next release{" "}
+                <span className="text-sky-400">
+                  {stats.nextRelease === 0 ? "today" : `in ${formatDurationLong(stats.nextRelease)}`}
+                </span>
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Type filter — dims rather than removes, so the shelf keeps its shape. */}
+      {!isEmpty && availableTypes.length > 1 && (
+        <div className="backlog-header-enter mt-5 flex flex-wrap gap-2" style={{ animationDelay: "90ms" }}>
+          {availableTypes.map((type) => (
             <button
               key={type}
               onClick={() => setActiveFilter(type)}
               className={cn(
-                "px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all",
+                "rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all",
                 activeFilter === type
-                  ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-                  : "bg-white/5 text-gray-400 border border-white/5 hover:bg-white/10 hover:text-gray-300"
+                  ? "border border-amber-500/40 bg-amber-500/20 text-amber-400"
+                  : "border border-white/5 bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300"
               )}
             >
               {type}
@@ -378,17 +458,20 @@ export default function Backlog() {
 
       {/* Empty State */}
       {isEmpty && (
-        <div className="flex flex-col items-center justify-center py-24 text-center backlog-header-enter" style={{ animationDelay: '80ms' }}>
-          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 flex items-center justify-center mb-6">
+        <div
+          className="backlog-header-enter flex flex-col items-center justify-center py-24 text-center"
+          style={{ animationDelay: "80ms" }}
+        >
+          <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-3xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-orange-500/10">
             <Package size={36} className="text-amber-500/50" />
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">Nothing in your backlog yet</h2>
-          <p className="text-sm text-gray-400 mb-6 max-w-sm">
+          <h2 className="mb-2 text-xl font-bold text-white">Nothing in your backlog yet</h2>
+          <p className="mb-6 max-w-sm text-sm text-gray-400">
             Add movies, games, shows, books, and more that you've been meaning to get to.
           </p>
           <button
             onClick={() => { setEditingItem(null); setShowForm(true); }}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-lg hover:shadow-amber-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-3 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-amber-500/25 active:scale-[0.98]"
           >
             <Plus size={16} />
             <span>Add Your First Item</span>
@@ -396,160 +479,181 @@ export default function Backlog() {
         </div>
       )}
 
-      {/* Sections share one DndContext so cards can be dragged within a section
-          (reorder) and across sections (change status). */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-
-      {/* In Progress Section */}
+      {/* All three shelves share one DndContext so an item can be dragged along
+          its own shelf (re-rank) or onto another one (change status). */}
       {!isEmpty && (
-        <section className="backlog-section-enter" style={{ animationDelay: '120ms' }}>
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Play size={16} className="text-amber-400" fill="currentColor" />
-                <h2 className="text-lg font-bold text-white">In Progress</h2>
-              </div>
-              <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">
-                {filteredInProgress.length}
-              </span>
-            </div>
-            {isFiltering && filteredInProgress.length > 1 && (
-              <span className="text-xs text-gray-500">Clear the type filter to drag-reorder</span>
-            )}
-          </div>
-
-          <SortableSectionGrid
-            containerId={CONTAINER_IDS.inProgress}
-            list={filteredInProgress}
-            dragEnabled={dragEnabled}
-            suppressTooltip={isDragging}
-            onStart={handleStart}
-            onPause={handlePause}
-            onComplete={handleComplete}
-            onEdit={handleEdit}
-            onRemove={handleRemove}
-            emptyState={
-              <div className="py-8 text-center rounded-2xl border border-dashed border-white/10"
-                style={{ backgroundColor: "var(--color-surface)" }}
-              >
-                <Clock size={24} className="mx-auto text-gray-600 mb-2" />
-                <p className="text-sm text-gray-500">
-                  {activeFilter !== "All"
-                    ? `No ${activeFilter} items in progress`
-                    : "Nothing in progress yet. Start something from your planning queue!"}
-                </p>
-              </div>
-            }
-          />
-        </section>
-      )}
-
-      {/* Planning Section */}
-      {!isEmpty && (
-        <section className="backlog-section-enter" style={{ animationDelay: '220ms' }}>
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Bookmark size={16} className="text-gray-400" />
-                <h2 className="text-lg font-bold text-white">Planning</h2>
-              </div>
-              <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-white/10 text-gray-400">
-                {filteredPlanning.length}
-              </span>
-            </div>
-            {isFiltering && filteredPlanning.length > 1 && (
-              <span className="text-xs text-gray-500">Clear the type filter to drag-reorder</span>
-            )}
-          </div>
-
-          <SortableSectionGrid
-            containerId={CONTAINER_IDS.planning}
-            list={filteredPlanning}
-            dragEnabled={dragEnabled}
-            suppressTooltip={isDragging}
-            onStart={handleStart}
-            onPause={handlePause}
-            onComplete={handleComplete}
-            onEdit={handleEdit}
-            onRemove={handleRemove}
-            emptyState={
-              <div className="py-8 text-center rounded-2xl border border-dashed border-white/10"
-                style={{ backgroundColor: "var(--color-surface)" }}
-              >
-                <Bookmark size={24} className="mx-auto text-gray-600 mb-2" />
-                <p className="text-sm text-gray-500">
-                  {activeFilter !== "All"
-                    ? `No ${activeFilter} items in your planning queue`
-                    : "Your planning queue is empty. Add something you've been meaning to get to!"}
-                </p>
-              </div>
-            }
-          />
-        </section>
-      )}
-
-      {/* Unreleased Section */}
-      {items.unreleased.length > 0 && (
-        <section className="backlog-section-enter" style={{ animationDelay: '320ms' }}>
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <button
-              type="button"
-              onClick={toggleUnreleasedCollapsed}
-              className="flex items-center gap-3 group"
-            >
-              <div className="flex items-center gap-2">
-                <CalendarClock size={16} className="text-sky-400" />
-                <h2 className="text-lg font-bold text-white">Unreleased</h2>
-              </div>
-              <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-sky-500/15 text-sky-400 border border-sky-500/20">
-                {filteredUnreleased.length}
-              </span>
-              <span className="text-gray-500 group-hover:text-white transition-colors">
-                {unreleasedCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-              </span>
-            </button>
-          </div>
-
-          {/* While a drag is active the section drops its clip so a card lifted
-              out of it (this container is otherwise overflow-hidden for the
-              collapse animation) isn't cut off at the section edge. */}
-          <div className={cn(
-            "transition-all duration-300 ease-out",
-            unreleasedCollapsed ? "max-h-0" : "max-h-[2000px]",
-            !unreleasedCollapsed && isDragging ? "overflow-visible" : "overflow-hidden"
-          )}>
-            <SortableSectionGrid
-              containerId={CONTAINER_IDS.unreleased}
-              list={filteredUnreleased}
-              dragEnabled={dragEnabled}
-              suppressTooltip={isDragging}
-              onStart={handleStart}
-              onPause={handlePause}
-              onComplete={handleComplete}
-              onEdit={handleEdit}
-              onRemove={handleRemove}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          {/* ── Off the shelf ─────────────────────────────────────────── */}
+          <section className="backlog-section-enter mt-8" style={{ animationDelay: "120ms" }}>
+            <ShelfHeading
+              icon={<Play size={16} fill="currentColor" />}
+              label="In Progress"
+              count={countMatching(items.inProgress)}
+              total={items.inProgress.length}
+              tone="amber"
+            />
+            <BacklogShelf
+              containerId={CONTAINER_IDS.inProgress}
+              items={items.inProgress}
+              itemWidth={FACEOUT_WIDTH}
+              itemGap={FACEOUT_GAP}
+              renderItem={(item, index) => (
+                <SortableShelfItem key={item.id} id={item.id}>
+                  <BacklogFaceout
+                    item={item}
+                    index={index}
+                    dimmed={!matches(item)}
+                    suppressTooltip={isDragging}
+                    onOpenMenu={setMenuAnchor}
+                  />
+                </SortableShelfItem>
+              )}
+              renderLabel={(item) => {
+                const waited = getDaysSince(item.added_date);
+                return (
+                  <span className="text-[10px] text-amber-500/85">
+                    {waited !== null && waited > 0 ? `${formatDurationLong(waited)} in backlog` : "Just added"}
+                  </span>
+                );
+              }}
               emptyState={
-                <div className="py-8 text-center rounded-2xl border border-dashed border-white/10"
-                  style={{ backgroundColor: "var(--color-surface)" }}
-                >
-                  <CalendarClock size={24} className="mx-auto text-gray-600 mb-2" />
-                  <p className="text-sm text-gray-500">
-                    {`No ${activeFilter} items awaiting release`}
-                  </p>
-                </div>
+                <EmptyShelf
+                  icon={<Play size={22} />}
+                  message="Nothing in progress yet. Start something from your planning list."
+                />
               }
             />
-          </div>
-        </section>
+          </section>
+
+          {/* ── The rack ──────────────────────────────────────────────── */}
+          <section className="backlog-section-enter mt-8" style={{ animationDelay: "200ms" }}>
+            <ShelfHeading
+              icon={<Bookmark size={16} />}
+              label="Planning"
+              count={countMatching(items.planning)}
+              total={items.planning.length}
+              tone="neutral"
+              hint={items.planning.length > 1 ? "Drag to reorder" : undefined}
+            />
+            <BacklogShelf
+              containerId={CONTAINER_IDS.planning}
+              items={items.planning}
+              itemWidth={SPINE_WIDTH}
+              itemGap={SPINE_GAP}
+              renderItem={(item, index) => (
+                <SortableShelfItem key={item.id} id={item.id}>
+                  <BacklogSpine
+                    item={item}
+                    rank={index + 1}
+                    index={index}
+                    dimmed={!matches(item)}
+                    suppressTooltip={isDragging}
+                    onOpenMenu={setMenuAnchor}
+                  />
+                </SortableShelfItem>
+              )}
+              emptyState={
+                <EmptyShelf
+                  icon={<Bookmark size={22} />}
+                  message="Your planning list is empty. Add something you've been meaning to get to."
+                />
+              }
+            />
+          </section>
+
+          {/* ── Shrink-wrapped ────────────────────────────────────────── */}
+          {items.unreleased.length > 0 && (
+            <section className="backlog-section-enter mt-8" style={{ animationDelay: "280ms" }}>
+              <ShelfHeading
+                icon={<CalendarClock size={16} />}
+                label="Unreleased"
+                count={countMatching(items.unreleased)}
+                total={items.unreleased.length}
+                tone="sky"
+                onToggle={toggleUnreleasedCollapsed}
+                collapsed={unreleasedCollapsed}
+              />
+              <BacklogShelf
+                containerId={CONTAINER_IDS.unreleased}
+                items={items.unreleased}
+                itemWidth={SPINE_WIDTH}
+                itemGap={SPINE_GAP}
+                collapsed={unreleasedCollapsed}
+                renderItem={(item, index) => (
+                  <SortableShelfItem key={item.id} id={item.id} disabled>
+                    <BacklogSpine
+                      item={item}
+                      rank={null}
+                      index={index}
+                      dimmed={!matches(item)}
+                      wrapped
+                      suppressTooltip={isDragging}
+                      onOpenMenu={setMenuAnchor}
+                    />
+                  </SortableShelfItem>
+                )}
+                renderLabel={(item) => {
+                  const days = getDaysUntil(item.release_date);
+                  return (
+                    <>
+                      <span className="text-[11px] font-bold leading-none tabular-nums text-sky-400">
+                        {days === null ? "TBA" : days < 0 ? "Out" : days === 0 ? "Today" : `${days}d`}
+                      </span>
+                      <span className="text-[8px] leading-none text-gray-500">
+                        {formatRailDate(item.release_date)}
+                      </span>
+                    </>
+                  );
+                }}
+                emptyState={<EmptyShelf icon={<CalendarClock size={22} />} message="Nothing awaiting release." />}
+              />
+            </section>
+          )}
+
+          <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }}>
+            {dragged?.kind === "faceout" && (
+              <BacklogFaceout
+                item={dragged.item}
+                index={0}
+                dimmed={false}
+                suppressTooltip
+                preview
+                onOpenMenu={() => {}}
+              />
+            )}
+            {dragged?.kind === "spine" && (
+              <BacklogSpine
+                item={dragged.item}
+                rank={dragged.rank}
+                index={0}
+                dimmed={false}
+                wrapped={dragged.item.status === "unreleased"}
+                suppressTooltip
+                preview
+                onOpenMenu={() => {}}
+              />
+            )}
+          </DragOverlay>
+        </DndContext>
       )}
 
-      </DndContext>
+      {menuAnchor && (
+        <BacklogItemMenu
+          anchor={menuAnchor}
+          onClose={() => setMenuAnchor(null)}
+          onStart={handleStart}
+          onPause={handlePause}
+          onComplete={handleComplete}
+          onEdit={handleEdit}
+          onRemove={(id) => setShowDeleteConfirm(id)}
+        />
+      )}
 
       {/* Backlog Add/Edit Form */}
       <BacklogForm
@@ -569,27 +673,28 @@ export default function Backlog() {
         />
       )}
 
-      {/* Delete Confirmation — portalled to <body> so the page's `space-y-6`
-          margin can't offset the fixed overlay (see the note in EntryForm). */}
+      {/* Delete Confirmation — portalled to <body> so the page's layout can't
+          offset the fixed overlay (see the note in EntryForm). */}
       {showDeleteConfirm !== null && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
-          <div className="w-full max-w-sm rounded-2xl border border-white/10 shadow-2xl p-6"
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 p-6 shadow-2xl"
             style={{ backgroundColor: "var(--color-surface)" }}
           >
-            <h3 className="text-lg font-bold text-white mb-2">Remove from Backlog?</h3>
-            <p className="text-sm text-gray-400 mb-6">
+            <h3 className="mb-2 text-lg font-bold text-white">Remove from Backlog?</h3>
+            <p className="mb-6 text-sm text-gray-400">
               This item will be removed from your backlog. This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(null)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                className="rounded-xl px-4 py-2 text-sm font-medium text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmRemove}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+                className="rounded-xl border border-red-500/30 bg-red-500/20 px-4 py-2 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/30"
               >
                 Remove
               </button>
