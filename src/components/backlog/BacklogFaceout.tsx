@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import {
-  Play, MoreVertical, Check, Film, Tv, MonitorPlay, Gamepad2,
+  Play, MoreVertical, Film, Tv, MonitorPlay, Gamepad2,
   BookOpen, Disc3, Heart, Monitor, Tag,
 } from "lucide-react";
 import { CoverImage } from "../CoverImage";
@@ -32,7 +32,8 @@ interface BacklogFaceoutProps {
   index: number;
   dimmed: boolean;
   suppressTooltip: boolean;
-  onComplete: (item: BacklogItem) => void;
+  /** Rendered inside a DragOverlay: no entrance animation, no hover, no tooltip. */
+  preview?: boolean;
   onOpenMenu: (anchor: MenuAnchor) => void;
 }
 
@@ -43,13 +44,13 @@ export function BacklogFaceout({
   index,
   dimmed,
   suppressTooltip,
-  onComplete,
+  preview = false,
   onOpenMenu,
 }: BacklogFaceoutProps) {
   const { bindTooltip, hideTooltip } = useHoverTooltip();
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
 
-  const tooltipProps = suppressTooltip
+  const tooltipProps = suppressTooltip || preview
     ? {}
     : bindTooltip(<BacklogTooltipContent item={item} />, { width: 220 });
 
@@ -74,8 +75,11 @@ export function BacklogFaceout({
 
   return (
     <div
-      className="backlog-faceout-enter group"
-      style={{ animationDelay: `${Math.min(index * 60, 240)}ms` }}
+      // No `group` in preview: the cursor sits over the overlay for the whole
+      // drag, and `.group:hover > .backlog-faceout` would outrank the preview
+      // transform.
+      className={cn(!preview && "group backlog-faceout-enter")}
+      style={preview ? undefined : { animationDelay: `${Math.min(index * 60, 240)}ms` }}
       onPointerDown={handlePointerDown}
       onContextMenu={(event) => openMenu(event, event.currentTarget)}
     >
@@ -83,6 +87,7 @@ export function BacklogFaceout({
         style={{ width: FACEOUT_WIDTH, height: ITEM_HEIGHT }}
         className={cn(
           "backlog-faceout relative overflow-hidden rounded-l-[3px] rounded-r-md transition-[transform,opacity] duration-300 ease-out",
+          preview && "backlog-drag-preview",
           dimmed && "opacity-25 saturate-50"
         )}
         {...tooltipProps}
@@ -124,21 +129,8 @@ export function BacklogFaceout({
           <MoreVertical size={13} className="text-white" />
         </button>
 
-        <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-black/90 via-black/55 to-transparent px-2.5 pb-2.5 pt-7">
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent px-2.5 pb-2.5 pt-7">
           <p className="line-clamp-2 text-[12px] font-semibold leading-tight text-white">{item.name}</p>
-          <button
-            type="button"
-            onClick={(event) => {
-              if (wasDrag(event)) return;
-              event.stopPropagation();
-              hideTooltip();
-              onComplete(item);
-            }}
-            className="flex items-center gap-1.5 self-start rounded-md border border-emerald-400/40 bg-emerald-400/20 px-2 py-1 text-[10px] font-semibold text-emerald-200 transition-colors hover:bg-emerald-400/30"
-          >
-            <Check size={11} />
-            <span>Log it</span>
-          </button>
         </div>
       </div>
     </div>

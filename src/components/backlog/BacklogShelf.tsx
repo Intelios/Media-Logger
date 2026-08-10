@@ -61,7 +61,7 @@ export function BacklogShelf({
   renderLabel,
   emptyState,
 }: BacklogShelfProps) {
-  const { setNodeRef } = useDroppable({ id: containerId });
+  const { setNodeRef, isOver } = useDroppable({ id: containerId });
   const { ref: measureRef, perShelf } = useItemsPerShelf(itemWidth, itemGap);
 
   // Before the first measurement lands (same frame, via layout effect) keep
@@ -78,12 +78,13 @@ export function BacklogShelf({
         {items.length === 0 ? (
           emptyState
         ) : (
-          <SortableContext items={items.map((item) => item.id)} strategy={rectSortingStrategy}>
-            {shelves.map((shelf, shelfIndex) => (
-              <div key={shelfIndex} className="backlog-shelf-unit">
-                <div
-                  className={cn("backlog-shelf-collapse", collapsed && "backlog-shelf-collapse-closed")}
-                >
+          // Collapsing wraps the whole run of shelves — planks and label rails
+          // included. Leaving the rail behind reads as a rendering bug rather
+          // than a feature: a minimised section should be minimised.
+          <div className={cn("backlog-shelf-collapse", collapsed && "backlog-shelf-collapse-closed")}>
+            <SortableContext items={items.map((item) => item.id)} strategy={rectSortingStrategy}>
+              {shelves.map((shelf, shelfIndex) => (
+                <div key={shelfIndex} className="backlog-shelf-unit">
                   <div
                     className="flex items-end overflow-visible"
                     style={{ gap: itemGap, minHeight: ITEM_HEIGHT + HOVER_LIFT }}
@@ -92,22 +93,22 @@ export function BacklogShelf({
                       renderItem(item, shelfIndex * chunkSize + indexInShelf)
                     )}
                   </div>
+
+                  <div aria-hidden className={cn("backlog-plank", isOver && "backlog-plank-over")} />
+
+                  {renderLabel && (
+                    <div className="flex" style={{ gap: itemGap }}>
+                      {shelf.map((item) => (
+                        <div key={item.id} className="backlog-rail-cell" style={{ width: itemWidth }}>
+                          {renderLabel(item)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-
-                <div aria-hidden className="backlog-plank" />
-
-                {renderLabel && (
-                  <div className="flex" style={{ gap: itemGap }}>
-                    {shelf.map((item) => (
-                      <div key={item.id} className="backlog-rail-cell" style={{ width: itemWidth }}>
-                        {renderLabel(item)}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </SortableContext>
+              ))}
+            </SortableContext>
+          </div>
         )}
       </div>
     </div>

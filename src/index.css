@@ -1927,10 +1927,12 @@ body {
 /* Collapsing a shelf drops the items behind the plank but leaves the plank and
    its label rail in place — so a collapsed Unreleased shelf still shows every
    countdown. */
+/* Sized to clear any realistic run of wrapped shelves — the number only has to
+   exceed the content for the transition to run. */
 .backlog-shelf-collapse {
   overflow: hidden;
   transition: max-height 0.32s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease-out;
-  max-height: 260px;
+  max-height: 3000px;
 }
 
 .backlog-shelf-collapse-closed {
@@ -1959,7 +1961,19 @@ body {
   inset: 0 0 auto;
   height: 1px;
   background: rgba(255, 255, 255, 0.2);
+  transition: background 0.15s ease-out;
 }
+
+/* Lights up while a dragged item is over this shelf, so a cross-shelf move
+   shows where it will land. */
+.backlog-plank-over {
+  background: linear-gradient(180deg, #6b5f86 0%, #3d3550 45%, #201b2c 100%);
+}
+
+.backlog-plank-over::before {
+  background: color-mix(in srgb, var(--color-primary) 85%, white);
+}
+
 
 /* Shelf-edge label, clipped to the front face of the plank. */
 .backlog-rail-cell {
@@ -2087,6 +2101,15 @@ body {
     inset 0 2px 4px rgba(0, 0, 0, 0.3),
     inset 0 -2px 4px rgba(0, 0, 0, 0.2);
   background: linear-gradient(115deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 38%);
+}
+
+/* The floating copy that follows the cursor during a drag. Declared last so it
+   beats the resting transforms on .backlog-faceout and .backlog-spine, which
+   are the same specificity and would otherwise win on source order. */
+.backlog-drag-preview {
+  cursor: grabbing;
+  transform: scale(1.06) rotate(-1.5deg);
+  box-shadow: 0 26px 44px -12px rgba(0, 0, 0, 0.95);
 }
 
 /* Spin animation for loading indicators */

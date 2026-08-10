@@ -21,6 +21,8 @@ interface BacklogSpineProps {
   /** Shrink-wrapped treatment for items that aren't out yet. */
   wrapped?: boolean;
   suppressTooltip: boolean;
+  /** Rendered inside a DragOverlay: no entrance animation, no hover, no tooltip. */
+  preview?: boolean;
   onOpenMenu: (anchor: MenuAnchor) => void;
 }
 
@@ -34,6 +36,7 @@ export function BacklogSpine({
   dimmed,
   wrapped = false,
   suppressTooltip,
+  preview = false,
   onOpenMenu,
 }: BacklogSpineProps) {
   const { bindTooltip, hideTooltip } = useHoverTooltip();
@@ -43,7 +46,7 @@ export function BacklogSpine({
   const ageLabel = formatDurationShort(daysWaiting);
   const ageIsHot = daysWaiting !== null && daysWaiting >= AGE_HOT_DAYS;
 
-  const tooltipProps = suppressTooltip
+  const tooltipProps = suppressTooltip || preview
     ? {}
     : bindTooltip(<BacklogTooltipContent item={item} />, { width: 220 });
 
@@ -68,8 +71,8 @@ export function BacklogSpine({
 
   return (
     <div
-      className="backlog-spine-enter group"
-      style={{ animationDelay: `${Math.min(index * 22, 320)}ms` }}
+      className={cn(!preview && "group backlog-spine-enter")}
+      style={preview ? undefined : { animationDelay: `${Math.min(index * 22, 320)}ms` }}
     >
       <button
         type="button"
@@ -81,7 +84,8 @@ export function BacklogSpine({
         className={cn(
           "backlog-spine relative flex flex-col items-center justify-between rounded-l-[2px] rounded-r-[3px]",
           "bg-gradient-to-br px-0 pb-[7px] pt-2 text-left transition-[transform,opacity] duration-200 ease-out",
-          "group-hover:-translate-y-4 focus-visible:-translate-y-4",
+          !preview && "group-hover:-translate-y-4 focus-visible:-translate-y-4",
+          preview && "backlog-drag-preview",
           getSpineGradient(item.entry_type),
           wrapped && "backlog-spine-wrapped",
           dimmed && "opacity-25 saturate-50"
@@ -92,7 +96,7 @@ export function BacklogSpine({
         <span aria-hidden className="backlog-spine-hinge" />
 
         {rank !== null ? (
-          <span className="relative rounded-[3px] bg-black/35 px-1 font-mono text-[8px] leading-[1.35] tabular-nums text-white/95">
+          <span className="relative rounded-[3px] bg-black/35 px-1 text-[9px] font-semibold leading-[1.4] tabular-nums text-white/95">
             {rank}
           </span>
         ) : (
@@ -104,8 +108,8 @@ export function BacklogSpine({
         {ageLabel ? (
           <span
             className={cn(
-              "relative border-t pt-1 font-mono text-[7px] leading-none",
-              ageIsHot ? "border-rose-300/50 text-rose-200" : "border-white/20 text-white/60"
+              "relative border-t pt-1 text-[8px] font-medium leading-none tabular-nums",
+              ageIsHot ? "border-rose-300/50 text-rose-200" : "border-white/20 text-white/65"
             )}
           >
             {ageLabel}

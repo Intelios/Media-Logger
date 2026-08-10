@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Bookmark, Plus, Play, Package, CalendarClock, ChevronDown, ChevronUp } from "lucide-react";
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
@@ -43,14 +44,18 @@ const SECTION_STATUS: Record<SectionKey, BacklogItem["status"]> = {
   unreleased: "unreleased",
 };
 
-/** Compact plank label date, e.g. "14 SEP". */
+/** Compact plank label date, e.g. "14 Sep". */
 const formatRailDate = (dateString: string | null): string => {
   if (!dateString) return "TBA";
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return "TBA";
-  return date
-    .toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
-    .toUpperCase();
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+};
+
+const HEADING_TONES = {
+  amber: { icon: "text-amber-400", badge: "bg-amber-500/15 text-amber-400 border-amber-500/20" },
+  neutral: { icon: "text-gray-400", badge: "bg-white/10 text-gray-400 border-white/10" },
+  sky: { icon: "text-sky-400", badge: "bg-sky-500/15 text-sky-400 border-sky-500/20" },
 };
 
 function ShelfHeading({
@@ -67,50 +72,37 @@ function ShelfHeading({
   label: string;
   count: number;
   total: number;
-  tone: "amber" | "neutral" | "sky";
+  tone: keyof typeof HEADING_TONES;
   hint?: string;
   onToggle?: () => void;
   collapsed?: boolean;
 }) {
-  const toneClasses = {
-    amber: "text-amber-400",
-    neutral: "text-gray-400",
-    sky: "text-sky-400",
-  }[tone];
+  const toneStyle = HEADING_TONES[tone];
 
   const heading = (
     <>
-      <span className={cn("flex items-center gap-2", toneClasses)}>
-        {icon}
-        <span className="font-mono text-[10.5px] font-medium uppercase tracking-[0.16em]">{label}</span>
-      </span>
-      <span className="rounded border border-white/10 px-1.5 font-mono text-[10px] tabular-nums text-gray-500">
+      <span className={cn("flex items-center gap-2", toneStyle.icon)}>{icon}</span>
+      <h2 className="text-lg font-bold text-white">{label}</h2>
+      <span className={cn("rounded-md border px-2 py-0.5 text-xs font-bold tabular-nums", toneStyle.badge)}>
         {count === total ? total : `${count}/${total}`}
       </span>
     </>
   );
 
   return (
-    <div className="mb-3 flex items-center gap-2.5">
+    <div className="mb-3 flex items-center gap-3">
       {onToggle ? (
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={!collapsed}
-          className="group flex items-center gap-2.5"
-        >
+        <button type="button" onClick={onToggle} aria-expanded={!collapsed} className="group flex items-center gap-3">
           {heading}
-          <span className="text-gray-600 transition-colors group-hover:text-white">
-            {collapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+          <span className="text-gray-500 transition-colors group-hover:text-white">
+            {collapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
           </span>
         </button>
       ) : (
         heading
       )}
       <span className="h-px flex-1 bg-white/[0.07]" />
-      {hint && (
-        <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-gray-600">{hint}</span>
-      )}
+      {hint && <span className="text-xs text-gray-500">{hint}</span>}
     </div>
   );
 }
@@ -186,6 +178,22 @@ export default function Backlog() {
   const totalCount = allItems.length;
   const isEmpty = totalCount === 0;
   const isDragging = activeId !== null;
+
+  // The item under the cursor, rendered into the DragOverlay so a drag has a
+  // visible subject. Without it the source just dims in place and a
+  // cross-section move gives no feedback at all.
+  const dragged = useMemo(() => {
+    if (activeId === null) return null;
+    const faceout = items.inProgress.find((item) => item.id === activeId);
+    if (faceout) return { item: faceout, kind: "faceout" as const, rank: null };
+    const planningIndex = items.planning.findIndex((item) => item.id === activeId);
+    if (planningIndex !== -1) {
+      return { item: items.planning[planningIndex], kind: "spine" as const, rank: planningIndex + 1 };
+    }
+    const unreleased = items.unreleased.find((item) => item.id === activeId);
+    if (unreleased) return { item: unreleased, kind: "spine" as const, rank: null };
+    return null;
+  }, [activeId, items]);
 
   const stats = useMemo(() => {
     const waits = items.planning
@@ -396,16 +404,16 @@ export default function Backlog() {
       {/* Stat line — the sentence that used to require reading the whole page. */}
       {!isEmpty && (
         <div
-          className="backlog-header-enter mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10.5px] tracking-[0.05em] text-gray-500"
+          className="backlog-header-enter mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500"
           style={{ animationDelay: "60ms" }}
         >
-          <span><b className="font-semibold text-gray-200">{items.inProgress.length}</b> running</span>
+          <span><b className="font-semibold tabular-nums text-gray-200">{items.inProgress.length}</b> in progress</span>
           <span className="text-gray-700">·</span>
-          <span><b className="font-semibold text-gray-200">{items.planning.length}</b> queued</span>
+          <span><b className="font-semibold tabular-nums text-gray-200">{items.planning.length}</b> planned</span>
           {items.unreleased.length > 0 && (
             <>
               <span className="text-gray-700">·</span>
-              <span><b className="font-semibold text-gray-200">{items.unreleased.length}</b> upcoming</span>
+              <span><b className="font-semibold tabular-nums text-gray-200">{items.unreleased.length}</b> unreleased</span>
             </>
           )}
           {stats.oldestWait !== null && (
@@ -457,7 +465,7 @@ export default function Backlog() {
           <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-3xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-orange-500/10">
             <Package size={36} className="text-amber-500/50" />
           </div>
-          <h2 className="mb-2 text-xl font-bold text-white">Nothing on the shelf yet</h2>
+          <h2 className="mb-2 text-xl font-bold text-white">Nothing in your backlog yet</h2>
           <p className="mb-6 max-w-sm text-sm text-gray-400">
             Add movies, games, shows, books, and more that you've been meaning to get to.
           </p>
@@ -484,8 +492,8 @@ export default function Backlog() {
           {/* ── Off the shelf ─────────────────────────────────────────── */}
           <section className="backlog-section-enter mt-8" style={{ animationDelay: "120ms" }}>
             <ShelfHeading
-              icon={<Play size={13} fill="currentColor" />}
-              label="Off the shelf"
+              icon={<Play size={16} fill="currentColor" />}
+              label="In Progress"
               count={countMatching(items.inProgress)}
               total={items.inProgress.length}
               tone="amber"
@@ -502,7 +510,6 @@ export default function Backlog() {
                     index={index}
                     dimmed={!matches(item)}
                     suppressTooltip={isDragging}
-                    onComplete={handleComplete}
                     onOpenMenu={setMenuAnchor}
                   />
                 </SortableShelfItem>
@@ -510,15 +517,15 @@ export default function Backlog() {
               renderLabel={(item) => {
                 const waited = getDaysSince(item.added_date);
                 return (
-                  <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-amber-500/90">
-                    {waited !== null && waited > 0 ? `${formatDurationLong(waited)} in backlog` : "just added"}
+                  <span className="text-[10px] text-amber-500/85">
+                    {waited !== null && waited > 0 ? `${formatDurationLong(waited)} in backlog` : "Just added"}
                   </span>
                 );
               }}
               emptyState={
                 <EmptyShelf
                   icon={<Play size={22} />}
-                  message="Nothing off the shelf. Start something from the rack below."
+                  message="Nothing in progress yet. Start something from your planning list."
                 />
               }
             />
@@ -527,12 +534,12 @@ export default function Backlog() {
           {/* ── The rack ──────────────────────────────────────────────── */}
           <section className="backlog-section-enter mt-8" style={{ animationDelay: "200ms" }}>
             <ShelfHeading
-              icon={<Bookmark size={13} />}
-              label="The rack — in the order you'll get to them"
+              icon={<Bookmark size={16} />}
+              label="Planning"
               count={countMatching(items.planning)}
               total={items.planning.length}
               tone="neutral"
-              hint={items.planning.length > 1 ? "Drag along the shelf to re-rank" : undefined}
+              hint={items.planning.length > 1 ? "Drag to reorder" : undefined}
             />
             <BacklogShelf
               containerId={CONTAINER_IDS.planning}
@@ -554,7 +561,7 @@ export default function Backlog() {
               emptyState={
                 <EmptyShelf
                   icon={<Bookmark size={22} />}
-                  message="The rack is empty. Add something you've been meaning to get to."
+                  message="Your planning list is empty. Add something you've been meaning to get to."
                 />
               }
             />
@@ -564,8 +571,8 @@ export default function Backlog() {
           {items.unreleased.length > 0 && (
             <section className="backlog-section-enter mt-8" style={{ animationDelay: "280ms" }}>
               <ShelfHeading
-                icon={<CalendarClock size={13} />}
-                label="Shrink-wrapped"
+                icon={<CalendarClock size={16} />}
+                label="Unreleased"
                 count={countMatching(items.unreleased)}
                 total={items.unreleased.length}
                 tone="sky"
@@ -595,10 +602,10 @@ export default function Backlog() {
                   const days = getDaysUntil(item.release_date);
                   return (
                     <>
-                      <span className="font-mono text-[11px] font-semibold leading-none tabular-nums text-sky-400">
-                        {days === null ? "TBA" : days < 0 ? "OUT" : days === 0 ? "TODAY" : `${days}d`}
+                      <span className="text-[11px] font-bold leading-none tabular-nums text-sky-400">
+                        {days === null ? "TBA" : days < 0 ? "Out" : days === 0 ? "Today" : `${days}d`}
                       </span>
-                      <span className="font-mono text-[6.5px] leading-none tracking-[0.04em] text-gray-600">
+                      <span className="text-[8px] leading-none text-gray-500">
                         {formatRailDate(item.release_date)}
                       </span>
                     </>
@@ -608,6 +615,31 @@ export default function Backlog() {
               />
             </section>
           )}
+
+          <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }}>
+            {dragged?.kind === "faceout" && (
+              <BacklogFaceout
+                item={dragged.item}
+                index={0}
+                dimmed={false}
+                suppressTooltip
+                preview
+                onOpenMenu={() => {}}
+              />
+            )}
+            {dragged?.kind === "spine" && (
+              <BacklogSpine
+                item={dragged.item}
+                rank={dragged.rank}
+                index={0}
+                dimmed={false}
+                wrapped={dragged.item.status === "unreleased"}
+                suppressTooltip
+                preview
+                onOpenMenu={() => {}}
+              />
+            )}
+          </DragOverlay>
         </DndContext>
       )}
 
