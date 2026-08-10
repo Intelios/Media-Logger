@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const PAUSED_CLASS = "animations-paused";
+const SCROLLING_CLASS = "animations-scrolling";
 
 /**
  * Freezes all CSS animations while the window is backgrounded (unfocused or
@@ -15,6 +16,7 @@ export function useAnimationPause() {
   useEffect(() => {
     let focused = document.hasFocus();
     let focusRevision = 0;
+    let scrollTimer: number | null = null;
 
     const sync = () => {
       document.documentElement.classList.toggle(PAUSED_CLASS, document.hidden || !focused);
@@ -29,9 +31,18 @@ export function useAnimationPause() {
     const handleVisibility = () => sync();
     const handleDomFocus = () => setFocused(true);
     const handleDomBlur = () => setFocused(false);
+    const handleScroll = () => {
+      document.documentElement.classList.add(SCROLLING_CLASS);
+      if (scrollTimer != null) window.clearTimeout(scrollTimer);
+      scrollTimer = window.setTimeout(() => {
+        scrollTimer = null;
+        document.documentElement.classList.remove(SCROLLING_CLASS);
+      }, 140);
+    };
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("focus", handleDomFocus);
     window.addEventListener("blur", handleDomBlur);
+    document.addEventListener("scroll", handleScroll, true);
     sync();
 
     const appWindow = getCurrentWindow();
@@ -63,7 +74,10 @@ export function useAnimationPause() {
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("focus", handleDomFocus);
       window.removeEventListener("blur", handleDomBlur);
+      document.removeEventListener("scroll", handleScroll, true);
+      if (scrollTimer != null) window.clearTimeout(scrollTimer);
       document.documentElement.classList.remove(PAUSED_CLASS);
+      document.documentElement.classList.remove(SCROLLING_CLASS);
     };
   }, []);
 }

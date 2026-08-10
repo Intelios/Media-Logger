@@ -1,12 +1,14 @@
 import { useDeferredValue, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { Sparkles, ChevronDown, ChevronUp, X, HardDrive, RotateCcw, Captions } from "lucide-react";
-import { dbService, type MediaEntry } from "../lib/db";
+import { dbService, type EntryCardSummary, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { profilesLogic } from "../lib/profiles-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
+import { VirtualizedCardGrid } from "../components/VirtualizedCardGrid";
+import { mediaQueryKeys, queryClient } from "../lib/query-client";
 import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, getVisibleEntryTypes, getVisiblePresetKeys, useAdultMediaEnabled, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 
 const FILTER_STORAGE_KEY = "yearview-filter-types";
@@ -19,12 +21,12 @@ const SUBTITLES_FILTER_KEY = "yearview-subtitles-filter";
 type StatusFilter = boolean | null;
 
 const computeFiltered = (
-  data: MediaEntry[],
+  data: EntryCardSummary[],
   types: string[],
   localCopy: StatusFilter,
   rewatch: StatusFilter,
   subtitles: StatusFilter
-): MediaEntry[] => {
+): EntryCardSummary[] => {
   let result = data;
 
   if (types.length === 0) {
@@ -113,7 +115,7 @@ export default function YearView() {
   const { year } = useParams();
   const adultEnabled = useAdultMediaEnabled();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [entries, setEntries] = useState<MediaEntry[]>([]);
+  const [entries, setEntries] = useState<EntryCardSummary[]>([]);
 
   // State for multi-select - Initialize from localStorage
   const [selectedTypes, setSelectedTypes] = useState<string[]>(loadPersistedFilter);
@@ -133,7 +135,6 @@ export default function YearView() {
 
   // Highlight state for featured entry navigation
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
-  const highlightRef = useRef<HTMLDivElement | null>(null);
   const hasProcessedHighlight = useRef(false);
   const loadIdRef = useRef(0);
 
@@ -190,12 +191,25 @@ export default function YearView() {
     }
   };
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (force = false) => {
     if (!year) return;
 
     const myLoadId = ++loadIdRef.current;
-    const entriesPromise = dbService.getEntriesByYear(year);
-    const keysPromise = profilesLogic.getProfileKeys().catch((error) => {
+    const entriesKey = mediaQueryKeys.entriesForYear(year);
+    const profileKeysKey = [...mediaQueryKeys.profiles, ...mediaQueryKeys.scope(), 'keys'] as const;
+    const entriesPromise = force
+      ? dbService.getEntrySummariesByYear(year).then((data) => {
+          queryClient.setQueryData(entriesKey, data);
+          return data;
+        })
+      : queryClient.fetchQuery({
+          queryKey: entriesKey,
+          queryFn: () => dbService.getEntrySummariesByYear(year),
+        });
+    const keysPromise = queryClient.fetchQuery({
+      queryKey: profileKeysKey,
+      queryFn: () => profilesLogic.getProfileKeys(),
+    }).catch((error) => {
       if (loadIdRef.current === myLoadId) {
         console.error('Error loading profile keys:', error);
       }
@@ -233,7 +247,7 @@ export default function YearView() {
         console.error('Error loading year entries:', error);
       }
     }
-  }, [year, adultEnabled]); // adultEnabled: re-fetch so getEntriesByYear re-applies the adult filter
+  }, [year, adultEnabled]); // adultEnabled changes the query scope/adult SQL policy.
 
   const filteredEntries = useMemo(
     () => computeFiltered(entries, selectedTypes, localCopyFilter, rewatchFilter, subtitlesFilter),
@@ -259,7 +273,7 @@ export default function YearView() {
   }, [selectedTypes]);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
 
   // Listen for 'entry-added' event from Layout sidebar to refresh data
@@ -268,7 +282,7 @@ export default function YearView() {
       const customEvent = event as CustomEvent<{ year: number | string }>;
       // Refresh if the added entry is for this year (compare as strings)
       if (String(customEvent.detail?.year) === year) {
-        loadData();
+        void loadData(true);
       }
     };
 
@@ -305,16 +319,6 @@ export default function YearView() {
     }
   }, [searchParams, selectedTypes, setSearchParams]);
 
-  // Scroll to highlighted entry when it becomes visible
-  useEffect(() => {
-    if (highlightedId && highlightRef.current) {
-      // Wait for filter and render to complete
-      setTimeout(() => {
-        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
-    }
-  }, [highlightedId, deferredEntries]);
-
   const handleSave = async (data: Partial<MediaEntry>) => {
     if (editingEntry?.id) {
       // Update existing entry
@@ -323,12 +327,12 @@ export default function YearView() {
       // Create new entry (either brand new or duplicated)
       await dbService.addEntry(data as Omit<MediaEntry, "id">);
     }
-    await loadData();
+    await loadData(true);
   };
 
   const handleDelete = useCallback(async (id: number) => {
     await dbService.deleteEntry(id);
-    loadData();
+    void loadData(true);
   }, [loadData]);
 
   const handleEditFromCard = useCallback((entry: MediaEntry) => {
@@ -556,24 +560,27 @@ export default function YearView() {
 
       {/* Grid */}
       {deferredEntries.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-20">
-          {deferredEntries.map(entry => {
-            const isHighlighted = entry.id === highlightedId;
+        <VirtualizedCardGrid
+          items={deferredEntries}
+          getItemKey={(entry) => entry.id}
+          columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
+          gap={24}
+          estimatedRowHeight={520}
+          highlightedKey={highlightedId}
+          highlightClassName="rounded-2xl ring-4 ring-amber-400 ring-offset-2 ring-offset-gray-900 animate-pulse"
+          scrollOptions={{ behavior: 'smooth', align: 'center' }}
+          className="pb-20"
+          ariaLabel={`${year} collection entries`}
+          renderItem={(entry, index) => {
             const isGameEntry = (entry.entry_type || "").toLowerCase().includes("game");
             const hasCardGlow = entry.review_score === 10 || (isGameEntry && entry.is_platinum === 1);
             return (
               <div
-                key={entry.id}
-                ref={isHighlighted ? highlightRef : null}
-                className={`transition-all duration-300 ${isHighlighted
-                  ? 'ring-4 ring-amber-400 ring-offset-2 ring-offset-gray-900 rounded-2xl animate-pulse'
-                  : hasCardGlow
-                    ? 'overflow-visible'
-                    : 'cv-auto'
-                  }`}
+                className={`transition-all duration-300 ${hasCardGlow ? 'overflow-visible' : 'cv-auto'}`}
               >
                 <MediaCard
                   entry={entry}
+                  imagePriority={index < 10 ? 'high' : 'auto'}
                   onEdit={handleEditFromCard}
                   onDelete={handleDelete}
                   onDuplicate={handleDuplicate}
@@ -582,8 +589,8 @@ export default function YearView() {
                 />
               </div>
             );
-          })}
-        </div>
+          }}
+        />
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-gray-500">
           <p className="text-lg">No entries match your filter.</p>

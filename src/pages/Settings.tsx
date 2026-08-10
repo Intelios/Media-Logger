@@ -1,11 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { appLocalDataDir } from '@tauri-apps/api/path';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import {
     FolderOpen,
     RotateCcw,
@@ -24,8 +22,6 @@ import {
     Info,
     Copy,
     ScrollText,
-    ChevronDown,
-    ChevronRight,
     ImageOff,
     Bot,
     ShieldCheck,
@@ -35,12 +31,19 @@ import {
     Activity,
     Server
 } from 'lucide-react';
-import { exportToFile, importFromFile, getDataStats, type ImportResult } from '../lib/csv-logic';
+import {
+    BACKUP_TABLE_NAMES,
+    createFailedImportResult,
+    exportToFile,
+    importFromFile,
+    getDataStats,
+    type BackupTableName,
+    type ImportResult
+} from '../lib/csv-logic';
 import { DB_FILENAME, dbService } from '../lib/db';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CleanupImagesModal } from '../components/CleanupImagesModal';
 import { scanOrphanedImages, type ScanResult } from '../lib/image-cleanup';
-import { resetThumbnailImageCache } from '../lib/utils';
 import {
     getDataDirectory,
     setDataDirectory,
@@ -81,28 +84,29 @@ import {
     type McpRuntimeState,
     type McpStatus
 } from '../lib/mcp';
-import changelogData from '../data/changelog.json';
 import packageJson from '../../package.json';
 import tauriConfig from '../../src-tauri/tauri.conf.json';
+import { IS_PERFORMANCE_BUILD } from '../lib/performance-mode';
+import { getImageCacheLimitGiB, initializeImageService, setImageCacheLimitGiB } from '../lib/image-service';
+
+const SettingsChangelogSection = lazy(() => import('../components/settings/SettingsChangelogSection'));
 
 type SettingsSection = 'general' | 'appearance' | 'ai-access' | 'data' | 'changelog' | 'about';
 type BackupFormat = 'json' | 'zip';
-type ClearThumbnailCacheResult = { filesRemoved: number; bytesRemoved: number };
 
-type ChangelogRelease = {
-    version: string;
-    title: string;
-    date: string;
-    body: string;
-    prerelease: boolean;
-    url?: string;
-};
-
-type ChangelogData = {
-    generatedAt: string | null;
-    source: string;
-    repository: string | null;
-    releases: ChangelogRelease[];
+const IMPORT_TABLE_LABELS: Record<BackupTableName, string> = {
+    entries: 'Media entries',
+    collections: 'Collections',
+    collection_eras: 'Collection eras',
+    collection_items: 'Collection items',
+    award_years: 'Award years',
+    award_templates: 'Award templates',
+    award_categories: 'Award categories',
+    award_winners: 'Award winners',
+    profiles: 'Profiles',
+    hidden_profiles: 'Hidden profiles',
+    profile_avg_history: 'Profile AVG history',
+    backlog_items: 'Backlog items',
 };
 
 type EnvironmentInfo = {
@@ -135,38 +139,6 @@ const appMetadata = {
     tauriCliVersion: packageJson.devDependencies['@tauri-apps/cli'] ?? 'Unknown',
     reactVersion: packageJson.dependencies.react ?? 'Unknown',
 };
-
-const changelog = changelogData as ChangelogData;
-const markdownPlugins = [remarkGfm];
-
-function formatReleaseDate(value: string): string {
-    const [year, month, day] = value.split('-').map(Number);
-
-    if (!year || !month || !day) {
-        return value || 'Unknown date';
-    }
-
-    return new Intl.DateTimeFormat(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-    }).format(new Date(year, month - 1, day));
-}
-
-function formatGeneratedAt(value: string | null): string {
-    if (!value) return 'Not synced yet';
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-
-    return new Intl.DateTimeFormat(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    }).format(date);
-}
 
 function formatMcpTimestamp(value: string | null | undefined): string {
     if (!value) return 'Never';
@@ -231,25 +203,8 @@ function AboutInfoRow({ label, value, mono = false }: { label: string; value: Re
     );
 }
 
-function createFailedImportResult(error: unknown): ImportResult {
-    return {
-        success: false,
-        mediaEntriesImported: 0,
-        mediaEntriesSkipped: 0,
-        collectionsImported: 0,
-        collectionsSkipped: 0,
-        awardTemplatesImported: 0,
-        awardCategoriesImported: 0,
-        awardWinnersImported: 0,
-        profilesImported: 0,
-        assetsRestored: 0,
-        errors: [String(error)],
-    };
-}
-
 export default function Settings() {
     const [activeSection, setActiveSection] = useState<SettingsSection>('general');
-    const [expandedReleaseVersion, setExpandedReleaseVersion] = useState<string | null>(() => changelog.releases[0]?.version ?? null);
     const [currentPath, setCurrentPath] = useState<string>('');
     const [defaultPath, setDefaultPath] = useState<string>('');
     const [isCustom, setIsCustom] = useState(false);
@@ -284,10 +239,11 @@ export default function Settings() {
     const [importResult, setImportResult] = useState<ImportResult | null>(null);
     const [showImportModal, setShowImportModal] = useState(false);
     const [showExportFormatModal, setShowExportFormatModal] = useState(false);
+    const [cacheLimit, setCacheLimit] = useState<1 | 3 | 5>(() => getImageCacheLimitGiB());
+    const [isCacheLimitBusy, setIsCacheLimitBusy] = useState(false);
 
     // Unused-image cleanup state
     const [isScanning, setIsScanning] = useState(false);
-    const [isClearingThumbnailCache, setIsClearingThumbnailCache] = useState(false);
     const [cleanupScan, setCleanupScan] = useState<ScanResult | null>(null);
     const [showCleanupModal, setShowCleanupModal] = useState(false);
 
@@ -300,17 +256,9 @@ export default function Settings() {
     const [connectionError, setConnectionError] = useState('');
     const [newCredential, setNewCredential] = useState<McpCredentialSecret | null>(null);
     const [showEndpointConfirm, setShowEndpointConfirm] = useState(false);
+    const pathsLoadedRef = useRef(false);
 
     useEffect(() => {
-        const loadPaths = async () => {
-            const dataDir = await getDataDirectory();
-            const appDir = await appLocalDataDir();
-            setCurrentPath(dataDir);
-            setDefaultPath(appDir);
-            setIsCustom(hasCustomDataDirectory());
-        };
-        loadPaths();
-
         setDisplayNameState(getDisplayName());
         setIsCustomName(hasCustomDisplayName());
         setNavigationYearsState(getNavigationYears());
@@ -318,17 +266,47 @@ export default function Settings() {
         setAdultMediaEnabledState(isAdultMediaEnabled());
         setFeaturedAdultAllowedState(isFeaturedAdultAllowed());
 
-        // Load data stats
-        getDataStats().then(setDataStats).catch(console.error);
+    }, []);
+
+    useEffect(() => {
+        if (activeSection !== 'data' && activeSection !== 'about') return;
+        let cancelled = false;
+
+        const loadPaths = async () => {
+            const [dataDir, appDir] = await Promise.all([getDataDirectory(), appLocalDataDir()]);
+            if (cancelled) return;
+            setCurrentPath(dataDir);
+            setDefaultPath(appDir);
+            setIsCustom(hasCustomDataDirectory());
+            pathsLoadedRef.current = true;
+        };
+
+        if (!pathsLoadedRef.current) void loadPaths();
+        if (!dataStats) {
+            getDataStats()
+                .then((stats) => {
+                    if (!cancelled) setDataStats(stats);
+                })
+                .catch(console.error);
+        }
+
+        return () => {
+            cancelled = true;
+        };
+    }, [activeSection, dataStats]);
+
+    useEffect(() => {
+        if (activeSection !== 'about') return;
 
         const handleEnvironmentChange = () => setEnvironmentInfo(getEnvironmentInfo());
         handleEnvironmentChange();
         window.addEventListener('resize', handleEnvironmentChange);
-
         return () => window.removeEventListener('resize', handleEnvironmentChange);
-    }, []);
+    }, [activeSection]);
 
     useEffect(() => {
+        if (activeSection !== 'ai-access') return;
+
         let cancelled = false;
 
         const refresh = async () => {
@@ -350,12 +328,6 @@ export default function Settings() {
         };
 
         void refresh();
-        if (activeSection !== 'ai-access') {
-            return () => {
-                cancelled = true;
-            };
-        }
-
         const refreshTimer = window.setInterval(() => void refresh(), 5000);
         return () => {
             cancelled = true;
@@ -423,25 +395,11 @@ export default function Settings() {
         }
     };
 
-    const handleClearThumbnailCache = async () => {
-        if (isClearingThumbnailCache) return;
-        setIsClearingThumbnailCache(true);
-        try {
-            const result = await invoke<ClearThumbnailCacheResult>('clear_thumbnail_cache');
-            resetThumbnailImageCache();
-            const sizeMb = result.bytesRemoved / (1024 * 1024);
-            showToast(result.filesRemoved === 0
-                ? 'Thumbnail cache is already empty'
-                : `Cleared ${result.filesRemoved} thumbnails (${sizeMb.toFixed(1)} MB)`);
-        } catch (error) {
-            console.error('Clear thumbnail cache failed:', error);
-            showToast('Unable to clear thumbnail cache');
-        } finally {
-            setIsClearingThumbnailCache(false);
-        }
-    };
-
     const handleBrowse = async () => {
+        if (IS_PERFORMANCE_BUILD) {
+            showToast('Performance Lab data is permanently isolated');
+            return;
+        }
         if (mcpBusyAction) return;
 
         const selected = await open({
@@ -456,6 +414,7 @@ export default function Settings() {
                 const suspendedStatus = await suspendMcpRuntime();
                 setMcpStatus(suspendedStatus);
                 setDataDirectory(selected);
+                await initializeImageService(true);
                 setCurrentPath(selected);
                 setIsCustom(true);
                 const mcpSynced = await syncMcpForDataDirectory();
@@ -481,6 +440,7 @@ export default function Settings() {
             const suspendedStatus = await suspendMcpRuntime();
             setMcpStatus(suspendedStatus);
             clearDataDirectory();
+            await initializeImageService(true);
             setCurrentPath(appDir);
             setIsCustom(false);
             const mcpSynced = await syncMcpForDataDirectory();
@@ -842,6 +802,10 @@ export default function Settings() {
     };
 
     const handleImport = async () => {
+        if (IS_PERFORMANCE_BUILD) {
+            showToast('Backup import is disabled in the Performance Lab');
+            return;
+        }
         try {
             const filePath = await open({
                 multiple: false,
@@ -865,12 +829,12 @@ export default function Settings() {
                             result = {
                                 ...result,
                                 assetsRestored,
-                                errors: [...result.errors, ...cleanupWarnings]
+                                warnings: [...result.warnings, ...cleanupWarnings]
                             };
                         } catch (assetError) {
                             result = {
                                 ...result,
-                                errors: [...result.errors, `Assets could not be fully restored: ${String(assetError)}`]
+                                warnings: [...result.warnings, `Assets could not be fully restored: ${String(assetError)}`]
                             };
                         }
                     }
@@ -884,13 +848,14 @@ export default function Settings() {
 
                 // Imported entries may introduce new years — refresh the
                 // sidebar year list (Layout/Stats listen for this).
-                if (result.mediaEntriesImported > 0) {
+                if (result.success && result.tableCounts.entries.inserted > 0) {
                     window.dispatchEvent(new CustomEvent('entry-added'));
                 }
 
-                // Refresh stats after import
-                const newStats = await getDataStats();
-                setDataStats(newStats);
+                if (result.success) {
+                    const newStats = await getDataStats();
+                    setDataStats(newStats);
+                }
             }
         } catch (error) {
             console.error('Import error:', error);
@@ -944,7 +909,6 @@ export default function Settings() {
         }
     };
 
-    const latestRelease = changelog.releases[0];
     const mcpRuntimeState = mcpStatus?.runtimeState ?? (mcpLoadError ? 'error' : null);
     const mcpError = mcpStatus?.error ?? mcpLoadError;
     const codexMcpConfig = newCredential ? buildCodexMcpConfig(newCredential) : '';
@@ -1577,10 +1541,10 @@ export default function Settings() {
                                     <button
                                         onClick={handleBrowse}
                                         className="settings-btn settings-btn-primary"
-                                        disabled={mcpBusyAction === 'data-directory'}
+                                        disabled={IS_PERFORMANCE_BUILD || mcpBusyAction === 'data-directory'}
                                     >
                                         <FolderOpen size={14} />
-                                        Browse...
+                                        {IS_PERFORMANCE_BUILD ? 'Locked to Performance Lab' : 'Browse...'}
                                     </button>
                                     {currentPath && (
                                         <button
@@ -1732,12 +1696,14 @@ export default function Settings() {
                                 <div>
                                     <div className="settings-row-label">Import Data</div>
                                     <div className="settings-row-description">
-                                        Restore data from a JSON or ZIP backup file. Existing entries are skipped only when all exported fields match.
+                                        {IS_PERFORMANCE_BUILD
+                                            ? 'Disabled in the Performance Lab so a real Media Logger backup can never be opened here.'
+                                            : 'Restore data from a JSON or ZIP backup file. Existing entries are skipped only when all exported fields match.'}
                                     </div>
                                 </div>
                                 <button
                                     onClick={handleImport}
-                                    disabled={isImporting}
+                                    disabled={IS_PERFORMANCE_BUILD || isImporting}
                                     className="settings-btn settings-btn-secondary"
                                     style={{ alignSelf: 'flex-start' }}
                                 >
@@ -1745,29 +1711,6 @@ export default function Settings() {
                                         <><Loader2 size={14} className="spin" /> Importing...</>
                                     ) : (
                                         <><Upload size={14} /> Import from File</>
-                                    )}
-                                </button>
-                            </div>
-                        </section>
-
-                        <section className="settings-card">
-                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
-                                <div>
-                                    <div className="settings-row-label">Cover Thumbnail Cache</div>
-                                    <div className="settings-row-description">
-                                        Media Logger creates optimized local thumbnails as covers enter view. Clearing them is safe; originals are untouched and thumbnails regenerate automatically.
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={handleClearThumbnailCache}
-                                    disabled={isClearingThumbnailCache}
-                                    className="settings-btn settings-btn-secondary"
-                                    style={{ alignSelf: 'flex-start' }}
-                                >
-                                    {isClearingThumbnailCache ? (
-                                        <><Loader2 size={14} className="spin" /> Clearing...</>
-                                    ) : (
-                                        <><Trash2 size={14} /> Clear Thumbnail Cache</>
                                     )}
                                 </button>
                             </div>
@@ -1796,6 +1739,42 @@ export default function Settings() {
                             </div>
                         </section>
 
+                        <section className="settings-card">
+                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+                                <div>
+                                    <div className="settings-row-label">Derivative Image Cache Limit</div>
+                                    <div className="settings-row-description">
+                                        Maximum disk space for derivative covers. Originals are never counted or evicted.
+                                        Cache usage, rebuild, and clear operations live on the Performance page.
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    {([1, 3, 5] as const).map((limit) => (
+                                        <button
+                                            key={limit}
+                                            className={`settings-btn ${cacheLimit === limit ? 'settings-btn-primary' : 'settings-btn-secondary'}`}
+                                            disabled={isCacheLimitBusy}
+                                            onClick={() => {
+                                                setIsCacheLimitBusy(true);
+                                                void setImageCacheLimitGiB(limit)
+                                                    .then(() => setCacheLimit(limit))
+                                                    .catch((error) => {
+                                                        console.error('[Settings] Failed to set image cache limit:', error);
+                                                    })
+                                                    .finally(() => setIsCacheLimitBusy(false));
+                                            }}
+                                        >
+                                            {isCacheLimitBusy && cacheLimit === limit ? (
+                                                <><Loader2 size={14} className="spin" /> {limit} GB</>
+                                            ) : (
+                                                `${limit} GB`
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </section>
+
                         <div style={{
                             display: 'flex',
                             alignItems: 'flex-start',
@@ -1815,97 +1794,9 @@ export default function Settings() {
 
                 {/* Changelog Section */}
                 {activeSection === 'changelog' && (
-                    <div className="settings-section-enter" key="changelog">
-                        <section className="settings-card changelog-summary">
-                            <div className="settings-row changelog-summary-row">
-                                <div className="changelog-summary-header">
-                                    <div className="changelog-summary-icon">
-                                        <ScrollText size={24} />
-                                    </div>
-                                    <div>
-                                        <div className="settings-row-label">Published GitHub Releases</div>
-                                        <div className="settings-row-description">
-                                            Release notes are synced during development and bundled into the app for offline viewing.
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="changelog-summary-grid">
-                                    <div className="changelog-summary-card">
-                                        <span className="changelog-summary-value">{appMetadata.appVersion}</span>
-                                        <span className="changelog-summary-label">Current Version</span>
-                                    </div>
-                                    <div className="changelog-summary-card">
-                                        <span className="changelog-summary-value">{changelog.releases.length}</span>
-                                        <span className="changelog-summary-label">Releases</span>
-                                    </div>
-                                    <div className="changelog-summary-card">
-                                        <span className="changelog-summary-value">{latestRelease?.version ?? 'None'}</span>
-                                        <span className="changelog-summary-label">Latest Synced</span>
-                                    </div>
-                                    <div className="changelog-summary-card">
-                                        <span className="changelog-summary-value changelog-summary-date">{formatGeneratedAt(changelog.generatedAt)}</span>
-                                        <span className="changelog-summary-label">Last Updated</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-
-                        {changelog.releases.length > 0 ? (
-                            changelog.releases.map((release) => {
-                                const isExpanded = expandedReleaseVersion === release.version;
-
-                                return (
-                                    <section className="settings-card changelog-release" key={release.version}>
-                                        <button
-                                            type="button"
-                                            className="changelog-release-header"
-                                            onClick={() => setExpandedReleaseVersion(isExpanded ? null : release.version)}
-                                            aria-expanded={isExpanded}
-                                        >
-                                            <div className="changelog-release-heading">
-                                                <div className="changelog-release-meta">
-                                                    <span className="changelog-version-badge">{release.version}</span>
-                                                    {release.prerelease && (
-                                                        <span className="changelog-prerelease-badge">Prerelease</span>
-                                                    )}
-                                                </div>
-                                                <div className="changelog-release-title">{release.title}</div>
-                                                <div className="settings-row-description">{formatReleaseDate(release.date)}</div>
-                                            </div>
-                                            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                                        </button>
-
-                                        {isExpanded && (
-                                            <div className="changelog-release-body">
-                                                {release.body ? (
-                                                    <div className="changelog-markdown">
-                                                        <ReactMarkdown remarkPlugins={markdownPlugins}>
-                                                            {release.body}
-                                                        </ReactMarkdown>
-                                                    </div>
-                                                ) : (
-                                                    <p className="changelog-empty-note">No release notes were provided for this release.</p>
-                                                )}
-                                            </div>
-                                        )}
-                                    </section>
-                                );
-                            })
-                        ) : (
-                            <section className="settings-card">
-                                <div className="settings-row changelog-empty-state">
-                                    <ScrollText size={28} />
-                                    <div>
-                                        <div className="settings-row-label">No changelog synced yet</div>
-                                        <div className="settings-row-description">
-                                            Run <code>npm run changelog:sync</code> before building the app to bundle published release notes.
-                                        </div>
-                                    </div>
-                                </div>
-                            </section>
-                        )}
-                    </div>
+                    <Suspense fallback={<div className="settings-section-loading"><Loader2 size={18} className="spin" /></div>}>
+                        <SettingsChangelogSection />
+                    </Suspense>
                 )}
 
                 {/* About Section */}
@@ -2065,7 +1956,7 @@ export default function Settings() {
                         <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 450 }}>
                             <h2 style={{ marginBottom: 16 }}>
                                 {importResult.success
-                                    ? importResult.errors.length > 0
+                                    ? importResult.warnings.length > 0
                                         ? 'Import Complete With Warnings'
                                         : 'Import Complete'
                                     : 'Import Failed'}
@@ -2073,45 +1964,30 @@ export default function Settings() {
                             {importResult.success ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Media entries imported:</span>
-                                            <strong style={{ color: 'var(--color-primary)' }}>{importResult.mediaEntriesImported}</strong>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px 58px 58px', gap: 8, color: 'var(--color-text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                            <span>Data</span>
+                                            <span style={{ textAlign: 'right' }}>Added</span>
+                                            <span style={{ textAlign: 'right' }}>Reused</span>
+                                            <span style={{ textAlign: 'right' }}>Updated</span>
                                         </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Media entries already present (exact matches):</span>
-                                            <strong>{importResult.mediaEntriesSkipped}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Collections imported:</span>
-                                            <strong style={{ color: 'var(--color-secondary)' }}>{importResult.collectionsImported}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Collections skipped:</span>
-                                            <strong>{importResult.collectionsSkipped}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Award templates imported:</span>
-                                            <strong>{importResult.awardTemplatesImported}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Award categories imported:</span>
-                                            <strong>{importResult.awardCategoriesImported}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Award winners imported:</span>
-                                            <strong>{importResult.awardWinnersImported}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span>Profile mappings imported:</span>
-                                            <strong>{importResult.profilesImported}</strong>
-                                        </div>
+                                        {BACKUP_TABLE_NAMES.map((table) => {
+                                            const count = importResult.tableCounts[table];
+                                            return (
+                                                <div key={table} style={{ display: 'grid', gridTemplateColumns: '1fr 58px 58px 58px', gap: 8 }}>
+                                                    <span>{IMPORT_TABLE_LABELS[table]}</span>
+                                                    <strong style={{ textAlign: 'right', color: count.inserted > 0 ? 'var(--color-primary)' : undefined }}>{count.inserted}</strong>
+                                                    <strong style={{ textAlign: 'right' }}>{count.reused}</strong>
+                                                    <strong style={{ textAlign: 'right', color: count.updated > 0 ? 'var(--color-secondary)' : undefined }}>{count.updated}</strong>
+                                                </div>
+                                            );
+                                        })}
                                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                             <span>Assets restored:</span>
                                             <strong>{importResult.assetsRestored}</strong>
                                         </div>
                                     </div>
 
-                                    {importResult.errors.length > 0 && (
+                                    {importResult.warnings.length > 0 && (
                                         <div
                                             style={{
                                                 display: 'flex',
@@ -2125,8 +2001,8 @@ export default function Settings() {
                                         >
                                             <strong style={{ color: '#D97706' }}>Warnings</strong>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, color: 'var(--color-text-muted)', fontSize: 13 }}>
-                                                {importResult.errors.map((error, index) => (
-                                                    <span key={`${error}-${index}`}>{error}</span>
+                                                {importResult.warnings.map((warning, index) => (
+                                                    <span key={`${warning}-${index}`}>{warning}</span>
                                                 ))}
                                             </div>
                                         </div>

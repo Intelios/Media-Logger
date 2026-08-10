@@ -8,12 +8,12 @@ import {
 import { forceSimulation, forceCollide, forceManyBody, forceX, forceY } from "d3-force";
 import { scaleLinear } from "d3-scale";
 import { cn } from "../lib/utils_ui";
-import { DEFAULT_COVER_IMAGE, getImageUrl, releaseImageUrl, useImageUrl } from "../lib/utils";
 import { generateReview, getReviewYearStats, getReviewFilteredCount, type ReviewData, type ReviewSlide, type ReviewParams } from "../lib/review-logic";
 import { FILTER_PRESETS, getVisibleEntryTypes, getVisiblePresetKeys, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 import { AnimatedNumber } from "../components/AnimatedNumber";
-import { getTypeBadgeStyle } from "../components/MediaCard";
+import { getTypeBadgeStyle } from "../lib/media-config";
 import type { MediaEntry } from "../lib/db";
+import { CoverImage } from "../components/CoverImage";
 
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -52,8 +52,6 @@ const SLIDE_ICONS: Record<string, typeof Star> = {
 // ─── Entry Thumbnail ─────────────────────────────────────────────────────────
 
 function EntryThumb({ entry, size = "md", delay = 0 }: { entry: MediaEntry; size?: "sm" | "md"; delay?: number }) {
-  const imgSrc = useImageUrl(entry.image_url);
-
   const sizeClasses = {
     sm: "w-16 h-20",
     md: "w-24 h-32",
@@ -62,9 +60,16 @@ function EntryThumb({ entry, size = "md", delay = 0 }: { entry: MediaEntry; size
   return (
     <div
       className={cn("relative rounded-xl overflow-hidden shadow-2xl review-fade-up flex-shrink-0 group", sizeClasses[size])}
-      style={{ animationDelay: `${delay}ms` }}
+      style={{ animationDelay: `${Math.min(delay, 300)}ms` }}
     >
-      <img src={imgSrc} alt={entry.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+      <CoverImage
+        path={entry.image_url}
+        alt={entry.name}
+        variant="small"
+        sizes={size === "sm" ? "64px" : "96px"}
+        containerClassName="h-full w-full"
+        imageClassName="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+      />
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
       {entry.review_score != null && (
         <div className="absolute bottom-1 right-1 bg-black/60 backdrop-blur-sm rounded-md px-1.5 py-0.5 text-xs font-bold text-white">
@@ -124,7 +129,7 @@ function TypeChampionSlide({ slide }: { slide: ReviewSlide }) {
           <div
             key={item.name}
             className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2 text-sm font-medium text-white/90"
-            style={{ animationDelay: `${600 + i * 100}ms` }}
+            style={{ animationDelay: `${Math.min(600 + i * 100, 300)}ms` }}
           >
             {item.name} <span className="text-white/50">{item.count}</span>
           </div>
@@ -239,7 +244,7 @@ function TopGenreSlide({ slide }: { slide: ReviewSlide }) {
           <div
             key={g.name}
             className="bg-white/10 backdrop-blur-sm rounded-lg px-3 py-1.5 text-sm text-white/80 review-fade-up"
-            style={{ animationDelay: `${700 + i * 80}ms` }}
+            style={{ animationDelay: `${Math.min(700 + i * 80, 300)}ms` }}
           >
             {g.name} <span className="text-white/40">{g.count}</span>
           </div>
@@ -531,7 +536,7 @@ function RatingBreakdownSlide({ slide }: { slide: ReviewSlide }) {
           const width = maxCount > 0 ? (r.count / maxCount) * 100 : 0;
           const isMost = r.rating === mostCommon;
           return (
-            <div key={r.rating} className="flex items-center gap-3" style={{ animationDelay: `${500 + i * 60}ms` }}>
+            <div key={r.rating} className="flex items-center gap-3" style={{ animationDelay: `${Math.min(500 + i * 60, 300)}ms` }}>
               <span className={cn("w-6 text-right text-sm font-bold", isMost ? "text-white" : "text-white/50")}>
                 {r.rating}
               </span>
@@ -565,7 +570,7 @@ function AwardWinnersSlide({ slide }: { slide: ReviewSlide }) {
           <div
             key={i}
             className="flex items-center gap-4 bg-white/10 backdrop-blur-sm rounded-xl p-3 review-fade-up"
-            style={{ animationDelay: `${400 + i * 100}ms` }}
+            style={{ animationDelay: `${Math.min(400 + i * 100, 300)}ms` }}
           >
             <Trophy size={20} className="text-amber-400 flex-shrink-0" />
             <div className="flex-1 min-w-0">
@@ -643,58 +648,13 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
   const [currentSlide, setCurrentSlide] = useState(0);
   const [, setDirection] = useState<"left" | "right">("right");
   const [slideKey, setSlideKey] = useState(0); // force re-mount for animations
-  const [backgroundUrls, setBackgroundUrls] = useState<Record<string, string>>({});
 
   const slides = data.slides;
   const slide = slides[currentSlide];
+  const nextSlide = slides[currentSlide + 1];
   const theme = SLIDE_THEMES[slide.type] || SLIDE_THEMES["overview"];
   const SlideIcon = SLIDE_ICONS[slide.type] || Sparkles;
-  const backgroundSrc = slide.backgroundImagePath ? backgroundUrls[slide.backgroundImagePath] : undefined;
-
-  useEffect(() => {
-    let cancelled = false;
-    const acquiredPaths: string[] = [];
-    const backgroundPaths = [...new Set(
-      data.slides
-        .map(reviewSlide => reviewSlide.backgroundImagePath)
-        .filter((path): path is string => typeof path === "string" && path.trim().length > 0)
-    )];
-
-    if (backgroundPaths.length === 0) {
-      setBackgroundUrls({});
-      return;
-    }
-
-    setBackgroundUrls({});
-
-    Promise.all(
-      backgroundPaths.map(async (path) => {
-        const resolvedUrl = await getImageUrl(path);
-        if (cancelled) {
-          releaseImageUrl(path);
-        } else {
-          acquiredPaths.push(path);
-        }
-        return [path, resolvedUrl] as const;
-      })
-    ).then((results) => {
-      if (cancelled) return;
-
-      const nextBackgroundUrls: Record<string, string> = {};
-      results.forEach(([path, resolvedUrl]) => {
-        if (resolvedUrl && resolvedUrl !== DEFAULT_COVER_IMAGE) {
-          nextBackgroundUrls[path] = resolvedUrl;
-        }
-      });
-
-      setBackgroundUrls(nextBackgroundUrls);
-    });
-
-    return () => {
-      cancelled = true;
-      acquiredPaths.forEach((path) => releaseImageUrl(path));
-    };
-  }, [data]);
+  const hasBackground = Boolean(slide.backgroundImagePath?.trim());
 
   const goTo = useCallback((idx: number) => {
     if (idx < 0 || idx >= slides.length) return;
@@ -720,13 +680,28 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
   return createPortal(
     <div className="fixed inset-0 z-[100] flex flex-col">
       <div className="absolute inset-0 overflow-hidden">
-        {backgroundSrc && (
-          <img
+        {hasBackground && (
+          <CoverImage
             key={`bg-image-${slideKey}-${slide.backgroundImagePath}`}
-            src={backgroundSrc}
+            path={slide.backgroundImagePath}
             alt=""
-            aria-hidden="true"
-            className="absolute inset-[-5%] h-[110%] w-[110%] max-w-none object-cover scale-110 blur-xl saturate-125 transition-all duration-700"
+            variant="hero"
+            priority="high"
+            sizes="110vw"
+            containerClassName="absolute inset-[-5%] h-[110%] w-[110%]"
+            imageClassName="h-full w-full max-w-none object-cover scale-110 blur-xl saturate-125 transition-all duration-700"
+          />
+        )}
+
+        {nextSlide?.backgroundImagePath && (
+          <CoverImage
+            key={`bg-preload-${nextSlide.backgroundImagePath}`}
+            path={nextSlide.backgroundImagePath}
+            alt=""
+            variant="hero"
+            sizes="100vw"
+            containerClassName="pointer-events-none absolute h-px w-px overflow-hidden opacity-0"
+            imageClassName="h-px w-px object-cover"
           />
         )}
 
@@ -736,10 +711,10 @@ function Presentation({ data, onClose }: { data: ReviewData; onClose: () => void
             "absolute inset-0 bg-gradient-to-br transition-all duration-700",
             theme.gradient,
             "review-gradient-bg",
-            backgroundSrc ? "opacity-45" : "opacity-100"
+            hasBackground ? "opacity-45" : "opacity-100"
           )}
         />
-        <div className={cn("absolute inset-0", backgroundSrc ? "bg-black/28" : "bg-black/20")} />
+        <div className={cn("absolute inset-0", hasBackground ? "bg-black/28" : "bg-black/20")} />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),transparent_40%),linear-gradient(180deg,rgba(0,0,0,0.04),rgba(0,0,0,0.22))]" />
       </div>
 

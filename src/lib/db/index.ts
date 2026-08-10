@@ -5,6 +5,10 @@
 export { dbService } from './service';
 export type {
   MediaEntry,
+  EntryDetail,
+  EntryCardSummary,
+  StatsEntry,
+  PagedResult,
   BacklogItem,
   AvgHistoryPoint,
   EntrySearchFilters,
@@ -13,6 +17,7 @@ export type {
   RandomPickFilterOptions,
   AutocompleteOptions,
 } from './types';
+export { ENTRY_SEARCH_PAGE_SIZE } from './entries';
 export { adultExclusionSql, filterHiddenEntries } from './shared';
 export { onEntriesMutated } from './events';
 export { DB_FILENAME, LEGACY_DB_FILENAME, DB_MIGRATED_FLAG_KEY } from './connection';

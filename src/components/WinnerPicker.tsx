@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Search, X, Plus } from "lucide-react";
-import { dbService, type MediaEntry } from "../lib/db";
+import { dbService, type EntryCardSummary } from "../lib/db";
 import { MediaCard } from "./MediaCard"; // Reuse the card!
+import { VirtualizedCardGrid } from "./VirtualizedCardGrid";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 
 // Stable empty array so the default parameter doesn't create a new reference
 // on every render (which would cause useMemo/useEffect dependency loops).
 const EMPTY_IDS: number[] = [];
+const getMediaEntryKey = (entry: EntryCardSummary) => entry.id;
 
 interface WinnerPickerProps {
   isOpen: boolean;
@@ -36,11 +38,12 @@ export function WinnerPicker({
   excludedIds = EMPTY_IDS,
 }: WinnerPickerProps) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<MediaEntry[]>([]);
-  const [allEntries, setAllEntries] = useState<MediaEntry[]>([]);
+  const [results, setResults] = useState<EntryCardSummary[]>([]);
+  const [allEntries, setAllEntries] = useState<EntryCardSummary[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+  const resultsScrollRef = useRef<HTMLDivElement>(null);
   const isMultiSelect = mode === "multiple";
   const excludedIdSet = useMemo(() => new Set(excludedIds), [excludedIds]);
 
@@ -55,7 +58,11 @@ export function WinnerPicker({
       setQuery("");
       setSelectedIds([]);
       setIsSubmitting(false);
-      dbService.getAllEntries().then(entries => {
+      // Summaries only — description/notes prose is never needed for picking.
+      // MediaCard lazy-loads the full row via getEntryById when a detail/edit
+      // dialog is actually opened, so this matches the 4.0 contract and avoids
+      // a SELECT * feeding the virtualized grid.
+      dbService.getAllEntrySummaries().then(entries => {
         setAllEntries(entries);
       });
     }
@@ -146,15 +153,21 @@ export function WinnerPicker({
         </div>
 
         {/* Grid */}
-        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {results.map(entry => {
+        <div ref={resultsScrollRef} className="flex-1 min-h-0 overflow-y-auto p-4 custom-scrollbar">
+          <VirtualizedCardGrid
+            items={results}
+            getItemKey={getMediaEntryKey}
+            columns={{ base: 2, md: 4 }}
+            gap={16}
+            estimatedRowHeight={420}
+            scrollContainerRef={resultsScrollRef}
+            ariaLabel="Media search results"
+            renderItem={(entry, index) => {
               const selectionIndex = selectedIds.indexOf(entry.id);
               const isSelected = selectionIndex >= 0;
 
               return (
               <div 
-                key={entry.id} 
                 onClick={() => void handleCardClick(entry.id)}
                 className={`relative cursor-pointer ring-offset-2 ring-offset-[#1a1a1a] rounded-xl transition-all ${
                   isMultiSelect
@@ -177,11 +190,11 @@ export function WinnerPicker({
                     )}
                   </div>
                 )}
-                <MediaCard entry={entry} />
+                <MediaCard entry={entry} imagePriority={index < 10 ? 'high' : 'auto'} />
               </div>
               );
-            })}
-          </div>
+            }}
+          />
           {results.length === 0 && (
             <div className="text-center py-20 text-gray-500">
               {filteredEntries.length === 0 && excludedIds.length > 0

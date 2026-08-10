@@ -1,4 +1,5 @@
 import { appLocalDataDir } from '@tauri-apps/api/path';
+import { IS_PERFORMANCE_BUILD } from './performance-mode';
 
 const STORAGE_KEY = 'media-logger-data-directory';
 const DISPLAY_NAME_KEY = 'media-logger-display-name';
@@ -73,6 +74,9 @@ export function hasCustomDisplayName(): boolean {
  * Get the configured data directory, or fall back to the default app data directory.
  */
 export async function getDataDirectory(): Promise<string> {
+    if (IS_PERFORMANCE_BUILD) {
+        return await appLocalDataDir();
+    }
     const customDir = localStorage.getItem(STORAGE_KEY);
     if (customDir) {
         return customDir;
@@ -85,6 +89,10 @@ export async function getDataDirectory(): Promise<string> {
  * Set a custom data directory path.
  */
 export function setDataDirectory(path: string): void {
+    if (IS_PERFORMANCE_BUILD) {
+        localStorage.removeItem(STORAGE_KEY);
+        return;
+    }
     localStorage.setItem(STORAGE_KEY, path);
 }
 
@@ -99,6 +107,7 @@ export function clearDataDirectory(): void {
  * Check if a custom data directory is set.
  */
 export function hasCustomDataDirectory(): boolean {
+    if (IS_PERFORMANCE_BUILD) return false;
     return localStorage.getItem(STORAGE_KEY) !== null;
 }
 

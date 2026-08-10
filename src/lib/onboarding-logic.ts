@@ -7,8 +7,7 @@ const ONBOARDING_KEY = 'media-logger-onboarding-complete';
  */
 export async function checkIsNewUser(): Promise<boolean> {
     try {
-        const entries = await dbService.getAllEntries();
-        return entries.length === 0;
+        return !(await dbService.hasEntries());
     } catch (error) {
         // If we can't connect to DB, assume new user
         console.log('[Onboarding] Could not check entries, assuming new user');

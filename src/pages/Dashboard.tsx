@@ -5,11 +5,12 @@ import { Library, Star, Calendar, Folder, ArrowRight, Sparkles, Hourglass, Rotat
 import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { MediaListCard } from "../components/MediaListCard";
+import { CoverImage } from "../components/CoverImage";
 import type { MediaEntry } from "../lib/db";
-import { getImageUrl, releaseImageUrl } from "../lib/utils";
 import { getDisplayName, FEATURED_ADULT_VISIBILITY_CHANGED_EVENT } from "../lib/settings";
 import { formatTodayMD } from "../lib/dates";
 import { getAvailableNavigationYears, getCurrentYearString } from "../lib/navigation-years";
+import { mediaQueryKeys, queryClient } from "../lib/query-client";
 
 const greetingContainerVariants: Variants = {
   hidden: {},
@@ -37,45 +38,34 @@ export default function Dashboard() {
   const reduceMotion = useReducedMotion();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recent, setRecent] = useState<MediaEntry[]>([]);
-  const [featured, setFeatured] = useState<{ entry: MediaEntry; imageUrl: string } | null>(null);
+  const [recentLoaded, setRecentLoaded] = useState(false);
+  const [featured, setFeatured] = useState<MediaEntry | null>(null);
   const [greeting, setGreeting] = useState("Hello");
   const [displayName, setDisplayName] = useState("Collector");
   const [recentYear, setRecentYear] = useState(getCurrentYearString());
   const [onThisDay, setOnThisDay] = useState<MediaEntry[]>([]);
+  const [onThisDayLoaded, setOnThisDayLoaded] = useState(false);
   const [isRerolling, setIsRerolling] = useState(false);
   const [spinKey, setSpinKey] = useState(0);
 
   // Track the current load operation to prevent stale updates
   const loadIdRef = useRef(0);
-  // Path of the image currently held for the featured card, so reroll/unmount
-  // release exactly what's displayed (image URLs are refcounted by path).
-  const featuredImagePathRef = useRef<string | null>(null);
-
-  // Fetch a (possibly fresh) featured entry, swap its image in, and release the
-  // previous one. Guarded by loadIdRef so stale async results never win.
+  // Fetch a (possibly fresh) featured entry. Guarded by loadIdRef so stale
+  // async results never win.
   const loadFeatured = useCallback(async (excludeId?: number) => {
     const id = ++loadIdRef.current;
     const feat = await dashboardLogic.getFeaturedEntry(excludeId);
     if (loadIdRef.current !== id) return;
-
-    const imageUrl = feat ? await getImageUrl(feat.image_url, { variant: 'thumbnail' }) : null;
-    if (loadIdRef.current !== id) {
-      if (feat) releaseImageUrl(feat.image_url, 'thumbnail');
-      return;
-    }
-
-    releaseImageUrl(featuredImagePathRef.current, 'thumbnail');
-    featuredImagePathRef.current = feat ? feat.image_url : null;
-    setFeatured(feat && imageUrl ? { entry: feat, imageUrl } : null);
+    setFeatured(feat);
   }, []);
 
   const handleReroll = useCallback(async () => {
     if (isRerolling) return;
     if (!reduceMotion) setSpinKey((k) => k + 1);
     setIsRerolling(true);
-    await loadFeatured(featured?.entry.id);
+    await loadFeatured(featured?.id);
     setIsRerolling(false);
-  }, [isRerolling, featured?.entry.id, loadFeatured]);
+  }, [isRerolling, featured?.id, loadFeatured]);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,27 +79,49 @@ export default function Dashboard() {
     // Load custom display name
     setDisplayName(getDisplayName());
 
-    // Load Data (the featured entry + its image are owned by loadFeatured)
-    const load = async () => {
-      const [statsData, recentEntries, availableYears, onThisDayEntries] = await Promise.all([
-        dashboardLogic.getStats(),
-        dashboardLogic.getRecentEntries(),
-        getAvailableNavigationYears(),
-        dashboardLogic.getOnThisDayEntries(),
-      ]);
+    const scope = mediaQueryKeys.scope();
+    void queryClient.fetchQuery({
+      queryKey: [...mediaQueryKeys.dashboard, ...scope, 'stats'],
+      queryFn: () => dashboardLogic.getStats(),
+    }).then((data) => {
+      if (!cancelled) setStats(data);
+    }).catch((error) => console.error('Failed to load dashboard stats:', error));
 
+    void Promise.all([
+      queryClient.fetchQuery({
+        queryKey: [...mediaQueryKeys.dashboard, ...scope, 'recent'],
+        queryFn: () => dashboardLogic.getRecentEntries(),
+      }),
+      queryClient.fetchQuery({
+        queryKey: [...mediaQueryKeys.navigationYears, ...scope],
+        queryFn: () => getAvailableNavigationYears(),
+      }),
+    ]).then(([recentEntries, availableYears]) => {
+      if (cancelled) return;
       const fallbackYear = availableYears[availableYears.length - 1] || getCurrentYearString();
       const recentWithYear = recentEntries.find(entry => entry.year_completed);
+      setRecent(recentEntries);
+      setRecentLoaded(true);
+      setRecentYear(recentWithYear?.year_completed ? String(recentWithYear.year_completed) : fallbackYear);
+    }).catch((error) => {
+      console.error('Failed to load recent dashboard entries:', error);
+      if (!cancelled) setRecentLoaded(true);
+    });
 
+    void queryClient.fetchQuery({
+      queryKey: [...mediaQueryKeys.dashboard, ...scope, 'on-this-day', formatTodayMD()],
+      queryFn: () => dashboardLogic.getOnThisDayEntries(),
+    }).then((entries) => {
       if (!cancelled) {
-        setStats(statsData);
-        setRecent(recentEntries);
-        setRecentYear(recentWithYear?.year_completed ? String(recentWithYear.year_completed) : fallbackYear);
-        setOnThisDay(onThisDayEntries);
+        setOnThisDay(entries);
+        setOnThisDayLoaded(true);
       }
-    };
-    load();
-    loadFeatured();
+    }).catch((error) => {
+      console.error('Failed to load On This Day entries:', error);
+      if (!cancelled) setOnThisDayLoaded(true);
+    });
+
+    void loadFeatured();
 
     // Refresh the featured entry when the Featured-Entry adult filter changes
     // in Settings, so the card updates without an app restart.
@@ -118,10 +130,8 @@ export default function Dashboard() {
 
     return () => {
       cancelled = true;
-      // Invalidate any in-flight featured load and release the displayed image.
+      // Invalidate any in-flight featured load.
       loadIdRef.current++;
-      releaseImageUrl(featuredImagePathRef.current, 'thumbnail');
-      featuredImagePathRef.current = null;
       window.removeEventListener(FEATURED_ADULT_VISIBILITY_CHANGED_EVENT, handleFeaturedAdultChange);
     };
   }, [loadFeatured]);
@@ -134,17 +144,8 @@ export default function Dashboard() {
     }
   };
 
-  if (!stats) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="flex items-center gap-3 text-gray-400">
-        <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-        <span className="text-sm">Loading...</span>
-      </div>
-    </div>
-  );
-
-  const averageRating = stats.average_rating;
-  const productiveYear = stats.most_productive_year;
+  const averageRating = stats?.average_rating ?? 0;
+  const productiveYear = stats?.most_productive_year ?? null;
   const greetingWords = greeting.split(" ");
 
   return (
@@ -176,7 +177,7 @@ export default function Dashboard() {
               </motion.span>
             </motion.h1>
             <p className="dashboard-subtitle">
-              Your personal media collection • <AnimatedNumber value={stats.total_entries} /> entries tracked
+              Your personal media collection{stats ? <> • <AnimatedNumber value={stats.total_entries} /> entries tracked</> : ''}
             </p>
           </div>
         </div>
@@ -186,27 +187,35 @@ export default function Dashboard() {
       {featured && (
         <div className="dashboard-featured-wrap">
           <Link
-            to={`/year/${featured.entry.year_completed}?highlight=${featured.entry.id}&type=${encodeURIComponent(featured.entry.entry_type || '')}`}
+            to={`/year/${featured.year_completed}?highlight=${featured.id}&type=${encodeURIComponent(featured.entry_type || '')}`}
             className="dashboard-featured"
           >
             <div className="dashboard-featured-bg">
               <AnimatePresence>
-                <motion.img
-                  key={featured.entry.id}
-                  src={featured.imageUrl}
-                  alt=""
+                <motion.div
+                  key={featured.id}
                   style={{ position: "absolute", inset: 0 }}
                   initial={reduceMotion ? false : { opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: reduceMotion ? 0 : 0.5, ease: "easeOut" }}
-                />
+                >
+                  <CoverImage
+                    path={featured.image_url}
+                    alt=""
+                    variant="hero"
+                    priority="high"
+                    sizes="100vw"
+                    containerClassName="absolute inset-0"
+                    imageClassName="h-full w-full object-cover"
+                  />
+                </motion.div>
               </AnimatePresence>
             </div>
             <div className="dashboard-featured-content">
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={featured.entry.id}
+                  key={featured.id}
                   className="dashboard-featured-content-inner"
                   initial={reduceMotion ? false : { opacity: 0, y: 24 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -217,14 +226,14 @@ export default function Dashboard() {
                     <Star size={12} className="fill-current" />
                     <span>Featured</span>
                   </div>
-                  <h2 className="dashboard-featured-title">{featured.entry.name}</h2>
+                  <h2 className="dashboard-featured-title">{featured.name}</h2>
                   <div className="dashboard-featured-meta">
-                    <span className="dashboard-featured-type">{featured.entry.entry_type}</span>
+                    <span className="dashboard-featured-type">{featured.entry_type}</span>
                     <span className="dashboard-featured-dot">•</span>
-                    <span className="dashboard-featured-score">{featured.entry.review_score}/10</span>
+                    <span className="dashboard-featured-score">{featured.review_score}/10</span>
                     <span className="dashboard-featured-dot">•</span>
-                    <span>{featured.entry.completion_date || featured.entry.year_completed}</span>
-                    {featured.entry.is_rewatch === 1 && (
+                    <span>{featured.completion_date || featured.year_completed}</span>
+                    {featured.is_rewatch === 1 && (
                       <>
                         <span className="dashboard-featured-dot">•</span>
                         <span className="dashboard-featured-rewatch">
@@ -233,7 +242,7 @@ export default function Dashboard() {
                         </span>
                       </>
                     )}
-                    {featured.entry.has_subtitles === 1 && (
+                    {featured.has_subtitles === 1 && (
                       <>
                         <span className="dashboard-featured-dot">•</span>
                         <span className="dashboard-featured-rewatch" style={{ color: '#fb923c' }}>
@@ -273,7 +282,7 @@ export default function Dashboard() {
             <Library size={24} />
           </div>
           <div className="dashboard-stat-info">
-            <div className="dashboard-stat-value"><AnimatedNumber value={stats.total_entries} /></div>
+            <div className="dashboard-stat-value">{stats ? <AnimatedNumber value={stats.total_entries} /> : '—'}</div>
             <div className="dashboard-stat-label">Total Entries</div>
           </div>
         </div>
@@ -283,7 +292,7 @@ export default function Dashboard() {
             <Star size={24} />
           </div>
           <div className="dashboard-stat-info">
-            <div className="dashboard-stat-value"><AnimatedNumber value={averageRating} decimals={1} /></div>
+            <div className="dashboard-stat-value">{stats ? <AnimatedNumber value={averageRating} decimals={1} /> : '—'}</div>
             <div className="dashboard-stat-label">Avg Rating</div>
           </div>
         </div>
@@ -293,7 +302,7 @@ export default function Dashboard() {
             <Folder size={24} />
           </div>
           <div className="dashboard-stat-info">
-            <div className="dashboard-stat-value">{stats.most_common_type}</div>
+            <div className="dashboard-stat-value">{stats?.most_common_type ?? '—'}</div>
             <div className="dashboard-stat-label">Top Type</div>
           </div>
         </div>
@@ -304,7 +313,7 @@ export default function Dashboard() {
           </div>
           <div className="dashboard-stat-info">
             <div className="dashboard-stat-value">
-              {productiveYear ? `${productiveYear.year} (${productiveYear.count})` : "N/A"}
+              {stats ? (productiveYear ? `${productiveYear.year} (${productiveYear.count})` : "N/A") : '—'}
             </div>
             <div className="dashboard-stat-label">Peak Year</div>
           </div>
@@ -322,7 +331,9 @@ export default function Dashboard() {
             </h3>
           </div>
           <p className="dashboard-recent-subtitle">Your latest completions</p>
-          {recent.length > 0 ? (
+          {!recentLoaded ? (
+            <div className="dashboard-list-empty"><span>Loading recent entries…</span></div>
+          ) : recent.length > 0 ? (
             <div className="dashboard-list-stack">
               {recent.slice(0, 6).map((entry, i) => (
                 <MediaListCard key={entry.id} entry={entry} onClick={handleCardClick} index={i} />
@@ -348,7 +359,9 @@ export default function Dashboard() {
             </h3>
           </div>
           <p className="dashboard-recent-subtitle">Entries completed on {formatTodayMD()}</p>
-          {onThisDay.length > 0 ? (
+          {!onThisDayLoaded ? (
+            <div className="dashboard-list-empty"><span>Loading matches…</span></div>
+          ) : onThisDay.length > 0 ? (
             <div className="dashboard-list-stack">
               {onThisDay.slice(0, 6).map((entry, i) => (
                 <MediaListCard key={entry.id} entry={entry} onClick={handleCardClick} index={i} showYearsAgo />

@@ -1,4 +1,5 @@
 import { dbService, type MediaEntry } from "./db";
+import { invoke } from "@tauri-apps/api/core";
 
 export interface AwardTemplate {
   id: number;
@@ -185,12 +186,11 @@ export const awardsLogic = {
   // 6. Update Category Order
   async updateCategoryOrder(year: number, categoryIds: number[]) {
     const db = await dbService.connect();
-    for (let i = 0; i < categoryIds.length; i++) {
-      await db.execute(
-        "UPDATE award_categories SET sort_order = $1 WHERE id = $2 AND year = $3",
-        [i, categoryIds[i], year]
-      );
-    }
+    await invoke('database_reorder_award_categories', {
+      databaseUrl: db.path,
+      year,
+      categoryIds,
+    });
   },
 
   // 7. Get all awards won by a specific media entry

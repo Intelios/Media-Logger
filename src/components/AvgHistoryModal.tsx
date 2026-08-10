@@ -4,14 +4,15 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 import { LineChart as LineChartIcon, X } from "lucide-react";
 import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
 import type { AvgHistoryPoint, MediaEntry } from "../lib/db";
-import { getImageUrl, releaseImageUrl } from "../lib/utils";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { formatShortDate } from "../lib/dates";
+import { CoverImage } from "./CoverImage";
 
 interface AvgHistoryModalProps {
   isOpen: boolean;
   profile: ProfileSummary | null;
+  entries: MediaEntry[];
   onClose: () => void;
 }
 
@@ -82,15 +83,17 @@ function AvgHistoryTooltip({ active, payload }: {
   );
 }
 
-export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalProps) {
+export function AvgHistoryModal({ isOpen, profile, entries, onClose }: AvgHistoryModalProps) {
   const [points, setPoints] = useState<AvgHistoryPoint[]>([]);
-  const [entries, setEntries] = useState<MediaEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [imageMap, setImageMap] = useState<Record<number, string>>({});
   const [hovering, setHovering] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
+  const chartEntries = useMemo(
+    () => entries.filter((entry) => Boolean(entry.completion_date) && entry.review_score != null),
+    [entries],
+  );
 
   useEscapeToClose(isOpen, onClose);
   useFocusTrap(isOpen, modalRef);
@@ -119,44 +122,15 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
     if (!isOpen || !profile) return;
     let cancelled = false;
     setLoading(true);
-    setEntries([]);
-    setImageMap({});
-    Promise.all([
-      profilesLogic.getAvgHistory(profile.type, profile.name),
-      profilesLogic.getProfileEntriesForChart(profile.type, profile.name),
-    ]).then(([pts, ents]) => {
+    profilesLogic.getAvgHistory(profile.type, profile.name).then((pts) => {
       if (cancelled) return;
       setPoints(pts);
-      setEntries(ents);
       setLoading(false);
     }).catch(() => {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
   }, [isOpen, profile]);
-
-  // Preload cover thumbnails for chart markers, releasing blob refs on cleanup.
-  useEffect(() => {
-    if (!isOpen || entries.length === 0) return;
-    let cancelled = false;
-    const acquired: string[] = [];
-    (async () => {
-      const map: Record<number, string> = {};
-      for (const e of entries) {
-        if (cancelled) return;
-        if (!e.image_url) continue;
-        const url = await getImageUrl(e.image_url, { variant: 'thumbnail' });
-        if (cancelled) return;
-        acquired.push(e.image_url);
-        map[e.id] = url;
-      }
-      if (!cancelled) setImageMap(map);
-    })();
-    return () => {
-      cancelled = true;
-      acquired.forEach((path) => releaseImageUrl(path, 'thumbnail'));
-    };
-  }, [isOpen, entries]);
 
   const chartData = useMemo<ChartRow[]>(() => {
     if (points.length === 0) return [];
@@ -167,7 +141,7 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
       snapshotByDate.set(d, p);
     }
     const entriesByDate = new Map<string, MediaEntry[]>();
-    for (const e of entries) {
+    for (const e of chartEntries) {
       const d = e.completion_date!;
       if (!entriesByDate.has(d)) entriesByDate.set(d, []);
       entriesByDate.get(d)!.push(e);
@@ -192,7 +166,7 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
         markers,
       };
     });
-  }, [points, entries]);
+  }, [points, chartEntries]);
 
   const markerRows = useMemo(
     () => chartData.filter(row => row.markers.length > 0),
@@ -204,12 +178,12 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
   const hasData = points.length > 0;
   const currentAvg = points.length > 0 ? points[points.length - 1].average_score : profile.average_score;
   const recentWindowSize = 5;
-  const baselineEntries = entries.length > recentWindowSize ? entries.slice(0, -recentWindowSize) : [];
+  const baselineEntries = chartEntries.length > recentWindowSize ? chartEntries.slice(0, -recentWindowSize) : [];
   const baselineAvg = baselineEntries.length > 0
     ? baselineEntries.reduce((sum, e) => sum + (e.review_score ?? 0), 0) / baselineEntries.length
     : null;
   const recentDelta = baselineAvg != null ? currentAvg - baselineAvg : null;
-  const dense = entries.length >= DENSE_THRESHOLD;
+  const dense = chartEntries.length >= DENSE_THRESHOLD;
   const markerOpacity = !dense ? 0.9 : (hovering ? 0.9 : 0);
   const guideOpacity = !dense ? 0.15 : (hovering ? 0.25 : 0.06);
   const guideColor = `rgba(255,255,255,${guideOpacity})`;
@@ -257,10 +231,10 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
                 </p>
               </div>
             )}
-            {entries.length > 0 && (
+            {chartEntries.length > 0 && (
               <div>
                 <p className="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Entries</p>
-                <p className="text-2xl font-bold text-white">{entries.length}</p>
+                <p className="text-2xl font-bold text-white">{chartEntries.length}</p>
               </div>
             )}
           </div>
@@ -341,7 +315,6 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
                         />
                         <div style={{ opacity: markerOpacity }}>
                           {visibleMarkers.map((m, i) => {
-                            const url = imageMap[m.entryId];
                             const shift = i * MARKER_STACK_OFFSET;
                             return (
                               <div
@@ -354,12 +327,14 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
                                   height: MARKER_SIZE,
                                 }}
                               >
-                                {url ? (
-                                  <img
-                                    src={url}
+                                {m.imageUrl ? (
+                                  <CoverImage
+                                    path={m.imageUrl}
                                     alt=""
-                                    className="h-full w-full object-cover"
-                                    draggable={false}
+                                    variant="small"
+                                    sizes={`${MARKER_SIZE}px`}
+                                    containerClassName="h-full w-full"
+                                    imageClassName="h-full w-full object-cover"
                                   />
                                 ) : (
                                   <div className="h-full w-full bg-white/10" />
@@ -391,7 +366,7 @@ export function AvgHistoryModal({ isOpen, profile, onClose }: AvgHistoryModalPro
             </div>
           )}
 
-          {hasData && entries.length > 0 && (
+          {hasData && chartEntries.length > 0 && (
             <div className="mt-3 flex items-center gap-4 text-[11px] text-gray-500">
               <span className="flex items-center gap-1.5">
                 <span className="inline-block w-2.5 h-2.5 rounded-[3px] bg-gray-700 border border-white/30" />
