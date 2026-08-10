@@ -175,12 +175,21 @@ export async function getRandomPickCount(filters: RandomPickFilters): Promise<nu
   return result[0].count;
 }
 
-export async function getRandomEntry(filters: RandomPickFilters): Promise<MediaEntry | null> {
+// Number of candidate names shown in the Random Pick reel. The winner is drawn
+// from this same batch, so every name that flashes by is a genuine candidate
+// from the filtered pool.
+const RANDOM_PICK_POOL_SIZE = 12;
+
+/**
+ * A random batch of entries from the filtered pool. The modal rolls through
+ * these names and picks the winner from the batch — one query serves both the
+ * animation and the result, and the winner always appears in the reel.
+ */
+export async function getRandomPickCandidates(filters: RandomPickFilters): Promise<MediaEntry[]> {
   const db = await connect();
   const { whereClause, params } = buildRandomPickWhere(filters);
-  const results = await db.select<MediaEntry[]>(
-    `SELECT * FROM entries ${whereClause} ORDER BY RANDOM() LIMIT 1`,
+  return db.select<MediaEntry[]>(
+    `SELECT * FROM entries ${whereClause} ORDER BY RANDOM() LIMIT ${RANDOM_PICK_POOL_SIZE}`,
     params
   );
-  return results[0] ?? null;
 }

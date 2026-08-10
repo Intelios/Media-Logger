@@ -36,7 +36,7 @@ import {
 import {
   getRandomPickFilterOptions,
   getRandomPickCount,
-  getRandomEntry,
+  getRandomPickCandidates,
 } from './random-pick';
 import {
   isAvgHistoryEnabled,
@@ -100,7 +100,7 @@ export const dbService = {
   deleteBacklogItem: timed('mutation', 'backlog:delete', deleteBacklogItem),
   getRandomPickFilterOptions: timed('query', 'random:filter-options', getRandomPickFilterOptions),
   getRandomPickCount: timed('query', 'random:count', getRandomPickCount),
-  getRandomEntry: timed('query', 'random:entry', getRandomEntry),
+  getRandomPickCandidates: timed('query', 'random:candidates', getRandomPickCandidates),
   isAvgHistoryEnabled: timed('query', 'average-history:enabled', isAvgHistoryEnabled),
   setAvgHistoryEnabled: timed('mutation', 'average-history:set-enabled', setAvgHistoryEnabled),
   getAvgHistory: timed('query', 'average-history:points', getAvgHistory),

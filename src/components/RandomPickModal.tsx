@@ -377,7 +377,7 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
 
   const modalRef = useRef<HTMLDivElement>(null);
   const countTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const shuffleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const shuffleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reduceMotionRef = useRef(false);
 
   useEscapeToClose(isOpen, onClose);
@@ -399,7 +399,7 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
 
   useEffect(() => () => {
     if (countTimerRef.current) clearTimeout(countTimerRef.current);
-    if (shuffleTimerRef.current) clearInterval(shuffleTimerRef.current);
+    if (shuffleTimerRef.current) clearTimeout(shuffleTimerRef.current);
   }, []);
 
   const updateCount = useCallback((f: RandomPickFilters) => {
@@ -443,20 +443,21 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
     [filters]
   );
 
-  const fetchEntry = useCallback(async (): Promise<MediaEntry | null> => {
-    return dbService.getRandomEntry(filters);
+  const fetchCandidates = useCallback(async (): Promise<MediaEntry[]> => {
+    return dbService.getRandomPickCandidates(filters);
   }, [filters]);
 
   const runPickAnimation = useCallback(
-    async (entry: MediaEntry) => {
-      setPickedEntry(entry);
+    async (candidates: MediaEntry[]) => {
+      if (candidates.length === 0) return;
+      const winner = candidates[Math.floor(Math.random() * candidates.length)];
+      setPickedEntry(winner);
 
       // Award fetching runs in parallel with the shuffle
       let awards: MediaAward[] = [];
-      if (entry.id) {
+      if (winner.id) {
         try {
-          const all = await awardsLogic.getAwardsForMedia(entry.id);
-          awards = all;
+          awards = await awardsLogic.getAwardsForMedia(winner.id);
         } catch (err) {
           console.error("Failed to fetch awards for picked entry:", err);
         }
@@ -469,74 +470,77 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
       }
 
       setPhase("shuffling");
-      const start = performance.now();
-      const duration = 650;
-      const sampleNames = shuffleText ? [shuffleText, entry.name] : [entry.name];
+      setShuffleText("");
 
-      if (shuffleTimerRef.current) clearInterval(shuffleTimerRef.current);
-      shuffleTimerRef.current = setInterval(() => {
-        const elapsed = performance.now() - start;
-        const progress = Math.min(elapsed / duration, 1);
-        if (progress >= 1) {
-          if (shuffleTimerRef.current) {
-            clearInterval(shuffleTimerRef.current);
-            shuffleTimerRef.current = null;
-          }
+      // Slot-machine reel: every flashed name is a real candidate from the
+      // filtered pool, and the winner only appears on the final tick.
+      const seen = new Set<string>();
+      const reelNames: string[] = [];
+      for (const candidate of candidates) {
+        if (candidate.id !== winner.id && !seen.has(candidate.name)) {
+          seen.add(candidate.name);
+          reelNames.push(candidate.name);
+        }
+      }
+      // Fisher-Yates so the reel order isn't biased by SQL row order.
+      for (let i = reelNames.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [reelNames[i], reelNames[j]] = [reelNames[j], reelNames[i]];
+      }
+
+      const tickCount = Math.max(4, Math.min(14, reelNames.length + 1));
+      // Decelerating tick gaps (short early, long before landing) for the
+      // slot-machine feel; scaled so the whole roll lasts ~950ms.
+      const totalDuration = 950;
+      let gapSum = 0;
+      const gaps: number[] = [];
+      for (let i = 0; i < tickCount; i++) {
+        const t = i / (tickCount - 1);
+        const gap = 38 + 92 * t * t;
+        gaps.push(gap);
+        gapSum += gap;
+      }
+      const gapScale = totalDuration / gapSum;
+
+      if (shuffleTimerRef.current) clearTimeout(shuffleTimerRef.current);
+      let tick = 0;
+      const showFirst = reelNames[0] ?? winner.name;
+      setShuffleText(showFirst);
+      const schedule = () => {
+        if (tick >= tickCount) {
+          shuffleTimerRef.current = null;
+          setShuffleText(winner.name);
+          setPickedAwards(awards);
+          setPhase("result");
           return;
         }
-        setShuffleText((current) => {
-          if (progress >= 1) return entry.name;
-          const pool = sampleNames.length > 1 ? sampleNames : [entry.name];
-          const next = pool[Math.floor(Math.random() * pool.length)];
-          if (next === current) {
-            return pool[(pool.indexOf(current) + 1) % pool.length];
-          }
-          return next;
-        });
-      }, 60);
-
-      // Wait out the duration
-      await new Promise<void>((resolve) => {
-        const check = () => {
-          if (performance.now() - start >= duration) resolve();
-          else requestAnimationFrame(check);
-        };
-        check();
-      });
-      if (shuffleTimerRef.current) {
-        clearInterval(shuffleTimerRef.current);
-        shuffleTimerRef.current = null;
-      }
-      setShuffleText(entry.name);
-      setPickedAwards(awards);
-      setPhase("result");
+        if (tick > 0) {
+          // The winner is only revealed on the final tick.
+          const name =
+            tick === tickCount - 1
+              ? winner.name
+              : reelNames.length > 0
+                ? reelNames[tick % reelNames.length]
+                : winner.name;
+          setShuffleText(name);
+        }
+        tick += 1;
+        shuffleTimerRef.current = setTimeout(schedule, gaps[tick - 1] * gapScale);
+      };
+      schedule();
     },
-    [shuffleText]
+    []
   );
 
-  const handlePick = async () => {
+  const handleRoll = async () => {
     setIsPickLoading(true);
     try {
-      const entry = await fetchEntry();
-      if (entry) {
-        await runPickAnimation(entry);
+      const candidates = await fetchCandidates();
+      if (candidates.length > 0) {
+        await runPickAnimation(candidates);
       }
     } catch (err) {
       console.error("Random pick failed:", err);
-    } finally {
-      setIsPickLoading(false);
-    }
-  };
-
-  const handleReroll = async () => {
-    setIsPickLoading(true);
-    try {
-      const entry = await fetchEntry();
-      if (entry) {
-        await runPickAnimation(entry);
-      }
-    } catch (err) {
-      console.error("Re-roll failed:", err);
     } finally {
       setIsPickLoading(false);
     }
@@ -1009,7 +1013,7 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
                     </button>
                   )}
                   <button
-                    onClick={handlePick}
+                    onClick={handleRoll}
                     disabled={!canPick}
                     className={cn(
                       "flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all",
@@ -1050,7 +1054,7 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
                   Back to Filters
                 </button>
                 <button
-                  onClick={handleReroll}
+                  onClick={handleRoll}
                   disabled={isPickLoading || phase === "shuffling"}
                   className={cn(
                     "flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all",
