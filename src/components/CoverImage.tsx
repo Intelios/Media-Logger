@@ -83,6 +83,11 @@ export const CoverImage = forwardRef<HTMLImageElement, CoverImageProps>(function
   );
   const selectedSrc = failed || !path ? fallbackSrc : sources.src;
 
+  // This resets on the *requested* source, never on `selectedSrc`. Keying it to
+  // `selectedSrc` fed the fallback swap back into the reset: an errored cover
+  // set `failed`, which changed `selectedSrc`, which re-ran this effect, which
+  // cleared `failed` and pointed the element back at the source that had just
+  // failed — an unbounded reload loop that also starved every other cover.
   useEffect(() => {
     loadStartedAtRef.current = performance.now();
     reportedSourceRef.current = '';
@@ -95,7 +100,7 @@ export const CoverImage = forwardRef<HTMLImageElement, CoverImageProps>(function
     }
     const timer = window.setTimeout(() => setShowDelayedSkeleton(true), skeletonDelayMs);
     return () => window.clearTimeout(timer);
-  }, [path, selectedSrc, skeletonDelayMs]);
+  }, [path, sources.src, skeletonDelayMs]);
 
   const reveal = useCallback(async (image: HTMLImageElement) => {
     const decodeStartedAt = performance.now();
@@ -125,11 +130,11 @@ export const CoverImage = forwardRef<HTMLImageElement, CoverImageProps>(function
     }
     // Some WebKit builds fire `load` before dimensions are decoded when the
     // renderer is under pressure. Give the browser one extra frame to publish
-    // naturalWidth before leaving the skeleton up forever.
+    // naturalWidth, then treat the cover as broken rather than leaving the
+    // skeleton spinning over an image that is never going to paint.
     requestAnimationFrame(() => {
-      if (image.naturalWidth > 0) {
-        setDecoded(true);
-      }
+      if (image.naturalWidth > 0) setDecoded(true);
+      else setFailed(true);
     });
   }, [remote, variant]);
 
@@ -137,6 +142,16 @@ export const CoverImage = forwardRef<HTMLImageElement, CoverImageProps>(function
     imageRef.current = node;
     if (node?.complete && node.naturalWidth > 0) void reveal(node);
   }, [reveal]);
+
+  // A cached cover can finish loading before the reset effect above commits, so
+  // no further `load` event is coming and nothing else would clear the
+  // skeleton. The element is only ever `complete` for the src React has already
+  // committed, so revealing here cannot show a stale image.
+  useEffect(() => {
+    const image = imageRef.current;
+    if (decoded || failed || !image?.complete || image.naturalWidth === 0) return;
+    void reveal(image);
+  }, [decoded, failed, reveal, selectedSrc]);
 
   const handleLoad: NonNullable<ImgHTMLAttributes<HTMLImageElement>['onLoad']> = (event) => {
     recordPerformanceSample('image', `load:${variant}`, performance.now() - loadStartedAtRef.current, {
