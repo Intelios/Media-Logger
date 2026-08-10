@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Search, X, Plus } from "lucide-react";
-import { dbService, type MediaEntry } from "../lib/db";
+import { dbService, type EntryCardSummary } from "../lib/db";
 import { MediaCard } from "./MediaCard"; // Reuse the card!
 import { VirtualizedCardGrid } from "./VirtualizedCardGrid";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
@@ -10,7 +10,7 @@ import { useFocusTrap } from "../lib/useFocusTrap";
 // Stable empty array so the default parameter doesn't create a new reference
 // on every render (which would cause useMemo/useEffect dependency loops).
 const EMPTY_IDS: number[] = [];
-const getMediaEntryKey = (entry: MediaEntry) => entry.id;
+const getMediaEntryKey = (entry: EntryCardSummary) => entry.id;
 
 interface WinnerPickerProps {
   isOpen: boolean;
@@ -38,8 +38,8 @@ export function WinnerPicker({
   excludedIds = EMPTY_IDS,
 }: WinnerPickerProps) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<MediaEntry[]>([]);
-  const [allEntries, setAllEntries] = useState<MediaEntry[]>([]);
+  const [results, setResults] = useState<EntryCardSummary[]>([]);
+  const [allEntries, setAllEntries] = useState<EntryCardSummary[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -58,7 +58,11 @@ export function WinnerPicker({
       setQuery("");
       setSelectedIds([]);
       setIsSubmitting(false);
-      dbService.getAllEntries().then(entries => {
+      // Summaries only — description/notes prose is never needed for picking.
+      // MediaCard lazy-loads the full row via getEntryById when a detail/edit
+      // dialog is actually opened, so this matches the 4.0 contract and avoids
+      // a SELECT * feeding the virtualized grid.
+      dbService.getAllEntrySummaries().then(entries => {
         setAllEntries(entries);
       });
     }
