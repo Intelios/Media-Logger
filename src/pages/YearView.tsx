@@ -571,7 +571,7 @@ export default function YearView() {
           scrollOptions={{ behavior: 'smooth', align: 'center' }}
           className="pb-20"
           ariaLabel={`${year} collection entries`}
-          renderItem={(entry, index) => {
+          renderItem={(entry) => {
             const isGameEntry = (entry.entry_type || "").toLowerCase().includes("game");
             const hasCardGlow = entry.review_score === 10 || (isGameEntry && entry.is_platinum === 1);
             return (
@@ -580,7 +580,7 @@ export default function YearView() {
               >
                 <MediaCard
                   entry={entry}
-                  imagePriority={index < 10 ? 'high' : 'auto'}
+                  imagePriority="auto"
                   onEdit={handleEditFromCard}
                   onDelete={handleDelete}
                   onDuplicate={handleDuplicate}

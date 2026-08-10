@@ -674,10 +674,10 @@ export default function SearchPage() {
                     onEndReached={loadMoreResults}
                     className={cn('transition-opacity duration-150', isLoadingResults && 'opacity-80')}
                     ariaLabel="Search results"
-                    renderItem={(entry, index) => (
+                    renderItem={(entry) => (
                       <MediaCard
                         entry={entry}
-                        imagePriority={index < 10 ? 'high' : 'auto'}
+                        imagePriority="auto"
                         onEdit={handleEdit}
                         onDelete={handleDelete}
                         awards={entry.id ? awardsMap.get(entry.id) : undefined}

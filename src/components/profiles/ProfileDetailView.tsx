@@ -498,7 +498,7 @@ export function ProfileDetailView({
                 >
                   <MediaCard
                     entry={entry}
-                    imagePriority={index < 10 ? 'high' : 'auto'}
+                    imagePriority="auto"
                     awards={awardsMap.get(entry.id)}
                     dateEmphasis="prominent"
                     dateAccentClass={profileConfig.color}

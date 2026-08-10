@@ -347,7 +347,7 @@ export default function CollectionsPage() {
     >
       <MediaCard
         entry={entry}
-        imagePriority={index < 10 ? 'high' : 'auto'}
+        imagePriority="auto"
         onEdit={handleEditFromCard}
         onDelete={handleDeleteFromCard}
         awards={entry.id ? awardsMap.get(entry.id) : undefined}

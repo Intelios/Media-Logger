@@ -162,7 +162,7 @@ export function WinnerPicker({
             estimatedRowHeight={420}
             scrollContainerRef={resultsScrollRef}
             ariaLabel="Media search results"
-            renderItem={(entry, index) => {
+            renderItem={(entry) => {
               const selectionIndex = selectedIds.indexOf(entry.id);
               const isSelected = selectionIndex >= 0;
 
@@ -190,7 +190,7 @@ export function WinnerPicker({
                     )}
                   </div>
                 )}
-                <MediaCard entry={entry} imagePriority={index < 10 ? 'high' : 'auto'} />
+                <MediaCard entry={entry} imagePriority="auto" />
               </div>
               );
             }}

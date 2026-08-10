@@ -121,7 +121,16 @@ export const CoverImage = forwardRef<HTMLImageElement, CoverImageProps>(function
           });
         });
       }
+      return;
     }
+    // Some WebKit builds fire `load` before dimensions are decoded when the
+    // renderer is under pressure. Give the browser one extra frame to publish
+    // naturalWidth before leaving the skeleton up forever.
+    requestAnimationFrame(() => {
+      if (image.naturalWidth > 0) {
+        setDecoded(true);
+      }
+    });
   }, [remote, variant]);
 
   const attachImage = useCallback((node: HTMLImageElement | null) => {

@@ -86,7 +86,7 @@ export function MediaListCard({
         path={entry.image_url}
         variant="small"
         alt={entry.name}
-        priority={index < 2 ? 'high' : 'auto'}
+        priority="auto"
         containerClassName="media-list-card-thumb"
         imageClassName="h-full w-full object-cover object-center"
       />

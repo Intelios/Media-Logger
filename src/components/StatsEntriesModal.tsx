@@ -89,10 +89,10 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, isLoading =
                             estimatedRowHeight={520}
                             scrollContainerRef={scrollRef}
                             ariaLabel={title}
-                            renderItem={(entry, index) => (
+                            renderItem={(entry) => (
                                 <MediaCard
                                     entry={entry}
-                                    imagePriority={index < 10 ? 'high' : 'auto'}
+                                    imagePriority="auto"
                                     onEdit={handleEdit}
                                     onDelete={handleDelete}
                                 />
