@@ -1,8 +1,32 @@
 {
-  "generatedAt": "2026-08-05T15:29:07.094Z",
+  "generatedAt": "2026-08-10T18:26:04.796Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "4.0.0",
+      "title": "Media Logger - 4.0",
+      "date": "2026-08-10",
+      "body": "Media Logger - 4.0.0\n\nThis major new version shift (3.11 > 4.0) is down to the absolutely monumental shift in performance. The app is now significantly faster and has been rewritten in areas, some entire files have been entirely remade top to bottom, and the app is faster, more responsive, uses less resources and better than ever. Media Logger 4 has over 32,000 lines of code added or removed it is the biggest single change the application has seen since the 2.0 release. Media Logger 3 focused on improving the mechanics and content, Media Logger 4 is rebuilding the foundations to make the app survive for years to come. Media Logger 4 is the fastest and highest quality the log has ever been.\n\nUI Redesigns:\n- The Stats page has been completely rebuilt from the ground up. Gone is the endless scrolling page — replaced with one clear, single-screen dashboard that fits everything in front of you. This is the biggest redesign the Stats page has seen since it was first added, and it keeps every feature and stat you had before while being noticeably leaner and faster under the hood.\n- The Entry Form has a new layout, gone are the tabs to get around it's know all in one big form to make it easier than ever to input your data.\n- Backlog UI has been mostly rebuilt into a shelf style design. Now focused on case edges for your 'in the log' and a more prominet design for stuff you are actually doing. Big UI shift and much more personality than the old one.\n- Search UI has been completely redesigned into a Spotlight-like design with custom animations and more focus on the results.\n\nFoundational Changes:\n- Brand new built-in image system that handles all your cover art. It now prepares every cover in three sizes (small, card, and a large hero) automatically, keeps them the right way up, and stores them efficiently so they load quickly without taking up too much space. Cover art is now added smoothly when you log something, with a quick preview before saving. The old image handling was removed entirely as it was older and slower.\n- A single shared cover display is now used everywhere in the app — Year, Search, Collections, Awards, Profiles, Stats, Review, the Dashboard, and forms. Covers fade in smoothly with a brief placeholder while loading, and priority covers (like the main hero and the first row you see) load first. Behind the scenes, the app quietly prepares the covers you'll need next so things feel instant.\n- Search and the database have been sped up significantly. Searching now flips through results in batches of 100 at a time with accurate totals, reordering your collections, awards, and backlog happens in one smooth step, and the database keeps itself tidy automatically after imports and updates.\n- Long lists across the app now scroll much more smoothly. Year, Search, Profiles, Collections, Stats, and other large lists only load what's on screen, so even huge libraries stay fast. Pages you visit often are prepped ahead of time when you hover over the sidebar, and the animated effects are gentler (they pause while you scroll or switch away) to keep things feeling snappy.\n- Built in custom performance monitoring tools only included in the debug build or the brand-new dedicated performance lab accessible via npm run tauri:perf:dev.\n\nNew Content/Features:\n- The way your data is imported and migrated has been rebuilt from scratch, so bringing your content in from older versions is smoother and more reliable.\n- The CSV import/export system was rewritten to work more efficiently with far fewer steps under the hood. If something goes wrong during an import, it now stops cleanly instead of leaving you with a half-finished, possibly broken library.\n- The Profiles section was rebuilt to be faster and cleaner, with less duplicated effort behind the scenes and split into tidy parts that are easier to maintain.\n- Tooltips and pop-up dialogs across the app now share one common system instead of being rebuilt in many places. This makes the app lighter and more consistent.\n- The Settings page was overhauled to load faster and use less memory. It now only checks your data and storage details when you're actually looking at them and only talks to the MCP feature once you turn it on.\n- Franchises now use the Indigo colour instead of the same purple as the platform's entry type.\n\nBug Fixes:\n- Fixed an issue where the dashboard cache is never invalidated after entry mutations\n- Removed some old native browser 'title' tooltips in the profile and collections page and replaced with the proper Media Logger hover custom tooltips.\n- Fixed an issue where the stats page would not log errors.\n- Fixed a bug where the 'Add to Backlog' form used hardcoded amber colours instead of your chosen theme colour.\n- Fixed an issue where random pick did not shuffle correctly.\n\nDependencies Updates:\n- Updated Vite from 8.1.5 to 8.2.1\n- Tauri dependencies updated.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.0.0"
+    },
+    {
+      "version": "3.11.2",
+      "title": "Media Logger - 3.11.2",
+      "date": "2026-08-06",
+      "body": "- Improved Error Handling for Thumbnails\n- Made Activity section go first in Stats.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.11.2"
+    },
+    {
+      "version": "3.11.1",
+      "title": "Media Logger - 3.11.1 - Emergency Hotfix",
+      "date": "2026-08-05",
+      "body": "3.11 introduced a severe issue which resulted in the app being unusable. This update SHOULD fix it on both MacOS and Windows. \n\n- Restored exact 3.10 dependency versions and lightweight card hover.\n- Stabilized Collections measurement with one observer, RAF throttling, geometry comparison, and cleanup.\n- Added structured image failures, deduplicated banner reporting, fallback covers, and retry.\n- Added a global six-operation FIFO queue, request deduplication, ref-counting, cancellation, and 600px viewport preloading.\n- Added native 480×720 JPEG thumbnail caching, GIF first-frame support, automatic invalidation, and Settings cache clearing.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/3.11.1"
+    },
     {
       "version": "3.11",
       "title": "Media Logger - 3.11",
