@@ -102,6 +102,7 @@ export function connectQueryInvalidationBridge(): () => void {
   const disconnectEntries = onEntriesMutated(() => {
     void Promise.all([
       invalidateMediaQueries(mediaQueryKeys.entries),
+      invalidateMediaQueries(mediaQueryKeys.dashboard),
       invalidateMediaQueries(mediaQueryKeys.stats),
       invalidateMediaQueries(mediaQueryKeys.profiles),
       invalidateMediaQueries(mediaQueryKeys.navigationYears),
