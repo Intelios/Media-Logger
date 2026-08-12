@@ -18,6 +18,7 @@ export const mediaQueryKeys = {
   dashboard: ["media-logger", "dashboard"] as const,
   backlog: ["media-logger", "backlog"] as const,
   stats: ["media-logger", "stats"] as const,
+  statsForYear: (year: string) => ["media-logger", "stats", ...mediaQueryKeys.scope(), "year", year] as const,
   profiles: ["media-logger", "profiles"] as const,
   awards: ["media-logger", "awards"] as const,
   collections: ["media-logger", "collections"] as const,

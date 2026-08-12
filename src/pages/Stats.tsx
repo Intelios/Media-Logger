@@ -30,6 +30,7 @@ import {
   type FilterPresetKey,
 } from "../lib/media-config";
 import { getNavigationYears } from "../lib/settings";
+import { mediaQueryKeys, queryClient } from "../lib/query-client";
 import type {
   StatsWorkerRequest,
   StatsWorkerResponse,
@@ -53,6 +54,13 @@ interface LoadedStatsDataset {
   version: number;
   year: string;
   entries: StatsEntry[];
+}
+
+interface PlatePresentation {
+  year: string;
+  plate: PlateData;
+  comparison: StatsWorkerResultMessage["comparison"];
+  typeCounts: Map<string, number>;
 }
 
 type StatsWorkerMode = "initializing" | "worker" | "synchronous";
@@ -176,6 +184,7 @@ export default function StatsPage() {
   const derivationSequenceRef = useRef(0);
   const latestDerivationRef = useRef(0);
   const [derivedResult, setDerivedResult] = useState<StatsWorkerResultMessage | null>(null);
+  const lastPresentationRef = useRef<PlatePresentation | null>(null);
 
   const [modalSource, setModalSource] = useState<StatsModalSource>(null);
   const [modalEntries, setModalEntries] = useState<MediaEntry[]>([]);
@@ -185,15 +194,15 @@ export default function StatsPage() {
 
   const loadYearEntries = useCallback(async () => {
     const loadId = ++activeLoadRef.current;
-    activeDatasetRef.current = null;
-    setActiveDataset(null);
-    setDerivedResult(null);
 
     // Fetched without a type filter so the toolbar can count every chip, including
     // the types currently switched off. Adult exclusion still applies in SQL,
     // while prose/version-note fields are omitted from this StatsEntry projection.
     try {
-      const entries = await dbService.getStatsEntries(activeYear);
+      const entries = await queryClient.fetchQuery({
+        queryKey: mediaQueryKeys.statsForYear(activeYear),
+        queryFn: () => dbService.getStatsEntries(activeYear),
+      });
       if (loadId !== activeLoadRef.current) return;
       const dataset = {
         version: ++datasetVersionRef.current,
@@ -342,13 +351,6 @@ export default function StatsPage() {
     [years, activeYear]
   );
 
-  // Chip counts are the only O(n) work kept on the main thread, and run once
-  // per fetched dataset rather than on brush/type requests.
-  const typeCounts = useMemo(
-    () => countEntriesByType(activeDataset?.entries ?? []),
-    [activeDataset],
-  );
-
   // Keep the comparison year valid for the current options: pick one when compare
   // is on but nothing is chosen (or the choice became the active year), and clear
   // it when compare is off. Without this the picker can display a year that is not
@@ -450,7 +452,7 @@ export default function StatsPage() {
         requestId,
         activeVersion: activeDataset.version,
         comparisonVersion: usableComparison?.version ?? null,
-        activeYear,
+        activeYear: activeDataset.year,
         comparisonYear: usableComparison?.year ?? null,
         selectedTypes,
         range,
@@ -468,7 +470,7 @@ export default function StatsPage() {
       try {
         const result = derivePlateSelection(
           activeDataset.entries,
-          activeYear,
+          activeDataset.year,
           selectedTypes,
           range,
           usableComparison
@@ -492,7 +494,6 @@ export default function StatsPage() {
     return () => cancelAnimationFrame(frame);
   }, [
     activeDataset,
-    activeYear,
     comparisonDataset,
     preferences.compareEnabled,
     preferences.compareYear,
@@ -502,7 +503,7 @@ export default function StatsPage() {
     workerMode,
   ]);
 
-  const plate = useMemo<PlateData | null>(() => {
+  const currentPresentation = useMemo<PlatePresentation | null>(() => {
     if (!activeDataset || !derivedResult || derivedResult.activeVersion !== activeDataset.version) {
       return null;
     }
@@ -511,16 +512,27 @@ export default function StatsPage() {
       .map((id) => entriesById.get(id))
       .filter((entry): entry is StatsEntry => entry !== undefined);
     return {
-      stats: derivedResult.plate.stats,
-      timeline: derivedResult.plate.timeline,
-      granularity: derivedResult.plate.granularity,
-      brushCells: derivedResult.plate.brushCells,
-      rangedEntries,
-      genreCount: derivedResult.plate.genreCount,
+      year: activeDataset.year,
+      plate: {
+        stats: derivedResult.plate.stats,
+        timeline: derivedResult.plate.timeline,
+        granularity: derivedResult.plate.granularity,
+        brushCells: derivedResult.plate.brushCells,
+        rangedEntries,
+        genreCount: derivedResult.plate.genreCount,
+      },
+      comparison: derivedResult.comparison,
+      // Chip counts are the only O(n) work kept on the main thread, and run
+      // once per fetched dataset rather than on brush/type requests.
+      typeCounts: countEntriesByType(activeDataset.entries),
     };
   }, [activeDataset, derivedResult]);
 
-  const comparison = derivedResult?.comparison ?? null;
+  if (currentPresentation) {
+    lastPresentationRef.current = currentPresentation;
+  }
+  const presentation = currentPresentation ?? lastPresentationRef.current;
+  const plate = presentation?.plate ?? null;
 
   const handleTypesChange = (types: string[]) => {
     setSelectedTypes(types);
@@ -645,7 +657,7 @@ export default function StatsPage() {
     }
   }, [modalSource]);
 
-  if (!activeDataset || !plate) {
+  if (!presentation || !plate) {
     return <div className="p-10 text-gray-400">Calculating analytics...</div>;
   }
 
@@ -653,10 +665,11 @@ export default function StatsPage() {
     <>
       <StatsPlate
         activeYear={activeYear}
+        displayedYear={presentation.year}
         yearOptions={yearOptions}
         onActiveYearChange={setActiveYear}
         entryTypes={getVisibleEntryTypes()}
-        typeCounts={typeCounts}
+        typeCounts={presentation.typeCounts}
         selectedTypes={selectedTypes}
         onSelectedTypesChange={handleTypesChange}
         presets={getVisiblePresetKeys().map((key) => FILTER_PRESETS[key])}
@@ -673,7 +686,7 @@ export default function StatsPage() {
         isCustomizing={isCustomizing}
         onToggleCustomize={() => setIsCustomizing((current) => !current)}
         plate={plate}
-        comparison={comparison}
+        comparison={presentation.comparison}
         range={range}
         onRangeChange={setRange}
         onGenreClick={handleGenreClick}

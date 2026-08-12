@@ -21,6 +21,7 @@ type ExpandedTarget = PlatePanelId | "timeline" | null;
 
 interface StatsPlateProps {
   activeYear: string;
+  displayedYear: string;
   yearOptions: string[];
   onActiveYearChange: (year: string) => void;
   entryTypes: string[];
@@ -55,6 +56,7 @@ interface StatsPlateProps {
 
 export function StatsPlate({
   activeYear,
+  displayedYear,
   yearOptions,
   onActiveYearChange,
   entryTypes,
@@ -115,20 +117,20 @@ export function StatsPlate({
       <motion.div className="shrink-0" {...reveal(0)}>
         <PlateToolbar
           activeYear={activeYear}
-        yearOptions={yearOptions}
-        onActiveYearChange={onActiveYearChange}
-        entryTypes={entryTypes}
-        typeCounts={typeCounts}
-        selectedTypes={selectedTypes}
-        onSelectedTypesChange={onSelectedTypesChange}
-        presets={presets}
-        activePreset={activePreset}
-        onPresetClick={onPresetClick}
-        compareEnabled={preferences.compareEnabled}
-        compareYear={preferences.compareYear}
-        comparisonYearOptions={comparisonYearOptions}
-        onToggleCompare={onToggleCompare}
-        onCompareYearChange={onCompareYearChange}
+          yearOptions={yearOptions}
+          onActiveYearChange={onActiveYearChange}
+          entryTypes={entryTypes}
+          typeCounts={typeCounts}
+          selectedTypes={selectedTypes}
+          onSelectedTypesChange={onSelectedTypesChange}
+          presets={presets}
+          activePreset={activePreset}
+          onPresetClick={onPresetClick}
+          compareEnabled={preferences.compareEnabled}
+          compareYear={preferences.compareYear}
+          comparisonYearOptions={comparisonYearOptions}
+          onToggleCompare={onToggleCompare}
+          onCompareYearChange={onCompareYearChange}
           isCustomizing={isCustomizing}
           onToggleCustomize={onToggleCustomize}
         />
@@ -157,7 +159,7 @@ export function StatsPlate({
           brushCells={plate.brushCells}
           range={range}
           onRangeChange={onRangeChange}
-          activeYear={activeYear}
+          activeYear={displayedYear}
           rangedTotal={plate.stats.total}
           onExpand={() => setExpanded("timeline")}
         />
@@ -189,7 +191,7 @@ export function StatsPlate({
       <PanelExpandOverlay
         isOpen={expanded === "timeline"}
         title="Timeline"
-        subtitle={range ? `${range.from} — ${range.to}` : `${activeYear} · full range`}
+        subtitle={range ? `${range.from} — ${range.to}` : `${displayedYear} · full range`}
         onClose={() => setExpanded(null)}
       >
         <div className="flex flex-col gap-6">
@@ -202,7 +204,7 @@ export function StatsPlate({
             brushCells={plate.brushCells}
             range={range}
             onRangeChange={onRangeChange}
-            activeYear={activeYear}
+            activeYear={displayedYear}
             rangedTotal={plate.stats.total}
             chartClassName="h-[340px]"
           />
@@ -216,7 +218,7 @@ export function StatsPlate({
             </div>
             <DayHeatmap
               dailyCompletions={plate.stats.dailyCompletions}
-              activeYear={activeYear}
+              activeYear={displayedYear}
               onDateClick={(date) => {
                 setExpanded(null);
                 onDateClick(date);
@@ -229,7 +231,7 @@ export function StatsPlate({
       <PanelExpandOverlay
         isOpen={expandedPanelId !== null}
         title={expandedPanelId ? PLATE_PANEL_DEFINITIONS[expandedPanelId].label : ""}
-        subtitle={range ? `${range.from} — ${range.to}` : `${activeYear} · full range`}
+        subtitle={range ? `${range.from} — ${range.to}` : `${displayedYear} · full range`}
         onClose={() => setExpanded(null)}
       >
         {expandedPanelId ? (
