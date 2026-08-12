@@ -88,8 +88,15 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
   const routeStartedAtRef = useRef<number | null>(null);
   const currentYear = getCurrentYearString();
 
+  const resetMainScroll = useCallback(() => {
+    const scrollElement = mainScrollRef.current;
+    if (!scrollElement) return;
+    scrollElement.scrollTop = 0;
+    scrollElement.scrollLeft = 0;
+  }, []);
+
   useLayoutEffect(() => {
-    mainScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    resetMainScroll();
     let secondFrame: number | null = null;
     const firstFrame = window.requestAnimationFrame(() => {
       secondFrame = window.requestAnimationFrame(() => {
@@ -101,7 +108,7 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
       window.cancelAnimationFrame(firstFrame);
       if (secondFrame != null) window.cancelAnimationFrame(secondFrame);
     };
-  }, [location.pathname]);
+  }, [location.pathname, resetMainScroll]);
 
   const handleNavigationIntent = useCallback((event: SyntheticEvent<HTMLElement>) => {
     if (!onPrefetchRoute || !(event.target instanceof Element)) return;
@@ -117,8 +124,11 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
     const href = event.target.closest("a[href]")?.getAttribute("href");
     if (!href?.startsWith("/")) return;
     const pathname = new URL(href, window.location.origin).pathname;
-    if (pathname !== location.pathname) routeStartedAtRef.current = performance.now();
-  }, [location.pathname]);
+    if (pathname !== location.pathname) {
+      resetMainScroll();
+      routeStartedAtRef.current = performance.now();
+    }
+  }, [location.pathname, resetMainScroll]);
 
   // Persist compact mode
   useEffect(() => {
@@ -458,7 +468,12 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
           style={{ backgroundColor: 'var(--color-background)' }}
         />
         <MainScrollContainerProvider scrollRef={mainScrollRef}>
-        <main ref={mainScrollRef} className="relative z-[1] h-full overflow-y-auto p-6 scroll-smooth">
+        <main
+          key={location.pathname}
+          ref={mainScrollRef}
+          className="relative z-[1] h-full overflow-y-auto p-6"
+          style={{ overflowAnchor: "none" }}
+        >
           {showDbMigratedBanner && (
           <div
             className="mb-4 flex items-start gap-3 rounded-xl border px-4 py-3"
