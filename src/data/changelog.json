@@ -1,8 +1,16 @@
 {
-  "generatedAt": "2026-08-10T18:26:04.796Z",
+  "generatedAt": "2026-08-12T18:59:12.899Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "4.0.1",
+      "title": "Media Logger - 4.0.1",
+      "date": "2026-08-12",
+      "body": "New Content/Features:\n- Added the ability to now delete award templates / catagories.\n\nBug Fixes:\n- Fixed issue that caused the stats page to reload when changing year.\n- Fixed a issue where changing year in the year view didn't reset the scroll position in the gallery leaving you half way down the page.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.0.1"
+    },
     {
       "version": "4.0.0",
       "title": "Media Logger - 4.0",
