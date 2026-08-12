@@ -28,6 +28,14 @@ export interface AwardYearSummary {
   winners: number;
 }
 
+/** What deleting an award template would take with it. */
+export interface TemplateDeletionImpact {
+  /** Number of award years the template currently appears in. */
+  years: number;
+  /** Number of those years that have a winner recorded. */
+  winners: number;
+}
+
 export interface TemplateWinnerHistory {
   year: number;
   winner: MediaEntry | null;
@@ -346,7 +354,33 @@ export const awardsLogic = {
     );
   },
 
-  // 14. Get templates not yet used in a specific year (for the picker)
+  // 14. How much a template deletion would remove, for the confirm dialog
+  async getTemplateDeletionImpact(templateId: number): Promise<TemplateDeletionImpact> {
+    const db = await dbService.connect();
+    const rows = await db.select<{ years: number; winners: number }[]>(
+      `SELECT COUNT(DISTINCT c.year) as years,
+              COUNT(DISTINCT w.category_id) as winners
+       FROM award_categories c
+       LEFT JOIN award_winners w ON w.category_id = c.id
+       WHERE c.template_id = $1`,
+      [templateId]
+    );
+    return {
+      years: rows[0]?.years ?? 0,
+      winners: rows[0]?.winners ?? 0,
+    };
+  },
+
+  // 15. Delete a template and every year category/winner that uses it
+  async deleteTemplate(templateId: number): Promise<void> {
+    const db = await dbService.connect();
+    await invoke('database_delete_award_template', {
+      databaseUrl: db.path,
+      templateId,
+    });
+  },
+
+  // 16. Get templates not yet used in a specific year (for the picker)
   async getTemplatesNotUsedInYear(year: number): Promise<AwardTemplate[]> {
     const db = await dbService.connect();
     const templates = await db.select<AwardTemplate[]>(

@@ -1428,6 +1428,7 @@ pub fn run() {
             database::database_add_collection_items,
             database::database_reorder_collection_items,
             database::database_reorder_award_categories,
+            database::database_delete_award_template,
             database::database_reorder_backlog_items,
             database::database_export_snapshot,
             database::database_import_backup,

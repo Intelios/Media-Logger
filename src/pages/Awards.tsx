@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Award, ChevronLeft, Plus, Trash2, Trophy, ArrowUpDown, Sparkles, History, Star, Calendar, AlertCircle, X } from "lucide-react";
-import { awardsLogic, type AwardYearSummary, type AwardCategory, type AwardTemplate, type TemplateWinnerHistory } from "../lib/awards-logic";
+import { awardsLogic, type AwardYearSummary, type AwardCategory, type AwardTemplate, type TemplateWinnerHistory, type TemplateDeletionImpact } from "../lib/awards-logic";
 import { MediaCard } from "../components/MediaCard";
 import { formatCardRating, getRatingColor, getTypeBadgeStyle, parseGenres } from "../lib/media-config";
 import { WinnerPicker } from "../components/WinnerPicker";
@@ -42,6 +42,25 @@ function WinnerCoverImage({ entry }: { entry: MediaEntry }) {
   );
 }
 
+// Toast for award/year mutation failures. Rendered by every view so an error
+// is never raised into a view that has nowhere to show it.
+function AwardErrorToast({ message, onDismiss }: { message: string | null; onDismiss: () => void }) {
+  if (!message) return null;
+  return (
+    <div className="fixed bottom-6 right-6 z-[80] flex items-start gap-3 max-w-sm bg-[#2a1a1a] border border-red-500/40 rounded-xl p-4 shadow-2xl">
+      <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+      <p className="text-sm text-red-200 flex-1">{message}</p>
+      <button
+        onClick={onDismiss}
+        className="p-1 hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
+        aria-label="Dismiss error"
+      >
+        <X size={14} className="text-red-300" />
+      </button>
+    </div>
+  );
+}
+
 // Helper type for reorder modal
 type CategoryWithWinner = AwardCategory & { winner: MediaEntry | null };
 type ReorderableCategory = ReorderItem & CategoryWithWinner;
@@ -68,6 +87,10 @@ export default function AwardsPage() {
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<CategoryWithWinner | null>(null);
   const [yearToDelete, setYearToDelete] = useState<AwardYearSummary | null>(null);
+  const [templateToDelete, setTemplateToDelete] = useState<AwardTemplate | null>(null);
+  // Loaded when the delete dialog opens so the confirmation can name exactly
+  // how many years and winners the cascade will remove.
+  const [templateImpact, setTemplateImpact] = useState<TemplateDeletionImpact | null>(null);
 
   // New Input Modal State
   const [inputModalOpen, setInputModalOpen] = useState(false);
@@ -189,6 +212,39 @@ export default function AwardsPage() {
     setYearToDelete(null);
   };
 
+  const openDeleteTemplate = async (template: AwardTemplate) => {
+    setTemplateImpact(null);
+    setTemplateToDelete(template);
+    try {
+      setTemplateImpact(await awardsLogic.getTemplateDeletionImpact(template.id));
+    } catch {
+      // Counts are advisory — the dialog falls back to generic wording.
+    }
+  };
+
+  const confirmDeleteTemplate = async () => {
+    if (!templateToDelete) return;
+
+    try {
+      await awardsLogic.deleteTemplate(templateToDelete.id);
+    } catch (error) {
+      setAwardError(error instanceof Error ? error.message : String(error));
+      setTemplateToDelete(null);
+      return;
+    }
+
+    setTemplateToDelete(null);
+    setTemplateImpact(null);
+    // Removing an award changes year category/winner counts too.
+    await Promise.all([loadYears(), loadTemplates()]);
+    // The detail view for this award no longer has anything to show.
+    if (view === "category" && selectedTemplate?.id === templateToDelete.id) {
+      setSelectedTemplate(null);
+      setTemplateHistory([]);
+      setView("main");
+    }
+  };
+
   const openPicker = (catId: number) => {
     setActiveCategoryId(catId);
     setPickerOpen(true);
@@ -225,23 +281,42 @@ export default function AwardsPage() {
     loadTemplates();
   };
 
+  const describeTemplateImpact = (impact: TemplateDeletionImpact | null): string => {
+    if (!impact) return "Checking where this award is used…";
+    if (impact.years === 0) return "This award isn't used in any year yet.";
+
+    const years = `${impact.years} year${impact.years !== 1 ? "s" : ""}`;
+    if (impact.winners === 0) {
+      return `Removes it from ${years}. No winners were recorded.`;
+    }
+    const winners = `${impact.winners} recorded winner${impact.winners !== 1 ? "s" : ""}`;
+    return `Removes it from ${years} and clears ${winners}.`;
+  };
+
+  // Shared by the main grid and the award detail view, which delete from
+  // different places but ask the same question.
+  const templateDeleteDialog = (
+    <ConfirmDialog
+      isOpen={templateToDelete !== null}
+      onClose={() => {
+        setTemplateToDelete(null);
+        setTemplateImpact(null);
+      }}
+      onConfirm={confirmDeleteTemplate}
+      title="Delete Award"
+      confirmLabel="Delete Award"
+      detail={describeTemplateImpact(templateImpact)}
+    >
+      Are you sure you want to delete <span className="font-semibold text-white">"{templateToDelete?.name}"</span>?
+      {" "}This removes the award from every year it appears in.
+    </ConfirmDialog>
+  );
+
   // --- VIEW 0: MAIN (Browse by Year + Browse by Category) ---
   if (view === "main") {
     return (
       <div className="space-y-10 max-w-6xl mx-auto">
-        {awardError && (
-          <div className="fixed bottom-6 right-6 z-[80] flex items-start gap-3 max-w-sm bg-[#2a1a1a] border border-red-500/40 rounded-xl p-4 shadow-2xl">
-            <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-red-200 flex-1">{awardError}</p>
-            <button
-              onClick={() => setAwardError(null)}
-              className="p-1 hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
-              aria-label="Dismiss error"
-            >
-              <X size={14} className="text-red-300" />
-            </button>
-          </div>
-        )}
+        <AwardErrorToast message={awardError} onDismiss={() => setAwardError(null)} />
         <header className="award-header-enter">
           <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-amber-600 inline-flex items-center gap-3">
             <Trophy className="text-yellow-500" />
@@ -332,28 +407,40 @@ export default function AwardsPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {templates.map((template, index) => (
-                <button
+                <div
                   key={template.id}
-                  onClick={() => handleTemplateSelect(template.id)}
-                  className="relative bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl p-5 text-left hover:border-amber-500/40 transition-all group overflow-hidden award-card-enter"
+                  className="relative group award-card-enter"
                   style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
                 >
-                  <div className="absolute -top-10 -right-10 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-all" />
-                  <div className="relative z-10 flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500/20 to-yellow-600/20 flex-shrink-0">
-                      <Trophy size={18} className="text-amber-400" />
+                  <button
+                    onClick={() => handleTemplateSelect(template.id)}
+                    className="relative h-full w-full bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl p-5 text-left hover:border-amber-500/40 transition-all overflow-hidden"
+                  >
+                    <div className="absolute -top-10 -right-10 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-all" />
+                    <div className="relative z-10 flex items-start gap-3">
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500/20 to-yellow-600/20 flex-shrink-0">
+                        <Trophy size={18} className="text-amber-400" />
+                      </div>
+                      <div className="flex-1 min-w-0 pr-8">
+                        <h4 className="font-semibold truncate group-hover:text-amber-200 transition-colors">
+                          {template.name}
+                        </h4>
+                        <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+                          <History size={12} />
+                          {template.usage_count || 0} year{(template.usage_count || 0) !== 1 ? 's' : ''}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold truncate group-hover:text-amber-200 transition-colors">
-                        {template.name}
-                      </h4>
-                      <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                        <History size={12} />
-                        {template.usage_count || 0} year{(template.usage_count || 0) !== 1 ? 's' : ''}
-                      </p>
-                    </div>
-                  </div>
-                </button>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openDeleteTemplate(template)}
+                    className="absolute top-3 right-3 z-20 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                    title="Delete award"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -379,6 +466,8 @@ export default function AwardsPage() {
         >
           Are you sure you want to delete <span className="font-semibold text-white">{yearToDelete?.year}</span>?
         </ConfirmDialog>
+
+        {templateDeleteDialog}
       </div>
     );
   }
@@ -390,6 +479,7 @@ export default function AwardsPage() {
 
     return (
       <div className="space-y-8 max-w-5xl mx-auto pb-20">
+        <AwardErrorToast message={awardError} onDismiss={() => setAwardError(null)} />
         <header className="flex items-center gap-4 award-header-enter">
           <button
             onClick={goBackToMain}
@@ -406,6 +496,13 @@ export default function AwardsPage() {
               Awarded in {templateHistory.length} year{templateHistory.length !== 1 ? 's' : ''}
             </p>
           </div>
+          <button
+            onClick={() => openDeleteTemplate(selectedTemplate)}
+            className="flex items-center gap-2 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40 text-gray-300 hover:text-red-400 px-4 py-2 rounded-xl font-semibold transition-all"
+          >
+            <Trash2 size={18} />
+            Delete Award
+          </button>
         </header>
 
         {/* Most Recent Winner */}
@@ -489,6 +586,8 @@ export default function AwardsPage() {
             <p className="text-sm text-gray-600">Add it to a year to start awarding winners.</p>
           </div>
         )}
+
+        {templateDeleteDialog}
       </div>
     );
   }
@@ -496,19 +595,7 @@ export default function AwardsPage() {
   // --- VIEW 2: YEAR DETAIL (Category Editor) ---
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-20">
-      {awardError && (
-        <div className="fixed bottom-6 right-6 z-[80] flex items-start gap-3 max-w-sm bg-[#2a1a1a] border border-red-500/40 rounded-xl p-4 shadow-2xl">
-          <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-200 flex-1">{awardError}</p>
-          <button
-            onClick={() => setAwardError(null)}
-            className="p-1 hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
-            aria-label="Dismiss error"
-          >
-            <X size={14} className="text-red-300" />
-          </button>
-        </div>
-      )}
+      <AwardErrorToast message={awardError} onDismiss={() => setAwardError(null)} />
       <header className="flex items-center gap-4 award-header-enter">
         <button
           onClick={goBackToMain}
@@ -714,8 +801,8 @@ export default function AwardsPage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => setCategoryToDelete(cat)}
-                            className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                            title="Delete category"
+                            className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                            title={`Remove this award from ${selectedYear}`}
                           >
                             <Trash2 size={16} />
                           </button>
@@ -742,8 +829,8 @@ export default function AwardsPage() {
                     </button>
                     <button
                       onClick={() => setCategoryToDelete(cat)}
-                      className="absolute bottom-3 right-3 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                      title="Delete category"
+                      className="absolute bottom-3 right-3 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                      title={`Remove this award from ${selectedYear}`}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -784,11 +871,11 @@ export default function AwardsPage() {
         isOpen={categoryToDelete !== null}
         onClose={() => setCategoryToDelete(null)}
         onConfirm={confirmDeleteCategory}
-        title="Delete Award Category"
-        confirmLabel="Delete Category"
-        detail="Any selected winner for this category will also be removed."
+        title={`Remove Award from ${selectedYear}`}
+        confirmLabel="Remove"
+        detail="The award itself stays in your library and in any other years. Any winner selected here will be cleared."
       >
-        Are you sure you want to delete <span className="font-semibold text-white">"{categoryToDelete?.name}"</span>?
+        Remove <span className="font-semibold text-white">"{categoryToDelete?.name}"</span> from {selectedYear}?
       </ConfirmDialog>
     </div>
   );

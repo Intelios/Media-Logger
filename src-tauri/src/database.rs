@@ -1010,6 +1010,57 @@ pub async fn database_reorder_collection_items(
         .map_err(|error| database_error("Failed to commit collection reorder", error))
 }
 
+/// Delete an award template along with every year category that uses it and
+/// any winners recorded for those categories. Runs in one transaction so a
+/// failure part-way through can't strand winners without their category.
+///
+/// Empty `award_years` rows are deliberately left behind: years are created
+/// and deleted independently of the awards they hold.
+#[tauri::command]
+pub async fn database_delete_award_template(
+    database_url: String,
+    template_id: i64,
+    instances: State<'_, DbInstances>,
+) -> Result<(), String> {
+    if template_id <= 0 {
+        return Err("Award template identifier is invalid".to_string());
+    }
+    let pool = sqlite_pool(&instances, &database_url).await?;
+    let mut tx = pool
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|error| database_error("Failed to begin award deletion", error))?;
+
+    sqlx::query(
+        r#"DELETE FROM award_winners
+           WHERE category_id IN (SELECT id FROM award_categories WHERE template_id = ?)"#,
+    )
+    .bind(template_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|error| database_error("Failed to remove award winners", error))?;
+
+    sqlx::query("DELETE FROM award_categories WHERE template_id = ?")
+        .bind(template_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| database_error("Failed to remove award categories", error))?;
+
+    let result = sqlx::query("DELETE FROM award_templates WHERE id = ?")
+        .bind(template_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| database_error("Failed to remove the award", error))?;
+
+    if result.rows_affected() == 0 {
+        return Err("That award no longer exists".to_string());
+    }
+
+    tx.commit()
+        .await
+        .map_err(|error| database_error("Failed to commit award deletion", error))
+}
+
 #[tauri::command]
 pub async fn database_reorder_award_categories(
     database_url: String,
