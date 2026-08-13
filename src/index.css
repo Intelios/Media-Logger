@@ -94,6 +94,28 @@ body {
   background: transparent;
 }
 
+.development-build-badge {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  z-index: 10000;
+  transform: translateX(-50%);
+  pointer-events: none;
+  padding: 5px 12px;
+  border: 1px solid rgba(254, 202, 202, 0.55);
+  border-radius: 999px;
+  background: rgba(127, 29, 29, 0.92);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
 /* Custom Scrollbar - uses theme variables */
 ::-webkit-scrollbar {
   width: 8px;

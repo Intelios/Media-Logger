@@ -103,7 +103,7 @@ Built on macOS, targeting desktop only.
 
 ```bash
 npm install
-npm run tauri dev     # run the desktop app
+npm run tauri:dev     # isolated development app and test data
 npm run tauri build   # production bundle
 ```
 

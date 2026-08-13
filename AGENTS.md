@@ -13,7 +13,8 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app.
 | Command | What it does |
 |---|---|
 | `npm run dev` | Vite only, port 1420 browser preview. **No Tauri runtime** — DB, image service, glass, and MCP commands all fail here. |
-| `npm run tauri dev` | Full Tauri desktop app. Must use this to exercise DB, FS, and native window APIs. |
+| `npm run tauri:dev` | Full, isolated Tauri development app (`Media Logger Development`, identifier `com.medialogger.dev`). **This is the only normal command agents may use to exercise DB, FS, image, and native window APIs.** |
+| `npm run tauri dev` | **Unsafe command; do not use.** The native startup guard rejects it because the base config carries the production identifier. |
 | `npm run build` | `tsc && vite build` — `tsc` is the only static check; unused locals/parameters fail it. |
 | `npm run tauri build` | Production desktop bundle. |
 | `npm run tauri` | Tauri CLI passthrough. |
@@ -25,6 +26,7 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app.
 
 - No tests, lint, or formatter exist and none should be added. Sole CI: manual-dispatch Windows build (`.github/workflows/build-windows.yml`).
 - TypeScript is strict with `noUnusedLocals`/`noUnusedParameters`.
+- The isolated development app has a red `DEV` badge on its Dock/app icon and a persistent in-app **Development · Test Data Only** badge. Production icon assets under `src-tauri/icons/` are unchanged.
 
 ## Architecture
 
@@ -42,7 +44,7 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app.
 - `src/lib/performance-diagnostics.ts` — in-app instrumentation: `recordPerformanceSample`, `beginPerformanceSpan` (used by every `dbService` method), React `Profiler` commits, frame/long-task/paint/heap counters, plus rolling frame-interval/JS-heap series and a frame histogram for live charts. The Performance page (`src/pages/Performance.tsx`) renders the report and lives in the System sidebar section; it is gated by `IS_DEV_OR_PERFORMANCE_BUILD` (`src/lib/performance-mode.ts`) so it exists only in debug and Performance Lab builds, never release. The image-cache disk limit stays in Settings → Data; a sanitized copy can be exported from the Performance page. Do not remove timing hooks from db methods.
 - `src/lib/image-service.ts` — frontend of the native image pipeline: `initializeImageService()`, `createMediaUrl`/`createMediaSources`, `prewarmImageCache`, `stageCoverImport`/`commitCoverImport`/`cancelCoverImport`, cache-limit setting (1/3/5 GiB), `useImageServiceStatus`. See **Image Service** below.
 - `src/lib/themes.ts` + `src/lib/ThemeContext.tsx` — CSS-variable theming persisted to `localStorage`.
-- `src/lib/settings.ts` — `localStorage`-based settings (data dir, display name, nav years, adult-media toggle, etc.). In performance mode `getDataDirectory()` returns the lab's app-local dir instead of the real library.
+- `src/lib/settings.ts` — `localStorage`-based settings (data dir, display name, nav years, adult-media toggle, etc.). Development and Performance Lab builds always return their own app-local directories and reject custom data-directory selection.
 - `src/lib/utils.ts` — **not the old blob-URL image loader.** It is a small compatibility shim: `saveImage()` stages/commits a cover through the native service and returns the relative DB path. Profile-image callers go through it.
 - `src/lib/media-config.tsx` — canonical entry types and adult filtering helpers.
 - `src/lib/backup/` — backup domain: `types.ts` (v2 envelope), `validation.ts` (parse + validate before any write), `service.ts` (`exportAllData`/`importFromFile`), `legacy-v1.ts` (CSV reader for old v1 files). `src/lib/csv-logic.ts` is now just a re-export for compatibility. Backup import writes run in Rust (`database_import_backup`).
@@ -109,12 +111,12 @@ Layout is toolbar → figure strip → timeline hero → a fixed 4-panel grid, a
 - `tsconfig.json` has `noEmit: true` and `moduleResolution: bundler`.
 - Tailwind config maps colors to CSS vars (e.g., `colors.primary: var(--color-primary, #5E35B1)`).
 - The `performance` Vite mode (Perf Lab) aliases `react-dom/client` → `react-dom/profiling` for Profiler timings and enables sourcemaps; the production build does not alias. Bare `react-dom` must never be aliased (circular self-import).
-- `preparePerformanceBuildEnvironment()` runs before providers mount in performance mode: it clears the custom data-directory key, forces the sunset theme, and marks the document so the lab is visually unmistakable.
+- `prepareIsolatedBuildEnvironment()` runs before providers mount: it clears the custom data-directory key for development and Performance Lab builds and marks the document so the active environment is visually unmistakable. The Performance Lab keeps its forced sunset theme; normal development preserves theme selection so all visuals and animations can be tested normally.
 
 ## DB / Data Quirks
 
 - SQLite canonical filename is `media_logger.db` (`DB_FILENAME` in `src/lib/db/connection.ts`).
-- Default data dir: `~/Library/Application Support/com.medialogger.data/` (bundle id `com.medialogger.data`), or a user-configured custom path (`getDataDirectory`). **Dev and production builds share the same real DB** — back it up before seeding or destructive testing. End-to-end verification workflow: `.claude/skills/verify/SKILL.md`. The Performance Lab is the exception: it uses its own app-local dir (`com.medialogger.perf`) with synthetic data only.
+- Production uses identifier `com.medialogger.data` and may use either its Tauri-managed app-local directory or a user-configured custom path. Never assume or access the user's personal data location. Normal development uses the isolated `com.medialogger.dev` identity and is permanently locked to its own Tauri-managed directory. The Performance Lab remains separately isolated under `com.medialogger.perf` with synthetic data only.
 - Legacy installs used `jav_log.db`; `connect()` migrates once by copying the file plus `-wal`/`-shm` sidecars, leaving the original untouched as a backup. **Do not delete or reopen it.**
 - `connect()` dedupes concurrent callers and reuses the live connection per path; `reconnect()` closes and reopens when Settings changes the data directory. Schema migrations now run natively (`database_run_migrations`) once per connection, one transaction per migration, advancing `PRAGMA user_version` 0 → 3. Schema evolves forward, never reset; a DB newer than the app is refused.
 - Schema v2: legacy `javs` → `entries` rename, current tables, missing-column backfill (`franchise`, `series`, `has_subtitles`, `is_platinum`, `is_completed`, `notes`, `is_early_access`, `early_access_version`, `crop_data`, `track_avg_history`, `release_date`, ...), and normalization of `collection_items`/`award_winners`.
@@ -145,7 +147,8 @@ Defined in Rust (`lib.rs`). Sends Tauri events to the frontend:
 - Do not rename `media_logger.db` or the `entries` table — use `DB_FILENAME` and the `entries` table name.
 - Do not change the DB connection flow — `connect()` dedupes and reuses connections; native migrations advance `user_version` forward only.
 - Do not assume booleans in SQLite — check for the 0/1 integer pattern.
-- Do not assume `npm run dev` gives you a desktop app — use `npm run tauri dev`.
+- Do not assume `npm run dev` gives you a desktop app — agents must use `npm run tauri:dev` and operate only the window titled **Media Logger Development — Test Data Only**.
+- Never launch, open, focus, or automate the production **Media Logger** app for development or verification. Never use `npm run tauri dev`; the native guard intentionally rejects a debug process carrying the production identity.
 - Do not delete the legacy `jav_log.db` backup.
 - Do not bypass the native image service: no `convertFileSrc()`/asset-protocol URLs, no blob-URL loading, no raw `<img src=...>` for local covers, no image bytes in the DB. Go through `CoverImage`/`createMediaSources` and stage/commit imports.
 - Do not reintroduce `SELECT *` card grids, per-card detail queries, or ref-counted blob caches — summary projections + `getEntriesByIds` on demand is the 4.0 contract.

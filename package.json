@@ -11,6 +11,7 @@
     "changelog:sync": "node scripts/sync-changelog.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
+    "tauri:dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "tauri:perf:dev": "tauri dev --config src-tauri/tauri.perf.conf.json",
     "tauri:perf:build": "tauri build --config src-tauri/tauri.perf.conf.json"
   },

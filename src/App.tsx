@@ -16,11 +16,14 @@ import {
   mediaQueryKeys,
   queryClient,
 } from "./lib/query-client";
-import { preparePerformanceBuildEnvironment } from "./lib/performance-mode";
+import {
+  IS_DEVELOPMENT_BUILD,
+  prepareIsolatedBuildEnvironment,
+} from "./lib/performance-mode";
 import { recordReactCommit } from "./lib/performance-diagnostics";
 import { dbService } from "./lib/db";
 
-preparePerformanceBuildEnvironment();
+prepareIsolatedBuildEnvironment();
 
 interface LazyRouteModule {
   default: ComponentType;
@@ -117,6 +120,16 @@ function LazyRoute({ children }: { children: ReactNode }) {
   return <Suspense fallback={<RouteFallback />}>{children}</Suspense>;
 }
 
+function DevelopmentBuildBadge() {
+  if (!IS_DEVELOPMENT_BUILD) return null;
+
+  return (
+    <div className="development-build-badge" role="status" aria-label="Development build using isolated test data">
+      Development · Test Data Only
+    </div>
+  );
+}
+
 function AppBootstrap() {
   useEffect(() => {
     let cancelled = false;
@@ -172,6 +185,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AppBootstrap />
       <ThemeProvider>
+        <DevelopmentBuildBadge />
         <HoverTooltipProvider>
           <Profiler id="RoutedApp" onRender={recordReactCommit}>
             <BrowserRouter>

@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { appLocalDataDir } from '@tauri-apps/api/path';
+import { getIdentifier, getName, getVersion } from '@tauri-apps/api/app';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import {
     FolderOpen,
@@ -85,8 +86,7 @@ import {
     type McpStatus
 } from '../lib/mcp';
 import packageJson from '../../package.json';
-import tauriConfig from '../../src-tauri/tauri.conf.json';
-import { IS_PERFORMANCE_BUILD } from '../lib/performance-mode';
+import { IS_DATA_DIRECTORY_ISOLATED, IS_PERFORMANCE_BUILD } from '../lib/performance-mode';
 import { getImageCacheLimitGiB, initializeImageService, setImageCacheLimitGiB } from '../lib/image-service';
 
 const SettingsChangelogSection = lazy(() => import('../components/settings/SettingsChangelogSection'));
@@ -129,10 +129,7 @@ type ExtractBackupAssetsResult = {
     cleanupWarnings: string[];
 };
 
-const appMetadata = {
-    appName: tauriConfig.productName,
-    appVersion: tauriConfig.version,
-    appIdentifier: tauriConfig.identifier,
+const packageMetadata = {
     packageName: packageJson.name,
     packageVersion: packageJson.version,
     tauriApiVersion: packageJson.dependencies['@tauri-apps/api'] ?? 'Unknown',
@@ -211,6 +208,11 @@ export default function Settings() {
     const [showSuccess, setShowSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
     const [environmentInfo, setEnvironmentInfo] = useState<EnvironmentInfo>(() => getEnvironmentInfo());
+    const [runtimeAppMetadata, setRuntimeAppMetadata] = useState({
+        appName: 'Media Logger',
+        appVersion: packageJson.version,
+        appIdentifier: 'Loading...',
+    });
 
     // Display name state
     const [displayName, setDisplayNameState] = useState<string>('');
@@ -266,6 +268,20 @@ export default function Settings() {
         setAdultMediaEnabledState(isAdultMediaEnabled());
         setFeaturedAdultAllowedState(isFeaturedAdultAllowed());
 
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        void Promise.all([getName(), getVersion(), getIdentifier()])
+            .then(([appName, appVersion, appIdentifier]) => {
+                if (!cancelled) setRuntimeAppMetadata({ appName, appVersion, appIdentifier });
+            })
+            .catch((error: unknown) => {
+                console.error('Unable to load runtime application metadata:', error);
+            });
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     useEffect(() => {
@@ -396,8 +412,10 @@ export default function Settings() {
     };
 
     const handleBrowse = async () => {
-        if (IS_PERFORMANCE_BUILD) {
-            showToast('Performance Lab data is permanently isolated');
+        if (IS_DATA_DIRECTORY_ISOLATED) {
+            showToast(IS_PERFORMANCE_BUILD
+                ? 'Performance Lab data is permanently isolated'
+                : 'Development data is permanently isolated');
             return;
         }
         if (mcpBusyAction) return;
@@ -868,14 +886,14 @@ export default function Settings() {
 
     const buildDebugInfo = () => JSON.stringify({
         application: {
-            appName: appMetadata.appName,
-            appVersion: appMetadata.appVersion,
-            appIdentifier: appMetadata.appIdentifier,
-            packageName: appMetadata.packageName,
-            packageVersion: appMetadata.packageVersion,
-            tauriApiVersion: appMetadata.tauriApiVersion,
-            tauriCliVersion: appMetadata.tauriCliVersion,
-            reactVersion: appMetadata.reactVersion,
+            appName: runtimeAppMetadata.appName,
+            appVersion: runtimeAppMetadata.appVersion,
+            appIdentifier: runtimeAppMetadata.appIdentifier,
+            packageName: packageMetadata.packageName,
+            packageVersion: packageMetadata.packageVersion,
+            tauriApiVersion: packageMetadata.tauriApiVersion,
+            tauriCliVersion: packageMetadata.tauriCliVersion,
+            reactVersion: packageMetadata.reactVersion,
             viteMode: import.meta.env.MODE,
             buildType: import.meta.env.DEV ? 'development' : 'production',
         },
@@ -1541,10 +1559,14 @@ export default function Settings() {
                                     <button
                                         onClick={handleBrowse}
                                         className="settings-btn settings-btn-primary"
-                                        disabled={IS_PERFORMANCE_BUILD || mcpBusyAction === 'data-directory'}
+                                        disabled={IS_DATA_DIRECTORY_ISOLATED || mcpBusyAction === 'data-directory'}
                                     >
                                         <FolderOpen size={14} />
-                                        {IS_PERFORMANCE_BUILD ? 'Locked to Performance Lab' : 'Browse...'}
+                                        {IS_PERFORMANCE_BUILD
+                                            ? 'Locked to Performance Lab'
+                                            : IS_DATA_DIRECTORY_ISOLATED
+                                                ? 'Locked to Development Data'
+                                                : 'Browse...'}
                                     </button>
                                     {currentPath && (
                                         <button
@@ -1820,7 +1842,7 @@ export default function Settings() {
                                     </div>
                                     <div>
                                         <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)' }}>
-                                            {appMetadata.appName}
+                                            {runtimeAppMetadata.appName}
                                         </div>
                                         <div className="settings-row-description" style={{ fontSize: 13, marginTop: 4 }}>
                                             A local-first desktop media journal for tracking completed media, collections, awards, profiles, and stats.
@@ -1840,20 +1862,20 @@ export default function Settings() {
 
                         <section className="settings-card">
                             <div className="settings-card-header">Application</div>
-                            <AboutInfoRow label="App Name" value={appMetadata.appName} />
-                            <AboutInfoRow label="App Version" value={appMetadata.appVersion} />
-                            <AboutInfoRow label="App Identifier" value={appMetadata.appIdentifier} mono />
-                            <AboutInfoRow label="Package Name" value={appMetadata.packageName} mono />
-                            <AboutInfoRow label="Package Version" value={appMetadata.packageVersion} />
+                            <AboutInfoRow label="App Name" value={runtimeAppMetadata.appName} />
+                            <AboutInfoRow label="App Version" value={runtimeAppMetadata.appVersion} />
+                            <AboutInfoRow label="App Identifier" value={runtimeAppMetadata.appIdentifier} mono />
+                            <AboutInfoRow label="Package Name" value={packageMetadata.packageName} mono />
+                            <AboutInfoRow label="Package Version" value={packageMetadata.packageVersion} />
                             <AboutInfoRow label="Build Mode" value={import.meta.env.MODE} />
                             <AboutInfoRow label="Build Type" value={import.meta.env.DEV ? 'Development' : 'Production'} />
                         </section>
 
                         <section className="settings-card">
                             <div className="settings-card-header">Runtime</div>
-                            <AboutInfoRow label="Tauri API Package" value={appMetadata.tauriApiVersion} mono />
-                            <AboutInfoRow label="Tauri CLI Package" value={appMetadata.tauriCliVersion} mono />
-                            <AboutInfoRow label="React Package" value={appMetadata.reactVersion} mono />
+                            <AboutInfoRow label="Tauri API Package" value={packageMetadata.tauriApiVersion} mono />
+                            <AboutInfoRow label="Tauri CLI Package" value={packageMetadata.tauriCliVersion} mono />
+                            <AboutInfoRow label="React Package" value={packageMetadata.reactVersion} mono />
                         </section>
 
                         <section className="settings-card">

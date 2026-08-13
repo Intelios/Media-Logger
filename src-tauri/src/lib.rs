@@ -5,6 +5,9 @@ mod image_service;
 mod mcp;
 mod perf_fixture;
 
+const DEVELOPMENT_IDENTIFIER: &str = "com.medialogger.dev";
+const PERFORMANCE_IDENTIFIER: &str = "com.medialogger.perf";
+
 use same_file::Handle;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -1454,6 +1457,17 @@ pub fn run() {
             let _ = (window, event);
         })
         .setup(|app| {
+            let app_identifier = app.config().identifier.as_str();
+            if tauri::is_dev()
+                && app_identifier != DEVELOPMENT_IDENTIFIER
+                && app_identifier != PERFORMANCE_IDENTIFIER
+            {
+                return Err(std::io::Error::other(format!(
+                    "Refusing to start a development build with identifier '{app_identifier}'. Use `npm run tauri:dev` so Media Logger runs with its isolated development identity and test data."
+                ))
+                .into());
+            }
+
             let image_service =
                 image_service::ImageService::new(app.handle()).map_err(std::io::Error::other)?;
             app.manage(image_service);
