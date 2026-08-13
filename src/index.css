@@ -1806,6 +1806,23 @@ body {
   animation: collection-item-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Era bands settle in just behind the staggered card entrance, so the seams
+   between adjacent segments are only ever seen once the cards have landed. */
+@keyframes era-band-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.era-band {
+  opacity: 0;
+  animation: era-band-in 0.3s ease-out 0.25s forwards;
+}
+
 /* Award card entrance animation */
 @keyframes award-card-in {
   from {

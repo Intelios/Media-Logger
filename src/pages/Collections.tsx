@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef, useLayoutEffect, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image, Pencil } from "lucide-react";
+import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image, Pencil, CornerDownRight } from "lucide-react";
 import { collectionsLogic, type Collection, type Era, type CollectionItemView } from "../lib/collections-logic";
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
@@ -16,34 +16,77 @@ import { ErasModal } from "../components/ErasModal";
 import { EraAssignMenu } from "../components/EraAssignMenu";
 import { hexToRgb } from "../lib/themes";
 import { CoverImage } from "../components/CoverImage";
-import { VirtualizedCardGrid, DEFAULT_GRID_VIRTUALIZATION_THRESHOLD } from "../components/VirtualizedCardGrid";
-import { useOptionalMainScrollContainer } from "../lib/scroll-container";
+import {
+  VirtualizedCardGrid,
+  DEFAULT_GRID_VIRTUALIZATION_THRESHOLD,
+  useResponsiveColumnCount,
+  type ResponsiveGridColumns,
+} from "../components/VirtualizedCardGrid";
+import { buildEraBands, type EraBandSegment } from "../lib/collections/era-bands";
 
-// A bracket rectangle drawn behind a run of era members on one visual row of
-// the grid. Era members that wrap to a second row produce one bracket per row.
-interface EraBracket {
-  key: string;
-  eraId: number;
-  eraName: string;
-  eraColor: string;
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  firstRow: boolean;
+// Shared by both grid paths — the Tailwind classes below and the virtualized
+// grid must resolve to the same column count, or the era bands wrap elsewhere
+// than the cards do.
+const COLLECTION_GRID_COLUMNS: ResponsiveGridColumns = { base: 1, sm: 2, md: 3, lg: 4, xl: 5 };
+const COLLECTION_GRID_COLUMN_CLASSES =
+  "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
+
+// The tinted band behind one era member. Sits before the card in DOM order so it
+// paints underneath it; the negative insets let neighbouring segments meet in the
+// gutter and read as a single continuous band.
+function EraBandLayer({ band }: { band: EraBandSegment }) {
+  const rgb = hexToRgb(band.color);
+  return (
+    <div
+      aria-hidden
+      className="era-band absolute pointer-events-none"
+      style={{
+        top: -band.insetTop,
+        right: -band.insetRight,
+        bottom: -band.insetBottom,
+        left: -band.insetLeft,
+        zIndex: 0,
+        background: `rgba(${rgb}, 0.035)`,
+        borderStyle: "solid",
+        borderColor: `rgba(${rgb}, 0.20)`,
+        borderTopWidth: band.borderTop ? 1 : 0,
+        borderRightWidth: band.borderRight ? 1 : 0,
+        borderBottomWidth: band.borderBottom ? 1 : 0,
+        borderLeftWidth: band.borderLeft ? 1 : 0,
+        borderRadius: band.radii.map(r => `${r}px`).join(" "),
+      }}
+    />
+  );
 }
 
-function bracketsEqual(left: EraBracket[], right: EraBracket[]): boolean {
-  return left.length === right.length && left.every((item, index) => {
-    const other = right[index];
-    return item.key === other.key
-      && item.eraName === other.eraName
-      && item.eraColor === other.eraColor
-      && Math.abs(item.left - other.left) < 0.5
-      && Math.abs(item.top - other.top) < 0.5
-      && Math.abs(item.width - other.width) < 0.5
-      && Math.abs(item.height - other.height) < 0.5;
-  });
+// Era name pill, straddling the top edge of its band. The era's first member gets
+// the full pill; each row the era resumes on gets a dimmed continuation chip so a
+// wrapped era stays identifiable without tracing the band back.
+function EraBandLabel({ band }: { band: EraBandSegment }) {
+  const continuation = band.label === "continuation";
+  const rgb = hexToRgb(band.color);
+  return (
+    <div
+      // Dimming is expressed in the colours rather than `opacity`: the entrance
+      // animation's own opacity keyframes would win over an inline value.
+      className="era-band absolute pointer-events-none z-20 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap"
+      style={{
+        left: 8,
+        top: -(band.insetTop + 10),
+        color: continuation ? `rgba(${rgb}, 0.62)` : band.color,
+        background: `rgba(12, 12, 12, ${continuation ? 0.55 : 0.7})`,
+        border: `1px solid rgba(${rgb}, ${continuation ? 0.16 : 0.28})`,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.20)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+      }}
+    >
+      {continuation
+        ? <CornerDownRight size={9} strokeWidth={2.5} />
+        : <span className="w-1 h-1 rounded-full" style={{ background: band.color }} />}
+      {band.name}
+    </div>
+  );
 }
 
 // Helper for thumbnail grid - Enhanced version
@@ -93,10 +136,6 @@ export default function CollectionsPage() {
   // Eras
   const [eras, setEras] = useState<Era[]>([]);
   const [erasOpen, setErasOpen] = useState(false);
-  const [brackets, setBrackets] = useState<EraBracket[]>([]);
-  const gridRef = useRef<HTMLDivElement>(null);
-  const cardElsRef = useRef<Map<number, HTMLDivElement>>(new Map());
-  const bracketFrameRef = useRef<number | null>(null);
 
   // Modals
   const [createOpen, setCreateOpen] = useState(false);
@@ -108,108 +147,14 @@ export default function CollectionsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [collectionToDelete, setCollectionToDelete] = useState<Collection | null>(null);
   const [itemToRemove, setItemToRemove] = useState<MediaEntry | null>(null);
-  const mainScroll = useOptionalMainScrollContainer();
   const isVirtualized = items.length >= DEFAULT_GRID_VIRTUALIZATION_THRESHOLD;
 
-  // Measure era member cards and compute bracket rects (one per era per visual
-  // row). Eras are a pure overlay: this only reads DOM positions.
-  const computeBrackets = useCallback(() => {
-    if (eras.length === 0) {
-      setBrackets((current) => current.length === 0 ? current : []);
-      return;
-    }
-    const grid = gridRef.current;
-    if (!grid) return;
-    const gridRect = grid.getBoundingClientRect();
-
-    const membersByEra = new Map<number, HTMLDivElement[]>();
-    for (const [, el] of cardElsRef.current) {
-      const raw = el.dataset.eraId;
-      if (!raw) continue;
-      const eraId = Number(raw);
-      if (!eraId) continue;
-      const list = membersByEra.get(eraId) ?? [];
-      list.push(el);
-      membersByEra.set(eraId, list);
-    }
-
-    const next: EraBracket[] = [];
-    for (const [eraId, els] of membersByEra) {
-      const era = eras.find(e => e.id === eraId);
-      if (!era) continue;
-
-      const measured = els.map(el => ({ el, rect: el.getBoundingClientRect() }));
-      measured.sort((a, b) => (a.rect.top - b.rect.top) || (a.rect.left - b.rect.left));
-
-      // Cluster into visual rows (same top within a small tolerance).
-      const rows: { rects: typeof measured }[] = [];
-      for (const item of measured) {
-        const row = rows.find(r => Math.abs(r.rects[0].rect.top - item.rect.top) < 12);
-        if (row) row.rects.push(item);
-        else rows.push({ rects: [item] });
-      }
-
-      rows.forEach((row, rowIndex) => {
-        const left = Math.min(...row.rects.map(r => r.rect.left));
-        const right = Math.max(...row.rects.map(r => r.rect.right));
-        const top = Math.min(...row.rects.map(r => r.rect.top));
-        const bottom = Math.max(...row.rects.map(r => r.rect.bottom));
-        const pad = 6;
-        next.push({
-          key: `${eraId}-${rowIndex}`,
-          eraId,
-          eraName: era.name,
-          eraColor: era.color,
-          left: left - pad - gridRect.left,
-          top: top - pad - gridRect.top,
-          width: right - left + pad * 2,
-          height: bottom - top + pad * 2,
-          firstRow: rowIndex === 0,
-        });
-      });
-    }
-    setBrackets((current) => bracketsEqual(current, next) ? current : next);
-  }, [eras]);
-
-  const scheduleBracketComputation = useCallback(() => {
-    if (bracketFrameRef.current !== null) return;
-    bracketFrameRef.current = window.requestAnimationFrame(() => {
-      bracketFrameRef.current = null;
-      computeBrackets();
-    });
-  }, [computeBrackets]);
-
-  // Recompute whenever items/eras change (runs after DOM commit, so refs are live).
-  useLayoutEffect(() => {
-    scheduleBracketComputation();
-  }, [items, scheduleBracketComputation]);
-
-  // Recompute on container/card resize (window resizes, image loads reflowing
-  // the grid). The observer reads the live refs each time it fires.
-  useEffect(() => {
-    if (eras.length === 0) return;
-    const grid = gridRef.current;
-    if (!grid) return;
-    const ro = new ResizeObserver(scheduleBracketComputation);
-    ro.observe(grid);
-    return () => {
-      ro.disconnect();
-      if (bracketFrameRef.current !== null) {
-        window.cancelAnimationFrame(bracketFrameRef.current);
-        bracketFrameRef.current = null;
-      }
-    };
-  }, [eras.length, scheduleBracketComputation]);
-
-  // When the grid is virtualized, only mounted rows carry card refs, so the
-  // bracket overlay must refresh as the user scrolls new rows into view.
-  useEffect(() => {
-    if (!isVirtualized || eras.length === 0) return;
-    const scrollEl = mainScroll?.scrollRef.current;
-    if (!scrollEl) return;
-    scrollEl.addEventListener('scroll', scheduleBracketComputation, { passive: true });
-    return () => scrollEl.removeEventListener('scroll', scheduleBracketComputation);
-  }, [isVirtualized, eras.length, mainScroll, scheduleBracketComputation]);
+  // Era bands are derived from item order and the grid's column count — the same
+  // count the grid itself lays out with — so no DOM measurement is involved.
+  const columnCount = useResponsiveColumnCount(COLLECTION_GRID_COLUMNS);
+  // Driven by the era columns already joined onto each item, not the `eras`
+  // list, so bands never blink out while the two are refetched in sequence.
+  const bands = useMemo(() => buildEraBands(items, columnCount), [columnCount, items]);
 
   useEffect(() => {
     loadCollections();
@@ -334,44 +279,48 @@ export default function CollectionsPage() {
   };
 
   // --- VIEW 1: DETAIL (Grid of Items) ---
-  const renderCollectionItem = (entry: CollectionItemView, index: number) => (
-    <div
-      key={entry.id}
-      ref={(el) => {
-        if (el) cardElsRef.current.set(entry.id, el);
-        else cardElsRef.current.delete(entry.id);
-      }}
-      data-era-id={entry.era_id ?? ""}
-      className="relative z-10 group collection-item-enter"
-      style={{ animationDelay: `${Math.min(index * 50, 300)}ms` }}
-    >
-      <MediaCard
-        entry={entry}
-        imagePriority="auto"
-        onEdit={handleEditFromCard}
-        onDelete={handleDeleteFromCard}
-        awards={entry.id ? awardsMap.get(entry.id) : undefined}
-      />
-      {/* Hover Remove Button */}
-      <button
-        onClick={() => setItemToRemove(entry)}
-        {...bindTooltip(
-          <span className="text-xs font-medium text-text">Remove from collection</span>,
-          { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
-        )}
-        className="absolute top-2 left-2 bg-red-600 hover:bg-red-500 p-2 rounded-xl text-white opacity-0 group-hover:opacity-100 transition-all shadow-lg z-30 hover:scale-110"
-      >
-        <Trash2 size={14} />
-        <span className="sr-only">Remove from collection</span>
-      </button>
-      {/* Era assignment (hover) */}
-      <EraAssignMenu
-        eras={eras}
-        currentEraId={entry.era_id}
-        onAssign={(eraId) => handleAssignEra(entry.id, eraId)}
-      />
-    </div>
-  );
+  // The entrance animation lives on the inner wrapper, not the outer one: its
+  // staggered translate would otherwise drag each era band segment out of line
+  // with its neighbours and tear every seam for the length of the animation.
+  const renderCollectionItem = (entry: CollectionItemView, index: number) => {
+    const band = bands.get(entry.id);
+    return (
+      <div key={entry.id} className="relative z-10 group">
+        {band && <EraBandLayer band={band} />}
+        <div
+          className="relative collection-item-enter"
+          style={{ animationDelay: `${Math.min(index * 50, 300)}ms` }}
+        >
+          <MediaCard
+            entry={entry}
+            imagePriority="auto"
+            onEdit={handleEditFromCard}
+            onDelete={handleDeleteFromCard}
+            awards={entry.id ? awardsMap.get(entry.id) : undefined}
+          />
+          {/* Hover Remove Button */}
+          <button
+            onClick={() => setItemToRemove(entry)}
+            {...bindTooltip(
+              <span className="text-xs font-medium text-text">Remove from collection</span>,
+              { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+            )}
+            className="absolute top-2 left-2 bg-red-600 hover:bg-red-500 p-2 rounded-xl text-white opacity-0 group-hover:opacity-100 transition-all shadow-lg z-30 hover:scale-110"
+          >
+            <Trash2 size={14} />
+            <span className="sr-only">Remove from collection</span>
+          </button>
+          {/* Era assignment (hover) */}
+          <EraAssignMenu
+            eras={eras}
+            currentEraId={entry.era_id}
+            onAssign={(eraId) => handleAssignEra(entry.id, eraId)}
+          />
+        </div>
+        {band?.label && <EraBandLabel band={band} />}
+      </div>
+    );
+  };
 
   if (selectedCollection) {
     return (
@@ -471,48 +420,12 @@ export default function CollectionsPage() {
             </div>
           </div>
         ) : (
-          <div ref={gridRef} className={`relative ${isVirtualized ? '' : 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6'}`}>
-            {/* Era bracket backgrounds (behind cards) */}
-            {brackets.map(b => (
-              <div
-                key={`bg-${b.key}`}
-                className="absolute pointer-events-none rounded-2xl"
-                style={{
-                  left: b.left,
-                  top: b.top,
-                  width: b.width,
-                  height: b.height,
-                  zIndex: 0,
-                  background: `rgba(${hexToRgb(b.eraColor)}, 0.035)`,
-                  border: `1px solid rgba(${hexToRgb(b.eraColor)}, 0.20)`,
-                }}
-              />
-            ))}
-            {/* Era labels (above cards, only on each era's first row) */}
-            {brackets.filter(b => b.firstRow).map(b => (
-              <div
-                key={`label-${b.key}`}
-                className="absolute pointer-events-none z-20 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap"
-                style={{
-                  left: b.left + 8,
-                  top: b.top - 10,
-                  color: b.eraColor,
-                  background: "rgba(12, 12, 12, 0.70)",
-                  border: `1px solid rgba(${hexToRgb(b.eraColor)}, 0.28)`,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.20)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                }}
-              >
-                <span className="w-1 h-1 rounded-full" style={{ background: b.eraColor }} />
-                {b.eraName}
-              </div>
-            ))}
+          <div className={`relative ${isVirtualized ? '' : `grid ${COLLECTION_GRID_COLUMN_CLASSES} gap-6`}`}>
             {isVirtualized ? (
               <VirtualizedCardGrid
                 items={items}
                 getItemKey={(entry) => entry.id}
-                columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
+                columns={COLLECTION_GRID_COLUMNS}
                 gap={24}
                 estimatedRowHeight={520}
                 threshold={1}

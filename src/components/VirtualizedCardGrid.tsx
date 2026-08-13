@@ -119,6 +119,13 @@ function useViewportWidth(): number {
   return width;
 }
 
+// The column count this grid would render at the current viewport width. Exported
+// so callers that decorate the grid (Collections' era bands) derive rows and
+// columns from the same breakpoints the grid itself uses.
+export function useResponsiveColumnCount(columns: ResponsiveGridColumns): number {
+  return resolveColumnCount(useViewportWidth(), columns);
+}
+
 function keyToken(key: Key): string {
   return `${typeof key}:${String(key)}`;
 }
@@ -149,8 +156,7 @@ function VirtualizedCardGridInner<T>(
   forwardedRef: Ref<VirtualizedCardGridHandle>,
 ) {
   const mainScrollContainer = useOptionalMainScrollContainer();
-  const viewportWidth = useViewportWidth();
-  const columnCount = resolveColumnCount(viewportWidth, columns);
+  const columnCount = useResponsiveColumnCount(columns);
   const normalizedGap = Number.isFinite(gap) ? Math.max(0, gap) : 24;
   const normalizedEstimatedRowHeight = Number.isFinite(estimatedRowHeight)
     ? Math.max(1, estimatedRowHeight)
