@@ -1,6 +1,8 @@
-import { useEffect, useState, useMemo } from "react";
+import { Fragment, useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image, Pencil, CornerDownRight } from "lucide-react";
+import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image, Pencil, CornerDownRight, GripVertical } from "lucide-react";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from "@dnd-kit/sortable";
 import { collectionsLogic, type Collection, type Era, type CollectionItemView } from "../lib/collections-logic";
 import { dbService, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
@@ -23,6 +25,10 @@ import {
   type ResponsiveGridColumns,
 } from "../components/VirtualizedCardGrid";
 import { buildEraBands, type EraBandSegment } from "../lib/collections/era-bands";
+import { sortCollections, type CollectionSortMode } from "../lib/collections/sorting";
+import { CollectionSortMenu } from "../components/collections/CollectionSortMenu";
+import { SortableCollectionCard } from "../components/collections/SortableCollectionCard";
+import { getCollectionsSortMode, setCollectionsSortMode } from "../lib/settings";
 
 // Shared by both grid paths — the Tailwind classes below and the virtualized
 // grid must resolve to the same column count, or the era bands wrap elsewhere
@@ -128,6 +134,7 @@ function CollectionThumbnails({ images }: { images: string[] }) {
 
 export default function CollectionsPage() {
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [sortMode, setSortMode] = useState<CollectionSortMode>(() => getCollectionsSortMode());
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [items, setItems] = useState<CollectionItemView[]>([]);
   const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
@@ -156,11 +163,51 @@ export default function CollectionsPage() {
   // list, so bands never blink out while the two are refetched in sequence.
   const bands = useMemo(() => buildEraBands(items, columnCount), [columnCount, items]);
 
+  // The index grid's order. `collections` always holds the stored Custom order
+  // as the query returned it; every other mode is derived here, so switching
+  // sorts never costs a query and never disturbs the saved arrangement.
+  const orderedCollections = useMemo(
+    () => sortCollections(collections, sortMode),
+    [collections, sortMode]
+  );
+  const canReorder = sortMode === "custom" && collections.length > 1;
+
+  const collectionSensors = useSensors(
+    // Cards are clickable, so a drag only begins once the pointer has actually
+    // travelled — otherwise opening a collection would register as a drag.
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
   useEffect(() => {
     loadCollections();
   }, []);
 
   const loadCollections = () => collectionsLogic.getAllCollections().then(setCollections);
+
+  const handleSortModeChange = (mode: CollectionSortMode) => {
+    setSortMode(mode);
+    setCollectionsSortMode(mode);
+  };
+
+  const handleCollectionDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = orderedCollections.findIndex(col => col.id === active.id);
+    const newIndex = orderedCollections.findIndex(col => col.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Renumber locally so the Custom comparator reproduces exactly this order,
+    // then persist. A failed write refetches rather than leaving the grid
+    // showing an arrangement the database never accepted.
+    const reordered = arrayMove(orderedCollections, oldIndex, newIndex)
+      .map((col, index) => ({ ...col, sort_order: index }));
+    setCollections(reordered);
+    collectionsLogic
+      .updateCollectionOrder(reordered.map(col => col.id))
+      .catch(() => loadCollections());
+  };
 
   const refreshSelectedCollection = async (collection: Collection) => {
     const collectionItems = await collectionsLogic.getCollectionItems(collection.id);
@@ -499,10 +546,83 @@ export default function CollectionsPage() {
   }
 
   // --- VIEW 2: LIST (Grid of Collections) ---
+  // `h-full` matters once a card is wrapped for dragging: the wrapper becomes
+  // the stretched grid item, and without it the card would shrink to its own
+  // content and break the even card heights within a row.
+  const renderCollectionCard = (col: Collection, index: number) => (
+    <div
+      onClick={() => handleSelectCollection(col)}
+      className="relative h-full collection-card-gradient border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer group hover:shadow-2xl card-shine collection-card-enter"
+      style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
+    >
+      {/* Watermark number */}
+      <div className="collection-watermark -top-4 -right-2 group-hover:text-white/[0.04] transition-all">
+        #{index + 1}
+      </div>
+
+      {/* Glow effect on hover */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-500 z-0" style={{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--color-primary) 10%, transparent), color-mix(in srgb, var(--color-secondary) 5%, transparent))` }} />
+
+      {/* Thumbnail Grid */}
+      <div className="aspect-video w-full border-b border-white/5 collection-thumbnails relative z-10">
+        <CollectionThumbnails images={col.thumbnails || []} />
+
+        {/* Overlay gradient */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      </div>
+
+      <div className="relative z-10 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-lg text-white transition-all truncate">
+              {col.name}
+            </h3>
+            <div className="flex items-center gap-2 mt-2">
+              <div className="collection-stat-badge px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                <FolderOpen size={12} style={{ color: 'var(--color-primary)' }} />
+                <span className="text-sm font-semibold text-white">{col.item_count}</span>
+                <span className="text-xs text-gray-400">items</span>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={(e) => handleDeleteCollection(e, col)}
+            className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+
+        {/* Description if available */}
+        {col.description && (
+          <p className="text-sm text-gray-500 mt-2 line-clamp-2">{col.description}</p>
+        )}
+      </div>
+    </div>
+  );
+
+  const collectionsGrid = (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {orderedCollections.map((col, index) =>
+        canReorder ? (
+          <SortableCollectionCard key={col.id} id={col.id}>
+            {renderCollectionCard(col, index)}
+          </SortableCollectionCard>
+        ) : (
+          <Fragment key={col.id}>{renderCollectionCard(col, index)}</Fragment>
+        )
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-8">
-      {/* Enhanced Header */}
-      <header className="flex items-center justify-between collection-header-enter">
+      {/* Enhanced Header. `relative z-30` is what keeps the sort menu on top of
+          the grid: both the header and every card carry a `forwards` entrance
+          animation on opacity/transform, so each is its own stacking context and
+          the later-in-DOM cards would otherwise paint over the open panel no
+          matter how high its own z-index is. */}
+      <header className="relative z-30 flex items-center justify-between collection-header-enter">
         <div>
           <h2 className="text-3xl font-bold bg-clip-text text-transparent inline-flex items-center gap-3" style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}>
             <div className="p-2 rounded-xl" style={{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 20%, transparent))` }}>
@@ -512,14 +632,19 @@ export default function CollectionsPage() {
           </h2>
           <p className="text-gray-400 mt-1">Curate and organize your favorite media groups</p>
         </div>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all hover:scale-[1.02] hover:brightness-110 text-white"
-                style={{ background: `linear-gradient(to right, var(--color-primary), var(--color-secondary))`, boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)` }}
-        >
-          <Plus size={18} />
-          New Collection
-        </button>
+        <div className="flex items-center gap-3">
+          {collections.length > 0 && (
+            <CollectionSortMenu mode={sortMode} onChange={handleSortModeChange} />
+          )}
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all hover:scale-[1.02] hover:brightness-110 text-white"
+            style={{ background: `linear-gradient(to right, var(--color-primary), var(--color-secondary))`, boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)` }}
+          >
+            <Plus size={18} />
+            New Collection
+          </button>
+        </div>
       </header>
 
       {collections.length === 0 ? (
@@ -545,59 +670,26 @@ export default function CollectionsPage() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {collections.map((col, index) => (
-            <div
-              key={col.id}
-              onClick={() => handleSelectCollection(col)}
-              className="relative collection-card-gradient border border-white/10 rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer group hover:shadow-2xl card-shine collection-card-enter"
-              style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
+        <div className="space-y-3">
+          {canReorder && (
+            <p className="flex items-center gap-1.5 text-xs text-gray-500">
+              <GripVertical size={12} />
+              Drag a collection to move it — your order is saved as you go
+            </p>
+          )}
+          {canReorder ? (
+            <DndContext
+              sensors={collectionSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleCollectionDragEnd}
             >
-              {/* Watermark number */}
-              <div className="collection-watermark -top-4 -right-2 group-hover:text-white/[0.04] transition-all">
-                #{index + 1}
-              </div>
-
-              {/* Glow effect on hover */}
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-500 z-0" style={{ background: `linear-gradient(to bottom right, color-mix(in srgb, var(--color-primary) 10%, transparent), color-mix(in srgb, var(--color-secondary) 5%, transparent))` }} />
-
-              {/* Thumbnail Grid */}
-              <div className="aspect-video w-full border-b border-white/5 collection-thumbnails relative z-10">
-                <CollectionThumbnails images={col.thumbnails || []} />
-
-                {/* Overlay gradient */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              </div>
-
-              <div className="relative z-10 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-lg text-white transition-all truncate">
-                      {col.name}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-2">
-                      <div className="collection-stat-badge px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-                        <FolderOpen size={12} style={{ color: 'var(--color-primary)' }} />
-                        <span className="text-sm font-semibold text-white">{col.item_count}</span>
-                        <span className="text-xs text-gray-400">items</span>
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => handleDeleteCollection(e, col)}
-                    className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-
-                {/* Description if available */}
-                {col.description && (
-                  <p className="text-sm text-gray-500 mt-2 line-clamp-2">{col.description}</p>
-                )}
-              </div>
-            </div>
-          ))}
+              <SortableContext items={orderedCollections.map(col => col.id)} strategy={rectSortingStrategy}>
+                {collectionsGrid}
+              </SortableContext>
+            </DndContext>
+          ) : (
+            collectionsGrid
+          )}
         </div>
       )}
 

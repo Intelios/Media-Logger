@@ -118,6 +118,8 @@ export function validateBackupTables(value: unknown): asserts value is BackupTab
     requireString(row, 'name', context);
     requireNullableString(row, 'description', context);
     requireString(row, 'created_date', context);
+    // Optional: pre-v4 backups have no collection order to carry.
+    if (row.sort_order !== undefined) requireNumber(row, 'sort_order', context, { integer: true });
   });
 
   const eras = asRows(tables.collection_eras, 'collection_eras');

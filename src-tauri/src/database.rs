@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use tauri::State;
 use tauri_plugin_sql::{DbInstances, DbPool};
 
-const DATABASE_SCHEMA_VERSION: i64 = 3;
+const DATABASE_SCHEMA_VERSION: i64 = 4;
 const MAX_SQLITE_BIND_PARAMS: usize = 999;
 const MAX_BULK_MUTATION_ITEMS: usize = 10_000;
 
@@ -43,6 +43,10 @@ pub struct CollectionRow {
     pub name: String,
     pub description: Option<String>,
     pub created_date: String,
+    // Position under the Collections screen's Custom sort. Defaulted for serde
+    // so backups written before schema v4 still deserialize.
+    #[serde(default)]
+    pub sort_order: i64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
@@ -258,7 +262,8 @@ async fn create_current_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<(), S
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             description TEXT,
-            created_date TEXT NOT NULL
+            created_date TEXT NOT NULL,
+            sort_order INTEGER DEFAULT 0
         )"#,
         r#"CREATE TABLE IF NOT EXISTS award_templates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -822,6 +827,41 @@ async fn migrate_to_v3(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
     .await
 }
 
+async fn migrate_to_v4(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
+    // The Collections screen used to be hard-sorted by name. It now offers a
+    // Custom order, which needs a per-collection position to live in.
+    let mut columns = table_columns(tx, "collections").await?;
+    add_missing_column(
+        tx,
+        "collections",
+        &mut columns,
+        "sort_order",
+        "INTEGER DEFAULT 0",
+    )
+    .await?;
+
+    // Seed the custom order from the order the user has been looking at all
+    // along (name ascending, id breaking ties), so switching to Custom starts
+    // from the familiar arrangement instead of an arbitrary one.
+    execute_schema_sql(
+        tx,
+        r#"UPDATE collections SET sort_order = (
+             SELECT COUNT(*) FROM collections other
+             WHERE other.name < collections.name
+                OR (other.name = collections.name AND other.id < collections.id)
+           )"#,
+        "Failed to seed the collection order",
+    )
+    .await?;
+
+    execute_schema_sql(
+        tx,
+        "CREATE INDEX IF NOT EXISTS idx_collections_sort_id ON collections (sort_order, id)",
+        "Failed to create the collection order index",
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn database_run_migrations(
     database_url: String,
@@ -897,7 +937,38 @@ pub async fn database_run_migrations(
             .await
             .map_err(|error| database_error("Failed to commit database migration", error))?;
         applied.push(3);
+        migrated_version = 3;
     }
+
+    if migrated_version < 4 {
+        let mut tx = pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(|error| database_error("Failed to begin database migration", error))?;
+        let migration_result = async {
+            migrate_to_v4(&mut tx).await?;
+            execute_schema_sql(
+                &mut tx,
+                "PRAGMA user_version = 4",
+                "Failed to record the database schema version",
+            )
+            .await
+        }
+        .await;
+        if let Err(error) = migration_result {
+            return match tx.rollback().await {
+                Ok(()) => Err(error),
+                Err(rollback_error) => Err(format!(
+                    "{error}; migration rollback also failed: {rollback_error}"
+                )),
+            };
+        }
+        tx.commit()
+            .await
+            .map_err(|error| database_error("Failed to commit database migration", error))?;
+        applied.push(4);
+    }
+
     if !applied.is_empty() {
         // Schema/plan changes may invalidate cached statistics. This is a
         // best-effort optimization hint and must never block app startup.
@@ -1002,6 +1073,39 @@ pub async fn database_reorder_collection_items(
             return Err(format!(
                 "Collection item {media_id} does not belong to collection {collection_id}"
             ));
+        }
+    }
+
+    tx.commit()
+        .await
+        .map_err(|error| database_error("Failed to commit collection reorder", error))
+}
+
+/// Persist the Collections screen's Custom order. Unlike the other reorder
+/// commands there is no parent scope to validate against, so a missing row is
+/// the only failure case.
+#[tauri::command]
+pub async fn database_reorder_collections(
+    database_url: String,
+    collection_ids: Vec<i64>,
+    instances: State<'_, DbInstances>,
+) -> Result<(), String> {
+    validate_bulk_ids(&collection_ids, "Collection order")?;
+    let pool = sqlite_pool(&instances, &database_url).await?;
+    let mut tx = pool
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|error| database_error("Failed to begin collection reorder", error))?;
+
+    for (sort_order, collection_id) in collection_ids.into_iter().enumerate() {
+        let result = sqlx::query("UPDATE collections SET sort_order = ? WHERE id = ?")
+            .bind(sort_order as i64)
+            .bind(collection_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|error| database_error("Failed to reorder a collection", error))?;
+        if result.rows_affected() != 1 {
+            return Err(format!("Collection {collection_id} no longer exists"));
         }
     }
 
@@ -1170,7 +1274,7 @@ pub async fn database_export_snapshot(
         ),
         collections: fetch_rows!(
             CollectionRow,
-            "SELECT id, name, description, created_date FROM collections ORDER BY id",
+            "SELECT id, name, description, created_date, sort_order FROM collections ORDER BY id",
             "Failed to export collections"
         ),
         collection_eras: fetch_rows!(
@@ -1388,14 +1492,15 @@ async fn insert_collections(
 ) -> Result<(), String> {
     for chunk in rows.chunks(batch_size(4)) {
         let mut query = QueryBuilder::<Sqlite>::new(
-            "INSERT INTO collections (id, name, description, created_date) ",
+            "INSERT INTO collections (id, name, description, created_date, sort_order) ",
         );
         query.push_values(chunk, |mut values, planned| {
             values
                 .push_bind(planned.target_id)
                 .push_bind(&planned.row.name)
                 .push_bind(&planned.row.description)
-                .push_bind(&planned.row.created_date);
+                .push_bind(&planned.row.created_date)
+                .push_bind(planned.row.sort_order);
         });
         query
             .build()
@@ -1746,7 +1851,7 @@ async fn import_backup_transaction(
     }
 
     let existing_collections = sqlx::query_as::<_, CollectionRow>(
-        "SELECT id, name, description, created_date FROM collections ORDER BY id",
+        "SELECT id, name, description, created_date, sort_order FROM collections ORDER BY id",
     )
     .fetch_all(&mut **tx)
     .await

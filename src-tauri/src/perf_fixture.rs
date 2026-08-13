@@ -969,7 +969,7 @@ mod implementation {
         for collection_index in 0..collection_count {
             let collection_id = (collection_index + 1) as i64;
             sqlx::query(
-                "INSERT INTO collections (id,name,description,created_date) VALUES (?,?,?,?)",
+                "INSERT INTO collections (id,name,description,created_date,sort_order) VALUES (?,?,?,?,?)",
             )
             .bind(collection_id)
             .bind(format!(
@@ -982,6 +982,7 @@ mod implementation {
                 "Synthetic collection for virtualization and mosaic loading.".to_string()
             })
             .bind("2026-01-01T09:00:00Z")
+            .bind(collection_index as i64)
             .execute(&mut **tx)
             .await
             .map_err(|error| format!("Failed to insert fixture collections: {error}"))?;

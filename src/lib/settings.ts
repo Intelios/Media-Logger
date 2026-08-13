@@ -1,5 +1,6 @@
 import { appLocalDataDir } from '@tauri-apps/api/path';
 import { IS_DATA_DIRECTORY_ISOLATED } from './performance-mode';
+import { isCollectionSortMode, type CollectionSortMode } from './collections/sorting';
 
 const STORAGE_KEY = 'media-logger-data-directory';
 const DISPLAY_NAME_KEY = 'media-logger-display-name';
@@ -8,6 +9,7 @@ const RATING_DISPLAY_MODE_KEY = 'media-logger-rating-display-mode';
 const ADULT_MEDIA_ENABLED_KEY = 'media-logger-adult-media-enabled';
 const FEATURED_ADULT_ALLOWED_KEY = 'media-logger-featured-adult-allowed';
 const BACKLOG_UNRELEASED_COLLAPSED_KEY = 'media-logger-backlog-unreleased-collapsed';
+const COLLECTIONS_SORT_MODE_KEY = 'media-logger-collections-sort';
 
 /**
  * Window event fired when the Adult Media visibility setting changes, so any
@@ -212,4 +214,21 @@ export function isUnreleasedSectionCollapsed(): boolean {
  */
 export function setUnreleasedSectionCollapsed(collapsed: boolean): void {
     localStorage.setItem(BACKLOG_UNRELEASED_COLLAPSED_KEY, collapsed ? 'true' : 'false');
+}
+
+/**
+ * How the Collections screen orders its cards. Defaults to alphabetical, the
+ * only order the screen offered before sorting was configurable, so an existing
+ * library looks unchanged until the user picks something else.
+ */
+export function getCollectionsSortMode(): CollectionSortMode {
+    const stored = localStorage.getItem(COLLECTIONS_SORT_MODE_KEY);
+    return isCollectionSortMode(stored) ? stored : 'name-asc';
+}
+
+/**
+ * Persist the Collections screen's sort mode.
+ */
+export function setCollectionsSortMode(mode: CollectionSortMode): void {
+    localStorage.setItem(COLLECTIONS_SORT_MODE_KEY, mode);
 }

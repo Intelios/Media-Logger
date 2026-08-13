@@ -6,6 +6,7 @@ export interface Collection {
   name: string;
   description: string | null;
   created_date: string;
+  sort_order: number; // Position under the Custom sort on the Collections screen
   item_count?: number; // Calculated field
   thumbnails?: string[]; // For cover preview
 }
@@ -39,13 +40,15 @@ export const collectionsLogic = {
     // Join through to entries so item_count reflects only entries that resolve and pass the
     // adult filter — the exclusion goes in the ON clause (not WHERE) so empty collections
     // still count 0. COUNT(m.id) then only tallies rows where the entries join succeeded.
+    // Returned in the Custom order; the Collections screen re-sorts in memory
+    // when another sort mode is active (see `src/lib/collections/sorting.ts`).
     const cols = await db.select<(Collection & { item_count: number })[]>(
-      `SELECT c.id, c.name, c.description, c.created_date, COUNT(m.id) as item_count
+      `SELECT c.id, c.name, c.description, c.created_date, c.sort_order, COUNT(m.id) as item_count
        FROM collections c
        LEFT JOIN collection_items ci ON ci.collection_id = c.id
        LEFT JOIN entries m ON ci.media_id = m.id${adultExclusionSql()}
-       GROUP BY c.id, c.name, c.description, c.created_date
-       ORDER BY c.name ASC`
+       GROUP BY c.id, c.name, c.description, c.created_date, c.sort_order
+       ORDER BY c.sort_order ASC, c.name ASC`
     );
 
     // Fetch only the first 4 visible thumbnails per collection. A window
@@ -150,11 +153,13 @@ export const collectionsLogic = {
     );
   },
 
-  // 3. Create Collection
+  // 3. Create Collection. A new collection lands at the end of the Custom
+  // order rather than sharing position 0 with whatever is already first.
   async createCollection(name: string, description: string) {
     const db = await dbService.connect();
     await db.execute(
-        "INSERT INTO collections (name, description, created_date) VALUES ($1, $2, datetime('now'))",
+        `INSERT INTO collections (name, description, created_date, sort_order)
+         VALUES ($1, $2, datetime('now'), (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM collections))`,
         [name, description]
     );
   },
@@ -200,6 +205,16 @@ export const collectionsLogic = {
       databaseUrl: db.path,
       collectionId,
       mediaIds,
+    });
+  },
+
+  // 8. Update the Custom order of the collections themselves. Takes the full
+  // list in its new order — positions are rewritten from the array index.
+  async updateCollectionOrder(collectionIds: number[]) {
+    const db = await dbService.connect();
+    await invoke('database_reorder_collections', {
+      databaseUrl: db.path,
+      collectionIds,
     });
   }
 };

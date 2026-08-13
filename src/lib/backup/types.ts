@@ -8,6 +8,9 @@ export interface CollectionBackupRow {
   name: string;
   description: string | null;
   created_date: string;
+  // Added with schema v4. Backups written before it simply omit the field and
+  // import at 0, which leaves every collection tied and falling back to name.
+  sort_order?: number;
 }
 
 export interface CollectionEraBackupRow {
