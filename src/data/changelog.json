@@ -1,8 +1,16 @@
 {
-  "generatedAt": "2026-08-12T18:59:12.899Z",
+  "generatedAt": "2026-08-13T13:19:04.978Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "4.0.2",
+      "title": "Media Logger - 4.0.2",
+      "date": "2026-08-13",
+      "body": "New Content / Features:\n- Improved the visual makeup of the Eras feature in the collections page.\n- Added a specific Development build to ensure the production build isn't used during testing of new features.\n- The Collections home screen can now be sorted: Custom (drag the cards into any order you like, saved as you go), Alphabetical, Reverse alphabetical, Most/Fewest items, and Newest/Oldest. Your choice is remembered, and your custom arrangement is stored with your library so it survives backup and restore.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.0.2"
+    },
     {
       "version": "4.0.1",
       "title": "Media Logger - 4.0.1",
