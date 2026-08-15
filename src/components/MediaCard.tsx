@@ -84,6 +84,7 @@ interface MediaCardProps {
   dateAccentClass?: string; // text color, e.g. "text-blue-400"
   dateTintClass?: string;   // gradient bg, e.g. "from-blue-500/12 to-cyan-500/6"
   imagePriority?: CoverPriority;
+  topLeftActions?: React.ReactNode;
 }
 
 function MediaCardDialogFallback() {
@@ -95,7 +96,19 @@ function MediaCardDialogFallback() {
   );
 }
 
-export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete, onDuplicate, awards = [], profileKeys, dateEmphasis = 'default', dateAccentClass, dateTintClass, imagePriority = 'auto' }: MediaCardProps) {
+export const MediaCard = React.memo(function MediaCard({
+  entry,
+  onEdit,
+  onDelete,
+  onDuplicate,
+  awards = [],
+  profileKeys,
+  dateEmphasis = 'default',
+  dateAccentClass,
+  dateTintClass,
+  imagePriority = 'auto',
+  topLeftActions,
+}: MediaCardProps) {
   const navigate = useNavigate();
   const { bindTooltip } = useHoverTooltip();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -251,23 +264,29 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
             {/* Gradient Overlay */}
             <div className={cn("absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300", imageTopRadius)} />
 
-            {/* Platinum Badge */}
-            {hasPlatinum && (
-              <div
-                {...bindTooltip(
-                  <span className="text-xs font-medium text-cyan-200">Platinum / 100% Completed</span>,
-                  {
-                    width: "content",
-                    className: "rounded-lg px-3 py-1.5 whitespace-nowrap",
-                    style: { borderColor: "color-mix(in srgb, #67e8f9 40%, var(--color-border))" },
-                  }
+            {/* Top Left: Badges & Actions */}
+            {(hasPlatinum || topLeftActions) && (
+              <div className="absolute top-2 left-2 z-20 flex items-center gap-1.5 pointer-events-auto">
+                {/* Platinum Badge */}
+                {hasPlatinum && (
+                  <div
+                    {...bindTooltip(
+                      <span className="text-xs font-medium text-cyan-200">Platinum / 100% Completed</span>,
+                      {
+                        width: "content",
+                        className: "rounded-lg px-3 py-1.5 whitespace-nowrap",
+                        style: { borderColor: "color-mix(in srgb, #67e8f9 40%, var(--color-border))" },
+                      }
+                    )}
+                  >
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-amber-400/95 via-yellow-300/95 to-cyan-300/95 rounded-full shadow-lg shadow-cyan-500/25 border border-white/30">
+                      <Trophy size={12} className="text-slate-900" />
+                      <span className="text-[10px] font-black tracking-wide text-slate-900">PLATINUM 100%</span>
+                    </div>
+                  </div>
                 )}
-                className="absolute top-2 left-2 z-20"
-              >
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-amber-400/95 via-yellow-300/95 to-cyan-300/95 rounded-full shadow-lg shadow-cyan-500/25 border border-white/30">
-                  <Trophy size={12} className="text-slate-900" />
-                  <span className="text-[10px] font-black tracking-wide text-slate-900">PLATINUM 100%</span>
-                </div>
+
+                {topLeftActions}
               </div>
             )}
 
@@ -277,11 +296,11 @@ export const MediaCard = React.memo(function MediaCard({ entry, onEdit, onDelete
                 ref={menuButtonRef}
                 onClick={handleMenuClick}
                 className={cn(
-                  "p-1.5 bg-black/50 backdrop-blur-sm rounded-full transition-all hover:bg-black/70",
+                  "w-7 h-7 flex items-center justify-center bg-black/50 backdrop-blur-sm border border-white/10 rounded-full transition-all hover:bg-black/70 hover:border-white/20 text-white/80 hover:text-white shadow-sm",
                   menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                 )}
               >
-                <MoreVertical size={16} className="text-white" />
+                <MoreVertical size={14} />
               </button>
             </div>
 

@@ -344,24 +344,30 @@ export default function CollectionsPage() {
             onEdit={handleEditFromCard}
             onDelete={handleDeleteFromCard}
             awards={entry.id ? awardsMap.get(entry.id) : undefined}
-          />
-          {/* Hover Remove Button */}
-          <button
-            onClick={() => setItemToRemove(entry)}
-            {...bindTooltip(
-              <span className="text-xs font-medium text-text">Remove from collection</span>,
-              { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
-            )}
-            className="absolute top-2 left-2 bg-red-600 hover:bg-red-500 p-2 rounded-xl text-white opacity-0 group-hover:opacity-100 transition-all shadow-lg z-30 hover:scale-110"
-          >
-            <Trash2 size={14} />
-            <span className="sr-only">Remove from collection</span>
-          </button>
-          {/* Era assignment (hover) */}
-          <EraAssignMenu
-            eras={eras}
-            currentEraId={entry.era_id}
-            onAssign={(eraId) => handleAssignEra(entry.id, eraId)}
+            topLeftActions={
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setItemToRemove(entry);
+                  }}
+                  {...bindTooltip(
+                    <span className="text-xs font-medium text-text">Remove from collection</span>,
+                    { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                  )}
+                  className="w-7 h-7 flex items-center justify-center rounded-full bg-black/50 backdrop-blur-sm border border-white/10 hover:bg-rose-500/30 hover:border-rose-400/40 text-white/80 hover:text-rose-200 transition-all opacity-0 group-hover:opacity-100 shadow-sm"
+                >
+                  <Trash2 size={13} />
+                  <span className="sr-only">Remove from collection</span>
+                </button>
+                <EraAssignMenu
+                  eras={eras}
+                  currentEraId={entry.era_id}
+                  onAssign={(eraId) => handleAssignEra(entry.id, eraId)}
+                />
+              </>
+            }
           />
         </div>
         {band?.label && <EraBandLabel band={band} />}
