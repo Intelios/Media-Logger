@@ -124,6 +124,14 @@ export default function SearchPage() {
   // The slider fires per pointer move; defer querying until the user pauses so
   // a drag never runs a search per event.
   const debouncedScoreRange = useDebouncedValue(filters.scoreRange, 200);
+  // Everything that mirrors the results — the layout switch, chips, badges —
+  // reads this settled view, so a rating drag behaves exactly like typing:
+  // nothing shifts until the pause.
+  const settledFilters = useMemo(
+    () => ({ ...filters, scoreRange: debouncedScoreRange }),
+    [filters, debouncedScoreRange],
+  );
+  const settledFilterCount = getActiveFilterCount(settledFilters);
   const [isLoadingResults, setIsLoadingResults] = useState(() => hasActiveFilters(loadPersistedFilters()));
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isLoadingFilters, setIsLoadingFilters] = useState(true);
@@ -328,7 +336,10 @@ export default function SearchPage() {
     };
   }, [results]);
 
-  const activeFilterCount = getActiveFilterCount(filters);
+  // The header mirrors the settled (debounced) filters so a mid-drag range
+  // never shifts the layout or flashes chips/badges; the raw range only
+  // drives the slider and its panel preview.
+  const activeFilterCount = settledFilterCount;
 
   const hasActiveSearch = query.trim().length > 0 || activeFilterCount > 0;
 
@@ -342,17 +353,17 @@ export default function SearchPage() {
 
   const activeFilterChips = useMemo(() => {
     const chips: { key: keyof SearchFilters; label: string; value: string }[] = [];
-    (Object.keys(filters) as (keyof SearchFilters)[]).forEach((key) => {
+    (Object.keys(settledFilters) as (keyof SearchFilters)[]).forEach((key) => {
       if (key === "scoreRange") return;
-      for (const value of filters[key] as string[]) {
+      for (const value of settledFilters[key] as string[]) {
         chips.push({ key, label: FILTER_LABELS[key], value });
       }
     });
-    if (filters.scoreRange) {
-      chips.push({ key: "scoreRange", label: "Rating", value: formatScoreRange(filters.scoreRange) });
+    if (settledFilters.scoreRange) {
+      chips.push({ key: "scoreRange", label: "Rating", value: formatScoreRange(settledFilters.scoreRange) });
     }
     return chips;
-  }, [filters]);
+  }, [settledFilters]);
 
   const pushRecentSearch = useCallback((term: string) => {
     const trimmed = term.trim();
@@ -658,9 +669,9 @@ export default function SearchPage() {
                 >
                   <Star size={16} />
                   <span>Rating</span>
-                  {filters.scoreRange && (
+                  {settledFilters.scoreRange && (
                     <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
-                      {formatScoreRange(filters.scoreRange)}
+                      {formatScoreRange(settledFilters.scoreRange)}
                     </span>
                   )}
                   {showRatingPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -735,9 +746,9 @@ export default function SearchPage() {
                   >
                     <Star size={16} />
                     <span>Rating</span>
-                    {filters.scoreRange && (
+                    {settledFilters.scoreRange && (
                       <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
-                        {formatScoreRange(filters.scoreRange)}
+                        {formatScoreRange(settledFilters.scoreRange)}
                       </span>
                     )}
                     {showRatingPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}

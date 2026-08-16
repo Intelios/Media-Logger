@@ -30,8 +30,10 @@ export function formatScoreRange(range: ScoreRange): string {
  * Dual-thumb score range slider. Two stacked native range inputs share one
  * visual track: the min input stays fully interactive while the max input is
  * click-through except for its thumb, so each thumb drags independently.
- * Native inputs keep arrow-key support for free, and each input's min/max
- * attribute is bound to the other thumb so the pair can never cross.
+ * Native inputs keep arrow-key support for free. Both inputs span the full
+ * fixed track so each thumb's position depends only on its own value —
+ * binding one input's range to the other thumb would reflow the paired thumb
+ * mid-drag. Crossing is prevented by clamping in onChange instead.
  */
 export function ScoreRangeSlider({
   value,
@@ -58,20 +60,24 @@ export function ScoreRangeSlider({
         <input
           type="range"
           min={min}
-          max={value.max}
+          max={max}
           step={step}
           value={value.min}
-          onChange={(event) => onChange({ min: parseFloat(event.target.value), max: value.max })}
+          onChange={(event) =>
+            onChange({ min: Math.min(parseFloat(event.target.value), value.max), max: value.max })
+          }
           className="score-range-input score-range-input-min"
           aria-label="Minimum score"
         />
         <input
           type="range"
-          min={value.min}
+          min={min}
           max={max}
           step={step}
           value={value.max}
-          onChange={(event) => onChange({ min: value.min, max: parseFloat(event.target.value) })}
+          onChange={(event) =>
+            onChange({ min: value.min, max: Math.max(parseFloat(event.target.value), value.min) })
+          }
           className="score-range-input score-range-input-max"
           aria-label="Maximum score"
         />
