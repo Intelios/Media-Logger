@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { Search as SearchIcon, X, Filter, ChevronDown, ChevronUp, RotateCcw, Dices } from "lucide-react";
+import { Search as SearchIcon, X, Filter, ChevronDown, ChevronUp, RotateCcw, Dices, Star } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { dbService, type EntryCardSummary, type MediaEntry, type SearchFilterOptions } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
@@ -7,6 +7,7 @@ import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { RandomPickModal } from "../components/RandomPickModal";
+import { ScoreRangeSlider, formatScoreRange, type ScoreRange } from "../components/ScoreRangeSlider";
 import { cn } from "../lib/utils_ui";
 import { getVisibleEntryTypes, useAdultMediaEnabled } from "../lib/media-config";
 import { VirtualizedCardGrid } from "../components/VirtualizedCardGrid";
@@ -25,6 +26,8 @@ interface SearchFilters {
   authors: string[];
   franchises: string[];
   series: string[];
+  /** Inclusive score bounds (0–10); null means no rating filter. */
+  scoreRange: ScoreRange | null;
 }
 
 const defaultFilters: SearchFilters = {
@@ -35,6 +38,7 @@ const defaultFilters: SearchFilters = {
   authors: [],
   franchises: [],
   series: [],
+  scoreRange: null,
 };
 
 const emptyFilterOptions: SearchFilterOptions = {
@@ -46,7 +50,7 @@ const emptyFilterOptions: SearchFilterOptions = {
   series: [],
 };
 
-const FILTER_LABELS: Record<keyof SearchFilters, string> = {
+const FILTER_LABELS: Record<Exclude<keyof SearchFilters, "scoreRange">, string> = {
   entryTypes: "Type",
   platforms: "Platform",
   actresses: "Actress",
@@ -58,11 +62,27 @@ const FILTER_LABELS: Record<keyof SearchFilters, string> = {
 
 const shellTransition = { type: "spring", stiffness: 280, damping: 30 } as const;
 
+const isScoreRange = (value: unknown): value is ScoreRange =>
+  typeof value === "object" &&
+  value !== null &&
+  typeof (value as ScoreRange).min === "number" &&
+  typeof (value as ScoreRange).max === "number" &&
+  Number.isFinite((value as ScoreRange).min) &&
+  Number.isFinite((value as ScoreRange).max) &&
+  (value as ScoreRange).min >= 0 &&
+  (value as ScoreRange).max <= 10 &&
+  (value as ScoreRange).min <= (value as ScoreRange).max;
+
 const loadPersistedFilters = (): SearchFilters => {
   try {
     const stored = localStorage.getItem(SEARCH_FILTERS_KEY);
     if (stored) {
-      return { ...defaultFilters, ...JSON.parse(stored) };
+      const parsed: Partial<SearchFilters> = JSON.parse(stored);
+      return {
+        ...defaultFilters,
+        ...parsed,
+        scoreRange: isScoreRange(parsed.scoreRange) ? parsed.scoreRange : null,
+      };
     }
   } catch {
     // Fall back to defaults if local storage is unavailable or malformed.
@@ -100,6 +120,10 @@ export default function SearchPage() {
   const [filters, setFilters] = useState<SearchFilters>(loadPersistedFilters);
   const [filterOptions, setFilterOptions] = useState<SearchFilterOptions>(emptyFilterOptions);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showRatingPanel, setShowRatingPanel] = useState(false);
+  // The slider fires per pointer move; defer querying until the user pauses so
+  // a drag never runs a search per event.
+  const debouncedScoreRange = useDebouncedValue(filters.scoreRange, 200);
   const [isLoadingResults, setIsLoadingResults] = useState(() => hasActiveFilters(loadPersistedFilters()));
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isLoadingFilters, setIsLoadingFilters] = useState(true);
@@ -136,6 +160,7 @@ export default function SearchPage() {
           authors: prune(current.authors, options.authors),
           franchises: prune(current.franchises, options.franchises),
           series: prune(current.series, options.series),
+          scoreRange: current.scoreRange,
         }));
       })
       .catch((error) => {
@@ -168,6 +193,11 @@ export default function SearchPage() {
   }, [recentSearches]);
 
   useEffect(() => {
+    // The slider updates filters.scoreRange per drag frame. Until the debounce
+    // settles the query is unchanged, so skip those frames entirely — re-running
+    // here would flash the loading state on every pointer move.
+    if (filters.scoreRange !== debouncedScoreRange) return;
+
     const generation = ++searchGenerationRef.current;
     const hasCriteria = debouncedQuery.trim().length > 0 || hasActiveFilters(filters);
 
@@ -189,9 +219,14 @@ export default function SearchPage() {
       queryLength: debouncedQuery.trim().length,
     });
 
+    // The raw scoreRange changes per drag frame; the key must track the
+    // debounced range so a drag doesn't mint a new cache key per pointer move.
     const searchFilters = {
       query: debouncedQuery,
       ...filters,
+      scoreRange: debouncedScoreRange,
+      scoreMin: debouncedScoreRange?.min,
+      scoreMax: debouncedScoreRange?.max,
     };
     queryClient.fetchQuery({
       queryKey: mediaQueryKeys.search(searchFilters, 0),
@@ -220,7 +255,7 @@ export default function SearchPage() {
           setIsLoadingResults(false);
         }
       });
-  }, [debouncedQuery, filters, refreshToken, adultEnabled]);
+  }, [debouncedQuery, filters, debouncedScoreRange, refreshToken, adultEnabled]);
 
   const loadMoreResults = useCallback(() => {
     if (!hasMoreResults || isLoadingResults || isLoadingMore) return;
@@ -232,7 +267,13 @@ export default function SearchPage() {
       queryLength: debouncedQuery.trim().length,
     });
 
-    const searchFilters = { query: debouncedQuery, ...filters };
+    const searchFilters = {
+      query: debouncedQuery,
+      ...filters,
+      scoreRange: debouncedScoreRange,
+      scoreMin: debouncedScoreRange?.min,
+      scoreMax: debouncedScoreRange?.max,
+    };
     void queryClient.fetchQuery({
       queryKey: mediaQueryKeys.search(searchFilters, pageNumber),
       queryFn: () => dbService.searchEntriesPaged(searchFilters, pageNumber),
@@ -254,7 +295,7 @@ export default function SearchPage() {
         finishTiming();
         if (searchGenerationRef.current === generation) setIsLoadingMore(false);
       });
-  }, [debouncedQuery, filters, hasMoreResults, isLoadingMore, isLoadingResults, nextPage]);
+  }, [debouncedQuery, filters, debouncedScoreRange, hasMoreResults, isLoadingMore, isLoadingResults, nextPage]);
 
   useEffect(() => {
     let isActive = true;
@@ -302,10 +343,14 @@ export default function SearchPage() {
   const activeFilterChips = useMemo(() => {
     const chips: { key: keyof SearchFilters; label: string; value: string }[] = [];
     (Object.keys(filters) as (keyof SearchFilters)[]).forEach((key) => {
-      for (const value of filters[key]) {
+      if (key === "scoreRange") return;
+      for (const value of filters[key] as string[]) {
         chips.push({ key, label: FILTER_LABELS[key], value });
       }
     });
+    if (filters.scoreRange) {
+      chips.push({ key: "scoreRange", label: "Rating", value: formatScoreRange(filters.scoreRange) });
+    }
     return chips;
   }, [filters]);
 
@@ -359,7 +404,11 @@ export default function SearchPage() {
   };
 
   const removeFilterValue = (key: keyof SearchFilters, value: string) => {
-    updateFilter(key, filters[key].filter((item) => item !== value));
+    if (key === "scoreRange") {
+      updateFilter("scoreRange", null);
+      return;
+    }
+    updateFilter(key, (filters[key] as string[]).filter((item) => item !== value));
   };
 
   const clearAllFilters = () => {
@@ -447,6 +496,38 @@ export default function SearchPage() {
       {isLoadingFilters && (
         <p className="text-xs text-gray-500">Refreshing filter options...</p>
       )}
+    </motion.div>
+  );
+
+  const renderRatingPanel = () => (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.15 }}
+      className="relative z-30 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm"
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Rating</h3>
+        {filters.scoreRange && (
+          <button
+            onClick={() => updateFilter("scoreRange", null)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+          >
+            <RotateCcw size={12} />
+            Clear
+          </button>
+        )}
+      </div>
+
+      <ScoreRangeSlider
+        value={filters.scoreRange ?? { min: 0, max: 10 }}
+        onChange={(range) => updateFilter("scoreRange", range)}
+        className="mt-4"
+      />
+
+      <p className="mt-1 text-xs text-gray-500">
+        Shows only entries scored within this range; entries without a score are always excluded.
+      </p>
     </motion.div>
   );
 
@@ -567,6 +648,24 @@ export default function SearchPage() {
                   {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
                 <button
+                  onClick={() => setShowRatingPanel((current) => !current)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
+                    showRatingPanel || filters.scoreRange
+                      ? "bg-white/10 border-white/20 text-white"
+                      : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
+                  )}
+                >
+                  <Star size={16} />
+                  <span>Rating</span>
+                  {filters.scoreRange && (
+                    <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
+                      {formatScoreRange(filters.scoreRange)}
+                    </span>
+                  )}
+                  {showRatingPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+                <button
                   onClick={() => setShowRandomPick(true)}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white"
                 >
@@ -576,6 +675,7 @@ export default function SearchPage() {
               </div>
 
               {showAdvancedFilters && renderAdvancedFiltersPanel()}
+              {showRatingPanel && renderRatingPanel()}
             </div>
           </motion.div>
         ) : (
@@ -625,6 +725,24 @@ export default function SearchPage() {
                     {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </button>
                   <button
+                    onClick={() => setShowRatingPanel((current) => !current)}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
+                      showRatingPanel || filters.scoreRange
+                        ? "bg-white/10 border-white/20 text-white"
+                        : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
+                    )}
+                  >
+                    <Star size={16} />
+                    <span>Rating</span>
+                    {filters.scoreRange && (
+                      <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
+                        {formatScoreRange(filters.scoreRange)}
+                      </span>
+                    )}
+                    {showRatingPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+                  <button
                     onClick={() => setShowRandomPick(true)}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white"
                   >
@@ -659,6 +777,12 @@ export default function SearchPage() {
             {showAdvancedFilters && (
               <div className="mx-auto mt-6 max-w-7xl">
                 {renderAdvancedFiltersPanel()}
+              </div>
+            )}
+
+            {showRatingPanel && (
+              <div className="mx-auto mt-6 max-w-7xl">
+                {renderRatingPanel()}
               </div>
             )}
 
@@ -766,7 +890,11 @@ function hasActiveFilters(filters: SearchFilters): boolean {
 }
 
 function getActiveFilterCount(filters: SearchFilters): number {
-  return Object.values(filters).reduce((count, values) => count + values.length, 0);
+  const arrayCount = (Object.keys(filters) as (keyof SearchFilters)[]).reduce(
+    (count, key) => (key === "scoreRange" ? count : count + (filters[key] as string[]).length),
+    0,
+  );
+  return arrayCount + (filters.scoreRange ? 1 : 0);
 }
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {

@@ -87,6 +87,9 @@ export interface EntrySearchFilters {
   authors: string[];
   franchises: string[];
   series: string[];
+  /** Optional inclusive score bounds (0–10). Entries with no score are never matched. */
+  scoreMin?: number;
+  scoreMax?: number;
 }
 
 export interface SearchFilterOptions {

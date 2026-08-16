@@ -275,6 +275,16 @@ function buildSearchQuery(filters: EntrySearchFilters): SearchQueryParts {
     conditions.push(`(${actressClauses.join(' OR ')})`);
   }
 
+  // Unrated entries (review_score IS NULL) never match these comparisons.
+  if (filters.scoreMin != null) {
+    params.push(filters.scoreMin);
+    conditions.push(`e.review_score >= $${params.length}`);
+  }
+  if (filters.scoreMax != null) {
+    params.push(filters.scoreMax);
+    conditions.push(`e.review_score <= $${params.length}`);
+  }
+
   const conditionsSql = conditions.map((condition) => ` AND ${condition}`).join('');
   return {
     fromClause,
