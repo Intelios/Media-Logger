@@ -50,6 +50,7 @@ const DEFAULT_FILTERS: RandomPickFilters = {
   yearTo: null,
   localCopy: "any",
   rewatchStatus: "any",
+  duplicates: "any",
   genres: [],
   platforms: [],
   actresses: [],
@@ -433,6 +434,7 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
       filters.yearMode !== "any" ||
       filters.localCopy !== "any" ||
       filters.rewatchStatus !== "any" ||
+      filters.duplicates !== "any" ||
       filters.genres.length > 0 ||
       filters.platforms.length > 0 ||
       filters.actresses.length > 0 ||
@@ -864,6 +866,20 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
                           { value: "any", label: "Any" },
                           { value: "never", label: "Never" },
                           { value: "has", label: "Has" },
+                        ]}
+                      />
+                    </FilterField>
+                    <FilterField label="Duplicates">
+                      <PillToggle
+                        ariaLabel="Duplicates filter"
+                        value={filters.duplicates}
+                        onChange={(v) =>
+                          updateFilter("duplicates", v as RandomPickFilters["duplicates"])
+                        }
+                        options={[
+                          { value: "any", label: "Any" },
+                          { value: "yes", label: "Yes" },
+                          { value: "no", label: "No" },
                         ]}
                       />
                     </FilterField>

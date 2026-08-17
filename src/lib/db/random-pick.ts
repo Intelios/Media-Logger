@@ -121,6 +121,22 @@ function buildRandomPickWhere(filters: RandomPickFilters): { whereClause: string
     conditions.push(`is_rewatch = 1`);
   }
 
+  if (filters.duplicates !== "any") {
+    // Names appearing on more than one row, compared case-insensitively with
+    // surrounding whitespace ignored. The subquery applies the same adult
+    // exclusion as the outer query so a hidden adult row never makes a
+    // visible entry count as logged twice.
+    const duplicateNames =
+      `SELECT LOWER(TRIM(name)) FROM entries` +
+      ` WHERE name IS NOT NULL${adultExclusionSql()}` +
+      ` GROUP BY LOWER(TRIM(name)) HAVING COUNT(*) > 1`;
+    conditions.push(
+      filters.duplicates === "yes"
+        ? `LOWER(TRIM(name)) IN (${duplicateNames})`
+        : `LOWER(TRIM(name)) NOT IN (${duplicateNames})`
+    );
+  }
+
   if (filters.genres.length > 0) {
     const genreClauses = filters.genres.map((g) => {
       const escaped = escapeLike(g);

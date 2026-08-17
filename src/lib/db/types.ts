@@ -112,6 +112,7 @@ export interface RandomPickFilters {
   yearTo: number | null;
   localCopy: "any" | "yes" | "no";
   rewatchStatus: "any" | "never" | "has";
+  duplicates: "any" | "yes" | "no";
   genres: string[];
   platforms: string[];
   actresses: string[];
