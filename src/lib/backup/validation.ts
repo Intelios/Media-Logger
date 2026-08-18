@@ -236,6 +236,10 @@ export function validateBackupTables(value: unknown): asserts value is BackupTab
     requireString(row, 'added_date', context);
     requireNumber(row, 'sort_order', context, { integer: true });
     requireNullableString(row, 'release_date', context);
+    // Optional: backups written before schema v5 omit the in-progress stint start.
+    if (row.in_progress_since !== undefined) {
+      requireNullableString(row, 'in_progress_since', context);
+    }
   });
 }
 

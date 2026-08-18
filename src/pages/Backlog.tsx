@@ -515,11 +515,18 @@ export default function Backlog() {
                 </SortableShelfItem>
               )}
               renderLabel={(item) => {
-                const waited = getDaysSince(item.added_date);
+                // Age of the current In-Progress stint, not time since the
+                // item was added — a long wait in Planning shouldn't masquerade
+                // as months of progress. NULL means the item predates tracking.
+                const inProgress = getDaysSince(item.in_progress_since ?? null);
+                const label =
+                  inProgress === null
+                    ? "Started before tracking"
+                    : inProgress <= 0
+                      ? "Just started"
+                      : `${formatDurationLong(inProgress)} in progress`;
                 return (
-                  <span className="text-[10px] text-amber-500/85">
-                    {waited !== null && waited > 0 ? `${formatDurationLong(waited)} in backlog` : "Just added"}
-                  </span>
+                  <span className="text-[10px] text-amber-500/85">{label}</span>
                 );
               }}
               emptyState={

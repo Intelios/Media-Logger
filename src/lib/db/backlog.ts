@@ -49,9 +49,12 @@ export async function updateBacklogItem(item: BacklogItem): Promise<void> {
 export async function updateBacklogStatus(id: number, status: BacklogItem['status']): Promise<void> {
   const db = await connect();
   const nextSortOrder = await getNextBacklogSortOrder(status);
+  // Stamp the start of the current In-Progress stint; leaving In Progress
+  // clears it so starting again restarts the clock.
+  const inProgressSince = status === 'in_progress' ? new Date().toISOString().split('T')[0] : null;
   await db.execute(
-    "UPDATE backlog_items SET status = $1, sort_order = $2 WHERE id = $3",
-    [status, nextSortOrder, id]
+    "UPDATE backlog_items SET status = $1, sort_order = $2, in_progress_since = $3 WHERE id = $4",
+    [status, nextSortOrder, inProgressSince, id]
   );
 }
 

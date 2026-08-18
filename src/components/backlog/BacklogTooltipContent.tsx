@@ -1,4 +1,4 @@
-import { Calendar, CalendarClock, Hourglass } from "lucide-react";
+import { Calendar, CalendarClock, Hourglass, Play } from "lucide-react";
 import { formatShortDate, getDaysUntil, getDaysSince, formatDurationLong } from "../../lib/dates";
 import { parseGenres } from "../../lib/media-config";
 import { cn } from "../../lib/utils_ui";
@@ -12,6 +12,7 @@ export function BacklogTooltipContent({ item }: { item: BacklogItem }) {
   const genres = parseGenres(item.genre);
   const daysUntilRelease = getDaysUntil(item.release_date);
   const daysWaiting = getDaysSince(item.added_date);
+  const daysInProgress = getDaysSince(item.in_progress_since ?? null);
 
   return (
     <div className="space-y-2">
@@ -53,6 +54,18 @@ export function BacklogTooltipContent({ item }: { item: BacklogItem }) {
               : ""}
           </span>
         </div>
+
+        {item.status === "in_progress" && item.in_progress_since && (
+          <div className="flex items-center gap-1.5 text-[10px] text-amber-400">
+            <Play size={10} />
+            <span>
+              Started {formatShortDate(item.in_progress_since)}
+              {daysInProgress !== null && daysInProgress > 0
+                ? ` · ${formatDurationLong(daysInProgress)} in progress`
+                : ""}
+            </span>
+          </div>
+        )}
 
         {item.status === "unreleased" && item.release_date && (
           <>

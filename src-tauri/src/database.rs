@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use tauri::State;
 use tauri_plugin_sql::{DbInstances, DbPool};
 
-const DATABASE_SCHEMA_VERSION: i64 = 4;
+const DATABASE_SCHEMA_VERSION: i64 = 5;
 const MAX_SQLITE_BIND_PARAMS: usize = 999;
 const MAX_BULK_MUTATION_ITEMS: usize = 10_000;
 
@@ -142,6 +142,10 @@ pub struct BacklogItemRow {
     pub added_date: String,
     pub sort_order: i64,
     pub release_date: Option<String>,
+    // Date the item most recently entered In Progress. Defaulted for serde so
+    // backups written before schema v5 still deserialize (as None).
+    #[serde(default)]
+    pub in_progress_since: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -339,7 +343,8 @@ async fn create_current_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<(), S
             status TEXT NOT NULL DEFAULT 'planning',
             added_date TEXT NOT NULL,
             sort_order INTEGER DEFAULT 0,
-            release_date TEXT
+            release_date TEXT,
+            in_progress_since TEXT
         )"#,
     ];
 
@@ -862,6 +867,24 @@ async fn migrate_to_v4(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
     .await
 }
 
+async fn migrate_to_v5(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
+    // The In-Progress shelf shows how long an item has been in progress, not
+    // how long it waited in the backlog before starting. That needs the date
+    // the item most recently entered In Progress. Items already in progress
+    // when this migration runs have no recorded start and stay NULL; the UI
+    // shows them an honest "started before tracking" label instead of a
+    // made-up duration.
+    let mut columns = table_columns(tx, "backlog_items").await?;
+    add_missing_column(
+        tx,
+        "backlog_items",
+        &mut columns,
+        "in_progress_since",
+        "TEXT",
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn database_run_migrations(
     database_url: String,
@@ -967,6 +990,36 @@ pub async fn database_run_migrations(
             .await
             .map_err(|error| database_error("Failed to commit database migration", error))?;
         applied.push(4);
+        migrated_version = 4;
+    }
+
+    if migrated_version < 5 {
+        let mut tx = pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(|error| database_error("Failed to begin database migration", error))?;
+        let migration_result = async {
+            migrate_to_v5(&mut tx).await?;
+            execute_schema_sql(
+                &mut tx,
+                "PRAGMA user_version = 5",
+                "Failed to record the database schema version",
+            )
+            .await
+        }
+        .await;
+        if let Err(error) = migration_result {
+            return match tx.rollback().await {
+                Ok(()) => Err(error),
+                Err(rollback_error) => Err(format!(
+                    "{error}; migration rollback also failed: {rollback_error}"
+                )),
+            };
+        }
+        tx.commit()
+            .await
+            .map_err(|error| database_error("Failed to commit database migration", error))?;
+        applied.push(5);
     }
 
     if !applied.is_empty() {
@@ -1327,7 +1380,7 @@ pub async fn database_export_snapshot(
         ),
         backlog_items: fetch_rows!(
             BacklogItemRow,
-            r#"SELECT id, name, entry_type, genre, image_url, status, added_date, sort_order, release_date
+            r#"SELECT id, name, entry_type, genre, image_url, status, added_date, sort_order, release_date, in_progress_since
                FROM backlog_items ORDER BY id"#,
             "Failed to export backlog"
         ),
@@ -1739,10 +1792,10 @@ async fn insert_backlog_items(
     tx: &mut Transaction<'_, Sqlite>,
     rows: &[PlannedBacklogItem],
 ) -> Result<(), String> {
-    for chunk in rows.chunks(batch_size(9)) {
+    for chunk in rows.chunks(batch_size(10)) {
         let mut query = QueryBuilder::<Sqlite>::new(
             r#"INSERT INTO backlog_items
-               (id, name, entry_type, genre, image_url, status, added_date, sort_order, release_date) "#,
+               (id, name, entry_type, genre, image_url, status, added_date, sort_order, release_date, in_progress_since) "#,
         );
         query.push_values(chunk, |mut values, planned| {
             let row = &planned.row;
@@ -1755,7 +1808,8 @@ async fn insert_backlog_items(
                 .push_bind(&row.status)
                 .push_bind(&row.added_date)
                 .push_bind(row.sort_order)
-                .push_bind(&row.release_date);
+                .push_bind(&row.release_date)
+                .push_bind(&row.in_progress_since);
         });
         query
             .build()

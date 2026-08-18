@@ -65,6 +65,10 @@ export interface BacklogItem {
   added_date: string;
   sort_order: number;
   release_date: string | null;
+  // Date the item most recently entered In Progress (schema v5). Optional
+  // because items in progress before v5 have no recorded start, and the
+  // column is cleared whenever the item leaves In Progress.
+  in_progress_since?: string | null;
 }
 
 // A single snapshot of a profile's average rating at a point in time.

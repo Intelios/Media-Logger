@@ -79,7 +79,7 @@ mod implementation {
 
     const DATABASE_FILENAME: &str = "media_logger.db";
     const FIXTURE_PREFIX: &str = "__media_logger_perf_fixture_v1__";
-    const SCHEMA_VERSION: i64 = 3;
+    const SCHEMA_VERSION: i64 = 5;
     const ENTRY_INSERT_BATCH: usize = 32;
     const IMAGE_PROGRESS_BATCH: usize = 50;
     static FIXTURE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -1102,7 +1102,7 @@ mod implementation {
         for index in 0..count {
             let status = STATUSES[index % STATUSES.len()];
             sqlx::query(
-                "INSERT INTO backlog_items (id,name,entry_type,genre,image_url,status,added_date,sort_order,release_date) VALUES (?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO backlog_items (id,name,entry_type,genre,image_url,status,added_date,sort_order,release_date,in_progress_since) VALUES (?,?,?,?,?,?,?,?,?,?)",
             )
             .bind((index + 1) as i64)
             .bind(format!("Performance Backlog Item {index:05}"))
@@ -1118,6 +1118,9 @@ mod implementation {
             .bind((index / STATUSES.len()) as i64)
             .bind((status == "unreleased").then(|| {
                 format!("2027-{:02}-{:02}", 1 + index % 12, 1 + index % 28)
+            }))
+            .bind((status == "in_progress").then(|| {
+                format!("2026-{:02}-{:02}", 1 + index % 8, 1 + index % 28)
             }))
             .execute(&mut **tx)
             .await
