@@ -1,8 +1,48 @@
 {
-  "generatedAt": "2026-08-13T13:19:04.978Z",
+  "generatedAt": "2026-08-24T16:48:39.799Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "4.0.7",
+      "title": "Media Logger - 4.0.7",
+      "date": "2026-08-24",
+      "body": "New Content/Features:\n- Across the entire app (almost) every UI area that says 'Rewatch' will either A) Dynamically change to an appropriate term depending on media type like reread or re-listened or B) Will change to a universal 'Replay'.\n- Collections now have Collection Specific Stats with average rating for the collection (or per era) and various other stats.\n\nDependencies Updates:\n- Vite updated from 8.2.1 to 8.2.2\n- Tauri dependencies updated.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.0.7"
+    },
+    {
+      "version": "4.0.6",
+      "title": "Media Logger - 4.0.6",
+      "date": "2026-08-18",
+      "body": "- Backlog items in progress now display how long they've been in progress no longer displaying their length in the backlog itself as the 'In Progress' time matters more.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.0.6"
+    },
+    {
+      "version": "4.0.5",
+      "title": "Media Logger - 4.0.5",
+      "date": "2026-08-17",
+      "body": "- Random Pick feature now has a toggle for duplicates so you can filter out stuff you've already used multiple times or filter in stuff you've only seen multiple times.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.0.5"
+    },
+    {
+      "version": "4.0.4",
+      "title": "Media Logger - 4.0.4",
+      "date": "2026-08-16",
+      "body": "New Content/Features:\n- Search now has a 'Rating' option to search via rating either specific score or a range.\n\nBug Fixes:\n- Fixed a visual UI overlap issue with filters in the Search page.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.0.4"
+    },
+    {
+      "version": "4.0.3",
+      "title": "Media Logger - 4.0.3",
+      "date": "2026-08-15",
+      "body": "- Improved the Collections page's specific buttons on Media Cards, now animate properly and match the design languauge of the app.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.0.3"
+    },
     {
       "version": "4.0.2",
       "title": "Media Logger - 4.0.2",
