@@ -177,7 +177,7 @@ export function CollectionStatsModal({ isOpen, onClose, collection, items, eras 
             value={stats.averageScore !== null ? stats.averageScore.toFixed(1) : "—"}
           />
           <FigureTile icon={<Gem size={18} />} label="Perfect 10s" value={String(stats.perfectTenCount)} />
-          <FigureTile icon={<Repeat size={18} />} label="Rewatches" value={String(stats.rewatchCount)} />
+          <FigureTile icon={<Repeat size={18} />} label="Replays" value={String(stats.rewatchCount)} />
           <FigureTile icon={<Tags size={18} />} label="Genres" value={String(stats.distinctGenreCount)} />
         </div>
 

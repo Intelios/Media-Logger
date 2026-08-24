@@ -105,7 +105,7 @@ function OverviewSlide({ slide }: { slide: ReviewSlide }) {
         {stats.rewatchCount > 0 && (
           <div className="text-center">
             <div className="text-4xl font-bold text-white"><AnimatedNumber value={stats.rewatchCount} /></div>
-            <p className="text-sm text-white/60 mt-1">rewatches</p>
+            <p className="text-sm text-white/60 mt-1">replays</p>
           </div>
         )}
       </div>

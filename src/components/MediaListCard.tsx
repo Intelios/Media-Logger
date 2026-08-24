@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from "react";
 import { Star, Calendar, RotateCcw, Captions, Trophy, Clock } from "lucide-react";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
-import { formatCardRating, getRatingColor, getTypeBadgeStyle, parseGenres } from "../lib/media-config";
+import { formatCardRating, getRatingColor, getReplayTerm, getTypeBadgeStyle, parseGenres } from "../lib/media-config";
 import { formatDate, getYearsAgo } from "../lib/dates";
 import { useHoverTooltip } from "./HoverTooltip";
 import { CoverImage } from "./CoverImage";
@@ -149,7 +149,7 @@ export function MediaListCard({
           {isRewatch && (
             <span
               {...bindTooltip(
-                <span className="text-xs font-medium text-amber-400">Replay / Rewatch</span>,
+                <span className="text-xs font-medium text-amber-400">{getReplayTerm(entry.entry_type).label}</span>,
                 { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
               )}
               className="w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500 flex items-center justify-center"

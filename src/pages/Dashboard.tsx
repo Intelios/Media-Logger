@@ -8,6 +8,7 @@ import { MediaListCard } from "../components/MediaListCard";
 import { CoverImage } from "../components/CoverImage";
 import type { MediaEntry } from "../lib/db";
 import { getDisplayName, FEATURED_ADULT_VISIBILITY_CHANGED_EVENT } from "../lib/settings";
+import { getReplayTerm } from "../lib/media-config";
 import { formatTodayMD } from "../lib/dates";
 import { getAvailableNavigationYears, getCurrentYearString } from "../lib/navigation-years";
 import { mediaQueryKeys, queryClient } from "../lib/query-client";
@@ -238,7 +239,7 @@ export default function Dashboard() {
                         <span className="dashboard-featured-dot">•</span>
                         <span className="dashboard-featured-rewatch">
                           <RotateCcw size={14} />
-                          Replay
+                          {getReplayTerm(featured.entry_type).label}
                         </span>
                       </>
                     )}

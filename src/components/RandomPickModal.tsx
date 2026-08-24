@@ -855,9 +855,9 @@ export function RandomPickModal({ isOpen, onClose, initialSearchContext }: Rando
                         ]}
                       />
                     </FilterField>
-                    <FilterField label="Rewatch">
+                    <FilterField label="Replay">
                       <PillToggle
-                        ariaLabel="Rewatch status"
+                        ariaLabel="Replay status"
                         value={filters.rewatchStatus}
                         onChange={(v) =>
                           updateFilter("rewatchStatus", v as RandomPickFilters["rewatchStatus"])

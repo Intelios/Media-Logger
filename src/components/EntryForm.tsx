@@ -5,7 +5,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import type { MediaEntry, AutocompleteOptions } from "../lib/db";
 import { dbService } from "../lib/db";
 import { cn } from "../lib/utils_ui";
-import { getVisibleEntryTypeOptions } from "../lib/media-config";
+import { getReplayTerm, getVisibleEntryTypeOptions } from "../lib/media-config";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { AutocompleteInput } from "./AutocompleteInput";
@@ -299,7 +299,7 @@ const typeOption = getVisibleEntryTypeOptions().find(o => o.value === formData.e
 
               <div className="flex flex-wrap gap-1.5">
                 {formData.is_rewatch === 1 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25 font-medium">Rewatch</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25 font-medium">{getReplayTerm(formData.entry_type).label}</span>
                 )}
                 {formData.own_local_copy === 1 && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-medium">Own Copy</span>
@@ -670,7 +670,7 @@ const typeOption = getVisibleEntryTypeOptions().find(o => o.value === formData.e
                   )}
                 >
                   <RotateCcw size={16} />
-                  <span>Rewatch</span>
+                  <span>{getReplayTerm(formData.entry_type).label}</span>
                 </button>
                 <button
                   type="button"

@@ -113,7 +113,7 @@ export function StandoutsPanel({
     tooltip: {
       title: item.name,
       lines: [
-        `${item.total_completions} completions · ${item.rewatch_count} marked as rewatch`,
+        `${item.total_completions} completions · ${item.rewatch_count} marked as replay`,
         item.avg_score !== null ? `Average score ${item.avg_score.toFixed(1)}` : "No score recorded",
         item.logs
           .map((log) => (log.completion_date ? formatShortDate(log.completion_date) : "undated"))

@@ -80,7 +80,7 @@ export interface PlateFigureDefinition {
 export const PLATE_FIGURE_DEFINITIONS: Record<PlateFigureId, PlateFigureDefinition> = {
   total: { id: "total", label: "Entries", accent: "blue" },
   average: { id: "average", label: "Avg score", accent: "amber" },
-  rewatches: { id: "rewatches", label: "Rewatches", accent: "green" },
+  rewatches: { id: "rewatches", label: "Replays", accent: "green" },
   perfect: { id: "perfect", label: "Perfect 10s", accent: "pink" },
   "this-month": { id: "this-month", label: "This month", accent: "cyan" },
   "genre-count": { id: "genre-count", label: "Genres", accent: "purple" },
@@ -97,7 +97,7 @@ export interface TimelineLayerDefinition {
 export const TIMELINE_LAYER_DEFINITIONS: Record<TimelineLayerId, TimelineLayerDefinition> = {
   completions: { id: "completions", label: "Completions", color: "#8b5cf6", axis: "count" },
   score: { id: "score", label: "Avg score", color: "#34d399", axis: "score" },
-  rewatches: { id: "rewatches", label: "Rewatches", color: "#f472b6", axis: "count" },
+  rewatches: { id: "rewatches", label: "Replays", color: "#f472b6", axis: "count" },
   platinums: { id: "platinums", label: "Platinums", color: "#fbbf24", axis: "count" },
 };
 

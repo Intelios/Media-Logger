@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { dbService, type MediaEntry } from "../lib/db";
 import { formatDate } from "../lib/dates";
-import { formatCardRating } from "../lib/media-config";
+import { formatCardRating, getReplayTerm } from "../lib/media-config";
 import { cn } from "../lib/utils_ui";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -281,7 +281,7 @@ export default function MediaCardDialogs({
               <Copy size={18} className="text-amber-400" />
             </div>
             <div>
-              <h3 className="font-bold text-white">Duplicates & Rewatches</h3>
+              <h3 className="font-bold text-white">Duplicates & Replays</h3>
               <p className="text-xs text-gray-400 line-clamp-1">All entries matching "{entry.name}"</p>
             </div>
           </div>
@@ -371,7 +371,7 @@ export default function MediaCardDialogs({
                     {duplicate.is_rewatch === 1 && (
                       <div
                         {...bindTooltip(
-                          <span className="text-xs font-medium text-amber-400">Rewatch / Replay</span>,
+                          <span className="text-xs font-medium text-amber-400">{getReplayTerm(duplicate.entry_type).label}</span>,
                           { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
                         )}
                         className="w-7 h-7 rounded-full bg-amber-500/20 border border-amber-500 flex items-center justify-center"

@@ -496,10 +496,10 @@ export default function YearView() {
                     : 'bg-gradient-to-r from-gray-600 to-gray-700 text-white shadow-lg shadow-black/20'
                   : 'bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15]'}
               `}
-              title={rewatchFilter === null ? "Show all" : rewatchFilter ? "Showing only rewatches/replays" : "Showing only first-time entries"}
+              title={rewatchFilter === null ? "Show all" : rewatchFilter ? "Showing only replays" : "Showing only first-time entries"}
             >
               <RotateCcw size={16} className={rewatchFilter !== null ? '' : 'opacity-70 group-hover:opacity-100'} />
-              <span>Rewatch</span>
+              <span>Replay</span>
               {rewatchFilter !== null && (
                 <span className="text-xs px-1.5 py-0.5 rounded-md ml-1 bg-white/20">
                   {rewatchFilter ? "Yes" : "No"}

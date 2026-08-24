@@ -65,6 +65,29 @@ export const getTypeBadgeStyle = (type: string | null) => {
   return { bg: "bg-gray-600", icon: <MonitorPlay size={12} /> };
 };
 
+export interface ReplayTerm {
+  label: string;
+  plural: string;
+}
+
+/** Umbrella for mixed-type aggregates (Stats, Review, Collections, filters). */
+export const REPLAY_UMBRELLA_TERM: ReplayTerm = { label: "Replay", plural: "Replays" };
+
+/**
+ * The replay noun for a single entry, worded for how that media is consumed:
+ * games are replayed, books are reread, albums are re-listened to. Backed by
+ * the same `is_rewatch` flag everywhere — this is display wording only.
+ */
+export function getReplayTerm(entryType: string | null | undefined): ReplayTerm {
+  const normalizedType = (entryType || "").toLowerCase();
+  if (normalizedType.includes("game") || normalizedType.includes("visual novel")) {
+    return { label: "Replay", plural: "Replays" };
+  }
+  if (normalizedType.includes("book")) return { label: "Reread", plural: "Rereads" };
+  if (normalizedType.includes("album")) return { label: "Re-listen", plural: "Re-listens" };
+  return { label: "Rewatch", plural: "Rewatches" };
+}
+
 export const getRatingColor = (score: number | null) => {
   if (!score && score !== 0) return "bg-gray-700/80 text-gray-300";
   if (score >= 9) return "bg-emerald-500 text-white";
