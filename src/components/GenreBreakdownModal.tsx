@@ -149,15 +149,20 @@ export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onG
                                     </div>
 
                                     {/* Bar */}
-                                    <div className="mt-2.5 ml-12 h-1.5 w-full rounded-full bg-primary/10">
-                                        <div
-                                            className="h-full rounded-full transition-all duration-500"
-                                            style={{
-                                                width: `${barWidth}%`,
-                                                backgroundColor: COLORS[colorIndex % COLORS.length],
-                                                opacity: 0.7,
-                                            }}
-                                        />
+                                    {/* `pl-12` on a wrapper, not `ml-12` on the track: a left
+                                        margin plus `w-full` makes the track 48px wider than
+                                        the row, pushing the bar past the right edge. */}
+                                    <div className="mt-2.5 pl-12">
+                                        <div className="h-1.5 w-full rounded-full bg-primary/10">
+                                            <div
+                                                className="h-full rounded-full transition-all duration-500"
+                                                style={{
+                                                    width: `${barWidth}%`,
+                                                    backgroundColor: COLORS[colorIndex % COLORS.length],
+                                                    opacity: 0.7,
+                                                }}
+                                            />
+                                        </div>
                                     </div>
                                 </button>
                             );

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image, Pencil, CornerDownRight, GripVertical } from "lucide-react";
+import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image, Pencil, CornerDownRight, GripVertical, BarChart3 } from "lucide-react";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from "@dnd-kit/sortable";
 import { collectionsLogic, type Collection, type Era, type CollectionItemView } from "../lib/collections-logic";
@@ -28,6 +28,7 @@ import { buildEraBands, type EraBandSegment } from "../lib/collections/era-bands
 import { sortCollections, type CollectionSortMode } from "../lib/collections/sorting";
 import { CollectionSortMenu } from "../components/collections/CollectionSortMenu";
 import { SortableCollectionCard } from "../components/collections/SortableCollectionCard";
+import { CollectionStatsModal } from "../components/collections/CollectionStatsModal";
 import { getCollectionsSortMode, setCollectionsSortMode } from "../lib/settings";
 
 // Shared by both grid paths — the Tailwind classes below and the virtualized
@@ -151,6 +152,7 @@ export default function CollectionsPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
   const [editCollectionOpen, setEditCollectionOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [collectionToDelete, setCollectionToDelete] = useState<Collection | null>(null);
   const [itemToRemove, setItemToRemove] = useState<MediaEntry | null>(null);
@@ -438,6 +440,16 @@ export default function CollectionsPage() {
                 Eras
               </button>
 
+              {/* Stats Button */}
+              <button
+                onClick={() => setStatsOpen(true)}
+                disabled={items.length === 0}
+                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 px-4 py-2.5 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <BarChart3 size={18} />
+                Stats
+              </button>
+
               <button
                 onClick={() => setPickerOpen(true)}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all hover:scale-[1.02] hover:brightness-110 text-white"
@@ -517,6 +529,15 @@ export default function CollectionsPage() {
           onClose={() => setErasOpen(false)}
           eras={eras}
           onSave={handleErasSave}
+        />
+
+        {/* Collection Stats Modal */}
+        <CollectionStatsModal
+          isOpen={statsOpen}
+          onClose={() => setStatsOpen(false)}
+          collection={selectedCollection}
+          items={items}
+          eras={eras}
         />
 
         {/* Edit Collection Modal */}
