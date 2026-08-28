@@ -33,6 +33,11 @@ function sameProfile(left: ProfileSummary, right: ProfileSummary): boolean {
   return left.type === right.type && left.name === right.name;
 }
 
+function findProfileSummary(index: ProfileIndex, profile: ProfileSummary): ProfileSummary | undefined {
+  return index.visible.find((candidate) => sameProfile(candidate, profile))
+    ?? index.hidden.find((candidate) => sameProfile(candidate, profile));
+}
+
 export interface ProfileAwardYearGroup {
   year: number;
   awards: Array<{ entry: MediaEntry; categoryName: string; year: number }>;
@@ -46,6 +51,11 @@ export function useProfilesPageData() {
   const [sortOrderMap, setSortOrderMap] = useState<ProfileSortOrderMap>(loadProfileSortOrderMap);
   const indexLoadGeneration = useRef(0);
   const selectionGeneration = useRef(0);
+  const selectedProfileRef = useRef<ProfileSummary | null>(null);
+
+  useEffect(() => {
+    selectedProfileRef.current = selectedProfile;
+  }, [selectedProfile]);
 
   const loadProfileIndex = useCallback(async (): Promise<ProfileIndex> => {
     const generation = ++indexLoadGeneration.current;
@@ -55,9 +65,70 @@ export function useProfilesPageData() {
   }, []);
 
   useEffect(() => {
+    localStorage.setItem(PROFILE_SORT_ORDER_KEY, JSON.stringify(sortOrderMap));
+  }, [sortOrderMap]);
+
+  const loadProfileSelection = useCallback(async (profile: ProfileSummary, generation: number): Promise<void> => {
+    try {
+      const entries = await profilesLogic.getProfileEntries(profile.type, profile.name);
+      if (selectionGeneration.current !== generation) return;
+      setSelectedEntries(entries);
+
+      if (entries.length === 0) {
+        setAwardsMap(new Map());
+        return;
+      }
+      const awards = await awardsLogic.getAwardsForMediaBatch(entries.map((entry) => entry.id));
+      if (selectionGeneration.current === generation) setAwardsMap(awards);
+    } catch (error) {
+      if (selectionGeneration.current === generation) {
+        console.error('Failed to load profile entries:', error);
+      }
+    }
+  }, []);
+
+  const openProfile = useCallback(async (profile: ProfileSummary): Promise<void> => {
+    const generation = ++selectionGeneration.current;
+    setSelectedProfile(profile);
+    setSelectedEntries([]);
+    setAwardsMap(new Map());
+    await loadProfileSelection(profile, generation);
+  }, [loadProfileSelection]);
+
+  const closeProfile = useCallback(() => {
+    selectionGeneration.current += 1;
+    setSelectedProfile(null);
+    setSelectedEntries([]);
+    setAwardsMap(new Map());
+  }, []);
+
+  const refreshAfterMutation = useCallback(async (): Promise<void> => {
+    const current = selectedProfileRef.current;
+    const generation = selectionGeneration.current;
+    let index: ProfileIndex;
+    try {
+      index = await loadProfileIndex();
+    } catch (error) {
+      console.error('Failed to refresh profiles:', error);
+      return;
+    }
+    if (!current || selectionGeneration.current !== generation) return;
+    // Reconcile with the fresh index so the header count/average stay live; if
+    // the profile lost its last entry (or its defining field was renamed away),
+    // it vanishes from the index and we fall back to the profile list.
+    const fresh = findProfileSummary(index, current);
+    if (!fresh) {
+      closeProfile();
+      return;
+    }
+    setSelectedProfile(fresh);
+    await loadProfileSelection(fresh, generation);
+  }, [closeProfile, loadProfileIndex, loadProfileSelection]);
+
+  useEffect(() => {
     void loadProfileIndex().catch((error) => console.error('Failed to load profiles:', error));
     const unsubscribe = onEntriesMutated(() => {
-      void loadProfileIndex().catch((error) => console.error('Failed to refresh profiles:', error));
+      void refreshAfterMutation();
     });
     const handleAdultVisibilityChange = () => {
       void loadProfileIndex().catch((error) => console.error('Failed to refresh profiles:', error));
@@ -68,39 +139,7 @@ export function useProfilesPageData() {
       unsubscribe();
       window.removeEventListener(ADULT_MEDIA_VISIBILITY_CHANGED_EVENT, handleAdultVisibilityChange);
     };
-  }, [loadProfileIndex]);
-
-  useEffect(() => {
-    localStorage.setItem(PROFILE_SORT_ORDER_KEY, JSON.stringify(sortOrderMap));
-  }, [sortOrderMap]);
-
-  const openProfile = useCallback(async (profile: ProfileSummary): Promise<void> => {
-    const generation = ++selectionGeneration.current;
-    setSelectedProfile(profile);
-    setSelectedEntries([]);
-    setAwardsMap(new Map());
-    try {
-      const entries = await profilesLogic.getProfileEntries(profile.type, profile.name);
-      if (selectionGeneration.current !== generation) return;
-      setSelectedEntries(entries);
-
-      const mediaIds = entries.map((entry) => entry.id);
-      if (mediaIds.length === 0) return;
-      const awards = await awardsLogic.getAwardsForMediaBatch(mediaIds);
-      if (selectionGeneration.current === generation) setAwardsMap(awards);
-    } catch (error) {
-      if (selectionGeneration.current === generation) {
-        console.error('Failed to load profile entries:', error);
-      }
-    }
-  }, []);
-
-  const closeProfile = useCallback(() => {
-    selectionGeneration.current += 1;
-    setSelectedProfile(null);
-    setSelectedEntries([]);
-    setAwardsMap(new Map());
-  }, []);
+  }, [loadProfileIndex, refreshAfterMutation]);
 
   const patchProfile = useCallback((profile: ProfileSummary, patch: Partial<ProfileSummary>) => {
     const update = (candidate: ProfileSummary) => (

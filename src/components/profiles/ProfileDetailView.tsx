@@ -48,6 +48,9 @@ interface ProfileDetailViewProps {
   onSortOrderChange: (order: ProfileSortOrder) => void;
   onBack: () => void;
   onEntryClick: (entry: MediaEntry) => void;
+  onEdit?: (entry: MediaEntry) => void;
+  onDelete?: (id: number) => void;
+  onDuplicate?: (entry: MediaEntry) => void;
   onUpdateImage: (profile: ProfileSummary, sysPath: string) => Promise<string | null>;
   onUpdateCrop: (profile: ProfileSummary, crop: CropData) => Promise<void>;
   onSetAvgHistoryTracking: (profile: ProfileSummary, enabled: boolean) => Promise<void>;
@@ -66,6 +69,9 @@ export function ProfileDetailView({
   onSortOrderChange,
   onBack,
   onEntryClick,
+  onEdit,
+  onDelete,
+  onDuplicate,
   onUpdateImage,
   onUpdateCrop,
   onSetAvgHistoryTracking,
@@ -499,6 +505,9 @@ export function ProfileDetailView({
                   <MediaCard
                     entry={entry}
                     imagePriority="auto"
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onDuplicate={onDuplicate}
                     awards={awardsMap.get(entry.id)}
                     dateEmphasis="prominent"
                     dateAccentClass={profileConfig.color}
