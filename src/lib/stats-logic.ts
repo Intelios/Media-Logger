@@ -74,6 +74,8 @@ export interface TimelineBucket {
   label: string;
   completions: number;
   averageScore: number | null;
+  /** Entries in the bucket carrying a score — the sample averageScore is drawn from. */
+  ratedCount: number;
   rewatches: number;
   platinums: number;
 }
@@ -367,6 +369,7 @@ export function selectTimelineSeries(dataset: StatsDataset, granularity: "month"
       label: bucket.label,
       completions: bucket.completions,
       averageScore: bucket.scoredCount > 0 ? bucket.totalScore / bucket.scoredCount : null,
+      ratedCount: bucket.scoredCount,
       rewatches: bucket.rewatches,
       platinums: bucket.platinums,
     }));

@@ -13,6 +13,7 @@ import {
 import type { TimelineBucket } from "../../../lib/stats-logic";
 import { cn } from "../../../lib/utils_ui";
 import { formatShortDate } from "../../../lib/dates";
+import { getRatingTextColor } from "../../../lib/media-config";
 import { TIMELINE_LAYER_DEFINITIONS, TIMELINE_LAYER_IDS, type TimelineLayerId } from "./plate-config";
 import { PanelFrame, PlatePill } from "./plate-ui";
 import { BrushStrip } from "./BrushStrip";
@@ -35,6 +36,89 @@ interface TimelineHeroProps {
   className?: string;
   chartClassName?: string;
   showBrush?: boolean;
+}
+
+interface TimelineChartRow {
+  label: string;
+  completions: number;
+  score: number | null;
+  ratedCount: number;
+  rewatches: number;
+  platinums: number;
+  comparisonCompletions?: number;
+}
+
+interface TimelineTooltipEntry {
+  name?: string;
+  value?: number | null;
+  color?: string;
+  dataKey?: string | number;
+  payload?: TimelineChartRow;
+}
+
+// The average score is the layer people read the timeline for, so it leads at
+// full size and the remaining layers sit beneath it as supporting rows.
+function TimelineTooltip({
+  active,
+  payload,
+  label,
+  scoreLayerActive = false,
+}: {
+  active?: boolean;
+  payload?: TimelineTooltipEntry[];
+  label?: string | number;
+  scoreLayerActive?: boolean;
+}) {
+  if (!active || !payload?.length) return null;
+
+  // Read the score off the bucket rather than the payload: recharts drops a
+  // series from the payload entirely when its value is null, so an unrated
+  // bucket would otherwise render nothing at all.
+  const row = payload[0]?.payload;
+  const score = typeof row?.score === "number" ? row.score : null;
+  const ratedCount = row?.ratedCount ?? 0;
+  const otherEntries = payload.filter((entry) => entry.dataKey !== "score");
+
+  return (
+    <div className="glass-tooltip min-w-[148px] rounded-xl px-3 py-2.5">
+      <div className="text-[11px] font-medium text-text-muted">{String(label ?? "")}</div>
+
+      {scoreLayerActive ? (
+        score === null ? (
+          <div className="mt-1 text-[12px] text-text-subtle">No rated entries</div>
+        ) : (
+          <>
+            <div className="mt-1 flex items-baseline gap-1">
+              <span className={cn("text-2xl font-bold leading-none", getRatingTextColor(score))}>
+                {score.toFixed(1)}
+              </span>
+              <span className="text-[11px] text-text-subtle">/10</span>
+            </div>
+            <div className="mt-1 text-[11px] text-text-muted">
+              from {ratedCount} rated {ratedCount === 1 ? "entry" : "entries"}
+            </div>
+          </>
+        )
+      ) : null}
+
+      {otherEntries.length > 0 ? (
+        <div className={cn("space-y-0.5", scoreLayerActive ? "mt-2 border-t border-primary/15 pt-2" : "mt-1")}>
+          {otherEntries.map((entry) => (
+            <div key={String(entry.dataKey)} className="flex items-center gap-2">
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ background: entry.color ?? "var(--color-primary)" }}
+              />
+              <span className="text-[11px] text-text-muted">{entry.name}</span>
+              <span className="ml-auto pl-3 font-mono text-[11px] text-text">
+                {typeof entry.value === "number" ? entry.value : "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function bucketLabelsForRange(timeline: TimelineBucket[], range: StatsRange | null): [string, string] | null {
@@ -78,6 +162,7 @@ export function TimelineHero({
     label: bucket.label,
     completions: bucket.completions,
     score: bucket.averageScore,
+    ratedCount: bucket.ratedCount,
     rewatches: bucket.rewatches,
     platinums: bucket.platinums,
     comparisonCompletions: comparisonTimeline?.[index]?.completions,
@@ -156,21 +241,9 @@ export function TimelineHero({
             <YAxis yAxisId="score" hide domain={[0, 10]} />
 
             <Tooltip
-              contentStyle={{
-                backgroundColor: "color-mix(in srgb, var(--color-surface) 96%, transparent)",
-                border: "1px solid color-mix(in srgb, var(--color-primary) 14%, var(--color-border))",
-                borderRadius: 12,
-                fontSize: 12,
-                boxShadow: "0 12px 32px -8px rgba(0,0,0,0.55)",
-              }}
-              itemStyle={{ color: "var(--color-text)" }}
-              labelStyle={{ color: "var(--color-text-muted)" }}
-              formatter={(value, name) => [
-                // Months with no rated entries carry a null average; show a dash
-                // rather than recharts' default empty cell.
-                typeof value === "number" ? String(Number(value.toFixed(1))) : "—",
-                name,
-              ]}
+              content={<TimelineTooltip scoreLayerActive={activeLayers.has("score")} />}
+              cursor={{ stroke: "rgba(255,255,255,0.08)" }}
+              wrapperStyle={{ zIndex: 50 }}
             />
 
             {referenceLabels ? (

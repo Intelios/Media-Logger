@@ -96,6 +96,16 @@ export const getRatingColor = (score: number | null) => {
   return "bg-red-500 text-white";
 };
 
+// Same thresholds as getRatingColor, for scores rendered as bare text rather
+// than a filled badge.
+export const getRatingTextColor = (score: number | null) => {
+  if (!score && score !== 0) return "text-text-muted";
+  if (score >= 9) return "text-emerald-400";
+  if (score >= 7) return "text-blue-400";
+  if (score >= 5) return "text-yellow-400";
+  return "text-red-400";
+};
+
 export const formatCardRating = (score: number) => Math.round(score).toString();
 
 export const parseGenres = (genre: string | null): string[] => {
