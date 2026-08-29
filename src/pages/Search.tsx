@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Search as SearchIcon, X, Filter, ChevronDown, ChevronUp, RotateCcw, Dices, Star } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { dbService, type EntryCardSummary, type MediaEntry, type SearchFilterOptions } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
@@ -542,6 +542,11 @@ export default function SearchPage() {
     </motion.div>
   );
 
+  const isInputFocusedRef = useRef(false);
+  const selectionStartRef = useRef<number | null>(null);
+  const selectionEndRef = useRef<number | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
   const renderSearchShell = (variant: "hero" | "header") => (
     <motion.div
       layoutId="search-shell"
@@ -549,19 +554,46 @@ export default function SearchPage() {
       className={variant === "hero" ? "w-full" : "min-w-0 flex-1 max-w-3xl"}
     >
       <div className="relative">
-        {variant === "hero" && (
-          <div
-            className="absolute inset-0 rounded-2xl blur-xl opacity-50"
-            style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 20%, transparent))` }}
-          />
-        )}
+        <motion.div
+          animate={{ opacity: variant === "hero" ? 0.5 : 0 }}
+          transition={{ duration: 0.2 }}
+          className="pointer-events-none absolute inset-0 rounded-2xl blur-xl"
+          style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--color-primary) 20%, transparent), color-mix(in srgb, var(--color-secondary) 20%, transparent))` }}
+        />
         <div className="relative bg-white/5 border border-white/10 rounded-2xl p-1 backdrop-blur-sm">
           <div className="relative flex items-center">
             <SearchIcon className="absolute left-4 text-gray-400" size={20} />
             <input
+              ref={(el) => {
+                inputRef.current = el;
+                if (el && isInputFocusedRef.current) {
+                  el.focus();
+                  if (selectionStartRef.current !== null && selectionEndRef.current !== null) {
+                    try {
+                      el.setSelectionRange(selectionStartRef.current, selectionEndRef.current);
+                    } catch {
+                      // ignore in case selection range is unsupported
+                    }
+                  }
+                }
+              }}
               type="text"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                selectionStartRef.current = event.target.selectionStart;
+                selectionEndRef.current = event.target.selectionEnd;
+              }}
+              onFocus={() => {
+                isInputFocusedRef.current = true;
+              }}
+              onBlur={() => {
+                isInputFocusedRef.current = false;
+              }}
+              onSelect={(event) => {
+                selectionStartRef.current = event.currentTarget.selectionStart;
+                selectionEndRef.current = event.currentTarget.selectionEnd;
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Search by title, author, artist, genre, director, actress, platform..."
               className={cn(
@@ -572,7 +604,11 @@ export default function SearchPage() {
             />
             {query && (
               <button
-                onClick={() => setQuery("")}
+                onClick={() => {
+                  setQuery("");
+                  selectionStartRef.current = 0;
+                  selectionEndRef.current = 0;
+                }}
                 className="absolute right-4 p-1.5 hover:bg-white/10 rounded-full transition-colors"
                 aria-label="Clear search"
               >
@@ -587,59 +623,131 @@ export default function SearchPage() {
 
   return (
     <div className="pb-20">
-      <AnimatePresence mode="wait" initial={false}>
-        {!showResultsLayout ? (
+      {!showResultsLayout ? (
+        <div
+          key="hero"
+          className="flex min-h-[calc(100vh-3rem)] flex-col items-center justify-center gap-6"
+        >
+          <div className="w-full max-w-2xl">{renderSearchShell("hero")}</div>
+
           <motion.div
-            key="hero"
-            className="flex min-h-[calc(100vh-3rem)] flex-col items-center justify-center gap-6"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.15 }}
+            className="w-full max-w-2xl space-y-4"
           >
-            <div className="w-full max-w-2xl">{renderSearchShell("hero")}</div>
-
-            <div className="w-full max-w-2xl space-y-4">
-              {recentSearches.length > 0 ? (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.12, delay: 0.05 }}
-                >
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Recent searches</p>
-                  <div className="flex flex-wrap gap-2">
-                    {recentSearches.map((term) => (
-                      <span
-                        key={term}
-                        className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 py-1 pl-3 pr-1.5 text-sm text-gray-300"
+            {recentSearches.length > 0 ? (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Recent searches</p>
+                <div className="flex flex-wrap gap-2">
+                  {recentSearches.map((term) => (
+                    <span
+                      key={term}
+                      className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 py-1 pl-3 pr-1.5 text-sm text-gray-300"
+                    >
+                      <button
+                        onClick={() => {
+                          setQuery(term);
+                          commitSearch(term);
+                        }}
+                        className="hover:text-white"
                       >
-                        <button
-                          onClick={() => {
-                            setQuery(term);
-                            commitSearch(term);
-                          }}
-                          className="hover:text-white"
-                        >
-                          {term}
-                        </button>
-                        <button
-                          onClick={() => removeRecentSearch(term)}
-                          className="rounded-full p-0.5 text-gray-500 hover:bg-white/10 hover:text-white"
-                          aria-label={`Remove ${term}`}
-                        >
-                          <X size={12} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </motion.div>
-              ) : (
-                <p className="text-sm text-gray-500">
-                  Start typing to search your collection — or try a random pick.
-                </p>
-              )}
+                        {term}
+                      </button>
+                      <button
+                        onClick={() => removeRecentSearch(term)}
+                        className="rounded-full p-0.5 text-gray-500 hover:bg-white/10 hover:text-white"
+                        aria-label={`Remove ${term}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Start typing to search your collection — or try a random pick.
+              </p>
+            )}
 
-              <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowAdvancedFilters((current) => !current)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
+                  showAdvancedFilters || activeFilterCount > 0
+                    ? "bg-white/10 border-white/20 text-white"
+                    : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
+                )}
+              >
+                <Filter size={16} />
+                <span>Filters</span>
+                {activeFilterCount > 0 && (
+                  <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
+                    {activeFilterCount}
+                  </span>
+                )}
+                {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+              <button
+                onClick={() => setShowRatingPanel((current) => !current)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
+                  showRatingPanel || filters.scoreRange
+                    ? "bg-white/10 border-white/20 text-white"
+                    : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
+                )}
+              >
+                <Star size={16} />
+                <span>Rating</span>
+                {settledFilters.scoreRange && (
+                  <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
+                    {formatScoreRange(settledFilters.scoreRange)}
+                  </span>
+                )}
+                {showRatingPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+              <button
+                onClick={() => setShowRandomPick(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white"
+              >
+                <Dices size={16} />
+                <span>Random Pick</span>
+              </button>
+            </div>
+
+            {showAdvancedFilters && renderAdvancedFiltersPanel()}
+            {showRatingPanel && renderRatingPanel()}
+          </motion.div>
+        </div>
+      ) : (
+        <div key="results">
+          <div
+            className="sticky top-0 z-50 -mx-6 border-b border-white/10 px-6 py-3"
+            style={{ backgroundColor: "var(--color-background)" }}
+          >
+            <div className="mx-auto flex max-w-7xl items-center gap-3">
+              {renderSearchShell("header")}
+
+              <motion.div
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex shrink-0 items-center gap-3"
+              >
+                <span className="whitespace-nowrap text-sm text-gray-400">
+                  {isLoadingResults ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-primary" />
+                      Updating…
+                    </span>
+                  ) : (
+                    <>
+                      {totalResults} result{totalResults !== 1 ? "s" : ""}
+                    </>
+                  )}
+                </span>
                 <button
                   onClick={() => setShowAdvancedFilters((current) => !current)}
                   className={cn(
@@ -683,108 +791,41 @@ export default function SearchPage() {
                   <Dices size={16} />
                   <span>Random Pick</span>
                 </button>
-              </div>
-
-              {showAdvancedFilters && renderAdvancedFiltersPanel()}
-              {showRatingPanel && renderRatingPanel()}
+              </motion.div>
             </div>
-          </motion.div>
-        ) : (
+
+            {activeFilterCount > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.15 }}
+                className="mx-auto mt-2 flex max-w-7xl flex-wrap items-center gap-2"
+              >
+                {activeFilterChips.map((chip) => (
+                  <span
+                    key={`${chip.key}:${chip.value}`}
+                    className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 py-1 pl-2.5 pr-1.5 text-xs text-gray-300"
+                  >
+                    <span className="text-gray-500">{chip.label}</span>
+                    <span>{chip.value}</span>
+                    <button
+                      onClick={() => removeFilterValue(chip.key, chip.value)}
+                      className="rounded-full p-0.5 text-gray-500 hover:bg-white/10 hover:text-white"
+                      aria-label={`Remove ${chip.label} ${chip.value}`}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </motion.div>
+            )}
+          </div>
+
           <motion.div
-            key="results"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
+            transition={{ duration: 0.2 }}
           >
-            <div
-              className="sticky top-0 z-50 -mx-6 border-b border-white/10 px-6 py-3"
-              style={{ backgroundColor: "var(--color-background)" }}
-            >
-              <div className="mx-auto flex max-w-7xl items-center gap-3">
-                {renderSearchShell("header")}
-
-                <div className="flex shrink-0 items-center gap-3">
-                  <span className="whitespace-nowrap text-sm text-gray-400">
-                    {isLoadingResults ? (
-                      <span className="flex items-center gap-2">
-                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-primary" />
-                        Updating…
-                      </span>
-                    ) : (
-                      <>
-                        {totalResults} result{totalResults !== 1 ? "s" : ""}
-                      </>
-                    )}
-                  </span>
-                  <button
-                    onClick={() => setShowAdvancedFilters((current) => !current)}
-                    className={cn(
-                      "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
-                      showAdvancedFilters || activeFilterCount > 0
-                        ? "bg-white/10 border-white/20 text-white"
-                        : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
-                    )}
-                  >
-                    <Filter size={16} />
-                    <span>Filters</span>
-                    {activeFilterCount > 0 && (
-                      <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
-                        {activeFilterCount}
-                      </span>
-                    )}
-                    {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </button>
-                  <button
-                    onClick={() => setShowRatingPanel((current) => !current)}
-                    className={cn(
-                      "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
-                      showRatingPanel || filters.scoreRange
-                        ? "bg-white/10 border-white/20 text-white"
-                        : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
-                    )}
-                  >
-                    <Star size={16} />
-                    <span>Rating</span>
-                    {settledFilters.scoreRange && (
-                      <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
-                        {formatScoreRange(settledFilters.scoreRange)}
-                      </span>
-                    )}
-                    {showRatingPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </button>
-                  <button
-                    onClick={() => setShowRandomPick(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white"
-                  >
-                    <Dices size={16} />
-                    <span>Random Pick</span>
-                  </button>
-                </div>
-              </div>
-
-              {activeFilterCount > 0 && (
-                <div className="mx-auto mt-2 flex max-w-7xl flex-wrap items-center gap-2">
-                  {activeFilterChips.map((chip) => (
-                    <span
-                      key={`${chip.key}:${chip.value}`}
-                      className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 py-1 pl-2.5 pr-1.5 text-xs text-gray-300"
-                    >
-                      <span className="text-gray-500">{chip.label}</span>
-                      <span>{chip.value}</span>
-                      <button
-                        onClick={() => removeFilterValue(chip.key, chip.value)}
-                        className="rounded-full p-0.5 text-gray-500 hover:bg-white/10 hover:text-white"
-                        aria-label={`Remove ${chip.label} ${chip.value}`}
-                      >
-                        <X size={12} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
             {showAdvancedFilters && (
               <div className="mx-auto mt-6 max-w-7xl">
                 {renderAdvancedFiltersPanel()}
@@ -864,8 +905,8 @@ export default function SearchPage() {
               ) : null}
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
 
       <EntryForm
         isOpen={isModalOpen}
