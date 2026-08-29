@@ -5,10 +5,9 @@
 // same run. Neighbouring segments therefore abut exactly and the union reads as a
 // single continuous band, with no DOM measurement anywhere.
 //
-// Where a run wraps off the right edge of a row and resumes at the left edge of
-// the next, the two segments are "sliced": the seam side loses its border and its
-// corner radius and runs out to the container edge, and both rows bleed to the
-// gutter midline so their horizontal edges land on the same y.
+// Where a run spans multiple rows, segments bleed to the gutter midline toward
+// vertically/horizontally adjacent era neighbours, while outer boundaries seal cleanly
+// with padded borders and rounded corners. Each wrapped row begins with a continuation chip.
 
 import type { CollectionItemView } from "../collections-logic";
 
@@ -129,35 +128,25 @@ export function buildEraBands(
         && col >= minColOf(row + 1)
         && col <= maxColOf(row + 1);
 
-      // The wrap seam: the run leaves this row past the right edge, or arrives
-      // on this row from the left edge. Only a real wrap counts — where the run
-      // also occupies the cell directly above/below, the container edge is a
-      // straight wall of a full-width slab and keeps its border.
-      const seamRight = col === columns - 1 && row < lastRow && !bottomInRun;
-      const seamLeft = col === 0 && row > firstRow && !topInRun;
-
-      // Any side that continues — into a neighbour, or through a seam — reaches
-      // the gutter midline so the two halves meet. Sides where the run ends stop
-      // one PAD past the card.
+      // Any side that continues into a neighbour reaches the gutter midline
+      // so the two halves meet and seamlessly blend. Outer sides where the run
+      // ends stop one PAD past the card.
       const insetLeft = leftInRun ? BLEED : PAD;
       const insetRight = rightInRun ? BLEED_OVERLAP : PAD;
-      const insetTop = row > firstRow ? BLEED : PAD;
-      const insetBottom = row < lastRow ? BLEED_OVERLAP : PAD;
+      const insetTop = topInRun ? BLEED : PAD;
+      const insetBottom = bottomInRun ? BLEED_OVERLAP : PAD;
 
-      const borderLeft = !leftInRun && !seamLeft;
-      const borderRight = !rightInRun && !seamRight;
+      const borderLeft = !leftInRun;
+      const borderRight = !rightInRun;
       const borderTop = !topInRun;
       const borderBottom = !bottomInRun;
 
-      // A corner is only rounded where two real outer edges meet. Seam sides and
-      // the concave corners of a wrap stay square.
-      const openLeft = leftInRun || seamLeft;
-      const openRight = rightInRun || seamRight;
+      // A corner is only rounded where two real outer edges meet.
       const radii: [number, number, number, number] = [
-        !topInRun && !openLeft ? RADIUS : 0,
-        !topInRun && !openRight ? RADIUS : 0,
-        !bottomInRun && !openRight ? RADIUS : 0,
-        !bottomInRun && !openLeft ? RADIUS : 0,
+        borderTop && borderLeft ? RADIUS : 0,
+        borderTop && borderRight ? RADIUS : 0,
+        borderBottom && borderRight ? RADIUS : 0,
+        borderBottom && borderLeft ? RADIUS : 0,
       ];
 
       let label: EraBandLabel | null = null;
