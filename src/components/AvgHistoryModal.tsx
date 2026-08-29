@@ -195,7 +195,7 @@ export function AvgHistoryModal({ isOpen, profile, entries, onClose }: AvgHistor
     >
       <div
         ref={modalRef}
-        className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-4xl rounded-2xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-6xl rounded-2xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 p-5 border-b border-white/5 bg-gradient-to-r from-yellow-500/10 via-transparent to-transparent">
