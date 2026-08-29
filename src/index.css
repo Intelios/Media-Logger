@@ -2093,6 +2093,7 @@ body {
   box-shadow:
     0 -12px 20px -12px rgba(0, 0, 0, 0.95),
     0 8px 16px -8px rgba(0, 0, 0, 0.85);
+  transition: background 0.2s ease-out, box-shadow 0.2s ease-out;
 }
 
 .backlog-plank::before {
@@ -2114,6 +2115,69 @@ body {
   background: color-mix(in srgb, var(--color-primary) 85%, white);
 }
 
+/* ── Shelf drop-target feedback ─────────────────────────────────────────────
+   While a cross-section drag is active, valid landing shelves glow and the
+   source shelf / Unreleased zone recede. Two tiers: .backlog-shelf-valid
+   (faint receptive tint) and .backlog-shelf-over (full glow when hovered).
+   The ring and glow live on an ::after overlay so they paint ABOVE the covers
+   and spines — an inset box-shadow would be clipped by the items sitting on
+   the shelf edge. */
+
+.backlog-shelf-valid,
+.backlog-shelf-over {
+  position: relative;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+  transition: background 0.2s ease-out;
+}
+
+.backlog-shelf-valid::after,
+.backlog-shelf-over::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 20;
+  border: 1.5px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+  /* Explicit zero shadow so the hover glow interpolates instead of snapping. */
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 0%, transparent);
+  transition: border-color 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.backlog-shelf-over {
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+}
+
+.backlog-shelf-over::after {
+  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  box-shadow: 0 0 24px -6px color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+.backlog-shelf-neutral {
+  opacity: 0.55;
+  filter: saturate(0.5);
+  transition: opacity 0.2s ease-out, filter 0.2s ease-out;
+}
+
+/* One-shot settle for an item that just landed in a new section. It never
+   fades from transparent — the item must be visible the instant the drag
+   overlay disappears, or the drop reads as appear → vanish → reappear. */
+@keyframes backlog-item-land {
+  0% {
+    transform: translateY(-10px) scale(1.05);
+  }
+  60% {
+    transform: translateY(2px) scale(0.99);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.backlog-land {
+  animation: backlog-item-land 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
 /* Shelf-edge label, clipped to the front face of the plank. */
 .backlog-rail-cell {

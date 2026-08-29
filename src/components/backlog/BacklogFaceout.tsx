@@ -34,6 +34,9 @@ interface BacklogFaceoutProps {
   suppressTooltip: boolean;
   /** Rendered inside a DragOverlay: no entrance animation, no hover, no tooltip. */
   preview?: boolean;
+  /** Item just landed here via a cross-section drop: use the settle animation
+   *  instead of the standard entrance. */
+  land?: boolean;
   onOpenMenu: (anchor: MenuAnchor) => void;
 }
 
@@ -45,6 +48,7 @@ export function BacklogFaceout({
   dimmed,
   suppressTooltip,
   preview = false,
+  land = false,
   onOpenMenu,
 }: BacklogFaceoutProps) {
   const { bindTooltip, hideTooltip } = useHoverTooltip();
@@ -55,6 +59,9 @@ export function BacklogFaceout({
     : bindTooltip(<BacklogTooltipContent item={item} />, { width: 220 });
 
   const handlePointerDown = (event: React.PointerEvent) => {
+    // The pointer is captured for the whole drag, so the tooltip opened on
+    // hover would never see pointerleave — close it on press instead.
+    hideTooltip();
     pointerStart.current = { x: event.clientX, y: event.clientY };
   };
 
@@ -78,8 +85,8 @@ export function BacklogFaceout({
       // No `group` in preview: the cursor sits over the overlay for the whole
       // drag, and `.group:hover > .backlog-faceout` would outrank the preview
       // transform.
-      className={cn(!preview && "group backlog-faceout-enter")}
-      style={preview ? undefined : { animationDelay: `${Math.min(index * 60, 240)}ms` }}
+      className={cn(!preview && (land ? "group backlog-land" : "group backlog-faceout-enter"))}
+      style={preview ? undefined : land ? undefined : { animationDelay: `${Math.min(index * 60, 240)}ms` }}
       onPointerDown={handlePointerDown}
       onContextMenu={(event) => openMenu(event, event.currentTarget)}
     >

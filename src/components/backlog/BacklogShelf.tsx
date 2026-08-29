@@ -16,7 +16,14 @@ interface BacklogShelfProps {
   renderItem: (item: BacklogItem, index: number) => ReactNode;
   /** Optional shelf-edge label printed on the plank beneath each item. */
   renderLabel?: (item: BacklogItem) => ReactNode;
-  emptyState: ReactNode;
+  /** Renders the section's empty state; true while a drag hovers this shelf. */
+  renderEmptyState: (highlighted: boolean) => ReactNode;
+  /** True when a cross-section drag is active and this shelf is the source. */
+  isDragSource?: boolean;
+  /** False for shelves that reject cross-section drops (e.g. Unreleased). */
+  dropTarget?: boolean;
+  /** True while any item is being dragged (cross-section or within-section). */
+  isDragging?: boolean;
 }
 
 /**
@@ -59,9 +66,12 @@ export function BacklogShelf({
   collapsed = false,
   renderItem,
   renderLabel,
-  emptyState,
+  renderEmptyState,
+  isDragSource = false,
+  dropTarget = true,
+  isDragging = false,
 }: BacklogShelfProps) {
-  const { setNodeRef, isOver } = useDroppable({ id: containerId });
+  const { setNodeRef, isOver } = useDroppable({ id: containerId, disabled: !dropTarget });
   const { ref: measureRef, perShelf } = useItemsPerShelf(itemWidth, itemGap);
 
   // Before the first measurement lands (same frame, via layout effect) keep
@@ -72,11 +82,20 @@ export function BacklogShelf({
     shelves.push(items.slice(i, i + chunkSize));
   }
 
+  // The source shelf and non-target shelves (Unreleased rejects cross-section
+  // drops) recede during a drag, so only real landing spots light up.
+  const receded = isDragSource || (isDragging && !dropTarget);
+  const shelfClass = cn(
+    receded && "backlog-shelf-neutral",
+    isDragging && dropTarget && !isDragSource && "backlog-shelf-valid",
+    isOver && dropTarget && "backlog-shelf-over",
+  );
+
   return (
-    <div ref={setNodeRef}>
+    <div ref={setNodeRef} className={shelfClass || undefined}>
       <div ref={measureRef}>
         {items.length === 0 ? (
-          emptyState
+          renderEmptyState(isOver && dropTarget)
         ) : (
           // Collapsing wraps the whole run of shelves — planks and label rails
           // included. Leaving the rail behind reads as a rendering bug rather
@@ -94,7 +113,7 @@ export function BacklogShelf({
                     )}
                   </div>
 
-                  <div aria-hidden className={cn("backlog-plank", isOver && "backlog-plank-over")} />
+                  <div aria-hidden className={cn("backlog-plank", isOver && dropTarget && !isDragSource && "backlog-plank-over")} />
 
                   {renderLabel && (
                     <div className="flex" style={{ gap: itemGap }}>

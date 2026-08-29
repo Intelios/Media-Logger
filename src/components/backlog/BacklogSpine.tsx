@@ -23,6 +23,9 @@ interface BacklogSpineProps {
   suppressTooltip: boolean;
   /** Rendered inside a DragOverlay: no entrance animation, no hover, no tooltip. */
   preview?: boolean;
+  /** Item just landed here via a cross-section drop: use the settle animation
+   *  instead of the standard entrance. */
+  land?: boolean;
   onOpenMenu: (anchor: MenuAnchor) => void;
 }
 
@@ -37,6 +40,7 @@ export function BacklogSpine({
   wrapped = false,
   suppressTooltip,
   preview = false,
+  land = false,
   onOpenMenu,
 }: BacklogSpineProps) {
   const { bindTooltip, hideTooltip } = useHoverTooltip();
@@ -53,6 +57,9 @@ export function BacklogSpine({
   // dnd-kit owns pointer events on the wrapper, so the click that reaches us
   // after a drag has to be filtered out by distance rather than by a flag.
   const handlePointerDown = (event: React.PointerEvent) => {
+    // The pointer is captured for the whole drag, so the tooltip opened on
+    // hover would never see pointerleave — close it on press instead.
+    hideTooltip();
     pointerStart.current = { x: event.clientX, y: event.clientY };
   };
 
@@ -71,8 +78,8 @@ export function BacklogSpine({
 
   return (
     <div
-      className={cn(!preview && "group backlog-spine-enter")}
-      style={preview ? undefined : { animationDelay: `${Math.min(index * 22, 320)}ms` }}
+      className={cn(!preview && (land ? "group backlog-land" : "group backlog-spine-enter"))}
+      style={preview ? undefined : land ? undefined : { animationDelay: `${Math.min(index * 22, 320)}ms` }}
     >
       <button
         type="button"

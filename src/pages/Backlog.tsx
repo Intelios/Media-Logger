@@ -107,11 +107,26 @@ function ShelfHeading({
   );
 }
 
-function EmptyShelf({ icon, message }: { icon: ReactNode; message: string }) {
+function EmptyShelf({
+  icon,
+  message,
+  highlighted = false,
+}: {
+  icon: ReactNode;
+  message: string;
+  highlighted?: boolean;
+}) {
   return (
     <div
-      className="rounded-2xl border border-dashed border-white/10 py-10 text-center"
-      style={{ backgroundColor: "var(--color-surface)" }}
+      className="rounded-2xl border border-dashed border-white/10 py-10 text-center transition-[border-color,background-color] duration-200"
+      style={
+        highlighted
+          ? {
+              backgroundColor: "color-mix(in srgb, var(--color-primary) 10%, var(--color-surface))",
+              borderColor: "color-mix(in srgb, var(--color-primary) 50%, transparent)",
+            }
+          : { backgroundColor: "var(--color-surface)" }
+      }
     >
       <div className="mx-auto mb-2 flex justify-center text-gray-600">{icon}</div>
       <p className="text-sm text-gray-500">{message}</p>
@@ -131,6 +146,11 @@ export default function Backlog() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const [activeId, setActiveId] = useState<number | null>(null);
+  // Items that arrived via a cross-section drop this session. The marker is
+  // deliberately never cleared: un-marking a live element would swap its
+  // settle class for the entrance class, replaying a fade from opacity 0 —
+  // the "cover vanishes then animates back in" flash.
+  const [landedIds, setLandedIds] = useState<ReadonlySet<number>>(() => new Set());
   const loadIdRef = useRef(0);
 
   const sensors = useSensors(
@@ -178,6 +198,20 @@ export default function Backlog() {
   const totalCount = allItems.length;
   const isEmpty = totalCount === 0;
   const isDragging = activeId !== null;
+
+  // Resolve a dnd id to its section: a section droppable id (string) or, for an
+  // item id (number), whichever list currently holds it.
+  const findContainer = (id: string | number): SectionKey | null => {
+    const asSection = (Object.keys(CONTAINER_IDS) as SectionKey[]).find((key) => CONTAINER_IDS[key] === id);
+    if (asSection) return asSection;
+    const numId = typeof id === "number" ? id : Number(id);
+    if (items.inProgress.some((item) => item.id === numId)) return "inProgress";
+    if (items.planning.some((item) => item.id === numId)) return "planning";
+    if (items.unreleased.some((item) => item.id === numId)) return "unreleased";
+    return null;
+  };
+
+  const dragSourceSection = isDragging && activeId !== null ? findContainer(activeId) : null;
 
   // The item under the cursor, rendered into the DragOverlay so a drag has a
   // visible subject. Without it the source just dims in place and a
@@ -301,18 +335,6 @@ export default function Backlog() {
     }
   };
 
-  // Resolve a dnd id to its section: a section droppable id (string) or, for an
-  // item id (number), whichever list currently holds it.
-  const findContainer = (id: string | number): SectionKey | null => {
-    const asSection = (Object.keys(CONTAINER_IDS) as SectionKey[]).find((key) => CONTAINER_IDS[key] === id);
-    if (asSection) return asSection;
-    const numId = typeof id === "number" ? id : Number(id);
-    if (items.inProgress.some((item) => item.id === numId)) return "inProgress";
-    if (items.planning.some((item) => item.id === numId)) return "planning";
-    if (items.unreleased.some((item) => item.id === numId)) return "unreleased";
-    return null;
-  };
-
   const handleDragStart = (event: DragStartEvent) => {
     setMenuAnchor(null);
     setActiveId(Number(event.active.id));
@@ -351,6 +373,25 @@ export default function Backlog() {
     // supported (an unreleased item is defined by a release date, set in the
     // form), so ignore those drops.
     if (to === "unreleased") return;
+
+    // Optimistically move the item and mark it as landed in the SAME commit,
+    // so the instant the drag overlay disappears the item is already standing
+    // on its new shelf — no flash back to the source shelf, and the settle
+    // plays exactly once on the fresh mount. The marker stays applied for the
+    // element's lifetime so the entrance class never takes over mid-flight.
+    const moving = items[from].find((item) => item.id === activeItemId);
+    if (moving) {
+      setItems((current) => ({
+        ...current,
+        [from]: current[from].filter((item) => item.id !== activeItemId),
+        [to]: [...current[to], moving],
+      }));
+      setLandedIds((prev) => {
+        const next = new Set(prev);
+        next.add(activeItemId);
+        return next;
+      });
+    }
     try {
       if (to === "inProgress") await backlogLogic.moveToInProgress(activeItemId);
       else await backlogLogic.moveToPlanning(activeItemId);
@@ -503,6 +544,9 @@ export default function Backlog() {
               items={items.inProgress}
               itemWidth={FACEOUT_WIDTH}
               itemGap={FACEOUT_GAP}
+              isDragSource={dragSourceSection === "inProgress"}
+              dropTarget
+              isDragging={isDragging}
               renderItem={(item, index) => (
                 <SortableShelfItem key={item.id} id={item.id}>
                   <BacklogFaceout
@@ -510,6 +554,7 @@ export default function Backlog() {
                     index={index}
                     dimmed={!matches(item)}
                     suppressTooltip={isDragging}
+                    land={landedIds.has(item.id)}
                     onOpenMenu={setMenuAnchor}
                   />
                 </SortableShelfItem>
@@ -529,12 +574,13 @@ export default function Backlog() {
                   <span className="text-[10px] text-amber-500/85">{label}</span>
                 );
               }}
-              emptyState={
+              renderEmptyState={(over) => (
                 <EmptyShelf
+                  highlighted={over}
                   icon={<Play size={22} />}
                   message="Nothing in progress yet. Start something from your planning list."
                 />
-              }
+              )}
             />
           </section>
 
@@ -553,6 +599,9 @@ export default function Backlog() {
               items={items.planning}
               itemWidth={SPINE_WIDTH}
               itemGap={SPINE_GAP}
+              isDragSource={dragSourceSection === "planning"}
+              dropTarget
+              isDragging={isDragging}
               renderItem={(item, index) => (
                 <SortableShelfItem key={item.id} id={item.id}>
                   <BacklogSpine
@@ -561,16 +610,18 @@ export default function Backlog() {
                     index={index}
                     dimmed={!matches(item)}
                     suppressTooltip={isDragging}
+                    land={landedIds.has(item.id)}
                     onOpenMenu={setMenuAnchor}
                   />
                 </SortableShelfItem>
               )}
-              emptyState={
+              renderEmptyState={(over) => (
                 <EmptyShelf
+                  highlighted={over}
                   icon={<Bookmark size={22} />}
                   message="Your planning list is empty. Add something you've been meaning to get to."
                 />
-              }
+              )}
             />
           </section>
 
@@ -592,6 +643,9 @@ export default function Backlog() {
                 itemWidth={SPINE_WIDTH}
                 itemGap={SPINE_GAP}
                 collapsed={unreleasedCollapsed}
+                isDragSource={dragSourceSection === "unreleased"}
+                dropTarget={false}
+                isDragging={isDragging}
                 renderItem={(item, index) => (
                   <SortableShelfItem key={item.id} id={item.id} disabled>
                     <BacklogSpine
@@ -618,12 +672,16 @@ export default function Backlog() {
                     </>
                   );
                 }}
-                emptyState={<EmptyShelf icon={<CalendarClock size={22} />} message="Nothing awaiting release." />}
+                renderEmptyState={(over) => (
+                  <EmptyShelf highlighted={over} icon={<CalendarClock size={22} />} message="Nothing awaiting release." />
+                )}
               />
             </section>
           )}
 
-          <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }}>
+          {/* No drop animation: it flies the copy toward a pre-move rect and
+              fights the optimistic remount + settle below. */}
+          <DragOverlay dropAnimation={null}>
             {dragged?.kind === "faceout" && (
               <BacklogFaceout
                 item={dragged.item}
