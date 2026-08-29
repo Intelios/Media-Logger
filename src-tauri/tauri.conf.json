@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Media Logger",
-  "version": "4.0.8",
+  "version": "4.0.9",
   "identifier": "com.medialogger.data",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -14,8 +14,8 @@
     "windows": [
       {
         "title": "Media Logger",
-        "width": 800,
-        "height": 600,
+        "width": 1920,
+        "height": 1080,
         "transparent": true
       }
     ],

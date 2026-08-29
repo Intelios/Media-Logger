@@ -10,8 +10,8 @@
     "windows": [
       {
         "title": "Media Logger Performance Lab — Synthetic Data Only",
-        "width": 800,
-        "height": 600,
+        "width": 1920,
+        "height": 1080,
         "transparent": true
       }
     ]
