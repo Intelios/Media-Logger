@@ -1,6 +1,6 @@
 import { Children, isValidElement, useState, useEffect, useCallback, useLayoutEffect, useRef, type ReactNode, type SyntheticEvent } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Settings, PartyPopper, Bookmark, Database, X, RefreshCw, Gauge } from "lucide-react";
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
@@ -60,12 +60,6 @@ const navGlowVariants = {
     transition: hoverSpringTransition,
   },
 };
-
-const yearTrailTransition = {
-  type: "spring",
-  stiffness: 200,
-  damping: 30,
-} as const;
 
 interface LayoutProps {
   onPrefetchRoute?: (pathname: string) => void;
@@ -347,110 +341,119 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
           onFocus={handleNavigationIntent}
           onClickCapture={handleNavigationStart}
         >
-
-          <NavItem to="/" icon={<Home size={18} />} label="Home" shortcut={getShortcutLabel("1")} isCompact={isCompact} />
+          <LayoutGroup id="sidebar-nav">
+            <NavItem to="/" icon={<Home size={18} />} label="Home" shortcut={getShortcutLabel("1")} isCompact={isCompact} />
+          </LayoutGroup>
 
           {/* Years Section - vertical timeline rail */}
           <CollapsibleSection label="Years" storageKey="years" isCompact={isCompact}>
             {(isCollapsed) => (
-              <div className={cn("relative", isCompact ? "" : "pl-1")}>
-                {/* Rail line connecting the dots */}
-                <div
-                  className="absolute top-3 bottom-3 w-px"
-                  style={{
-                    left: isCompact ? "50%" : "21px",
-                    transform: isCompact ? "translateX(-0.5px)" : undefined,
-                    backgroundColor: "var(--color-border)",
-                  }}
-                />
-                <StaggerContainer isCollapsed={isCollapsed}>
-                  {years.map(year => (
-                    <YearTimelineItem
-                      key={year}
-                      year={year}
-                      isCompact={isCompact}
-                      shortcut={year === currentYear ? getShortcutLabel("2") : undefined}
-                    />
-                  ))}
-                </StaggerContainer>
-              </div>
+              <LayoutGroup id="sidebar-years">
+                <div className={cn("relative", isCompact ? "" : "pl-1")}>
+                  {/* Rail line connecting the dots */}
+                  <div
+                    className="absolute top-3 bottom-3 w-px"
+                    style={{
+                      left: isCompact ? "50%" : "21px",
+                      transform: isCompact ? "translateX(-0.5px)" : undefined,
+                      backgroundColor: "var(--color-border)",
+                    }}
+                  />
+                  <StaggerContainer isCollapsed={isCollapsed}>
+                    {years.map(year => (
+                      <YearTimelineItem
+                        key={year}
+                        year={year}
+                        isCompact={isCompact}
+                        shortcut={year === currentYear ? getShortcutLabel("2") : undefined}
+                      />
+                    ))}
+                  </StaggerContainer>
+                </div>
+              </LayoutGroup>
             )}
           </CollapsibleSection>
 
           {/* Library Section */}
           <CollapsibleSection label="Library" storageKey="library" isCompact={isCompact}>
             {(isCollapsed) => (
-              <StaggerContainer isCollapsed={isCollapsed}>
-                <NavItem to="/stats" icon={<BarChart3 size={18} />} label="Stats" shortcut={getShortcutLabel("4")} isCompact={isCompact} />
-                <NavItem to="/search" icon={<Search size={18} />} label="Search" shortcut={getShortcutLabel("3")} isCompact={isCompact} />
-                <NavItem to="/backlog" icon={<Bookmark size={18} />} label="Backlog" shortcut={getShortcutLabel("8")} isCompact={isCompact} />
-                <NavItem to="/awards" icon={<Award size={18} />} label="Awards" shortcut={getShortcutLabel("6")} isCompact={isCompact} />
-                <NavItem to="/profiles" icon={<Users size={18} />} label="Profiles" shortcut={getShortcutLabel("5")} isCompact={isCompact} />
-                <NavItem to="/collections" icon={<Layers size={18} />} label="Collections" shortcut={getShortcutLabel("7")} isCompact={isCompact} />
-                <NavItem to="/review" icon={<PartyPopper size={18} />} label="Review" isCompact={isCompact} />
-              </StaggerContainer>
+              <LayoutGroup id="sidebar-nav">
+                <StaggerContainer isCollapsed={isCollapsed}>
+                  <NavItem to="/stats" icon={<BarChart3 size={18} />} label="Stats" shortcut={getShortcutLabel("4")} isCompact={isCompact} />
+                  <NavItem to="/search" icon={<Search size={18} />} label="Search" shortcut={getShortcutLabel("3")} isCompact={isCompact} />
+                  <NavItem to="/backlog" icon={<Bookmark size={18} />} label="Backlog" shortcut={getShortcutLabel("8")} isCompact={isCompact} />
+                  <NavItem to="/awards" icon={<Award size={18} />} label="Awards" shortcut={getShortcutLabel("6")} isCompact={isCompact} />
+                  <NavItem to="/profiles" icon={<Users size={18} />} label="Profiles" shortcut={getShortcutLabel("5")} isCompact={isCompact} />
+                  <NavItem to="/collections" icon={<Layers size={18} />} label="Collections" shortcut={getShortcutLabel("7")} isCompact={isCompact} />
+                  <NavItem to="/review" icon={<PartyPopper size={18} />} label="Review" isCompact={isCompact} />
+                </StaggerContainer>
+              </LayoutGroup>
             )}
           </CollapsibleSection>
 
           {/* System Section */}
           <CollapsibleSection label="System" storageKey="system" isCompact={isCompact}>
             {(isCollapsed) => (
-              <StaggerContainer isCollapsed={isCollapsed}>
-                <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" shortcut={getShortcutLabel(",")} isCompact={isCompact} />
-                {IS_DEV_OR_PERFORMANCE_BUILD && (
-                  <NavItem to="/performance" icon={<Gauge size={18} />} label="Performance" isCompact={isCompact} />
-                )}
-              </StaggerContainer>
+              <LayoutGroup id="sidebar-nav">
+                <StaggerContainer isCollapsed={isCollapsed}>
+                  <NavItem to="/settings" icon={<Settings size={18} />} label="Settings" shortcut={getShortcutLabel(",")} isCompact={isCompact} />
+                  {IS_DEV_OR_PERFORMANCE_BUILD && (
+                    <NavItem to="/performance" icon={<Gauge size={18} />} label="Performance" isCompact={isCompact} />
+                  )}
+                </StaggerContainer>
+              </LayoutGroup>
             )}
           </CollapsibleSection>
         </nav>
 
         {/* Bottom Actions */}
-        <div className="mt-4 pt-4 border-t space-y-2" style={{ borderColor: "var(--color-border-subtle)" }}>
-          {/* Add Entry Button */}
-          <button
-            onClick={() => setShowEntryForm(true)}
-            className={cn(
-              "group w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold transition-all duration-200",
-              "bg-gradient-to-r from-primary to-secondary hover:shadow-lg hover:shadow-primary/25 hover:scale-[1.02] active:scale-[0.98]",
-              isCompact ? "px-2" : "px-4"
-            )}
-          >
-            <motion.span layout transition={iconLayoutTransition} className="flex h-5 w-5 items-center justify-center">
-              <span className="flex h-5 w-5 items-center justify-center motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-out motion-safe:group-hover:rotate-[360deg]">
-                <Plus size={18} />
-              </span>
-            </motion.span>
-            <AnimatePresence initial={false}>
-              {!isCompact && (
-                <AnimatedSidebarText key="add-entry-label">
-                  Add Entry
-                </AnimatedSidebarText>
+        <LayoutGroup id="sidebar-actions">
+          <div className="mt-4 pt-4 border-t space-y-2" style={{ borderColor: "var(--color-border-subtle)" }}>
+            {/* Add Entry Button */}
+            <button
+              onClick={() => setShowEntryForm(true)}
+              className={cn(
+                "group w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold transition-all duration-200",
+                "bg-gradient-to-r from-primary to-secondary hover:shadow-lg hover:shadow-primary/25 hover:scale-[1.02] active:scale-[0.98]",
+                isCompact ? "px-2" : "px-4"
               )}
-            </AnimatePresence>
-          </button>
+            >
+              <motion.span layout transition={iconLayoutTransition} className="flex h-5 w-5 items-center justify-center">
+                <span className="flex h-5 w-5 items-center justify-center motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-out motion-safe:group-hover:rotate-[360deg]">
+                  <Plus size={18} />
+                </span>
+              </motion.span>
+              <AnimatePresence initial={false}>
+                {!isCompact && (
+                  <AnimatedSidebarText key="add-entry-label">
+                    Add Entry
+                  </AnimatedSidebarText>
+                )}
+              </AnimatePresence>
+            </button>
 
-          {/* Compact Toggle */}
-          <button
-            onClick={() => setIsCompact(!isCompact)}
-            className={cn(
-              "w-full flex items-center gap-2 py-2 rounded-lg text-sm transition-all text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-black/5",
-              isCompact ? "justify-center px-2" : "px-3"
-            )}
-            title={isCompact ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <motion.span layout transition={iconLayoutTransition} className="flex h-5 w-5 items-center justify-center">
-              {isCompact ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
-            </motion.span>
-            <AnimatePresence initial={false}>
-              {!isCompact && (
-                <AnimatedSidebarText key="collapse-label">
-                  Collapse
-                </AnimatedSidebarText>
+            {/* Compact Toggle */}
+            <button
+              onClick={() => setIsCompact(!isCompact)}
+              className={cn(
+                "w-full flex items-center gap-2 py-2 rounded-lg text-sm transition-all text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-black/5",
+                isCompact ? "justify-center px-2" : "px-3"
               )}
-            </AnimatePresence>
-          </button>
-        </div>
+              title={isCompact ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <motion.span layout transition={iconLayoutTransition} className="flex h-5 w-5 items-center justify-center">
+                {isCompact ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
+              </motion.span>
+              <AnimatePresence initial={false}>
+                {!isCompact && (
+                  <AnimatedSidebarText key="collapse-label">
+                    Collapse
+                  </AnimatedSidebarText>
+                )}
+              </AnimatePresence>
+            </button>
+          </div>
+        </LayoutGroup>
       </aside>
 
       {/* Main Content Area.
@@ -586,39 +589,41 @@ function CollapsibleSection({
   }, [persistKey, isCollapsed]);
 
   return (
-    <div className="py-2">
-      <AnimatePresence initial={false}>
-        {!isCompact && (
-          <motion.button
-            key={`${storageKey}-section-toggle`}
-            layout
-            initial={{ opacity: 0, x: -6 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -6 }}
-            transition={labelTransition}
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="w-full flex items-center justify-between px-2 text-xs font-semibold uppercase tracking-wider mb-2 transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-          >
-            <span>{label}</span>
-            <motion.span layout transition={iconLayoutTransition} className="flex h-4 w-4 items-center justify-center">
-              {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-            </motion.span>
-          </motion.button>
-        )}
-      </AnimatePresence>
+    <LayoutGroup id={`sidebar-section-${storageKey}`}>
+      <div className="py-2">
+        <AnimatePresence initial={false}>
+          {!isCompact && (
+            <motion.button
+              key={`${storageKey}-section-toggle`}
+              layout
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -6 }}
+              transition={labelTransition}
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="w-full flex items-center justify-between px-2 text-xs font-semibold uppercase tracking-wider mb-2 transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            >
+              <span>{label}</span>
+              <motion.span layout transition={iconLayoutTransition} className="flex h-4 w-4 items-center justify-center">
+                {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+              </motion.span>
+            </motion.button>
+          )}
+        </AnimatePresence>
 
-      <div className={cn(
-        "grid transition-[grid-template-rows,opacity] duration-200",
-        isContentCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
-      )}>
         <div className={cn(
-          "min-h-0 space-y-1",
-          isContentCollapsed ? "overflow-hidden" : "overflow-visible"
+          "grid transition-[grid-template-rows,opacity] duration-200",
+          isContentCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
         )}>
-          {content}
+          <div className={cn(
+            "min-h-0 space-y-1",
+            isContentCollapsed ? "overflow-hidden" : "overflow-visible"
+          )}>
+            {content}
+          </div>
         </div>
       </div>
-    </div>
+    </LayoutGroup>
   );
 }
 
@@ -660,23 +665,18 @@ function YearTimelineItem({
               }}
             />
             {isActive && (
-              <>
-                <motion.span
-                  layoutId="year-active-trail"
-                  className="absolute z-10 rounded-full bg-primary blur-md opacity-25"
-                  style={{ inset: "-5px" }}
-                  transition={yearTrailTransition}
-                />
-                <motion.span
-                  layoutId="year-active-dot"
-                  className="absolute inset-0 z-20 rounded-full bg-primary"
-                  transition={{
-                    type: "spring",
-                    stiffness: 350,
-                    damping: 25,
-                  }}
-                />
-              </>
+              <motion.span
+                layoutId="year-active-indicator"
+                className="absolute inset-0 z-20 rounded-full bg-primary"
+                style={{
+                  boxShadow: "0 0 8px 2px var(--color-primary), 0 0 16px 4px rgba(var(--color-primary-rgb, 94, 53, 177), 0.35)",
+                }}
+                transition={{
+                  type: "spring",
+                  stiffness: 350,
+                  damping: 25,
+                }}
+              />
             )}
           </span>
         );
@@ -684,7 +684,6 @@ function YearTimelineItem({
         return (
           <>
             <motion.span
-              layout
               variants={navIconVariants}
               transition={iconLayoutTransition}
               className="relative z-10 flex w-2.5 shrink-0 items-center justify-center"
@@ -758,7 +757,6 @@ function NavItem({
 
             {/* Icon with spring hover and a subtle theme-colored glow. */}
             <motion.span
-              layout
               variants={navIconVariants}
               transition={iconLayoutTransition}
               className={cn(
