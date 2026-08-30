@@ -1,8 +1,32 @@
 {
-  "generatedAt": "2026-08-24T16:48:39.799Z",
+  "generatedAt": "2026-08-30T15:06:56.028Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "4.0.10",
+      "title": "Media Logger - 4.0.10",
+      "date": "2026-08-30",
+      "body": "New Content/Features:\n- Backlog UI improvements:\n  - Shelfs now light up drop zones to make it clearer where to drop your media when dragging/dropping.\n  - Subtle animation on landing of new item in it's new shelf.\n\nBug Fixes:\n- Fixed a long standing issue in the backlog where the 'cleanup' code would make the image refresh after moving an item to a new shelf, this was not intended. This is now fixed.\n- Fixed a issue in the sidebar that if you were on a year view page then highlighted another option in the sidebar but didn't transition between pages, the glow on the timeline rail of the yearview in the sidebar would bug out and lose it's glow effect.\n\nDependencies Updates:\n- React updated from 19.1.8 to 19.2.18",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.0.10"
+    },
+    {
+      "version": "4.0.9",
+      "title": "Media Logger - 4.0.9",
+      "date": "2026-08-29",
+      "body": "New Content/Features:\n- Average Rating History modal in Profiles is now slightly wider to make it feel less cramped.\n- App now defaults to 1920x1080 on launch.\n\nBug Fixes:\n- Fixed Search Box disapeering during animation after typing something.\n- Fixed issue with Era backgrounds/bands having gaps in the border.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.0.9"
+    },
+    {
+      "version": "4.0.8",
+      "title": "Media Logger - 4.0.8",
+      "date": "2026-08-28",
+      "body": "New Content/Features:\n- Tooltip in Stats updated to have a hero row focused on Average Score. Disabled if not using Average Score in main timeline graph.\n\nBug Fixes:\n- Fixed an issue where you couldn't edit entries in the profile screen.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.0.8"
+    },
     {
       "version": "4.0.7",
       "title": "Media Logger - 4.0.7",
