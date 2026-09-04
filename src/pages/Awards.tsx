@@ -271,7 +271,8 @@ export default function AwardsPage() {
   const categoriesToReorderItems = (cats: CategoryWithWinner[]): ReorderableCategory[] => {
     return cats.map(cat => ({
       ...cat,
-      subtitle: cat.winner ? `Winner: ${cat.winner.name}` : "No winner yet"
+      subtitle: cat.winner ? `Winner: ${cat.winner.name}` : "No winner yet",
+      imageUrl: cat.winner?.image_url ?? undefined,
     }));
   };
 

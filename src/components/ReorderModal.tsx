@@ -11,8 +11,8 @@ import { CoverImage } from "./CoverImage";
 import { useHoverTooltip, TooltipTitle, TooltipDetail } from "./HoverTooltip";
 
 // Generic item type - works with MediaEntry, AwardCategory, or any object with id and name.
-// Covers and era fields are optional: Collections supplies them so rows and the order
-// rail can show art + era bands; Awards leaves them unset and gets the text variant.
+// Covers and era fields are optional: items with an imageUrl show art in the row and the
+// order rail; items without one fall back to the placeholder cover / neutral rail swatch.
 export interface ReorderItem {
   id: number;
   name: string;
