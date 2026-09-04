@@ -6,6 +6,8 @@ import { ReplayColumn } from "./ReplayColumn";
 import { ReviewHero } from "./ReviewHero";
 import { ReviewCard } from "./review-ui";
 import type { ReviewPageData } from "./useReviewPageData";
+import { ADULT_ENTRY_TYPES, ENTRY_TYPES, useAdultMediaEnabled } from "../../lib/media-config";
+import { cn } from "../../lib/utils_ui";
 
 /**
  * The Review page as it now opens: the run is already built and waiting.
@@ -23,6 +25,11 @@ export function ReviewLanding({
 }) {
   const [customiseOpen, setCustomiseOpen] = useState(false);
   const { ctx, reel, years, year, month, typeFilter, monthCounts, loading } = data;
+  const adultEnabled = useAdultMediaEnabled();
+  const totalAvailableTypes = adultEnabled
+    ? ENTRY_TYPES.length
+    : ENTRY_TYPES.filter((t) => !ADULT_ENTRY_TYPES.includes(t)).length;
+  const isFiltered = typeFilter.length > 0 && typeFilter.length < totalAvailableTypes;
 
   const chapterCount = reel?.chapters.length ?? 0;
   const periodNoun = month != null ? "month" : "year";
@@ -60,11 +67,27 @@ export function ReviewLanding({
         <button
           type="button"
           onClick={() => setCustomiseOpen(true)}
-          className="inline-flex h-10 items-center gap-2 rounded-lg border px-3.5 text-[13px] font-medium text-text-muted transition-colors hover:bg-white/[0.08] hover:text-text"
-          style={{ background: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.10)" }}
+          className={cn(
+            "inline-flex h-10 items-center gap-2 rounded-lg border px-3.5 text-[13px] font-medium transition-colors",
+            isFiltered
+              ? "border-primary/40 bg-primary/10 text-white hover:bg-primary/20"
+              : "text-text-muted hover:bg-white/[0.08] hover:text-text",
+          )}
+          style={
+            isFiltered
+              ? undefined
+              : { background: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.10)" }
+          }
         >
-          <SlidersHorizontal size={15} />
-          Customise
+          <SlidersHorizontal size={15} className={isFiltered ? "text-primary" : undefined} />
+          <span>Customise</span>
+          {isFiltered && (
+            <span
+              className="flex h-5 items-center rounded-full bg-primary/25 px-1.5 text-[11px] font-bold text-primary"
+            >
+              {typeFilter.length}
+            </span>
+          )}
         </button>
       </header>
 
@@ -104,13 +127,7 @@ export function ReviewLanding({
       <CustomiseSheet
         open={customiseOpen}
         onClose={() => setCustomiseOpen(false)}
-        years={years}
-        year={year}
-        month={month}
         typeFilter={typeFilter}
-        monthCounts={monthCounts}
-        onSelectYear={data.setYear}
-        onSelectMonth={data.setMonth}
         onSelectTypes={data.setTypeFilter}
       />
     </div>
