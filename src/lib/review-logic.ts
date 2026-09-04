@@ -1,455 +1,57 @@
-import { dbService, type MediaEntry, adultExclusionSql } from "./db";
+/**
+ * Public surface of the Review feature.
+ *
+ * Internals live in ./review/ — the same shape src/lib/backup, collections
+ * and profiles already use. Consumers import from here and nowhere else.
+ */
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+export {
+  getReviewAwards,
+  getReviewYearCovers,
+  getReviewYearTypeTotals,
+  getReviewNote,
+} from "./review/queries";
 
-export interface ReviewSlide {
-  type: string;
-  title: string;
-  subtitle?: string;
-  entries?: MediaEntry[];
-  stats?: Record<string, any>;
-  backgroundImagePath?: string | null;
-}
+export {
+  buildReviewContext,
+  selectBookends,
+  selectComparison,
+  selectYearTotals,
+  type ReviewContextInput,
+} from "./review/context";
 
-export interface ReviewData {
-  period: { year?: number; month?: number; label: string };
-  typeFilter: string[];
-  slides: ReviewSlide[];
-}
+export {
+  assembleReel,
+  reelNeedsNote,
+  REEL_CHAPTERS,
+  REEL_UNLOCKS,
+} from "./review/chapters";
 
-export interface ReviewParams {
-  year: number;
-  month?: number; // 1-12, undefined = full year
-  typeFilter: string[];
-}
+export {
+  REEL_CHAPTER_IDS,
+  type AssembledChapter,
+  type AssembledReel,
+  type AssembledTile,
+  type BackdropPicker,
+  type ChapterTileState,
+  type PosterData,
+  type ReelChapterId,
+  type ReelChapterSpec,
+  type ReviewAward,
+  type ReviewBookends,
+  type ReviewComparison,
+  type ReviewContext,
+  type ReviewYearCoverRow,
+  type ReviewYearTotal,
+  type ReviewYearTypeRow,
+} from "./review/types";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+export {
+  buildPosterData,
+  renderReviewPoster,
+  revealPoster,
+  saveReviewPoster,
+  type PosterSaveResult,
+} from "./review/poster";
 
-const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-type ImageBearing = { image_url: string | null };
-
-function hasImage(entry: ImageBearing): entry is ImageBearing & { image_url: string } {
-  return typeof entry.image_url === "string" && entry.image_url.trim().length > 0;
-}
-
-function pickRandomBackdrop(
-  primaryEntries: ImageBearing[] | undefined,
-  fallbackEntries: ImageBearing[],
-  usedPaths: Set<string>,
-): string | null {
-  const primaryPaths = [...new Set((primaryEntries ?? []).filter(hasImage).map(entry => entry.image_url.trim()))];
-  const fallbackPaths = [...new Set(fallbackEntries.filter(hasImage).map(entry => entry.image_url.trim()))];
-
-  const pool = [
-    primaryPaths.filter(path => !usedPaths.has(path)),
-    primaryPaths,
-    fallbackPaths.filter(path => !usedPaths.has(path)),
-    fallbackPaths,
-  ].find(paths => paths.length > 0);
-
-  if (!pool || pool.length === 0) return null;
-
-  const selectedPath = pool[Math.floor(Math.random() * pool.length)];
-  usedPaths.add(selectedPath);
-  return selectedPath;
-}
-
-function buildWhereClause(params: ReviewParams): { where: string; values: any[] } {
-  const conditions: string[] = ["year_completed = $1"];
-  const values: any[] = [params.year];
-
-  if (params.month) {
-    // Filter by month using completion_date
-    const monthStr = params.month.toString().padStart(2, "0");
-    const startDate = `${params.year}-${monthStr}-01`;
-    const endMonth = params.month === 12 ? 1 : params.month + 1;
-    const endYear = params.month === 12 ? params.year + 1 : params.year;
-    const endDate = `${endYear}-${endMonth.toString().padStart(2, "0")}-01`;
-    values.push(startDate, endDate);
-    conditions.push(`completion_date >= $${values.length - 1} AND completion_date < $${values.length}`);
-  }
-
-  if (params.typeFilter.length > 0) {
-    const placeholders = params.typeFilter.map((_, i) => `$${values.length + i + 1}`).join(", ");
-    conditions.push(`entry_type IN (${placeholders})`);
-    values.push(...params.typeFilter);
-  }
-
-  // Exclude adult entries from the annual review when the setting is off.
-  return { where: conditions.join(" AND ") + adultExclusionSql(), values };
-}
-
-// ─── Main Generator ──────────────────────────────────────────────────────────
-
-// Minimal row shape for the thin projection used by countByField. Fetching only
-// these columns avoids transferring the full payload of every entry column.
-type AggregateRow = {
-  entry_type: string | null;
-  genre: string | null;
-  franchise: string | null;
-  review_score: number | null;
-};
-
-// Count items by field with average scores (mirrors stats-logic.ts pattern).
-// Operates on the thin AggregateRow projection rather than full MediaEntry rows.
-function countByField(rows: AggregateRow[], fieldName: keyof AggregateRow): { name: string; count: number; avgScore?: number; perfectCount: number }[] {
-  const stats: Record<string, { count: number; totalScore: number; scoreCount: number; perfectCount: number }> = {};
-
-  rows.forEach(e => {
-    const value = e[fieldName] as string | null;
-    if (!value) return;
-
-    const values = value.includes(",") ? value.split(",").map(v => v.trim()) : [value.trim()];
-    values.forEach(v => {
-      if (!v) return;
-      if (!stats[v]) stats[v] = { count: 0, totalScore: 0, scoreCount: 0, perfectCount: 0 };
-      stats[v].count++;
-      if (e.review_score != null) {
-        stats[v].totalScore += e.review_score;
-        stats[v].scoreCount++;
-        if (e.review_score === 10) stats[v].perfectCount++;
-      }
-    });
-  });
-
-  return Object.entries(stats)
-    .map(([name, data]) => ({
-      name,
-      count: data.count,
-      avgScore: data.scoreCount > 0 ? Math.round((data.totalScore / data.scoreCount) * 10) / 10 : undefined,
-      perfectCount: data.perfectCount,
-    }))
-    .sort((a, b) => b.count - a.count);
-}
-
-export async function generateReview(params: ReviewParams): Promise<ReviewData> {
-  const db = await dbService.connect();
-  const { where, values } = buildWhereClause(params);
-
-  const periodLabel = params.month
-    ? `${MONTH_NAMES[params.month - 1]} ${params.year}`
-    : `${params.year}`;
-
-  // Cheap precheck: avoid running the aggregate bundle for empty result sets.
-  const countRow = await db.select<{ total: number }[]>(
-    `SELECT COUNT(*) as total FROM entries WHERE ${where}`,
-    values,
-  );
-  const totalEntries = countRow[0]?.total ?? 0;
-
-  if (totalEntries === 0) {
-    return {
-      period: { year: params.year, month: params.month, label: periodLabel },
-      typeFilter: params.typeFilter,
-      slides: [{
-        type: "empty",
-        title: "Nothing Here Yet",
-        subtitle: `No entries found for ${periodLabel} with the selected filters.`,
-      }],
-    };
-  }
-
-  // ── Aggregate bundle (parallel) ──────────────────────────────────────────
-  // Only the columns each aggregation needs are selected; no SELECT * here.
-  const [overviewRow, typeRows, monthRows, ratingRows, aggRows, imageUrlRows] = await Promise.all([
-    // Overview: totals, average, distinct types, rewatches
-    db.select<{ total: number; avg: number | null; types: number; rated: number; rewatches: number }[]>(
-      `SELECT COUNT(*) as total,
-              AVG(review_score) as avg,
-              COUNT(DISTINCT entry_type) as types,
-              SUM(CASE WHEN review_score IS NOT NULL THEN 1 ELSE 0 END) as rated,
-              SUM(CASE WHEN is_rewatch = 1 THEN 1 ELSE 0 END) as rewatches
-       FROM entries WHERE ${where}`,
-      values,
-    ),
-    // Type champion: per-type counts + averages + perfect-10 counts
-    db.select<{ name: string; count: number; avg: number | null; perfect: number }[]>(
-      `SELECT entry_type as name,
-              COUNT(*) as count,
-              AVG(review_score) as avg,
-              SUM(CASE WHEN review_score = 10 THEN 1 ELSE 0 END) as perfect
-       FROM entries WHERE ${where} AND entry_type IS NOT NULL
-       GROUP BY entry_type ORDER BY count DESC`,
-      values,
-    ),
-    // Biggest month (year mode only): per-month counts via strftime — no JS Date parsing
-    params.month
-      ? Promise.resolve([] as { m: number; c: number }[])
-      : db.select<{ m: number; c: number }[]>(
-          `SELECT CAST(strftime('%m', completion_date) AS INTEGER) as m, COUNT(*) as c
-           FROM entries WHERE ${where} AND completion_date IS NOT NULL
-           GROUP BY m ORDER BY c DESC`,
-          values,
-        ),
-    // Rating breakdown: per-rounded-score counts
-    db.select<{ r: number; c: number }[]>(
-      `SELECT ROUND(review_score) as r, COUNT(*) as c
-       FROM entries WHERE ${where} AND review_score IS NOT NULL
-       GROUP BY r ORDER BY r DESC`,
-      values,
-    ),
-    // Thin projection for genre/franchise comma-split aggregation in JS
-    db.select<AggregateRow[]>(
-      `SELECT entry_type, genre, franchise, review_score FROM entries WHERE ${where}`,
-      values,
-    ),
-    // Backdrop pool: image_url only
-    db.select<{ image_url: string | null }[]>(
-      `SELECT image_url FROM entries WHERE ${where} AND image_url IS NOT NULL AND TRIM(image_url) <> ''`,
-      values,
-    ),
-  ]);
-
-  const avgScore = overviewRow[0].avg != null
-    ? Math.round(overviewRow[0].avg * 10) / 10
-    : 0;
-  const ratedCount = overviewRow[0].rated;
-  const rewatchCount = overviewRow[0].rewatches;
-  const uniqueTypes = typeRows.map(r => r.name);
-
-  // Computed breakdowns from the thin projection
-  const genreBreakdown = countByField(aggRows, "genre");
-  const franchiseBreakdown = countByField(aggRows, "franchise");
-
-  const slides: ReviewSlide[] = [];
-
-  // ── 1. Overview ──────────────────────────────────────────────────────────
-  slides.push({
-    type: "overview",
-    title: `Your ${periodLabel} in Review`,
-    subtitle: `Let's look back at everything you experienced.`,
-    stats: {
-      totalEntries,
-      avgScore,
-      uniqueTypes: uniqueTypes.length,
-      typeNames: uniqueTypes,
-      rewatchCount,
-    },
-  });
-
-  // ── 2. Media Type Champion ───────────────────────────────────────────────
-  if (typeRows.length > 0) {
-    const champion = {
-      name: typeRows[0].name,
-      count: typeRows[0].count,
-      avgScore: typeRows[0].avg != null ? Math.round(typeRows[0].avg * 10) / 10 : undefined,
-      perfectCount: typeRows[0].perfect,
-    };
-    const breakdown = typeRows.map(r => ({
-      name: r.name,
-      count: r.count,
-      avgScore: r.avg != null ? Math.round(r.avg * 10) / 10 : undefined,
-      perfectCount: r.perfect,
-    }));
-    slides.push({
-      type: "type-champion",
-      title: "Your Top Medium",
-      subtitle: `${champion.name} dominated with ${champion.count} ${champion.count === 1 ? "entry" : "entries"}.`,
-      stats: { champion, breakdown, total: totalEntries },
-    });
-  }
-
-  // ── 3. Biggest Month (year mode only) ────────────────────────────────────
-  if (!params.month && monthRows.length > 0) {
-    const biggestMonthNum = monthRows[0].m - 1; // 0-11 for MONTH_NAMES
-    const biggestCount = monthRows[0].c;
-
-    const monthCounts: Record<number, number> = {};
-    monthRows.forEach(r => { monthCounts[r.m - 1] = r.c; });
-    const allMonths = MONTH_SHORT.map((name, i) => ({
-      month: name,
-      count: monthCounts[i] || 0,
-    }));
-
-    slides.push({
-      type: "biggest-month",
-      title: "Your Biggest Month",
-      subtitle: `${MONTH_NAMES[biggestMonthNum]} was on fire with ${biggestCount} ${biggestCount === 1 ? "completion" : "completions"}.`,
-      entries: [], // populated below after the targeted biggest-month fetch
-      stats: {
-        biggestMonth: MONTH_NAMES[biggestMonthNum],
-        biggestCount,
-        allMonths,
-      },
-    });
-  }
-
-  // ── 4. Perfect 10s ──────────────────────────────────────────────────────
-  const perfectTens = aggRows.filter(r => r.review_score === 10).length;
-  let perfectTensEntries: MediaEntry[] = [];
-  if (perfectTens > 0) {
-    perfectTensEntries = await db.select<MediaEntry[]>(
-      `SELECT * FROM entries WHERE ${where} AND review_score = 10 ORDER BY id DESC`,
-      values,
-    );
-    slides.push({
-      type: "perfect-tens",
-      title: "Perfect 10s",
-      subtitle: perfectTens === 1
-        ? `One masterpiece earned the highest honor.`
-        : `${perfectTens} masterpieces earned the highest honor.`,
-      entries: perfectTensEntries,
-      stats: { count: perfectTens },
-    });
-  }
-
-  // ── 5. Top Genre ─────────────────────────────────────────────────────────
-  if (genreBreakdown.length > 0) {
-    slides.push({
-      type: "top-genre",
-      title: "Genre of Choice",
-      subtitle: `${genreBreakdown[0].name} led the way with ${genreBreakdown[0].count} ${genreBreakdown[0].count === 1 ? "entry" : "entries"}${genreBreakdown[0].avgScore ? ` and a ${genreBreakdown[0].avgScore} average.` : "."}`,
-      stats: {
-        topGenre: genreBreakdown[0],
-        topGenres: genreBreakdown.slice(0, 8),
-      },
-    });
-  }
-
-  // ── 6. Genre Cloud ───────────────────────────────────────────────────────
-  if (genreBreakdown.length > 1) {
-    slides.push({
-      type: "genre-cloud",
-      title: "Genre Cloud",
-      subtitle: "Your media universe, visualized.",
-      stats: { genreCloud: genreBreakdown.slice(0, 35) },
-    });
-  }
-
-  // ── 7. Most Replayed Franchise ───────────────────────────────────────────
-  if (franchiseBreakdown.length > 0 && franchiseBreakdown[0].count >= 2) {
-    slides.push({
-      type: "top-franchise",
-      title: "Franchise Obsession",
-      subtitle: `You kept coming back to ${franchiseBreakdown[0].name} — ${franchiseBreakdown[0].count} entries deep.`,
-      stats: {
-        topFranchise: franchiseBreakdown[0],
-        franchises: franchiseBreakdown.slice(0, 5),
-      },
-    });
-  }
-
-  // ── 8. Rating Breakdown ──────────────────────────────────────────────────
-  if (ratedCount > 0) {
-    const ratingDist: Record<number, number> = {};
-    ratingRows.forEach(r => { ratingDist[r.r] = r.c; });
-    const ratingBars = [];
-    for (let i = 10; i >= 1; i--) {
-      ratingBars.push({ rating: i, count: ratingDist[i] || 0 });
-    }
-    if (ratingDist[0] > 0) {
-      ratingBars.push({ rating: 0, count: ratingDist[0] });
-    }
-    const mostCommon = ratingBars.reduce((max, r) => r.count > max.count ? r : max, ratingBars[0]);
-    slides.push({
-      type: "rating-breakdown",
-      title: "How You Rated",
-      subtitle: `Your most given score was ${mostCommon.rating}/10 (${mostCommon.count} times). Average: ${avgScore}/10.`,
-      stats: { ratingBars, avgScore, totalRated: ratedCount, mostCommon: mostCommon.rating },
-    });
-  }
-
-  // ── 9. Award Winners (year mode) ────────────────────────────────────────
-  if (!params.month) {
-    try {
-      const awardsRaw = await db.select<any[]>(
-        `SELECT c.name as category_name, m.name as winner_name, m.image_url, m.entry_type, m.review_score
-         FROM award_categories c
-         JOIN award_winners w ON w.category_id = c.id
-         JOIN entries m ON w.media_id = m.id
-         WHERE c.year = $1${adultExclusionSql()}
-         ORDER BY c.sort_order ASC`,
-        [params.year]
-      );
-
-      if (awardsRaw.length > 0) {
-        slides.push({
-          type: "award-winners",
-          title: "Award Winners",
-          subtitle: `${awardsRaw.length} ${awardsRaw.length === 1 ? "award was" : "awards were"} handed out in ${params.year}.`,
-          stats: {
-            awards: awardsRaw.map(a => ({
-              category: a.category_name,
-              winner: a.winner_name,
-              imageUrl: a.image_url,
-              entryType: a.entry_type,
-              score: a.review_score,
-            })),
-          },
-        });
-      }
-    } catch { /* awards tables might not have data */ }
-  }
-
-  // ── 10. Finale ───────────────────────────────────────────────────────────
-  let topRated: MediaEntry[] = [];
-  if (ratedCount > 0) {
-    topRated = await db.select<MediaEntry[]>(
-      `SELECT * FROM entries WHERE ${where} AND review_score IS NOT NULL
-       ORDER BY review_score DESC, id DESC LIMIT 20`,
-      values,
-    );
-  }
-  slides.push({
-    type: "finale",
-    title: `That Was ${periodLabel}`,
-    subtitle: `${totalEntries} entries. ${perfectTens} perfect scores. ${uniqueTypes.length} different types of media. What a ride.`,
-    entries: topRated,
-    stats: {
-      totalEntries,
-      perfectCount: perfectTens,
-      avgScore,
-      uniqueTypes: uniqueTypes.length,
-      rewatchCount,
-    },
-  });
-
-  // ── 11. Biggest Month entries (lazy fetch for thumbnails) ───────────────
-  if (!params.month && monthRows.length > 0) {
-    const biggestMonthNum = monthRows[0].m; // raw MM for SQL
-    const biggestMonthEntries = await db.select<MediaEntry[]>(
-      `SELECT * FROM entries WHERE ${where} AND strftime('%m', completion_date) = $${values.length + 1}
-       ORDER BY completion_date DESC, id DESC LIMIT 10`,
-      [...values, biggestMonthNum.toString().padStart(2, "0")],
-    );
-    const biggestMonthSlide = slides.find(s => s.type === "biggest-month");
-    if (biggestMonthSlide) biggestMonthSlide.entries = biggestMonthEntries;
-  }
-
-  // ── 12. Backdrop assignment ─────────────────────────────────────────────
-  const entriesWithImages: ImageBearing[] = imageUrlRows;
-  const usedBackdropPaths = new Set<string>();
-  const slidesWithBackdrops = slides.map((slide) => ({
-    ...slide,
-    backgroundImagePath: pickRandomBackdrop(slide.entries, entriesWithImages, usedBackdropPaths),
-  }));
-
-  return {
-    period: { year: params.year, month: params.month, label: periodLabel },
-    typeFilter: params.typeFilter,
-    slides: slidesWithBackdrops,
-  };
-}
-
-// Get available years from the database
-export async function getReviewYearStats(): Promise<{ year: number; count: number }[]> {
-  const db = await dbService.connect();
-  const rows = await db.select<{ year_completed: number; count: number }[]>(
-    `SELECT year_completed, COUNT(*) as count FROM entries
-     WHERE year_completed IS NOT NULL${adultExclusionSql()}
-     GROUP BY year_completed ORDER BY year_completed DESC`
-  );
-  return rows.map(r => ({ year: r.year_completed, count: Number(r.count) }));
-}
-
-export async function getReviewFilteredCount(params: ReviewParams): Promise<number> {
-  const db = await dbService.connect();
-  const { where, values } = buildWhereClause(params);
-  const rows = await db.select<{ total: number }[]>(
-    `SELECT COUNT(*) as total FROM entries WHERE ${where}`,
-    values,
-  );
-  return rows[0]?.total ?? 0;
-}
+export { type ReviewParams } from "./review/types";

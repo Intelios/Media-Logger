@@ -25,6 +25,9 @@ export default {
       },
       fontFamily: {
         sans: ["Inter", "sans-serif"],
+        // Review surfaces only. Nothing else in the app sets a serif, so
+        // overriding Tailwind's default `serif` key collides with nothing.
+        serif: ['"Instrument Serif"', "Georgia", "serif"],
       }
     },
   },

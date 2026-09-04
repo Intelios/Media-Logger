@@ -5,10 +5,11 @@
   "app": {
     "windows": [
       {
-        "title": "Media Logger Development — Test Data Only",
+        "title": "Media Logger Development \u2014 Test Data Only",
         "width": 1920,
         "height": 1080,
-        "transparent": true
+        "transparent": true,
+        "url": "/review"
       }
     ]
   },

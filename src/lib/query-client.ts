@@ -23,6 +23,13 @@ export const mediaQueryKeys = {
   awards: ["media-logger", "awards"] as const,
   collections: ["media-logger", "collections"] as const,
   navigationYears: ["media-logger", "navigation-years"] as const,
+  // Review reads its per-year rows through `statsForYear` — the same key the
+  // Stats screen uses — so only the cross-year and detail lookups live here.
+  review: ["media-logger", "review"] as const,
+  reviewAwards: (year: number) => ["media-logger", "review", ...mediaQueryKeys.scope(), "awards", year] as const,
+  reviewYearTotals: () => ["media-logger", "review", ...mediaQueryKeys.scope(), "year-totals"] as const,
+  reviewYearCovers: () => ["media-logger", "review", ...mediaQueryKeys.scope(), "year-covers"] as const,
+  reviewNote: (entryId: number) => ["media-logger", "review", ...mediaQueryKeys.scope(), "note", entryId] as const,
   scope: () => [getDatabaseGenerationKey(), isAdultMediaEnabled() ? "adult:on" : "adult:off"] as const,
   entriesForYear: (year: string) => ["media-logger", "entries", ...mediaQueryKeys.scope(), "year", year] as const,
   search: (filters: object, page: number) => ["media-logger", "entries", ...mediaQueryKeys.scope(), "search", filters, page] as const,
@@ -107,6 +114,9 @@ export function connectQueryInvalidationBridge(): () => void {
       invalidateMediaQueries(mediaQueryKeys.stats),
       invalidateMediaQueries(mediaQueryKeys.profiles),
       invalidateMediaQueries(mediaQueryKeys.navigationYears),
+      // Review's per-year rows ride on `stats`, but its cross-year totals,
+      // year covers and note lookups are not covered by any other namespace.
+      invalidateMediaQueries(mediaQueryKeys.review),
     ]);
   });
   return () => {

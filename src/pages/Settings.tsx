@@ -1876,6 +1876,7 @@ export default function Settings() {
                             <AboutInfoRow label="Tauri API Package" value={packageMetadata.tauriApiVersion} mono />
                             <AboutInfoRow label="Tauri CLI Package" value={packageMetadata.tauriCliVersion} mono />
                             <AboutInfoRow label="React Package" value={packageMetadata.reactVersion} mono />
+                            <AboutInfoRow label="Fonts" value="Inter, Instrument Serif (SIL OFL 1.1)" />
                         </section>
 
                         <section className="settings-card">

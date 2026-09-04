@@ -88,7 +88,7 @@ export interface StatsDataset {
   now: Date;
 }
 
-type CountableField =
+export type CountableField =
   | "genre"
   | "platform"
   | "franchise"
@@ -123,7 +123,11 @@ function getDelimitedValues(value: string | null | undefined) {
     .filter(Boolean);
 }
 
-function countWithScores(entries: StatsEntry[], fieldName: CountableField): StatItem[] {
+/**
+ * Counts a comma-delimited field across entries, carrying average and perfect-10
+ * counts. `avgScore` is deliberately unrounded — round at the render layer.
+ */
+export function countFieldWithScores(entries: StatsEntry[], fieldName: CountableField): StatItem[] {
   const stats: Record<string, { count: number; totalScore: number; scoreCount: number; perfectCount: number }> = {};
 
   for (const entry of entries) {
@@ -236,35 +240,35 @@ export function selectRatingDistribution(dataset: StatsDataset): StatItem[] {
 }
 
 export function selectGenres(dataset: StatsDataset) {
-  return countWithScores(dataset.entries, "genre").slice(0, 25);
+  return countFieldWithScores(dataset.entries, "genre").slice(0, 25);
 }
 
 export function selectPlatforms(dataset: StatsDataset) {
-  return countWithScores(dataset.gameEntries, "platform").slice(0, 25);
+  return countFieldWithScores(dataset.gameEntries, "platform").slice(0, 25);
 }
 
 export function selectFranchises(dataset: StatsDataset) {
-  return countWithScores(dataset.gameEntries, "franchise").slice(0, 25);
+  return countFieldWithScores(dataset.gameEntries, "franchise").slice(0, 25);
 }
 
 export function selectSeries(dataset: StatsDataset) {
-  return countWithScores(dataset.tvEntries, "series").slice(0, 25);
+  return countFieldWithScores(dataset.tvEntries, "series").slice(0, 25);
 }
 
 export function selectStudios(dataset: StatsDataset) {
-  return countWithScores(dataset.entries, "director").slice(0, 25);
+  return countFieldWithScores(dataset.entries, "director").slice(0, 25);
 }
 
 export function selectAuthors(dataset: StatsDataset) {
-  return countWithScores(dataset.entries, "author").slice(0, 25);
+  return countFieldWithScores(dataset.entries, "author").slice(0, 25);
 }
 
 export function selectActresses(dataset: StatsDataset) {
-  return countWithScores(dataset.entries, "actress").slice(0, 25);
+  return countFieldWithScores(dataset.entries, "actress").slice(0, 25);
 }
 
 export function selectMediaTypeBreakdown(dataset: StatsDataset) {
-  return countWithScores(dataset.entries, "entry_type").slice(0, 15);
+  return countFieldWithScores(dataset.entries, "entry_type").slice(0, 15);
 }
 
 export function selectMultiLogDays(dataset: StatsDataset): MultiLogDay[] {
@@ -376,7 +380,7 @@ export function selectTimelineSeries(dataset: StatsDataset, granularity: "month"
 }
 
 export function selectAverageScoreByType(dataset: StatsDataset) {
-  return countWithScores(dataset.entries, "entry_type")
+  return countFieldWithScores(dataset.entries, "entry_type")
     .filter((item) => item.avgScore !== undefined)
     .sort((left, right) => {
       const avgDiff = (right.avgScore ?? 0) - (left.avgScore ?? 0);

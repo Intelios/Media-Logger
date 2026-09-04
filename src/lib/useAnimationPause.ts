@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const PAUSED_CLASS = "animations-paused";
@@ -80,4 +80,32 @@ export function useAnimationPause() {
       document.documentElement.classList.remove(SCROLLING_CLASS);
     };
   }, []);
+}
+
+/**
+ * Read-only view of the same energy-saver signal `useAnimationPause` writes.
+ *
+ * CSS animations freeze via the `animations-paused` class, but a JS clock
+ * (the Review reel's chapter timer) keeps running on requestAnimationFrame
+ * when the window is merely unfocused — rAF only throttles once the window is
+ * *hidden*. Rather than duplicate the focus/visibility bookkeeping, this
+ * observes the class the single writer above already maintains, so a JS timer
+ * can never drift out of step with the CSS.
+ */
+export function useAnimationsPaused(): boolean {
+  const subscribe = useCallback((onStoreChange: () => void) => {
+    const observer = new MutationObserver(onStoreChange);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const getSnapshot = useCallback(
+    () => document.documentElement.classList.contains(PAUSED_CLASS),
+    [],
+  );
+
+  return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }
