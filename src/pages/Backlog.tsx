@@ -11,6 +11,7 @@ import {
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
 } from "@dnd-kit/core";
 import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { BacklogShelf } from "../components/backlog/BacklogShelf";
@@ -146,6 +147,10 @@ export default function Backlog() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const [activeId, setActiveId] = useState<number | null>(null);
+  // Section the dragged item is currently over. dnd-kit's per-droppable isOver
+  // only lights the shelf container, but during a drag the cursor usually sits
+  // over a sortable item — so the shelf glow is driven from this instead.
+  const [overSection, setOverSection] = useState<SectionKey | null>(null);
   // Items that arrived via a cross-section drop this session. The marker is
   // deliberately never cleared: un-marking a live element would swap its
   // settle class for the entrance class, replaying a fade from opacity 0 —
@@ -210,8 +215,6 @@ export default function Backlog() {
     if (items.unreleased.some((item) => item.id === numId)) return "unreleased";
     return null;
   };
-
-  const dragSourceSection = isDragging && activeId !== null ? findContainer(activeId) : null;
 
   // The item under the cursor, rendered into the DragOverlay so a drag has a
   // visible subject. Without it the source just dims in place and a
@@ -338,12 +341,23 @@ export default function Backlog() {
   const handleDragStart = (event: DragStartEvent) => {
     setMenuAnchor(null);
     setActiveId(Number(event.active.id));
+    setOverSection(null);
   };
 
-  const handleDragCancel = () => setActiveId(null);
+  // Tracks the section under the dragged item — container or item, whichever
+  // dnd-kit reports — so shelf highlights always match where a drop would land.
+  const handleDragOver = (event: DragOverEvent) => {
+    setOverSection(event.over ? findContainer(event.over.id) : null);
+  };
+
+  const handleDragCancel = () => {
+    setActiveId(null);
+    setOverSection(null);
+  };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveId(null);
+    setOverSection(null);
     const { active, over } = event;
     if (!over) return;
 
@@ -527,6 +541,7 @@ export default function Backlog() {
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
@@ -544,9 +559,9 @@ export default function Backlog() {
               items={items.inProgress}
               itemWidth={FACEOUT_WIDTH}
               itemGap={FACEOUT_GAP}
-              isDragSource={dragSourceSection === "inProgress"}
               dropTarget
               isDragging={isDragging}
+              overOverride={overSection === "inProgress"}
               renderItem={(item, index) => (
                 <SortableShelfItem key={item.id} id={item.id}>
                   <BacklogFaceout
@@ -599,9 +614,9 @@ export default function Backlog() {
               items={items.planning}
               itemWidth={SPINE_WIDTH}
               itemGap={SPINE_GAP}
-              isDragSource={dragSourceSection === "planning"}
               dropTarget
               isDragging={isDragging}
+              overOverride={overSection === "planning"}
               renderItem={(item, index) => (
                 <SortableShelfItem key={item.id} id={item.id}>
                   <BacklogSpine
@@ -643,7 +658,6 @@ export default function Backlog() {
                 itemWidth={SPINE_WIDTH}
                 itemGap={SPINE_GAP}
                 collapsed={unreleasedCollapsed}
-                isDragSource={dragSourceSection === "unreleased"}
                 dropTarget={false}
                 isDragging={isDragging}
                 renderItem={(item, index) => (

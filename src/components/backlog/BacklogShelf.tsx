@@ -18,12 +18,13 @@ interface BacklogShelfProps {
   renderLabel?: (item: BacklogItem) => ReactNode;
   /** Renders the section's empty state; true while a drag hovers this shelf. */
   renderEmptyState: (highlighted: boolean) => ReactNode;
-  /** True when a cross-section drag is active and this shelf is the source. */
-  isDragSource?: boolean;
   /** False for shelves that reject cross-section drops (e.g. Unreleased). */
   dropTarget?: boolean;
   /** True while any item is being dragged (cross-section or within-section). */
   isDragging?: boolean;
+  /** Page-tracked drag hover for this shelf; lights it even when the cursor is
+   *  over one of its items rather than the bare container. */
+  overOverride?: boolean;
 }
 
 /**
@@ -67,9 +68,9 @@ export function BacklogShelf({
   renderItem,
   renderLabel,
   renderEmptyState,
-  isDragSource = false,
   dropTarget = true,
   isDragging = false,
+  overOverride = false,
 }: BacklogShelfProps) {
   const { setNodeRef, isOver } = useDroppable({ id: containerId, disabled: !dropTarget });
   const { ref: measureRef, perShelf } = useItemsPerShelf(itemWidth, itemGap);
@@ -82,20 +83,27 @@ export function BacklogShelf({
     shelves.push(items.slice(i, i + chunkSize));
   }
 
-  // The source shelf and non-target shelves (Unreleased rejects cross-section
-  // drops) recede during a drag, so only real landing spots light up.
-  const receded = isDragSource || (isDragging && !dropTarget);
+  // isOver only lights up when the shelf container itself wins the collision —
+  // during a drag the cursor usually sits over one of the shelf's sortable
+  // items, which leaves the container dark. The page tracks the hovered
+  // section through onDragOver (items included) and passes it back as
+  // overOverride, so the glow always matches where a release would land.
+  const over = (isOver || overOverride) && dropTarget;
+
+  // During a drag every shelf but the hovered one recedes — source included —
+  // so there is never any doubt about where a release would land.
+  const receded = isDragging && !over;
   const shelfClass = cn(
     receded && "backlog-shelf-neutral",
-    isDragging && dropTarget && !isDragSource && "backlog-shelf-valid",
-    isOver && dropTarget && "backlog-shelf-over",
+    isDragging && dropTarget && "backlog-shelf-valid",
+    over && "backlog-shelf-over",
   );
 
   return (
     <div ref={setNodeRef} className={shelfClass || undefined}>
       <div ref={measureRef}>
         {items.length === 0 ? (
-          renderEmptyState(isOver && dropTarget)
+          renderEmptyState(over)
         ) : (
           // Collapsing wraps the whole run of shelves — planks and label rails
           // included. Leaving the rail behind reads as a rendering bug rather
@@ -113,7 +121,7 @@ export function BacklogShelf({
                     )}
                   </div>
 
-                  <div aria-hidden className={cn("backlog-plank", isOver && dropTarget && !isDragSource && "backlog-plank-over")} />
+                  <div aria-hidden className={cn("backlog-plank", over && "backlog-plank-over")} />
 
                   {renderLabel && (
                     <div className="flex" style={{ gap: itemGap }}>

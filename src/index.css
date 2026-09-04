@@ -2116,9 +2116,10 @@ body {
 }
 
 /* ── Shelf drop-target feedback ─────────────────────────────────────────────
-   While a cross-section drag is active, valid landing shelves glow and the
-   source shelf / Unreleased zone recede. Two tiers: .backlog-shelf-valid
-   (faint receptive tint) and .backlog-shelf-over (full glow when hovered).
+   While a drag is active, the hovered shelf glows (.backlog-shelf-over) and
+   every other shelf — source included — recedes (.backlog-shelf-neutral).
+   .backlog-shelf-valid is the faint base ring drop-target shelves carry during
+   a drag so the hover glow has something to interpolate from.
    The ring and glow live on an ::after overlay so they paint ABOVE the covers
    and spines — an inset box-shadow would be clipped by the items sitting on
    the shelf edge. */
