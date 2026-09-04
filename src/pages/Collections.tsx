@@ -518,7 +518,13 @@ export default function CollectionsPage() {
         <ReorderModal
           isOpen={reorderOpen}
           onClose={() => setReorderOpen(false)}
-          items={items.map(i => ({ ...i, subtitle: i.entry_type ?? undefined }))}
+          items={items.map(i => ({
+            ...i,
+            subtitle: i.entry_type ?? undefined,
+            imageUrl: i.image_url ?? undefined,
+            eraColor: i.era_color,
+            eraName: i.era_name,
+          }))}
           onSave={handleReorderSave}
           title="Reorder Collection"
         />
