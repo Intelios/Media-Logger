@@ -1,8 +1,16 @@
 {
-  "generatedAt": "2026-08-30T15:06:56.028Z",
+  "generatedAt": "2026-09-05T17:20:45.969Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "4.1",
+      "title": "Media Logger - 4.1",
+      "date": "2026-09-05",
+      "body": "New Content/Features:\n- Remade the entire 'Review' page in an entirely new UI style and design — The Reel: your year as a film. The page now opens on a ready-to-play run (cover-fan hero, chapter tiles with locked mid-year goals, a Replay column for past years and single months) instead of a four-panel filter form; filters moved behind an optional Customise sheet that costs no queries.\n- Full Redesign of the Re-Order modal in Collections & Awards. Simple list reordering is gone and now a properly designed rail system with mini thumbnails and entirely new UI.\n- Backlog now highlights the shelf your dragging an item to.\n- Backlog now dims shelves you are not currently hovering over while dragging.\n\nBug Fixes:\n- Fixed issue where 'Click to add Filter' tooltip showed up on every Profile button.\n- Review's media-type filter now follows the Settings adult-media toggle live instead of reading it once at mount.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.1"
+    },
     {
       "version": "4.0.10",
       "title": "Media Logger - 4.0.10",
