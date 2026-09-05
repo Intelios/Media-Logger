@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useSearchParams } from "react-router";
-import { Sparkles, ChevronDown, ChevronUp, X, HardDrive, RotateCcw, Captions } from "lucide-react";
+import { Sparkles, ChevronDown, ChevronUp, X, HardDrive, RotateCcw, Captions, ArrowDownToLine } from "lucide-react";
 import { dbService, type EntryCardSummary, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { profilesLogic } from "../lib/profiles-logic";
@@ -8,6 +8,7 @@ import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { VirtualizedCardGrid } from "../components/VirtualizedCardGrid";
+import { useMainScrollContainer } from "../lib/scroll-container";
 import { mediaQueryKeys, queryClient } from "../lib/query-client";
 import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, getVisibleEntryTypes, getVisiblePresetKeys, useAdultMediaEnabled, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 
@@ -145,6 +146,13 @@ export default function YearView() {
   const [localCopyFilter, setLocalCopyFilter] = useState<StatusFilter>(() => loadStatusFilter(LOCAL_COPY_FILTER_KEY));
   const [rewatchFilter, setRewatchFilter] = useState<StatusFilter>(() => loadStatusFilter(REWATCH_FILTER_KEY));
   const [subtitlesFilter, setSubtitlesFilter] = useState<StatusFilter>(() => loadStatusFilter(SUBTITLES_FILTER_KEY));
+
+  // Scroll helper
+  const { scrollToBottom } = useMainScrollContainer();
+
+  const handleScrollToBottom = useCallback(() => {
+    scrollToBottom("smooth");
+  }, [scrollToBottom]);
 
   // Toggle quick filters visibility
   const toggleQuickFilters = () => {
@@ -547,13 +555,32 @@ export default function YearView() {
                 className="
                   flex items-center gap-1 px-2 py-1.5 rounded-lg text-sm
                   text-gray-400 hover:text-white hover:bg-white/[0.05]
-                  transition-all duration-200 ml-auto
+                  transition-all duration-200
                 "
               >
                 <X size={14} />
                 <span>Clear All</span>
               </button>
             )}
+
+            {/* Scroll to bottom button */}
+            <button
+              type="button"
+              onClick={handleScrollToBottom}
+              disabled={deferredEntries.length === 0}
+              className="
+                group relative flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm
+                transition-all duration-200
+                bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white
+                border border-white/[0.08] hover:border-white/[0.15]
+                active:scale-95 disabled:opacity-40 disabled:pointer-events-none
+                ml-auto
+              "
+              aria-label="Scroll to bottom"
+            >
+              <ArrowDownToLine size={16} className="opacity-70 group-hover:opacity-100 transition-opacity" />
+              <span>To Bottom</span>
+            </button>
           </div>
         </div>
       </header>

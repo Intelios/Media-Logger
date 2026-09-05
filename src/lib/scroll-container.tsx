@@ -11,6 +11,7 @@ export interface MainScrollContainerValue {
   scrollRef: RefObject<HTMLElement | null>;
   getScrollElement: () => HTMLElement | null;
   scrollToTop: (behavior?: ScrollBehavior) => void;
+  scrollToBottom: (behavior?: ScrollBehavior) => void;
 }
 
 const MainScrollContainerContext = createContext<MainScrollContainerValue | null>(null);
@@ -31,9 +32,17 @@ export function MainScrollContainerProvider({
     },
     [scrollRef],
   );
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = "auto") => {
+      const element = scrollRef.current;
+      if (!element) return;
+      element.scrollTo({ top: element.scrollHeight, left: 0, behavior });
+    },
+    [scrollRef],
+  );
   const value = useMemo<MainScrollContainerValue>(
-    () => ({ scrollRef, getScrollElement, scrollToTop }),
-    [getScrollElement, scrollRef, scrollToTop],
+    () => ({ scrollRef, getScrollElement, scrollToTop, scrollToBottom }),
+    [getScrollElement, scrollRef, scrollToTop, scrollToBottom],
   );
 
   return (
