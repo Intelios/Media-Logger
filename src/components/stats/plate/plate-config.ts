@@ -16,7 +16,7 @@ export const PLATE_FIGURE_IDS = [
   "genre-count",
 ] as const;
 
-export const TIMELINE_LAYER_IDS = ["completions", "score", "rewatches", "platinums"] as const;
+export const TIMELINE_LAYER_IDS = ["completions", "score", "rewatches"] as const;
 
 export type PlatePanelId = (typeof PLATE_PANEL_IDS)[number];
 export type PlateFigureId = (typeof PLATE_FIGURE_IDS)[number];
@@ -98,7 +98,6 @@ export const TIMELINE_LAYER_DEFINITIONS: Record<TimelineLayerId, TimelineLayerDe
   completions: { id: "completions", label: "Completions", color: "#8b5cf6", axis: "count" },
   score: { id: "score", label: "Avg score", color: "#34d399", axis: "score" },
   rewatches: { id: "rewatches", label: "Replays", color: "#f472b6", axis: "count" },
-  platinums: { id: "platinums", label: "Platinums", color: "#fbbf24", axis: "count" },
 };
 
 export interface PlatePreferences {

@@ -44,7 +44,6 @@ interface TimelineChartRow {
   score: number | null;
   ratedCount: number;
   rewatches: number;
-  platinums: number;
   comparisonCompletions?: number;
 }
 
@@ -164,7 +163,6 @@ export function TimelineHero({
     score: bucket.averageScore,
     ratedCount: bucket.ratedCount,
     rewatches: bucket.rewatches,
-    platinums: bucket.platinums,
     comparisonCompletions: comparisonTimeline?.[index]?.completions,
   }));
 
@@ -296,17 +294,6 @@ export function TimelineHero({
               />
             ) : null}
 
-            {activeLayers.has("platinums") ? (
-              <Line
-                yAxisId="count"
-                type="monotone"
-                dataKey="platinums"
-                name={TIMELINE_LAYER_DEFINITIONS.platinums.label}
-                stroke={TIMELINE_LAYER_DEFINITIONS.platinums.color}
-                strokeWidth={1.75}
-                dot={false}
-              />
-            ) : null}
 
             {activeLayers.has("score") ? (
               <Line
