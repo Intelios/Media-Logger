@@ -7,7 +7,7 @@ import { formatShortDate } from "../../../../lib/dates";
 import type { DailyCompletion, MultiLogDay } from "../../../../lib/stats-logic";
 import { BingeHeatmap } from "../BingeHeatmap";
 import { CoverImage, PanelEmptyState, PanelFrame } from "../plate-ui";
-import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../../../HoverTooltip";
+import { TooltipTitle, useHoverTooltip } from "../../../HoverTooltip";
 
 interface MultiLogDaysPanelProps {
   multiLogDays: MultiLogDay[];
@@ -101,6 +101,47 @@ export function MultiLogDaysPanel({
     pulseTimerRef.current = window.setTimeout(() => setPulseDate(null), PULSE_DURATION_MS);
   };
 
+  const renderDayTooltip = (day: MultiLogDay) => {
+    const { day: dayRaw, month, year } = splitDate(day.date);
+    const dayNumber = String(Number(dayRaw));
+    const shown = day.entries.slice(0, 6);
+    const overflow = day.entries.length - shown.length;
+
+    return (
+      <>
+        <TooltipTitle>
+          {dayNumber} {month} {year} · {day.entries.length} {day.entries.length === 1 ? "log" : "logs"}
+        </TooltipTitle>
+        <div className="mt-1.5 flex flex-col gap-1.5">
+          {shown.map((entry) => (
+            <div key={entry.id} className="flex items-center gap-2">
+              <span className="block h-10 w-7 shrink-0 overflow-hidden rounded-[3px] border border-white/10 bg-white/[0.04]">
+                <CoverImage path={coverById.get(entry.id) ?? null} className="h-full w-full" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[12px] font-medium leading-tight text-text">{entry.name}</span>
+                <span className="block truncate text-[10.5px] leading-tight text-gray-500">
+                  {describeEntry(entry)}
+                </span>
+              </span>
+              {typeof entry.review_score === "number" ? (
+                <span
+                  className={cn(
+                    "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] tabular-nums",
+                    scoreChipClass(entry.review_score)
+                  )}
+                >
+                  {entry.review_score}
+                </span>
+              ) : null}
+            </div>
+          ))}
+          {overflow > 0 ? <span className="text-[11px] text-gray-500">+{overflow} more</span> : null}
+        </div>
+      </>
+    );
+  };
+
   if (multiLogDays.length === 0) {
     return (
       <PanelFrame
@@ -127,7 +168,7 @@ export function MultiLogDaysPanel({
       >
         <div className="flex min-h-0 flex-1 flex-col gap-1.5">
           {multiLogDays.slice(0, 5).map((day) => {
-            const { day: dayNumber, month, year } = splitDate(day.date);
+            const { day: dayNumber, month } = splitDate(day.date);
             const shown = day.entries.slice(0, 4);
             const overflow = day.entries.length - shown.length;
 
@@ -136,19 +177,7 @@ export function MultiLogDaysPanel({
                 key={day.date}
                 type="button"
                 onClick={() => onDateClick(day.date)}
-                {...bindTooltip(
-                  <>
-                    <TooltipTitle>
-                      {dayNumber} {month} {year}
-                    </TooltipTitle>
-                    {day.entries.map((entry) => (
-                      <TooltipDetail key={entry.id}>
-                        {entry.name}
-                        {typeof entry.review_score === "number" ? ` · ${entry.review_score}` : ""}
-                      </TooltipDetail>
-                    ))}
-                  </>
-                )}
+                {...bindTooltip(renderDayTooltip(day), { width: 320 })}
                 className="group flex shrink-0 items-center gap-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] p-1.5 text-left transition-colors hover:border-white/15 hover:bg-white/[0.06]"
               >
                 <span className="flex w-9 shrink-0 flex-col items-center">
@@ -203,47 +232,6 @@ export function MultiLogDaysPanel({
           animate: { opacity: 1, y: 0 },
           transition: { duration: 0.3, delay: Math.min(order * 0.04, 0.5), ease: "easeOut" as const },
         };
-
-  const renderDayTooltip = (day: MultiLogDay) => {
-    const { day: dayRaw, month, year } = splitDate(day.date);
-    const dayNumber = String(Number(dayRaw));
-    const shown = day.entries.slice(0, 6);
-    const overflow = day.entries.length - shown.length;
-
-    return (
-      <>
-        <TooltipTitle>
-          {dayNumber} {month} {year} · {day.entries.length} {day.entries.length === 1 ? "log" : "logs"}
-        </TooltipTitle>
-        <div className="mt-1.5 flex flex-col gap-1.5">
-          {shown.map((entry) => (
-            <div key={entry.id} className="flex items-center gap-2">
-              <span className="block h-10 w-7 shrink-0 overflow-hidden rounded-[3px] border border-white/10 bg-white/[0.04]">
-                <CoverImage path={coverById.get(entry.id) ?? null} className="h-full w-full" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[12px] font-medium leading-tight text-text">{entry.name}</span>
-                <span className="block truncate text-[10.5px] leading-tight text-gray-500">
-                  {describeEntry(entry)}
-                </span>
-              </span>
-              {typeof entry.review_score === "number" ? (
-                <span
-                  className={cn(
-                    "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] tabular-nums",
-                    scoreChipClass(entry.review_score)
-                  )}
-                >
-                  {entry.review_score}
-                </span>
-              ) : null}
-            </div>
-          ))}
-          {overflow > 0 ? <span className="text-[11px] text-gray-500">+{overflow} more</span> : null}
-        </div>
-      </>
-    );
-  };
 
   return (
     <div className="flex flex-col gap-4">
