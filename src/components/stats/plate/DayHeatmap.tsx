@@ -40,8 +40,9 @@ function formatCalendarDate(date: Date): string {
 }
 
 // Sunday-aligned columns spanning either the active calendar year or, on All
-// Time, the 365 days ending at the most recent completion.
-function buildColumns(dailyCompletions: DailyCompletion[], activeYear: string) {
+// Time, the 365 days ending at the most recent completion. Shared with
+// BingeHeatmap, which restyles the same calendar with its own colour ramp.
+export function buildColumns(dailyCompletions: DailyCompletion[], activeYear: string) {
   let startDate: Date;
   let endDate: Date;
 

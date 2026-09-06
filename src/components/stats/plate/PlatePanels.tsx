@@ -14,6 +14,8 @@ export interface PlatePanelContext {
   comparisonStats: FullStats | null;
   genreCount: number;
   rangedEntries: StatsEntry[];
+  /** Year label shown by the toolbar — the binge map's calendar window. */
+  activeYear: string;
   onGenreClick: (genre: string) => void;
   onPerfectClick: () => void;
   onDateClick: (date: string) => void;
@@ -46,7 +48,7 @@ export function renderPlatePanel(
   variant: "compact" | "expanded",
   onExpand?: () => void
 ): ReactNode {
-  const { stats, comparisonStats, genreCount, rangedEntries, onGenreClick, onPerfectClick, onDateClick } = context;
+  const { stats, comparisonStats, genreCount, rangedEntries, activeYear, onGenreClick, onPerfectClick, onDateClick } = context;
 
   switch (panelId) {
     case "genres":
@@ -108,6 +110,8 @@ export function renderPlatePanel(
         <MultiLogDaysPanel
           multiLogDays={stats.multiLogDays}
           rangedEntries={rangedEntries}
+          dailyCompletions={stats.dailyCompletions}
+          activeYear={activeYear}
           variant={variant}
           onDateClick={onDateClick}
           onExpand={onExpand}

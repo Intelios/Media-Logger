@@ -105,6 +105,7 @@ export function StatsPlate({
     comparisonStats: comparison?.stats ?? null,
     genreCount: plate.genreCount,
     rangedEntries: plate.rangedEntries,
+    activeYear: displayedYear,
     onGenreClick,
     onPerfectClick,
     onDateClick,
@@ -235,7 +236,12 @@ export function StatsPlate({
         onClose={() => setExpanded(null)}
       >
         {expandedPanelId ? (
-          <div className="flex h-full min-h-[60vh] flex-col">
+          // multi-log-days renders unbounded sections like the timeline overlay
+          // so the modal body scrolls it as one page; every other panel is
+          // viewport-bound and manages its own internal scrolling.
+          <div
+            className={`flex min-h-[60vh] flex-col ${expandedPanelId === "multi-log-days" ? "" : "h-full"}`}
+          >
             {renderPlatePanel(expandedPanelId, panelContext, "expanded")}
           </div>
         ) : null}
