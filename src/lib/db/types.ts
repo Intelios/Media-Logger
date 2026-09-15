@@ -15,6 +15,12 @@ export interface MediaEntry {
   is_completed: number;
   is_early_access: number;
   early_access_version: string | null;
+  is_expansion: number;
+  parent_entry_id: number | null;
+  /** Display-only: parent's name, filled by summary read projections. Not a column. */
+  parent_name?: string | null;
+  /** Display-only: count of expansions linked to this entry. Not a column. */
+  expansion_count?: number;
   image_url: string | null;
   entry_type: string | null;
   platform: string | null;

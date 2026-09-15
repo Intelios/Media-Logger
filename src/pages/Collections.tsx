@@ -1,5 +1,6 @@
-import { Fragment, useEffect, useState, useMemo } from "react";
+import { Fragment, useEffect, useState, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router";
 import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image, Pencil, CornerDownRight, GripVertical, BarChart3 } from "lucide-react";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from "@dnd-kit/sortable";
@@ -14,6 +15,7 @@ import { WinnerPicker } from "../components/WinnerPicker"; // Reusing the picker
 import { ArrowUpDown } from "lucide-react"; // Import ArrowUpDown icon
 import { ReorderModal } from "../components/ReorderModal"; // Import Modal
 import { EntryForm } from "../components/EntryForm"; // Import EntryForm for editing
+import { ExpansionsModal } from "../components/ExpansionsModal";
 import { ErasModal } from "../components/ErasModal";
 import { EraAssignMenu } from "../components/EraAssignMenu";
 import { hexToRgb } from "../lib/themes";
@@ -318,6 +320,24 @@ export default function CollectionsPage() {
     await refreshSelectedCollection(selectedCollection);
   };
 
+  // Expansions modal for a parent game card
+  const navigate = useNavigate();
+  const [expansionsParent, setExpansionsParent] = useState<{ id: number; name: string } | null>(null);
+  const handleNavigateToParent = useCallback(async (parentEntryId: number) => {
+    const parent = await dbService.getEntryById(parentEntryId);
+    if (!parent?.year_completed) return;
+    navigate(`/year/${parent.year_completed}?highlight=${parentEntryId}&type=${encodeURIComponent(parent.entry_type || "")}`);
+  }, [navigate]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ parentId: number; parentName: string }>).detail;
+      setExpansionsParent({ id: detail.parentId, name: detail.parentName });
+    };
+    window.addEventListener('media:open-expansions', handler);
+    return () => window.removeEventListener('media:open-expansions', handler);
+  }, []);
+
   // Handle delete from MediaCard dropdown
   const handleDeleteFromCard = async (id: number) => {
     await dbService.deleteEntry(id);
@@ -345,6 +365,7 @@ export default function CollectionsPage() {
             imagePriority="auto"
             onEdit={handleEditFromCard}
             onDelete={handleDeleteFromCard}
+            onNavigateToParent={handleNavigateToParent}
             awards={entry.id ? awardsMap.get(entry.id) : undefined}
             topLeftActions={
               <>
@@ -563,6 +584,22 @@ export default function CollectionsPage() {
           onSave={handleEditSave}
           initialData={editingEntry}
         />
+
+        {/* Expansions modal for a parent game */}
+        {expansionsParent && (
+          <ExpansionsModal
+            isOpen
+            parentId={expansionsParent.id}
+            parentName={expansionsParent.name}
+            onClose={() => setExpansionsParent(null)}
+            onEntriesChange={() => {
+              if (selectedCollection) {
+                void refreshSelectedCollection(selectedCollection);
+              }
+            }}
+            onNavigateToParent={handleNavigateToParent}
+          />
+        )}
 
         <ConfirmDialog
           isOpen={itemToRemove !== null}

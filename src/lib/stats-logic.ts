@@ -20,6 +20,7 @@ interface MultiLogDayEntry {
   has_subtitles: number;
   is_platinum: number;
   is_early_access: number;
+  is_expansion: number;
 }
 
 export interface MultiLogDay {
@@ -291,6 +292,7 @@ export function selectMultiLogDays(dataset: StatsDataset): MultiLogDay[] {
       has_subtitles: entry.has_subtitles,
       is_platinum: entry.is_platinum,
       is_early_access: entry.is_early_access,
+      is_expansion: entry.is_expansion,
     });
     days.set(date, entriesForDay);
   }

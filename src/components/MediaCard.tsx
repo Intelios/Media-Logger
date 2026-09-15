@@ -2,7 +2,7 @@ import * as React from "react";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
-import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, Image as ImageIcon, Copy, CopyPlus, Clock, Captions } from "lucide-react";
+import { Star, Calendar, MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Heart, RotateCcw, Check, Pencil, Trash2, Trophy, FileText, Image as ImageIcon, Copy, CopyPlus, Clock, Captions, Puzzle } from "lucide-react";
 import { dbService, type EntryCardSummary, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { getRatingDisplayMode } from "../lib/settings";
@@ -85,6 +85,7 @@ interface MediaCardProps {
   dateTintClass?: string;   // gradient bg, e.g. "from-blue-500/12 to-cyan-500/6"
   imagePriority?: CoverPriority;
   topLeftActions?: React.ReactNode;
+  onNavigateToParent?: (parentEntryId: number, parentName: string) => void;
 }
 
 function MediaCardDialogFallback() {
@@ -108,6 +109,7 @@ export const MediaCard = React.memo(function MediaCard({
   dateTintClass,
   imagePriority = 'auto',
   topLeftActions,
+  onNavigateToParent,
 }: MediaCardProps) {
   const navigate = useNavigate();
   const { bindTooltip } = useHoverTooltip();
@@ -126,6 +128,9 @@ export const MediaCard = React.memo(function MediaCard({
   const isGameEntry = (entry.entry_type || "").toLowerCase().includes("game");
   const hasPlatinum = isGameEntry && entry.is_platinum === 1;
   const isEarlyAccess = isGameEntry && entry.is_early_access === 1;
+  const isExpansion = isGameEntry && entry.is_expansion === 1;
+  const expansionCount = typeof entry.expansion_count === "number" ? entry.expansion_count : 0;
+  const hasExpansions = isGameEntry && expansionCount > 0;
   const ratingDisplayMode = getRatingDisplayMode();
 
   // Check boolean flags (stored as 0/1 in SQLite)
@@ -468,6 +473,51 @@ export const MediaCard = React.memo(function MediaCard({
             </p>
           )}
 
+          {/* Expansion link to its base game */}
+          {isExpansion && entry.parent_name && (
+            <button
+              type="button"
+              {...bindTooltip(
+                <span>Jump to base game card in Year View</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (entry.parent_entry_id != null && entry.parent_name && onNavigateToParent) {
+                  onNavigateToParent(entry.parent_entry_id, entry.parent_name);
+                }
+              }}
+              className="inline-flex items-center gap-1 text-[11px] text-sky-400 font-medium leading-tight hover:underline text-left w-fit"
+            >
+              <Puzzle size={12} className="shrink-0" />
+              <span className="truncate">Expansion for: <span className="font-semibold">{entry.parent_name}</span></span>
+            </button>
+          )}
+
+          {/* Parent shows how many expansions it has */}
+          {hasExpansions && (
+            <button
+              type="button"
+              {...bindTooltip(
+                <span>{expansionCount} expansion{expansionCount === 1 ? '' : 's'} logged for this game</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // Host pages own the modal; this event opens it.
+                window.dispatchEvent(new CustomEvent('media:open-expansions', {
+                  detail: { parentId: entry.id, parentName: entry.name },
+                }));
+              }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/25 hover:bg-sky-500/25 transition-colors w-fit"
+            >
+              <Puzzle size={10} />
+              <span>{expansionCount} Expansion{expansionCount === 1 ? '' : 's'}</span>
+            </button>
+          )}
+
           {/* Type Badge Row */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <div className={cn(
@@ -558,8 +608,8 @@ export const MediaCard = React.memo(function MediaCard({
             </div>
           )}
 
-          {/* Rewatch / Local Copy / Subtitles / Early Access / Platinum Badges */}
-          {(isRewatch || hasLocalCopy || hasSubtitles || hasPlatinum || isEarlyAccess) && (
+          {/* Rewatch / Local Copy / Subtitles / Early Access / Expansion / Platinum Badges */}
+          {(isRewatch || hasLocalCopy || hasSubtitles || hasPlatinum || isEarlyAccess || isExpansion) && (
             <div className="flex items-center gap-1.5">
               {isRewatch && (
                 <div
@@ -624,6 +674,24 @@ export const MediaCard = React.memo(function MediaCard({
                 >
                   <div className="w-7 h-7 rounded-full bg-violet-500/20 border border-violet-500 flex items-center justify-center cursor-pointer">
                     <Clock size={12} className="text-violet-400" />
+                  </div>
+                </div>
+              )}
+              {isExpansion && (
+                <div
+                  {...bindTooltip(
+                    <span className="text-xs font-medium text-sky-400">
+                      {entry.parent_name ? `Expansion for: ${entry.parent_name}` : 'Expansion / DLC'}
+                    </span>,
+                    {
+                      width: "content",
+                      className: "rounded-lg px-3 py-1.5 whitespace-nowrap",
+                      style: { borderColor: "color-mix(in srgb, #0ea5e9 30%, var(--color-border))" },
+                    }
+                  )}
+                >
+                  <div className="w-7 h-7 rounded-full bg-sky-500/20 border border-sky-500 flex items-center justify-center cursor-pointer">
+                    <Puzzle size={12} className="text-sky-400" />
                   </div>
                 </div>
               )}

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useNavigate } from "react-router";
 import { Search as SearchIcon, X, Filter, ChevronDown, ChevronUp, RotateCcw, Dices, Star } from "lucide-react";
 import { motion } from "framer-motion";
 import { dbService, type EntryCardSummary, type MediaEntry, type SearchFilterOptions } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
+import { ExpansionsModal } from "../components/ExpansionsModal";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { RandomPickModal } from "../components/RandomPickModal";
 import { ScoreRangeSlider, formatScoreRange, type ScoreRange } from "../components/ScoreRangeSlider";
@@ -409,6 +411,24 @@ export default function SearchPage() {
     await dbService.deleteEntry(id);
     setRefreshToken((current) => current + 1);
   };
+
+  // Expansions modal for a parent game card
+  const navigate = useNavigate();
+  const [expansionsParent, setExpansionsParent] = useState<{ id: number; name: string } | null>(null);
+  const handleNavigateToParent = useCallback(async (parentEntryId: number) => {
+    const parent = await dbService.getEntryById(parentEntryId);
+    if (!parent?.year_completed) return;
+    navigate(`/year/${parent.year_completed}?highlight=${parentEntryId}&type=${encodeURIComponent(parent.entry_type || "")}`);
+  }, [navigate]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ parentId: number; parentName: string }>).detail;
+      setExpansionsParent({ id: detail.parentId, name: detail.parentName });
+    };
+    window.addEventListener('media:open-expansions', handler);
+    return () => window.removeEventListener('media:open-expansions', handler);
+  }, []);
 
   const updateFilter = <K extends keyof SearchFilters>(key: K, value: SearchFilters[K]) => {
     setFilters((current) => ({ ...current, [key]: value }));
@@ -856,6 +876,7 @@ export default function SearchPage() {
                         imagePriority="auto"
                         onEdit={handleEdit}
                         onDelete={handleDelete}
+                        onNavigateToParent={handleNavigateToParent}
                         awards={entry.id ? awardsMap.get(entry.id) : undefined}
                       />
                     )}
@@ -914,6 +935,18 @@ export default function SearchPage() {
         onSave={handleSave}
         initialData={editingEntry}
       />
+
+      {/* Expansions modal for a parent game */}
+      {expansionsParent && (
+        <ExpansionsModal
+          isOpen
+          parentId={expansionsParent.id}
+          parentName={expansionsParent.name}
+          onClose={() => setExpansionsParent(null)}
+          onEntriesChange={() => setRefreshToken((current) => current + 1)}
+          onNavigateToParent={handleNavigateToParent}
+        />
+      )}
 
       <RandomPickModal
         isOpen={showRandomPick}

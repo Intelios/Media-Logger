@@ -82,7 +82,7 @@ function ensureUniqueKey(keys: Iterable<string>, table: string): void {
   }
 }
 
-function validateEntry(row: UnknownRecord, index: number): void {
+function validateEntry(row: UnknownRecord, index: number, entryIds: Set<number>): void {
   const context = `entries[${index}]`;
   requireString(row, 'name', context);
   for (const key of [
@@ -99,6 +99,16 @@ function validateEntry(row: UnknownRecord, index: number): void {
   ]) {
     requireBooleanInteger(row, key, context);
   }
+  // Optional: backups written before schema v6 do not carry the expansion link.
+  if (row.is_expansion !== undefined) requireBooleanInteger(row, 'is_expansion', context);
+  if (row.parent_entry_id !== undefined) {
+    requireNumber(row, 'parent_entry_id', context, { integer: true, positive: true, nullable: true });
+    const parentId = row.parent_entry_id as number | null;
+    if (parentId !== null) {
+      if (!entryIds.has(parentId)) throw new Error(`${context} references missing parent entry ${parentId}`);
+      if (parentId === row.id) throw new Error(`${context} cannot be its own parent`);
+    }
+  }
 }
 
 export function validateBackupTables(value: unknown): asserts value is BackupTables {
@@ -109,7 +119,7 @@ export function validateBackupTables(value: unknown): asserts value is BackupTab
 
   const entries = asRows(tables.entries, 'entries');
   const entryIds = ensureUniqueId(entries, 'entries');
-  entries.forEach(validateEntry);
+  entries.forEach((row, index) => validateEntry(row, index, entryIds));
 
   const collections = asRows(tables.collections, 'collections');
   const collectionIds = ensureUniqueId(collections, 'collections');

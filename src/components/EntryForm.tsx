@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, Upload, Save, Calendar as CalIcon, Sparkles, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock, RotateCcw, Captions } from "lucide-react";
+import { X, Upload, Save, Calendar as CalIcon, Sparkles, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock, RotateCcw, Captions, Puzzle } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import type { MediaEntry, AutocompleteOptions } from "../lib/db";
 import { dbService } from "../lib/db";
@@ -9,6 +9,7 @@ import { getReplayTerm, getVisibleEntryTypeOptions } from "../lib/media-config";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { AutocompleteInput } from "./AutocompleteInput";
+import { WinnerPicker } from "./WinnerPicker";
 import {
   cancelCoverImport,
   commitCoverImport,
@@ -29,6 +30,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
   const [previewImage, setPreviewImage] = useState<string>("");
   const [, setStagedCover] = useState<StagedCoverImport | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isParentPickerOpen, setIsParentPickerOpen] = useState(false);
   const stagedCoverRef = useRef<StagedCoverImport | null>(null);
   const [suggestions, setSuggestions] = useState<AutocompleteOptions>({
     platforms: [],
@@ -82,6 +84,8 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
           is_completed: initialData.is_completed ?? 0,
           is_early_access: initialData.is_early_access ?? 0,
           early_access_version: initialData.early_access_version ?? null,
+          is_expansion: initialData.is_expansion ?? 0,
+          parent_entry_id: initialData.parent_entry_id ?? null,
         });
         setPreviewImage("");
       } else {
@@ -95,6 +99,8 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
           is_completed: 0,
           is_early_access: 0,
           early_access_version: null,
+          is_expansion: 0,
+          parent_entry_id: null,
           completion_date: new Date().toISOString().split('T')[0]
         });
         setPreviewImage("");
@@ -139,9 +145,34 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
     }
   };
 
+  // Resolve the linked parent game's display name when an existing expansion is
+  // opened for editing, so the "Link to base game" row shows a human-readable
+  // label instead of a bare id.
+  useEffect(() => {
+    let cancelled = false;
+    if (isOpen && initialData?.parent_entry_id && !formData.parent_name) {
+      dbService.getEntryById(initialData.parent_entry_id)
+        .then((parent) => {
+          if (!cancelled && parent) {
+            setFormData(prev => ({ ...prev, parent_name: parent.name }));
+          }
+        })
+        .catch(() => { /* non-fatal: row just shows the id until reopened */ });
+    }
+    return () => { cancelled = true; };
+  }, [isOpen, initialData]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
+
+    if (formData.is_expansion === 1 && formData.parent_entry_id != null) {
+      if (formData.parent_entry_id === initialData?.id) {
+        alert("An expansion cannot be its own parent game.");
+        setIsSaving(false);
+        return;
+      }
+    }
 
     try {
       let finalImageUrl = formData.image_url;
@@ -175,13 +206,15 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
     setFormData(prev => {
       const next = { ...prev, [key]: value } as Partial<MediaEntry>;
 
-      // Platform, Franchise, Platinum, and Early Access apply only to games.
+      // Platform, Franchise, Platinum, Early Access, and Expansion apply only to games.
       if (key === "entry_type" && value !== "Game") {
         next.platform = null;
         next.franchise = null;
         next.is_platinum = 0;
         next.is_early_access = 0;
         next.early_access_version = null;
+        next.is_expansion = 0;
+        next.parent_entry_id = null;
       }
 
       // Completed and Update Version apply only to Adult Visual Novels.
@@ -312,6 +345,9 @@ const typeOption = getVisibleEntryTypeOptions().find(o => o.value === formData.e
                 )}
                 {formData.is_early_access === 1 && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400 border border-violet-500/25 font-medium">Early Access</span>
+                )}
+                {formData.is_expansion === 1 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/25 font-medium">Expansion</span>
                 )}
                 {formData.is_completed === 1 && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-medium">Completed</span>
@@ -495,6 +531,62 @@ const typeOption = getVisibleEntryTypeOptions().find(o => o.value === formData.e
                           className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all"
                           placeholder="e.g. v0.9.2, Build 1423, Jan 2026..."
                         />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                      <Puzzle size={14} className="text-sky-400" />
+                      Expansion / DLC
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => updateField("is_expansion", formData.is_expansion === 1 ? 0 : 1)}
+                      className={cn(
+                        "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all border",
+                        formData.is_expansion === 1
+                          ? "bg-sky-500/20 border-sky-500 text-sky-400 shadow-lg shadow-sky-500/20"
+                          : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white"
+                      )}
+                    >
+                      <Puzzle size={16} />
+                      <span>{formData.is_expansion === 1 ? "Expansion / DLC" : "Mark as Expansion / DLC"}</span>
+                    </button>
+                    <p className="text-xs text-gray-500">Use this for downloadable content that needs the base game (e.g. story add-ons).</p>
+                    {formData.is_expansion === 1 && (
+                      <div className="animate-in fade-in slide-in-from-top-2 duration-200 space-y-2">
+                        <label className="text-xs font-medium text-gray-400 block">Link to Base Game</label>
+                        {formData.parent_entry_id != null ? (
+                          <div className="flex items-center justify-between gap-2 pl-3 pr-2 py-2.5 rounded-xl bg-sky-500/10 border border-sky-500/25">
+                            <span className="text-sm text-sky-300 truncate">{formData.parent_name ?? "—"}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setIsParentPickerOpen(true)}
+                                className="text-xs text-sky-400 hover:text-sky-300 px-2 py-1 rounded-lg hover:bg-sky-500/10 transition-colors font-medium"
+                              >
+                                Change
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateField("parent_entry_id", null)}
+                                className="p-1 rounded-lg text-gray-500 hover:bg-white/10 hover:text-white transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setIsParentPickerOpen(true)}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-dashed border-white/20 text-gray-400 hover:bg-sky-500/5 hover:text-sky-300 hover:border-sky-500/40 transition-all text-sm font-medium"
+                          >
+                            Pick a base game…
+                          </button>
+                        )}
+                        <p className="text-[11px] text-gray-600">Only base games are offered — an expansion cannot itself be a parent.</p>
                       </div>
                     )}
                   </div>
@@ -725,6 +817,23 @@ const typeOption = getVisibleEntryTypeOptions().find(o => o.value === formData.e
           </form>
         </div>
       </div>
+
+      {/* Parent base-game picker (Expansion / DLC link) */}
+      <WinnerPicker
+        isOpen={isParentPickerOpen}
+        onClose={() => setIsParentPickerOpen(false)}
+        mode="single"
+        title="Pick a base game"
+        searchPlaceholder="Search games..."
+        excludedIds={initialData?.id != null ? [initialData.id] : []}
+        entryFilter={(entry) => entry.entry_type === "Game" && entry.is_expansion !== 1}
+        onSelect={(mediaId) => {
+          dbService.getEntryById(mediaId)
+            .then((parent) => setFormData(prev => ({ ...prev, parent_entry_id: mediaId, parent_name: parent?.name ?? null })))
+            .catch(() => setFormData(prev => ({ ...prev, parent_entry_id: mediaId, parent_name: null })));
+          setIsParentPickerOpen(false);
+        }}
+      />
     </div>,
     document.body
   );

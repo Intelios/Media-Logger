@@ -54,6 +54,9 @@ function describeEntry(entry: MultiLogDay["entries"][number]): string {
   if (entry.is_early_access) {
     parts.push("Early access");
   }
+  if (entry.is_expansion) {
+    parts.push("Expansion");
+  }
   return parts.join(" · ");
 }
 

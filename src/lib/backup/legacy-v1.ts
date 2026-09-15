@@ -33,7 +33,7 @@ interface LegacyBackup {
 const NUMERIC_COLUMNS: Record<string, ReadonlySet<string>> = {
   media_entries: new Set([
     'id', 'review_score', 'year_completed', 'is_rewatch', 'own_local_copy',
-    'has_subtitles', 'is_platinum', 'is_completed', 'is_early_access',
+    'has_subtitles', 'is_platinum', 'is_completed', 'is_early_access', 'is_expansion', 'parent_entry_id',
   ]),
   collections: new Set(['id']),
   collection_items: new Set(['collection_id', 'media_id', 'sort_order']),
@@ -193,6 +193,8 @@ export function convertLegacyBackup(data: LegacyBackup): BackupTables {
     is_completed: numberValue(row.is_completed),
     is_early_access: numberValue(row.is_early_access),
     early_access_version: nullableText(row.early_access_version),
+    is_expansion: numberValue(row.is_expansion, 0),
+    parent_entry_id: nullableNumber(row.parent_entry_id),
     image_url: nullableText(row.image_url),
     entry_type: nullableText(row.entry_type),
     platform: nullableText(row.platform),

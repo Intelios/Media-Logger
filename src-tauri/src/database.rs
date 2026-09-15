@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use tauri::State;
 use tauri_plugin_sql::{DbInstances, DbPool};
 
-const DATABASE_SCHEMA_VERSION: i64 = 5;
+const DATABASE_SCHEMA_VERSION: i64 = 6;
 const MAX_SQLITE_BIND_PARAMS: usize = 999;
 const MAX_BULK_MUTATION_ITEMS: usize = 10_000;
 
@@ -25,6 +25,12 @@ pub struct EntryRow {
     pub is_completed: i64,
     pub is_early_access: i64,
     pub early_access_version: Option<String>,
+    // Expansion/DLC link back to a base game. Both defaulted for serde so
+    // backups written before schema v6 still deserialize.
+    #[serde(default)]
+    pub is_expansion: i64,
+    #[serde(default)]
+    pub parent_entry_id: Option<i64>,
     pub image_url: Option<String>,
     pub entry_type: Option<String>,
     pub platform: Option<String>,
@@ -251,6 +257,8 @@ async fn create_current_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<(), S
             is_completed INTEGER DEFAULT 0,
             is_early_access INTEGER DEFAULT 0,
             early_access_version TEXT,
+            is_expansion INTEGER NOT NULL DEFAULT 0,
+            parent_entry_id INTEGER REFERENCES entries(id) ON DELETE SET NULL,
             image_url TEXT,
             entry_type TEXT,
             platform TEXT,
@@ -885,6 +893,35 @@ async fn migrate_to_v5(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
     .await
 }
 
+async fn migrate_to_v6(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
+    // Expansion entries link back to a base game. `is_expansion` is a plain
+    // 0/1 flag; `parent_entry_id` is a nullable self-FK so deleting a parent
+    // clears the link on its expansions instead of orphaning them.
+    let mut columns = table_columns(tx, "entries").await?;
+    add_missing_column(
+        tx,
+        "entries",
+        &mut columns,
+        "is_expansion",
+        "INTEGER NOT NULL DEFAULT 0",
+    )
+    .await?;
+    add_missing_column(
+        tx,
+        "entries",
+        &mut columns,
+        "parent_entry_id",
+        "INTEGER REFERENCES entries(id) ON DELETE SET NULL",
+    )
+    .await?;
+    execute_schema_sql(
+        tx,
+        "CREATE INDEX IF NOT EXISTS idx_entries_parent_entry_id ON entries (parent_entry_id)",
+        "Failed to create the parent entry index",
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn database_run_migrations(
     database_url: String,
@@ -1020,6 +1057,36 @@ pub async fn database_run_migrations(
             .await
             .map_err(|error| database_error("Failed to commit database migration", error))?;
         applied.push(5);
+        migrated_version = 5;
+    }
+
+    if migrated_version < 6 {
+        let mut tx = pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(|error| database_error("Failed to begin database migration", error))?;
+        let migration_result = async {
+            migrate_to_v6(&mut tx).await?;
+            execute_schema_sql(
+                &mut tx,
+                "PRAGMA user_version = 6",
+                "Failed to record the database schema version",
+            )
+            .await
+        }
+        .await;
+        if let Err(error) = migration_result {
+            return match tx.rollback().await {
+                Ok(()) => Err(error),
+                Err(rollback_error) => Err(format!(
+                    "{error}; migration rollback also failed: {rollback_error}"
+                )),
+            };
+        }
+        tx.commit()
+            .await
+            .map_err(|error| database_error("Failed to commit database migration", error))?;
+        applied.push(6);
     }
 
     if !applied.is_empty() {
@@ -1320,7 +1387,8 @@ pub async fn database_export_snapshot(
             r#"SELECT id, name, genre, completion_date,
                       CAST(review_score AS REAL) AS review_score, description, notes,
                       year_completed, is_rewatch, own_local_copy, has_subtitles, is_platinum,
-                      is_completed, is_early_access, early_access_version, image_url, entry_type,
+                      is_completed, is_early_access, early_access_version, is_expansion, parent_entry_id,
+                      image_url, entry_type,
                       platform, author, artist, director, actress, update_version, franchise, series
                FROM entries ORDER BY id"#,
             "Failed to export media entries"
@@ -1492,12 +1560,12 @@ async fn insert_entries(
     tx: &mut Transaction<'_, Sqlite>,
     rows: &[PlannedEntry],
 ) -> Result<(), String> {
-    for chunk in rows.chunks(batch_size(26)) {
+    for chunk in rows.chunks(batch_size(28)) {
         let mut query = QueryBuilder::<Sqlite>::new(
             r#"INSERT INTO entries (
                id, name, genre, completion_date, review_score, description, notes, year_completed,
                is_rewatch, own_local_copy, has_subtitles, is_platinum, is_completed, is_early_access,
-               early_access_version, image_url, entry_type, platform, author, artist, director, actress,
+               early_access_version, is_expansion, parent_entry_id, image_url, entry_type, platform, author, artist, director, actress,
                update_version, franchise, series
             ) "#,
         );
@@ -1519,6 +1587,8 @@ async fn insert_entries(
                 .push_bind(row.is_completed)
                 .push_bind(row.is_early_access)
                 .push_bind(&row.early_access_version)
+                .push_bind(row.is_expansion)
+                .push_bind(row.parent_entry_id)
                 .push_bind(&row.image_url)
                 .push_bind(&row.entry_type)
                 .push_bind(&row.platform)
@@ -1535,6 +1605,37 @@ async fn insert_entries(
             .execute(&mut **tx)
             .await
             .map_err(|error| database_error("Failed to import media entries", error))?;
+    }
+    Ok(())
+}
+
+async fn backpatch_parent_links(
+    tx: &mut Transaction<'_, Sqlite>,
+    rows: &[PlannedEntry],
+    media_id_map: &HashMap<i64, i64>,
+) -> Result<(), String> {
+    for planned in rows {
+        let Some(source_parent_id) = planned.row.parent_entry_id else {
+            continue;
+        };
+        // The backup carries a source-space parent ID that was renumbered for
+        // this import; translate it to the target ID we actually wrote.
+        let target_parent_id = media_id_map
+            .get(&source_parent_id)
+            .copied()
+            .ok_or_else(|| {
+                format!(
+                    "Backup contains an invalid expansion parent reference to ID {source_parent_id}"
+                )
+            })?;
+        sqlx::query("UPDATE entries SET parent_entry_id = ?1 WHERE id = ?2")
+            .bind(target_parent_id)
+            .bind(planned.target_id)
+            .execute(&mut **tx)
+            .await
+            .map_err(|error| {
+                database_error("Failed to link an expansion to its parent entry", error)
+            })?;
     }
     Ok(())
 }
@@ -1857,7 +1958,8 @@ async fn import_backup_transaction(
         r#"SELECT id, name, genre, completion_date,
                   CAST(review_score AS REAL) AS review_score, description, notes,
                   year_completed, is_rewatch, own_local_copy, has_subtitles, is_platinum,
-                  is_completed, is_early_access, early_access_version, image_url, entry_type,
+                  is_completed, is_early_access, early_access_version, is_expansion, parent_entry_id,
+                  image_url, entry_type,
                   platform, author, artist, director, actress, update_version, franchise, series
            FROM entries ORDER BY id"#,
     )
@@ -2303,6 +2405,7 @@ async fn import_backup_transaction(
     }
 
     insert_entries(tx, &planned_entries).await?;
+    backpatch_parent_links(tx, &planned_entries, &media_id_map).await?;
     insert_collections(tx, &planned_collections).await?;
     insert_collection_eras(tx, &planned_eras).await?;
     insert_collection_items(tx, &planned_items).await?;

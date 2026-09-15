@@ -29,6 +29,8 @@ const ENTRY_CARD_SUMMARY_COLUMNS = [
   'is_completed',
   'is_early_access',
   'early_access_version',
+  'is_expansion',
+  'parent_entry_id',
   'image_url',
   'entry_type',
   'platform',
@@ -54,6 +56,8 @@ const STATS_ENTRY_COLUMNS = [
   'is_platinum',
   'is_completed',
   'is_early_access',
+  'is_expansion',
+  'parent_entry_id',
   'image_url',
   'entry_type',
   'platform',
@@ -67,8 +71,8 @@ const STATS_ENTRY_COLUMNS = [
 
 // Writable columns of the entries table. addEntry/updateEntry build their SQL
 // from this whitelist so stray properties on the object (e.g. UI decorations
-// like ReorderModal's `subtitle`) can never leak into an INSERT/UPDATE and
-// fail with "no such column".
+// like ReorderModal's `subtitle` or our display-only `parent_name`) can never
+// leak into an INSERT/UPDATE and fail with "no such column".
 const ENTRY_COLUMNS = [
   'name',
   'genre',
@@ -84,6 +88,8 @@ const ENTRY_COLUMNS = [
   'is_completed',
   'is_early_access',
   'early_access_version',
+  'is_expansion',
+  'parent_entry_id',
   'image_url',
   'entry_type',
   'platform',
@@ -95,16 +101,26 @@ const ENTRY_COLUMNS = [
   'franchise',
   'series',
 ] as const satisfies readonly (keyof Omit<MediaEntry, 'id'>)[];
-
 function selectColumns(columns: readonly string[], alias?: string): string {
   const prefix = alias ? `${alias}.` : '';
   return columns.map((column) => `${prefix}${column}`).join(', ');
 }
 
+// Display-only projections joined via correlated scalar subqueries. A plain
+// self-LEFT JOIN would make the bare `entry_type` inside adultExclusionSql()
+// ambiguous, so we resolve the parent name and the expansion count without
+// touching the FROM clause (and therefore without touching any existing SQL).
+const EXPANSION_PROJECTIONS = `,
+       (SELECT p.name FROM entries p WHERE p.id = entries.parent_entry_id) AS parent_name,
+       (SELECT COUNT(*) FROM entries c WHERE c.parent_entry_id = entries.id) AS expansion_count`;
+const EXPANSION_PROJECTIONS_E = `,
+       (SELECT p.name FROM entries p WHERE p.id = e.parent_entry_id) AS parent_name,
+       (SELECT COUNT(*) FROM entries c WHERE c.parent_entry_id = e.id) AS expansion_count`;
+
 export async function getAllEntries(): Promise<MediaEntry[]> {
   const db = await connect();
   return db.select<MediaEntry[]>(
-    `SELECT *
+    `SELECT *${EXPANSION_PROJECTIONS}
      FROM entries
      WHERE 1 = 1${adultExclusionSql()}
      ORDER BY completion_date DESC, id DESC`,
@@ -114,17 +130,29 @@ export async function getAllEntries(): Promise<MediaEntry[]> {
 export async function getAllEntrySummaries(): Promise<EntryCardSummary[]> {
   const db = await connect();
   return db.select<EntryCardSummary[]>(
-    `SELECT ${selectColumns(ENTRY_CARD_SUMMARY_COLUMNS)}
+    `SELECT ${selectColumns(ENTRY_CARD_SUMMARY_COLUMNS)}${EXPANSION_PROJECTIONS}
      FROM entries
      WHERE 1 = 1${adultExclusionSql()}
      ORDER BY completion_date DESC, id DESC`,
   );
 }
 
+/** Fetch the expansion rows linked to a base game for the parent-card modal. */
+export async function getExpansionsForEntry(parentEntryId: number): Promise<EntryCardSummary[]> {
+  const db = await connect();
+  return db.select<EntryCardSummary[]>(
+    `SELECT ${selectColumns(ENTRY_CARD_SUMMARY_COLUMNS)}${EXPANSION_PROJECTIONS}
+     FROM entries
+     WHERE parent_entry_id = $1${adultExclusionSql()}
+     ORDER BY completion_date DESC, id DESC`,
+    [parentEntryId],
+  );
+}
+
 export async function getEntryById(id: number): Promise<EntryDetail | null> {
   const db = await connect();
   const rows = await db.select<EntryDetail[]>(
-    `SELECT * FROM entries WHERE id = $1${adultExclusionSql()}`,
+    `SELECT *${EXPANSION_PROJECTIONS} FROM entries WHERE id = $1${adultExclusionSql()}`,
     [id],
   );
   return rows[0] ?? null;
@@ -141,7 +169,7 @@ export async function getEntriesByIds(ids: number[]): Promise<EntryDetail[]> {
     const batch = uniqueIds.slice(index, index + ENTRY_DETAIL_BATCH_SIZE);
     const placeholders = batch.map((_, paramIndex) => `$${paramIndex + 1}`).join(', ');
     const rows = await db.select<EntryDetail[]>(
-      `SELECT *
+      `SELECT *${EXPANSION_PROJECTIONS}
        FROM entries
        WHERE id IN (${placeholders})${adultExclusionSql()}`,
       batch,
@@ -319,7 +347,7 @@ export async function searchEntriesPaged(
       params,
     ),
     db.select<EntryCardSummary[]>(
-      `SELECT ${selectColumns(ENTRY_CARD_SUMMARY_COLUMNS, 'e')}
+      `SELECT ${selectColumns(ENTRY_CARD_SUMMARY_COLUMNS, 'e')}${EXPANSION_PROJECTIONS_E}
        FROM ${fromClause}
        ${whereClause}
        ORDER BY e.completion_date DESC, e.id DESC
@@ -370,7 +398,7 @@ export async function getEntriesByYear(year: string): Promise<MediaEntry[]> {
 export async function getEntrySummariesByYear(year: string): Promise<EntryCardSummary[]> {
   const db = await connect();
   return db.select<EntryCardSummary[]>(
-    `SELECT ${selectColumns(ENTRY_CARD_SUMMARY_COLUMNS)}
+    `SELECT ${selectColumns(ENTRY_CARD_SUMMARY_COLUMNS)}${EXPANSION_PROJECTIONS}
      FROM entries
      WHERE year_completed = $1${adultExclusionSql()}
      ORDER BY completion_date ASC, id ASC`,

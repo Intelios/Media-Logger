@@ -79,7 +79,7 @@ mod implementation {
 
     const DATABASE_FILENAME: &str = "media_logger.db";
     const FIXTURE_PREFIX: &str = "__media_logger_perf_fixture_v1__";
-    const SCHEMA_VERSION: i64 = 5;
+    const SCHEMA_VERSION: i64 = 6;
     const ENTRY_INSERT_BATCH: usize = 32;
     const IMAGE_PROGRESS_BATCH: usize = 50;
     static FIXTURE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -207,6 +207,8 @@ mod implementation {
         is_completed: i64,
         is_early_access: i64,
         early_access_version: Option<String>,
+        is_expansion: i64,
+        parent_entry_id: Option<i64>,
         image_url: String,
         entry_type: &'static str,
         platform: String,
@@ -721,6 +723,8 @@ mod implementation {
             early_access_version: index
                 .is_multiple_of(37)
                 .then(|| format!("0.{}.{}", index % 10, index % 7)),
+            is_expansion: 0,
+            parent_entry_id: None,
             image_url: relative_cover_path(index % cover_count),
             entry_type: TYPES[index % TYPES.len()],
             platform: format!("Platform {:02}", index % 12),
@@ -834,7 +838,7 @@ mod implementation {
                 .map(|index| entry_fixture(index, preset.covers()))
                 .collect::<Vec<_>>();
             let mut query = QueryBuilder::<Sqlite>::new(
-                "INSERT INTO entries (id,name,genre,completion_date,review_score,description,notes,year_completed,is_rewatch,own_local_copy,has_subtitles,is_platinum,is_completed,is_early_access,early_access_version,image_url,entry_type,platform,author,artist,director,actress,update_version,franchise,series) ",
+                "INSERT INTO entries (id,name,genre,completion_date,review_score,description,notes,year_completed,is_rewatch,own_local_copy,has_subtitles,is_platinum,is_completed,is_early_access,early_access_version,is_expansion,parent_entry_id,image_url,entry_type,platform,author,artist,director,actress,update_version,franchise,series) ",
             );
             query.push_values(fixtures, |mut row, entry| {
                 row.push_bind(entry.id)
@@ -852,6 +856,8 @@ mod implementation {
                     .push_bind(entry.is_completed)
                     .push_bind(entry.is_early_access)
                     .push_bind(entry.early_access_version)
+                    .push_bind(entry.is_expansion)
+                    .push_bind(entry.parent_entry_id)
                     .push_bind(entry.image_url)
                     .push_bind(entry.entry_type)
                     .push_bind(entry.platform)

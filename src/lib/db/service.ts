@@ -18,6 +18,7 @@ import {
   deleteEntry,
   notifyExternalMutation,
   getEntriesByName,
+  getExpansionsForEntry,
 } from './entries';
 import {
   getSearchFilterOptions,
@@ -88,6 +89,7 @@ export const dbService = {
   deleteEntry: timed('mutation', 'entries:delete', deleteEntry),
   notifyExternalMutation,
   getEntriesByName: timed('query', 'entries:duplicates', getEntriesByName),
+  getExpansionsForEntry: timed('query', 'entries:expansions', getExpansionsForEntry),
   getSearchFilterOptions: timed('query', 'search:filter-options', getSearchFilterOptions),
   getAutocompleteOptions: timed('query', 'entries:autocomplete', getAutocompleteOptions),
   invalidateAutocompleteCache,

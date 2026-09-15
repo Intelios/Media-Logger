@@ -23,6 +23,8 @@ interface WinnerPickerProps {
   searchPlaceholder?: string;
   confirmLabel?: string;
   excludedIds?: number[];
+  /** Client-side filter applied after the year/exclusion filters. */
+  entryFilter?: (entry: EntryCardSummary) => boolean;
 }
 
 export function WinnerPicker({
@@ -36,6 +38,7 @@ export function WinnerPicker({
   searchPlaceholder,
   confirmLabel,
   excludedIds = EMPTY_IDS,
+  entryFilter,
 }: WinnerPickerProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<EntryCardSummary[]>([]);
@@ -76,8 +79,11 @@ export function WinnerPicker({
     if (year) {
       entries = entries.filter(e => e.year_completed === year);
     }
+    if (entryFilter) {
+      entries = entries.filter(entryFilter);
+    }
     return entries;
-  }, [allEntries, excludedIdSet, year]);
+  }, [allEntries, excludedIdSet, year, entryFilter]);
 
   useEffect(() => {
     if (!query) {

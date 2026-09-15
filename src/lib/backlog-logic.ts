@@ -89,6 +89,7 @@ export const backlogLogic = {
       is_platinum: 0,
       is_completed: 0,
       is_early_access: 0,
+      is_expansion: 0,
     };
   },
 };

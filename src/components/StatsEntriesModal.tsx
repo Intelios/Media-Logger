@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
+import { useNavigate } from "react-router";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { type MediaEntry } from "../lib/db";
@@ -43,10 +44,18 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, isLoading =
         setEditingEntry(null);
     };
 
-    const handleDelete = async (id: number) => {
-        await dbService.deleteEntry(id);
-        onEntriesChange();
-    };
+  const handleDelete = async (id: number) => {
+    await dbService.deleteEntry(id);
+    onEntriesChange();
+  };
+
+  // Let an expansion card inside this modal jump straight to its parent game.
+  const navigate = useNavigate();
+  const handleNavigateToParent = useCallback(async (parentEntryId: number) => {
+    const parent = await dbService.getEntryById(parentEntryId);
+    if (!parent?.year_completed) return;
+    navigate(`/year/${parent.year_completed}?highlight=${parentEntryId}&type=${encodeURIComponent(parent.entry_type || "")}`);
+  }, [navigate]);
 
     return createPortal(
         <>
@@ -90,12 +99,13 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, isLoading =
                             scrollContainerRef={scrollRef}
                             ariaLabel={title}
                             renderItem={(entry) => (
-                                <MediaCard
-                                    entry={entry}
-                                    imagePriority="auto"
-                                    onEdit={handleEdit}
-                                    onDelete={handleDelete}
-                                />
+                <MediaCard
+                  entry={entry}
+                  imagePriority="auto"
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onNavigateToParent={handleNavigateToParent}
+                />
                             )}
                         />
                     ) : (

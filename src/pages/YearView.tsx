@@ -1,11 +1,12 @@
 import { useDeferredValue, useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { useParams, useSearchParams, useNavigate } from "react-router";
 import { Sparkles, ChevronDown, ChevronUp, X, HardDrive, RotateCcw, Captions, ArrowDownToLine } from "lucide-react";
 import { dbService, type EntryCardSummary, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { profilesLogic } from "../lib/profiles-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
+import { ExpansionsModal } from "../components/ExpansionsModal";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { VirtualizedCardGrid } from "../components/VirtualizedCardGrid";
 import { useMainScrollContainer } from "../lib/scroll-container";
@@ -137,6 +138,27 @@ export default function YearView() {
   // Highlight state for featured entry navigation
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
   const hasProcessedHighlight = useRef(false);
+
+  // Expansion modal state (opened from a parent game's card)
+  const [expansionsParent, setExpansionsParent] = useState<{ id: number; name: string } | null>(null);
+  const navigate = useNavigate();
+  const handleNavigateToParent = useCallback(async (parentEntryId: number) => {
+    const parent = await dbService.getEntryById(parentEntryId);
+    if (!parent?.year_completed) return;
+    navigate(`/year/${parent.year_completed}?highlight=${parentEntryId}&type=${encodeURIComponent(parent.entry_type || "")}`);
+  }, [navigate]);
+
+  // A parent game's "N Expansions" chip is rendered inside MediaCard, which is
+  // shared across pages. Opening the modal is a page-level concern, so the card
+  // publishes a window event and each host page listens for it.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ parentId: number; parentName: string }>).detail;
+      setExpansionsParent({ id: detail.parentId, name: detail.parentName });
+    };
+    window.addEventListener('media:open-expansions', handler);
+    return () => window.removeEventListener('media:open-expansions', handler);
+  }, []);
   const loadIdRef = useRef(0);
 
   // Quick filters visibility state
@@ -611,6 +633,7 @@ export default function YearView() {
                   onEdit={handleEditFromCard}
                   onDelete={handleDelete}
                   onDuplicate={handleDuplicate}
+                  onNavigateToParent={handleNavigateToParent}
                   awards={entry.id ? awardsMap.get(entry.id) : undefined}
                   profileKeys={profileKeys}
                 />
@@ -637,6 +660,18 @@ export default function YearView() {
         onSave={handleSave}
         initialData={editingEntry}
       />
+
+      {/* Expansions modal for a parent game */}
+      {expansionsParent && (
+        <ExpansionsModal
+          isOpen
+          parentId={expansionsParent.id}
+          parentName={expansionsParent.name}
+          onClose={() => setExpansionsParent(null)}
+          onEntriesChange={() => void loadData(true)}
+          onNavigateToParent={handleNavigateToParent}
+        />
+      )}
     </div>
   );
 }

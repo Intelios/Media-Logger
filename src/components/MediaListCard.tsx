@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import { Star, Calendar, RotateCcw, Captions, Trophy, Clock } from "lucide-react";
+import { Star, Calendar, RotateCcw, Captions, Trophy, Clock, Puzzle } from "lucide-react";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { formatCardRating, getRatingColor, getReplayTerm, getTypeBadgeStyle, parseGenres } from "../lib/media-config";
@@ -59,6 +59,7 @@ export function MediaListCard({
   const isGameEntry = (entry.entry_type || "").toLowerCase().includes("game");
   const hasPlatinum = isGameEntry && entry.is_platinum === 1;
   const isEarlyAccess = isGameEntry && entry.is_early_access === 1;
+  const isExpansion = isGameEntry && entry.is_expansion === 1;
   const isRewatch = entry.is_rewatch === 1;
   const hasSubtitles = entry.has_subtitles === 1;
 
@@ -179,6 +180,19 @@ export function MediaListCard({
               className="w-4 h-4 rounded-full bg-violet-500/20 border border-violet-500 flex items-center justify-center"
             >
               <Clock size={9} className="text-violet-400" />
+            </span>
+          )}
+          {isExpansion && (
+            <span
+              {...bindTooltip(
+                <span className="text-xs font-medium text-sky-400">
+                  {entry.parent_name ? `Expansion for: ${entry.parent_name}` : 'Expansion / DLC'}
+                </span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
+              className="w-4 h-4 rounded-full bg-sky-500/20 border border-sky-500 flex items-center justify-center"
+            >
+              <Puzzle size={9} className="text-sky-400" />
             </span>
           )}
           {hasScore && (leadingRail || accentBadge) && (
