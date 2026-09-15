@@ -1,8 +1,24 @@
 {
-  "generatedAt": "2026-09-05T17:20:45.969Z",
+  "generatedAt": "2026-09-15T11:35:06.550Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "4.2",
+      "title": "Media Logger - 4.2",
+      "date": "2026-09-15",
+      "body": "New Content/Features:\n- Game Entries now have an 'Expansion' field which can be used for DLCs. So you can link entries together, an expansion links back to it's parent game and the parent game you can click and view all expansions you've logged of that game.\n\nDependencies Updates:\n- React updated from 19.2.8 to 19.3.0\n- autoprefixer updated from 10.5.4 to 10.6.0\n- postcss updated from 8.5.19 to 8.5.28\n- vite updated from 8.2.2 to 8.3.0\n- framer-motion updated from 12.42.2 to 13.3.0\n- lucide-react updated from 0.562.0 to 1.46.0",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.2"
+    },
+    {
+      "version": "4.1.1",
+      "title": "Media Logger - 4.1.1",
+      "date": "2026-09-05",
+      "body": "- Scroll To Bottom Button Added to Year View in the Quick Panel with Quick Filter Options and Status Buttons\n- Platinum Option Removed from Timeline in Stats, still a stat but no longer showing on the chart as not as helpful as most other timeline stats",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.1.1"
+    },
     {
       "version": "4.1",
       "title": "Media Logger - 4.1",
