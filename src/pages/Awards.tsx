@@ -742,7 +742,6 @@ export default function AwardsPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {templates.map((template, index) => {
-                const typeBadge = template.entry_type ? getTypeBadgeStyle(template.entry_type) : null;
                 return (
                   <div
                     key={template.id}
@@ -767,12 +766,6 @@ export default function AwardsPage() {
                               <History size={12} />
                               {template.usage_count || 0} year{(template.usage_count || 0) !== 1 ? 's' : ''}
                             </span>
-                            {typeBadge && (
-                              <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-white", typeBadge.bg)}>
-                                {typeBadge.icon}
-                                {template.entry_type}
-                              </span>
-                            )}
                           </div>
                         </div>
                       </div>
