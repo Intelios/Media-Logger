@@ -78,13 +78,15 @@ interface AwardCategoryCardProps {
   cat: CategoryWithWinner;
   /** Position within its type group — not the global sort_order. */
   index: number;
+  /** Total awards in this card's type group — hides the "#1" rank when 1. */
+  groupSize: number;
   selectedYear: number | null;
   onOpenPicker: (categoryId: number) => void;
   onDelete: (category: CategoryWithWinner) => void;
 }
 
 // One award category card in the year view: winner showcase or picker prompt.
-function AwardCategoryCard({ cat, index, selectedYear, onOpenPicker, onDelete }: AwardCategoryCardProps) {
+function AwardCategoryCard({ cat, index, groupSize, selectedYear, onOpenPicker, onDelete }: AwardCategoryCardProps) {
   const winner = cat.winner;
   const typeBadge = winner ? getTypeBadgeStyle(winner.entry_type) : null;
   const genres = winner ? parseGenres(winner.genre) : [];
@@ -100,10 +102,13 @@ function AwardCategoryCard({ cat, index, selectedYear, onOpenPicker, onDelete }:
       )}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
-        {/* Position indicator — rank within this type group */}
-        <div className="absolute top-4 right-5 text-7xl font-black text-white/[0.06] leading-none select-none">
-          #{index + 1}
-        </div>
+        {/* Position indicator — rank within this type group; meaningless
+            (always #1) for single-award groups so it stays hidden. */}
+        {groupSize > 1 && (
+          <div className="absolute top-4 right-5 text-7xl font-black text-white/[0.06] leading-none select-none">
+            #{index + 1}
+          </div>
+        )}
 
         {/* Glow effect for winners */}
         {winner && (
@@ -1079,6 +1084,7 @@ export default function AwardsPage() {
                         <AwardCategoryCard
                           cat={cat}
                           index={index}
+                          groupSize={group.length}
                           selectedYear={selectedYear}
                           onOpenPicker={openPicker}
                           onDelete={setCategoryToDelete}
