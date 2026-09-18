@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Search, X, Plus, Trophy, Check } from "lucide-react";
+import { Search, X, Plus, Trophy, Check, Layers } from "lucide-react";
 import { awardsLogic, type AwardTemplate } from "../lib/awards-logic";
+import { getTypeBadgeStyle, getVisibleEntryTypeOptions } from "../lib/media-config";
 import { cn } from "../lib/utils_ui";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -10,7 +11,7 @@ interface CategoryPickerProps {
     isOpen: boolean;
     onClose: () => void;
     onSelectExisting: (templateId: number) => void;
-    onCreateNew: (name: string) => void;
+    onCreateNew: (name: string, entryType: string | null) => void;
     year: number;
 }
 
@@ -26,6 +27,7 @@ export function CategoryPicker({
     const [filteredTemplates, setFilteredTemplates] = useState<AwardTemplate[]>([]);
     const [showNewInput, setShowNewInput] = useState(false);
     const [newName, setNewName] = useState("");
+    const [newType, setNewType] = useState<string | null>(null);
     const modalRef = useRef<HTMLDivElement>(null);
 
     useEscapeToClose(isOpen, onClose);
@@ -36,6 +38,7 @@ export function CategoryPicker({
             setQuery("");
             setShowNewInput(false);
             setNewName("");
+            setNewType(null);
             // Load templates not already used in this year
             awardsLogic.getTemplatesNotUsedInYear(year).then(setTemplates);
         }
@@ -52,7 +55,7 @@ export function CategoryPicker({
 
     const handleCreateNew = () => {
         if (newName.trim()) {
-            onCreateNew(newName.trim());
+            onCreateNew(newName.trim(), newType);
             onClose();
         }
     };
@@ -110,6 +113,33 @@ export function CategoryPicker({
                                 onChange={e => setNewName(e.target.value)}
                                 onKeyDown={e => e.key === "Enter" && handleCreateNew()}
                             />
+                            <div className="space-y-1.5">
+                                <div className="text-xs font-medium text-gray-500 uppercase tracking-wider">Award type</div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {[
+                                        { value: null as string | null, label: "General", icon: <Layers size={12} /> },
+                                        ...getVisibleEntryTypeOptions().map(o => ({ value: o.value as string | null, label: o.value, icon: o.icon })),
+                                    ].map(option => {
+                                        const isActive = option.value === newType;
+                                        return (
+                                            <button
+                                                key={option.label}
+                                                type="button"
+                                                onClick={() => setNewType(option.value)}
+                                                className={cn(
+                                                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
+                                                    isActive
+                                                        ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                                                        : "bg-white/5 border-white/10 text-gray-400 hover:border-white/25 hover:text-gray-200"
+                                                )}
+                                            >
+                                                {option.icon}
+                                                {option.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => setShowNewInput(false)}
@@ -138,32 +168,41 @@ export function CategoryPicker({
                     )}
 
                     {/* Existing Templates */}
-                    {filteredTemplates.map(template => (
-                        <button
-                            key={template.id}
-                            onClick={() => {
-                                onSelectExisting(template.id);
-                                onClose();
-                            }}
-                            className={cn(
-                                "w-full flex items-center gap-3 p-4 rounded-xl border border-white/10",
-                                "hover:border-amber-500/30 hover:bg-white/5 transition-all group text-left"
-                            )}
-                        >
-                            <div className="p-2 rounded-lg bg-white/5 group-hover:bg-amber-500/10 transition-colors">
-                                <Trophy size={18} className="text-gray-400 group-hover:text-amber-400" />
-                            </div>
-                            <div className="flex-1">
-                                <div className="font-semibold group-hover:text-amber-200 transition-colors">
-                                    {template.name}
+                    {filteredTemplates.map(template => {
+                        const typeBadge = template.entry_type ? getTypeBadgeStyle(template.entry_type) : null;
+                        return (
+                            <button
+                                key={template.id}
+                                onClick={() => {
+                                    onSelectExisting(template.id);
+                                    onClose();
+                                }}
+                                className={cn(
+                                    "w-full flex items-center gap-3 p-4 rounded-xl border border-white/10",
+                                    "hover:border-amber-500/30 hover:bg-white/5 transition-all group text-left"
+                                )}
+                            >
+                                <div className="p-2 rounded-lg bg-white/5 group-hover:bg-amber-500/10 transition-colors">
+                                    <Trophy size={18} className="text-gray-400 group-hover:text-amber-400" />
                                 </div>
-                                <div className="text-sm text-gray-500">
-                                    Used in {template.usage_count || 0} year{(template.usage_count || 0) !== 1 ? 's' : ''}
+                                <div className="flex-1">
+                                    <div className="font-semibold group-hover:text-amber-200 transition-colors">
+                                        {template.name}
+                                    </div>
+                                    <div className="text-sm text-gray-500 flex items-center gap-2">
+                                        <span>Used in {template.usage_count || 0} year{(template.usage_count || 0) !== 1 ? 's' : ''}</span>
+                                        {typeBadge && (
+                                            <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-white", typeBadge.bg)}>
+                                                {typeBadge.icon}
+                                                {template.entry_type}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                            <Check size={18} className="text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </button>
-                    ))}
+                                <Check size={18} className="text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </button>
+                        );
+                    })}
 
                     {filteredTemplates.length === 0 && templates.length > 0 && (
                         <div className="text-center py-8 text-gray-500">

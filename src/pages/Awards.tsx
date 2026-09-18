@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
-import { Award, ChevronLeft, Plus, Trash2, Trophy, ArrowUpDown, Sparkles, History, Star, Calendar, AlertCircle, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Award, ChevronLeft, Plus, Trash2, Trophy, ArrowUpDown, Sparkles, History, Star, Calendar, AlertCircle, X, Layers } from "lucide-react";
 import { awardsLogic, type AwardYearSummary, type AwardCategory, type AwardTemplate, type TemplateWinnerHistory, type TemplateDeletionImpact } from "../lib/awards-logic";
 import { MediaCard } from "../components/MediaCard";
-import { formatCardRating, getRatingColor, getTypeBadgeStyle, parseGenres } from "../lib/media-config";
+import { formatCardRating, getRatingColor, getTypeBadgeStyle, parseGenres, ENTRY_TYPES } from "../lib/media-config";
+import { AwardTypeMenu } from "../components/AwardTypeMenu";
 import { WinnerPicker } from "../components/WinnerPicker";
 import { InputModal } from "../components/InputModal";
 import { ReorderModal, type ReorderItem } from "../components/ReorderModal";
@@ -61,15 +62,243 @@ function AwardErrorToast({ message, onDismiss }: { message: string | null; onDis
   );
 }
 
-// Helper type for reorder modal
-type CategoryWithWinner = AwardCategory & { winner: MediaEntry | null };
+// Helper type for reorder modal. `entry_type` comes from the template join.
+type CategoryWithWinner = AwardCategory & { winner: MediaEntry | null; entry_type: string | null };
 type ReorderableCategory = ReorderItem & CategoryWithWinner;
 
+// Untagged awards share one catch-all bucket in the year view.
+const GENERAL_GROUP = "General";
+
 type ViewType = "main" | "year" | "category";
+
+interface AwardCategoryCardProps {
+  cat: CategoryWithWinner;
+  /** Position within its type group — not the global sort_order. */
+  index: number;
+  selectedYear: number | null;
+  onOpenPicker: (categoryId: number) => void;
+  onDelete: (category: CategoryWithWinner) => void;
+  onTypeChange: (category: CategoryWithWinner, entryType: string | null) => void;
+}
+
+// One award category card in the year view: winner showcase or picker prompt.
+function AwardCategoryCard({ cat, index, selectedYear, onOpenPicker, onDelete, onTypeChange }: AwardCategoryCardProps) {
+  const winner = cat.winner;
+  const typeBadge = winner ? getTypeBadgeStyle(winner.entry_type) : null;
+  const genres = winner ? parseGenres(winner.genre) : [];
+  // While the type menu is open this card must outrank later sibling cards:
+  // award-item-enter's retained transform gives each card its own stacking
+  // context, so a following card would otherwise paint over the dropdown.
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
+
+  return (
+    <div
+      style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
+      className={cn(
+        "relative overflow-visible rounded-2xl p-6 transition-all border group award-item-enter",
+        typeMenuOpen && "z-30",
+        winner
+          ? "bg-gradient-to-br from-amber-500/10 via-white/5 to-yellow-500/5 border-amber-500/20 hover:border-amber-400/40"
+          : "bg-white/5 border-white/10 hover:border-white/20"
+      )}
+    >
+      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+        {/* Position indicator — rank within this type group */}
+        <div className="absolute top-4 right-5 text-7xl font-black text-white/[0.06] leading-none select-none">
+          #{index + 1}
+        </div>
+
+        {/* Glow effect for winners */}
+        {winner && (
+          <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl" />
+        )}
+      </div>
+
+      <div className="relative z-10">
+        {/* Category header row — icon + name + media-type tag */}
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="text-2xl font-bold flex items-center gap-2.5">
+            <div className={cn(
+              "p-2 rounded-xl",
+              winner
+                ? "bg-gradient-to-br from-amber-500/20 to-yellow-600/20"
+                : "bg-white/5"
+            )}>
+              <Award className={winner ? "text-amber-400" : "text-gray-500"} size={20} />
+            </div>
+            <span className={winner ? "text-amber-200" : "text-white"}>{cat.name}</span>
+            {cat.template_id != null && (
+              <AwardTypeMenu
+                value={cat.entry_type}
+                onChange={type => onTypeChange(cat, type)}
+                onOpenChange={setTypeMenuOpen}
+                className="self-center"
+              />
+            )}
+          </h3>
+        </div>
+
+        {winner && typeBadge ? (
+          <div className="flex gap-6 items-stretch">
+            {/* Left: Large cover image */}
+            <div
+              className="w-48 flex-shrink-0 cursor-pointer group/cover"
+              onClick={() => onOpenPicker(cat.id)}
+            >
+              <div className="relative rounded-xl overflow-hidden border border-white/10 shadow-lg transition-transform group-hover/cover:scale-[1.02]">
+                <div className="relative h-72 w-full overflow-hidden">
+                  <WinnerCoverImage entry={winner} />
+                  {/* Winner trophy badge — inside image bounds */}
+                  <div className="absolute top-2 right-2 bg-gradient-to-br from-amber-400 to-yellow-600 p-2 rounded-full shadow-lg shadow-amber-500/30 ring-2 ring-black/20">
+                    <Trophy size={16} className="text-black" />
+                  </div>
+                  {/* Rating pill on image */}
+                  {winner.review_score !== null && winner.review_score !== undefined && (
+                    <div className={cn(
+                      "absolute bottom-2 left-2 px-2.5 py-1 rounded-full flex items-center gap-1 text-xs font-bold shadow-lg",
+                      getRatingColor(winner.review_score)
+                    )}>
+                      <Star size={11} className="fill-current" />
+                      <span>{formatCardRating(winner.review_score)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Metadata block */}
+            <div className="flex-1 flex flex-col gap-3 min-w-0 py-1">
+              {/* Winner pill */}
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-500/20 to-yellow-600/20 text-amber-300 rounded-full text-xs font-bold uppercase tracking-wider border border-amber-500/20 w-fit">
+                <Trophy size={12} />
+                Winner
+              </div>
+
+              {/* Title */}
+              <h4 className="text-3xl font-bold text-white leading-tight">
+                {winner.name}
+              </h4>
+
+              {/* Context line as typed pills */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs text-white font-semibold shadow-md",
+                  typeBadge.bg
+                )}>
+                  {typeBadge.icon}
+                  <span>{winner.entry_type}</span>
+                </span>
+                {winner.author && (
+                  <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
+                    {winner.author}
+                  </span>
+                )}
+                {winner.artist && !winner.author && (
+                  <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
+                    {winner.artist}
+                  </span>
+                )}
+                {winner.actress && winner.actress.split(',').map((a, i) => {
+                  const trimmed = a.trim();
+                  if (!trimmed) return null;
+                  return (
+                    <span key={`actress-${i}`} className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
+                      {trimmed}
+                    </span>
+                  );
+                })}
+                {winner.director && !winner.author && !winner.artist && (
+                  <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
+                    {winner.director}
+                  </span>
+                )}
+                {winner.platform && (
+                  <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
+                    {winner.platform}
+                  </span>
+                )}
+              </div>
+
+              {/* Genre chips */}
+              {genres.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {genres.slice(0, 4).map((genre, i) => (
+                    <span
+                      key={i}
+                      className="px-2 py-0.5 bg-white/10 rounded-md text-[11px] text-gray-300 font-medium"
+                    >
+                      {genre}
+                    </span>
+                  ))}
+                  {genres.length > 4 && (
+                    <span
+                      className="px-2 py-0.5 bg-white/5 rounded-md text-[11px] text-gray-500 font-medium"
+                      title={genres.slice(4).join(', ')}
+                    >
+                      +{genres.length - 4}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Date + change winner row */}
+              <div className="flex items-center justify-between gap-3 mt-auto pt-1">
+                {winner.completion_date ? (
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                    <Calendar size={12} />
+                    <span>{formatDate(winner.completion_date)}</span>
+                  </div>
+                ) : (
+                  <span />
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onDelete(cat)}
+                    className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                    title={`Remove this award from ${selectedYear}`}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                  <button
+                    onClick={() => onOpenPicker(cat.id)}
+                    className="text-sm text-amber-400 hover:text-amber-300 hover:underline font-medium transition-colors"
+                  >
+                    Change Winner →
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="relative">
+            <button
+              onClick={() => onOpenPicker(cat.id)}
+              className="w-full h-80 border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center gap-3 text-gray-500 hover:text-amber-400 hover:border-amber-500/30 hover:bg-amber-500/5 transition-all group/select"
+            >
+              <div className="p-4 rounded-full bg-white/5 group-hover/select:bg-amber-500/10 transition-colors">
+                <Plus size={28} />
+              </div>
+              <span className="font-semibold">Select Winner</span>
+            </button>
+            <button
+              onClick={() => onDelete(cat)}
+              className="absolute bottom-3 right-3 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+              title={`Remove this award from ${selectedYear}`}
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function AwardsPage() {
   const [view, setView] = useState<ViewType>("main");
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  // Media-type filter on the year view — null shows every group.
+  const [typeFilter, setTypeFilter] = useState<string | null>(null);
 
   // Data State
   const [years, setYears] = useState<AwardYearSummary[]>([]);
@@ -112,6 +341,38 @@ export default function AwardsPage() {
     return () => window.clearTimeout(t);
   }, [awardError]);
 
+  // Categories grouped by media type for the year view: canonical entry-type
+  // order first, unknown tags after those, General always last.
+  const categoryGroups = useMemo<[string, CategoryWithWinner[]][]>(() => {
+    const byType = new Map<string, CategoryWithWinner[]>();
+    for (const cat of categories) {
+      const key = cat.entry_type ?? GENERAL_GROUP;
+      const group = byType.get(key);
+      if (group) group.push(cat);
+      else byType.set(key, [cat]);
+    }
+    const rank = (key: string) => {
+      const index = ENTRY_TYPES.indexOf(key);
+      if (index >= 0) return index;
+      return key === GENERAL_GROUP ? ENTRY_TYPES.length + 1 : ENTRY_TYPES.length;
+    };
+    return [...byType.entries()].sort(
+      (a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0])
+    );
+  }, [categories]);
+
+  // A filter pointing at a group that no longer exists (e.g. its last award
+  // was retagged) falls back to All instead of showing a blank list.
+  const activeTypeFilter =
+    typeFilter !== null && categoryGroups.some(([key]) => key === typeFilter)
+      ? typeFilter
+      : null;
+
+  const visibleGroups =
+    activeTypeFilter === null
+      ? categoryGroups
+      : categoryGroups.filter(([key]) => key === activeTypeFilter);
+
   const loadYears = () => awardsLogic.getAwardYears().then(setYears);
   const loadTemplates = () => awardsLogic.getAllTemplates().then(setTemplates);
 
@@ -130,6 +391,7 @@ export default function AwardsPage() {
   const handleYearSelect = (year: number) => {
     setSelectedYear(year);
     setCategories([]);
+    setTypeFilter(null);
     loadCategories(year);
     setView("year");
   };
@@ -169,10 +431,12 @@ export default function AwardsPage() {
   };
 
   // Category creation handlers
-  const handleCreateNewCategory = async (name: string) => {
+  const handleCreateNewCategory = async (name: string, entryType: string | null) => {
     if (selectedYear) {
       try {
-        await awardsLogic.createCategory(name, selectedYear);
+        await awardsLogic.createCategory(name, selectedYear, entryType);
+        // Reset the filter so the new card is visible wherever it lands.
+        setTypeFilter(null);
         loadCategories(selectedYear);
         loadTemplates(); // Refresh templates since a new one was created
         setAwardError(null);
@@ -187,12 +451,38 @@ export default function AwardsPage() {
     if (selectedYear) {
       try {
         await awardsLogic.createCategoryFromTemplate(templateId, selectedYear);
+        setTypeFilter(null);
         loadCategories(selectedYear);
         setAwardError(null);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         setAwardError(message);
       }
+    }
+  };
+
+  // Retag an award's media type from a year-view card. The tag lives on the
+  // template, so it applies to every year the award appears in.
+  const handleTypeChange = async (category: CategoryWithWinner, entryType: string | null) => {
+    if (category.template_id == null) return;
+    try {
+      await awardsLogic.updateTemplateType(category.template_id, entryType);
+      if (selectedYear) await loadCategories(selectedYear);
+      setAwardError(null);
+    } catch (error) {
+      setAwardError(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  // Same retag, but from the award detail view where the template is loaded.
+  const handleTemplateTypeChange = async (entryType: string | null) => {
+    if (!selectedTemplate) return;
+    try {
+      await awardsLogic.updateTemplateType(selectedTemplate.id, entryType);
+      await Promise.all([loadTemplateDetail(selectedTemplate.id), loadTemplates()]);
+      setAwardError(null);
+    } catch (error) {
+      setAwardError(error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -407,42 +697,53 @@ export default function AwardsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {templates.map((template, index) => (
-                <div
-                  key={template.id}
-                  className="relative group award-card-enter"
-                  style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
-                >
-                  <button
-                    onClick={() => handleTemplateSelect(template.id)}
-                    className="relative h-full w-full bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl p-5 text-left hover:border-amber-500/40 transition-all overflow-hidden"
+              {templates.map((template, index) => {
+                const typeBadge = template.entry_type ? getTypeBadgeStyle(template.entry_type) : null;
+                return (
+                  <div
+                    key={template.id}
+                    className="relative group award-card-enter"
+                    style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
                   >
-                    <div className="absolute -top-10 -right-10 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-all" />
-                    <div className="relative z-10 flex items-start gap-3">
-                      <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500/20 to-yellow-600/20 flex-shrink-0">
-                        <Trophy size={18} className="text-amber-400" />
+                    <button
+                      onClick={() => handleTemplateSelect(template.id)}
+                      className="relative h-full w-full bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl p-5 text-left hover:border-amber-500/40 transition-all overflow-hidden"
+                    >
+                      <div className="absolute -top-10 -right-10 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-all" />
+                      <div className="relative z-10 flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500/20 to-yellow-600/20 flex-shrink-0">
+                          <Trophy size={18} className="text-amber-400" />
+                        </div>
+                        <div className="flex-1 min-w-0 pr-8">
+                          <h4 className="font-semibold truncate group-hover:text-amber-200 transition-colors">
+                            {template.name}
+                          </h4>
+                          <div className="text-sm text-gray-500 flex items-center gap-2 mt-1">
+                            <span className="flex items-center gap-1">
+                              <History size={12} />
+                              {template.usage_count || 0} year{(template.usage_count || 0) !== 1 ? 's' : ''}
+                            </span>
+                            {typeBadge && (
+                              <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-white", typeBadge.bg)}>
+                                {typeBadge.icon}
+                                {template.entry_type}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0 pr-8">
-                        <h4 className="font-semibold truncate group-hover:text-amber-200 transition-colors">
-                          {template.name}
-                        </h4>
-                        <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                          <History size={12} />
-                          {template.usage_count || 0} year{(template.usage_count || 0) !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openDeleteTemplate(template)}
-                    className="absolute top-3 right-3 z-20 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                    title="Delete award"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openDeleteTemplate(template)}
+                      className="absolute top-3 right-3 z-20 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                      title="Delete award"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
@@ -481,7 +782,7 @@ export default function AwardsPage() {
     return (
       <div className="space-y-8 max-w-5xl mx-auto pb-20">
         <AwardErrorToast message={awardError} onDismiss={() => setAwardError(null)} />
-        <header className="flex items-center gap-4 award-header-enter">
+        <header className="relative z-30 flex items-center gap-4 award-header-enter">
           <button
             onClick={goBackToMain}
             className="p-2.5 hover:bg-white/10 rounded-full transition-colors border border-white/10 hover:border-white/20"
@@ -497,6 +798,10 @@ export default function AwardsPage() {
               Awarded in {templateHistory.length} year{templateHistory.length !== 1 ? 's' : ''}
             </p>
           </div>
+          <AwardTypeMenu
+            value={selectedTemplate.entry_type}
+            onChange={type => void handleTemplateTypeChange(type)}
+          />
           <button
             onClick={() => openDeleteTemplate(selectedTemplate)}
             className="flex items-center gap-2 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40 text-gray-300 hover:text-red-400 px-4 py-2 rounded-xl font-semibold transition-all"
@@ -594,6 +899,10 @@ export default function AwardsPage() {
   }
 
   // --- VIEW 2: YEAR DETAIL (Category Editor) ---
+  // The category the winner picker is open for — typed awards pre-filter
+  // candidates to that media type (a "Game" award only offers games).
+  const activeCategory = categories.find(c => c.id === activeCategoryId) ?? null;
+
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-20">
       <AwardErrorToast message={awardError} onDismiss={() => setAwardError(null)} />
@@ -632,7 +941,46 @@ export default function AwardsPage() {
         </div>
       </header>
 
-      <div className="space-y-6">
+      {/* Media-type filter chips */}
+      {categoryGroups.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
+          <button
+            onClick={() => setTypeFilter(null)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all whitespace-nowrap",
+              activeTypeFilter === null
+                ? "bg-amber-500/15 border-amber-500/50 text-amber-300"
+                : "bg-white/5 border-white/10 text-gray-400 hover:border-white/25 hover:text-gray-200"
+            )}
+          >
+            <Trophy size={14} />
+            All
+            <span className="font-mono text-xs opacity-70">{categories.length}</span>
+          </button>
+          {categoryGroups.map(([key, group]) => {
+            const isActive = activeTypeFilter === key;
+            const chipBadge = key === GENERAL_GROUP ? null : getTypeBadgeStyle(key);
+            return (
+              <button
+                key={key}
+                onClick={() => setTypeFilter(key)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all whitespace-nowrap",
+                  isActive
+                    ? "bg-amber-500/15 border-amber-500/50 text-amber-300"
+                    : "bg-white/5 border-white/10 text-gray-400 hover:border-white/25 hover:text-gray-200"
+                )}
+              >
+                {key === GENERAL_GROUP ? <Layers size={14} /> : chipBadge?.icon}
+                {key}
+                <span className="font-mono text-xs opacity-70">{group.length}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="space-y-8">
         {categories.length === 0 && (
           <div className="text-center py-20 text-gray-500 border-2 border-dashed border-white/5 rounded-2xl bg-gradient-to-br from-white/[0.02] to-transparent">
             <Trophy size={48} className="mx-auto mb-4 text-gray-600" />
@@ -641,204 +989,42 @@ export default function AwardsPage() {
           </div>
         )}
 
-        {/* Category Cards */}
-        {categories.map((cat, index) => {
-          const winner = cat.winner;
-          const typeBadge = winner ? getTypeBadgeStyle(winner.entry_type) : null;
-          const genres = winner ? parseGenres(winner.genre) : [];
-
+        {/* Category groups */}
+        {visibleGroups.map(([groupKey, group]) => {
+          const groupBadge = groupKey === GENERAL_GROUP ? null : getTypeBadgeStyle(groupKey);
           return (
-            <div
-              key={cat.id}
-              style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
-              className={cn(
-                "relative overflow-visible rounded-2xl p-6 transition-all border group award-item-enter",
-                winner
-                  ? "bg-gradient-to-br from-amber-500/10 via-white/5 to-yellow-500/5 border-amber-500/20 hover:border-amber-400/40"
-                  : "bg-white/5 border-white/10 hover:border-white/20"
+            <section key={groupKey} className="space-y-4">
+              {activeTypeFilter === null && (
+                <h3 className="text-lg font-semibold text-gray-300 flex items-center gap-2.5">
+                  {groupKey === GENERAL_GROUP ? (
+                    <span className="p-1.5 rounded-lg bg-white/10 text-gray-300">
+                      <Layers size={14} />
+                    </span>
+                  ) : (
+                    <span className={cn("p-1.5 rounded-lg text-white", groupBadge?.bg)}>
+                      {groupBadge?.icon}
+                    </span>
+                  )}
+                  {groupKey}
+                  <span className="text-sm font-normal text-gray-500">
+                    {group.length} award{group.length !== 1 ? "s" : ""}
+                  </span>
+                </h3>
               )}
-            >
-              <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
-                {/* Position indicator */}
-                <div className="absolute top-4 right-5 text-7xl font-black text-white/[0.06] leading-none select-none">
-                  #{index + 1}
-                </div>
-
-                {/* Glow effect for winners */}
-                {winner && (
-                  <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl" />
-                )}
+              <div className="space-y-6">
+                {group.map((cat, index) => (
+                  <AwardCategoryCard
+                    key={cat.id}
+                    cat={cat}
+                    index={index}
+                    selectedYear={selectedYear}
+                    onOpenPicker={openPicker}
+                    onDelete={setCategoryToDelete}
+                    onTypeChange={(c, type) => void handleTypeChange(c, type)}
+                  />
+                ))}
               </div>
-
-              <div className="relative z-10">
-                {/* Category header row — icon + name */}
-                <div className="flex items-start justify-between mb-4">
-                  <h3 className="text-2xl font-bold flex items-center gap-2.5">
-                    <div className={cn(
-                      "p-2 rounded-xl",
-                      winner
-                        ? "bg-gradient-to-br from-amber-500/20 to-yellow-600/20"
-                        : "bg-white/5"
-                    )}>
-                      <Award className={winner ? "text-amber-400" : "text-gray-500"} size={20} />
-                    </div>
-                    <span className={winner ? "text-amber-200" : "text-white"}>{cat.name}</span>
-                  </h3>
-                </div>
-
-                {winner && typeBadge ? (
-                  <div className="flex gap-6 items-stretch">
-                    {/* Left: Large cover image */}
-                    <div
-                      className="w-48 flex-shrink-0 cursor-pointer group/cover"
-                      onClick={() => openPicker(cat.id)}
-                    >
-                      <div className="relative rounded-xl overflow-hidden border border-white/10 shadow-lg transition-transform group-hover/cover:scale-[1.02]">
-                        <div className="relative h-72 w-full overflow-hidden">
-                          <WinnerCoverImage entry={winner} />
-                          {/* Winner trophy badge — inside image bounds */}
-                          <div className="absolute top-2 right-2 bg-gradient-to-br from-amber-400 to-yellow-600 p-2 rounded-full shadow-lg shadow-amber-500/30 ring-2 ring-black/20">
-                            <Trophy size={16} className="text-black" />
-                          </div>
-                          {/* Rating pill on image */}
-                          {winner.review_score !== null && winner.review_score !== undefined && (
-                            <div className={cn(
-                              "absolute bottom-2 left-2 px-2.5 py-1 rounded-full flex items-center gap-1 text-xs font-bold shadow-lg",
-                              getRatingColor(winner.review_score)
-                            )}>
-                              <Star size={11} className="fill-current" />
-                              <span>{formatCardRating(winner.review_score)}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right: Metadata block */}
-                    <div className="flex-1 flex flex-col gap-3 min-w-0 py-1">
-                      {/* Winner pill */}
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-500/20 to-yellow-600/20 text-amber-300 rounded-full text-xs font-bold uppercase tracking-wider border border-amber-500/20 w-fit">
-                        <Trophy size={12} />
-                        Winner
-                      </div>
-
-                      {/* Title */}
-                      <h4 className="text-3xl font-bold text-white leading-tight">
-                        {winner.name}
-                      </h4>
-
-                      {/* Context line as typed pills */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={cn(
-                          "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs text-white font-semibold shadow-md",
-                          typeBadge.bg
-                        )}>
-                          {typeBadge.icon}
-                          <span>{winner.entry_type}</span>
-                        </span>
-                        {winner.author && (
-                          <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
-                            {winner.author}
-                          </span>
-                        )}
-                        {winner.artist && !winner.author && (
-                          <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
-                            {winner.artist}
-                          </span>
-                        )}
-                        {winner.actress && winner.actress.split(',').map((a, i) => {
-                          const trimmed = a.trim();
-                          if (!trimmed) return null;
-                          return (
-                            <span key={`actress-${i}`} className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
-                              {trimmed}
-                            </span>
-                          );
-                        })}
-                        {winner.director && !winner.author && !winner.artist && (
-                          <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
-                            {winner.director}
-                          </span>
-                        )}
-                        {winner.platform && (
-                          <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
-                            {winner.platform}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Genre chips */}
-                      {genres.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {genres.slice(0, 4).map((genre, i) => (
-                            <span
-                              key={i}
-                              className="px-2 py-0.5 bg-white/10 rounded-md text-[11px] text-gray-300 font-medium"
-                            >
-                              {genre}
-                            </span>
-                          ))}
-                          {genres.length > 4 && (
-                            <span
-                              className="px-2 py-0.5 bg-white/5 rounded-md text-[11px] text-gray-500 font-medium"
-                              title={genres.slice(4).join(', ')}
-                            >
-                              +{genres.length - 4}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Date + change winner row */}
-                      <div className="flex items-center justify-between gap-3 mt-auto pt-1">
-                        {winner.completion_date ? (
-                          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                            <Calendar size={12} />
-                            <span>{formatDate(winner.completion_date)}</span>
-                          </div>
-                        ) : (
-                          <span />
-                        )}
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setCategoryToDelete(cat)}
-                            className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                            title={`Remove this award from ${selectedYear}`}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                          <button
-                            onClick={() => openPicker(cat.id)}
-                            className="text-sm text-amber-400 hover:text-amber-300 hover:underline font-medium transition-colors"
-                          >
-                            Change Winner →
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <button
-                      onClick={() => openPicker(cat.id)}
-                      className="w-full h-80 border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center gap-3 text-gray-500 hover:text-amber-400 hover:border-amber-500/30 hover:bg-amber-500/5 transition-all group/select"
-                    >
-                      <div className="p-4 rounded-full bg-white/5 group-hover/select:bg-amber-500/10 transition-colors">
-                        <Plus size={28} />
-                      </div>
-                      <span className="font-semibold">Select Winner</span>
-                    </button>
-                    <button
-                      onClick={() => setCategoryToDelete(cat)}
-                      className="absolute bottom-3 right-3 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                      title={`Remove this award from ${selectedYear}`}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
+            </section>
           );
         })}
       </div>
@@ -848,6 +1034,12 @@ export default function AwardsPage() {
         onClose={() => setPickerOpen(false)}
         onSelect={handleWinnerSelect}
         year={selectedYear || undefined}
+        title={activeCategory?.entry_type ? `Select ${activeCategory.entry_type} Winner` : undefined}
+        entryFilter={
+          activeCategory?.entry_type
+            ? (entry) => entry.entry_type === activeCategory.entry_type
+            : undefined
+        }
       />
 
       {/* Reorder Modal */}

@@ -1034,28 +1034,31 @@ mod implementation {
         tx: &mut sqlx::Transaction<'_, Sqlite>,
         preset: FixturePreset,
     ) -> Result<usize, String> {
-        const CATEGORIES: [&str; 12] = [
-            "Best Picture",
-            "Best Direction",
-            "Best Performance",
-            "Best Writing",
-            "Best Art",
-            "Best Music",
-            "Best Game",
-            "Best Series",
-            "Best Debut",
-            "Best Rewatch",
-            "Biggest Surprise",
-            "Personal Favourite",
+        const CATEGORIES: [(&str, Option<&str>); 12] = [
+            ("Best Picture", Some("Movie")),
+            ("Best Direction", Some("Movie")),
+            ("Best Performance", Some("Movie")),
+            ("Best Writing", Some("Book")),
+            ("Best Art", Some("Game")),
+            ("Best Music", Some("Album")),
+            ("Best Game", Some("Game")),
+            ("Best Series", Some("Show")),
+            ("Best Debut", None),
+            ("Best Rewatch", None),
+            ("Biggest Surprise", None),
+            ("Personal Favourite", None),
         ];
-        for (index, category) in CATEGORIES.iter().enumerate() {
-            sqlx::query("INSERT INTO award_templates (id,name,created_date) VALUES (?,?,?)")
-                .bind((index + 1) as i64)
-                .bind(category)
-                .bind("2026-01-01T10:00:00Z")
-                .execute(&mut **tx)
-                .await
-                .map_err(|error| format!("Failed to insert fixture award templates: {error}"))?;
+        for (index, (category, entry_type)) in CATEGORIES.iter().enumerate() {
+            sqlx::query(
+                "INSERT INTO award_templates (id,name,created_date,entry_type) VALUES (?,?,?,?)",
+            )
+            .bind((index + 1) as i64)
+            .bind(*category)
+            .bind("2026-01-01T10:00:00Z")
+            .bind(*entry_type)
+            .execute(&mut **tx)
+            .await
+            .map_err(|error| format!("Failed to insert fixture award templates: {error}"))?;
         }
 
         let mut category_id = 1_i64;
@@ -1066,13 +1069,13 @@ mod implementation {
                 .execute(&mut **tx)
                 .await
                 .map_err(|error| format!("Failed to insert fixture award years: {error}"))?;
-            for (order, category) in CATEGORIES.iter().enumerate() {
+            for (order, (category, _)) in CATEGORIES.iter().enumerate() {
                 sqlx::query(
                     "INSERT INTO award_categories (id,year,name,created_date,sort_order,template_id) VALUES (?,?,?,?,?,?)",
                 )
                 .bind(category_id)
                 .bind(year)
-                .bind(category)
+                .bind(*category)
                 .bind("2026-01-01T10:00:00Z")
                 .bind(order as i64)
                 .bind((order + 1) as i64)

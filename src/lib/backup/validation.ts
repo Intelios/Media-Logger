@@ -177,7 +177,12 @@ export function validateBackupTables(value: unknown): asserts value is BackupTab
   const templates = asRows(tables.award_templates, 'award_templates');
   const templateIds = ensureUniqueId(templates, 'award_templates');
   ensureUniqueKey(templates.map((row, index) => requireString(row, 'name', `award_templates[${index}]`)), 'award_templates');
-  templates.forEach((row, index) => requireString(row, 'created_date', `award_templates[${index}]`));
+  templates.forEach((row, index) => {
+    const context = `award_templates[${index}]`;
+    requireString(row, 'created_date', context);
+    // Optional: pre-v7 backups have no media-type tag to carry.
+    if (row.entry_type !== undefined) requireNullableString(row, 'entry_type', context);
+  });
 
   const categories = asRows(tables.award_categories, 'award_categories');
   const categoryIds = ensureUniqueId(categories, 'award_categories');

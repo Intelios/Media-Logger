@@ -39,6 +39,9 @@ export interface AwardTemplateBackupRow {
   id: number;
   name: string;
   created_date: string;
+  // Added with schema v7. Backups written before it omit the field and import
+  // as null, which lands the award in the "General" group.
+  entry_type?: string | null;
 }
 
 export interface AwardCategoryBackupRow {

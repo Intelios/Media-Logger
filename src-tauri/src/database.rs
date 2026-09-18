@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use tauri::State;
 use tauri_plugin_sql::{DbInstances, DbPool};
 
-const DATABASE_SCHEMA_VERSION: i64 = 6;
+const DATABASE_SCHEMA_VERSION: i64 = 7;
 const MAX_SQLITE_BIND_PARAMS: usize = 999;
 const MAX_BULK_MUTATION_ITEMS: usize = 10_000;
 
@@ -85,6 +85,10 @@ pub struct AwardTemplateRow {
     pub id: i64,
     pub name: String,
     pub created_date: String,
+    // Media type the award belongs to (Movie, Game, …); NULL means general.
+    // Defaulted for serde so backups written before schema v7 still load.
+    #[serde(default)]
+    pub entry_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
@@ -280,7 +284,8 @@ async fn create_current_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<(), S
         r#"CREATE TABLE IF NOT EXISTS award_templates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
-            created_date TEXT NOT NULL
+            created_date TEXT NOT NULL,
+            entry_type TEXT
         )"#,
         r#"CREATE TABLE IF NOT EXISTS award_years (
             year INTEGER PRIMARY KEY,
@@ -922,6 +927,21 @@ async fn migrate_to_v6(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
     .await
 }
 
+async fn migrate_to_v7(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
+    // Awards can now be browsed by media type on the year view. The tag lives
+    // on the template so it applies to every year the award appears in; NULL
+    // keeps existing awards in the untagged "General" group.
+    let mut columns = table_columns(tx, "award_templates").await?;
+    add_missing_column(
+        tx,
+        "award_templates",
+        &mut columns,
+        "entry_type",
+        "TEXT",
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn database_run_migrations(
     database_url: String,
@@ -1087,6 +1107,36 @@ pub async fn database_run_migrations(
             .await
             .map_err(|error| database_error("Failed to commit database migration", error))?;
         applied.push(6);
+        migrated_version = 6;
+    }
+
+    if migrated_version < 7 {
+        let mut tx = pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(|error| database_error("Failed to begin database migration", error))?;
+        let migration_result = async {
+            migrate_to_v7(&mut tx).await?;
+            execute_schema_sql(
+                &mut tx,
+                "PRAGMA user_version = 7",
+                "Failed to record the database schema version",
+            )
+            .await
+        }
+        .await;
+        if let Err(error) = migration_result {
+            return match tx.rollback().await {
+                Ok(()) => Err(error),
+                Err(rollback_error) => Err(format!(
+                    "{error}; migration rollback also failed: {rollback_error}"
+                )),
+            };
+        }
+        tx.commit()
+            .await
+            .map_err(|error| database_error("Failed to commit database migration", error))?;
+        applied.push(7);
     }
 
     if !applied.is_empty() {
@@ -1415,7 +1465,7 @@ pub async fn database_export_snapshot(
         ),
         award_templates: fetch_rows!(
             AwardTemplateRow,
-            "SELECT id, name, created_date FROM award_templates ORDER BY id",
+            "SELECT id, name, created_date, entry_type FROM award_templates ORDER BY id",
             "Failed to export award templates"
         ),
         award_categories: fetch_rows!(
@@ -1740,14 +1790,16 @@ async fn insert_award_templates(
     tx: &mut Transaction<'_, Sqlite>,
     rows: &[PlannedTemplate],
 ) -> Result<(), String> {
-    for chunk in rows.chunks(batch_size(3)) {
-        let mut query =
-            QueryBuilder::<Sqlite>::new("INSERT INTO award_templates (id, name, created_date) ");
+    for chunk in rows.chunks(batch_size(4)) {
+        let mut query = QueryBuilder::<Sqlite>::new(
+            "INSERT INTO award_templates (id, name, created_date, entry_type) ",
+        );
         query.push_values(chunk, |mut values, planned| {
             values
                 .push_bind(planned.target_id)
                 .push_bind(&planned.row.name)
-                .push_bind(&planned.row.created_date);
+                .push_bind(&planned.row.created_date)
+                .push_bind(&planned.row.entry_type);
         });
         query
             .build()
@@ -2144,7 +2196,7 @@ async fn import_backup_transaction(
     }
 
     let existing_templates = sqlx::query_as::<_, AwardTemplateRow>(
-        "SELECT id, name, created_date FROM award_templates ORDER BY id",
+        "SELECT id, name, created_date, entry_type FROM award_templates ORDER BY id",
     )
     .fetch_all(&mut **tx)
     .await

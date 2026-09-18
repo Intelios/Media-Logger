@@ -1,10 +1,13 @@
 import { dbService, type MediaEntry } from "./db";
+import { ENTRY_TYPES } from "./media-config";
 import { invoke } from "@tauri-apps/api/core";
 
 export interface AwardTemplate {
   id: number;
   name: string;
   created_date: string;
+  /** Media type the award belongs to (Movie, Game, …). null = General. */
+  entry_type: string | null;
   usage_count?: number; // How many years used this template
 }
 
@@ -55,6 +58,15 @@ function validateAwardYear(year: number): number {
   return year;
 }
 
+/** Award tags are a controlled vocabulary: a canonical entry type, or null (General). */
+function validateAwardType(entryType: string | null | undefined): string | null {
+  if (entryType == null) return null;
+  if (!ENTRY_TYPES.includes(entryType)) {
+    throw new Error(`"${entryType}" is not a valid media type.`);
+  }
+  return entryType;
+}
+
 export const awardsLogic = {
   // 1. Get list of years that have awards
   async getAwardYears(): Promise<AwardYearSummary[]> {
@@ -98,9 +110,13 @@ export const awardsLogic = {
   async getAwardsForYear(year: number) {
     const db = await dbService.connect();
 
-    // Get Categories
-    const categories = await db.select<AwardCategory[]>(
-      "SELECT * FROM award_categories WHERE year = $1 ORDER BY sort_order ASC, id ASC",
+    // Get Categories (with each template's media type for grouping/filtering)
+    const categories = await db.select<(AwardCategory & { entry_type: string | null })[]>(
+      `SELECT c.*, t.entry_type AS entry_type
+       FROM award_categories c
+       LEFT JOIN award_templates t ON t.id = c.template_id
+       WHERE c.year = $1
+       ORDER BY c.sort_order ASC, c.id ASC`,
       [year]
     );
 
@@ -128,20 +144,22 @@ export const awardsLogic = {
   },
 
   // 3. Create Category (also creates template if it doesn't exist)
-  async createCategory(name: string, year: number) {
+  async createCategory(name: string, year: number, entryType: string | null = null) {
     const normalized = normalizeAwardName(name);
     if (!normalized) {
       throw new Error("Please enter an award name.");
     }
     validateAwardYear(year);
+    const normalizedType = validateAwardType(entryType);
 
     const db = await dbService.connect();
     await this.createYear(year);
 
-    // First, ensure template exists for this normalized name
+    // First, ensure template exists for this normalized name. INSERT OR IGNORE
+    // leaves an existing template's stored type untouched.
     await db.execute(
-      "INSERT OR IGNORE INTO award_templates (name, created_date) VALUES ($1, datetime('now'))",
-      [normalized]
+      "INSERT OR IGNORE INTO award_templates (name, created_date, entry_type) VALUES ($1, datetime('now'), $2)",
+      [normalized, normalizedType]
     );
 
     // Get the template id
@@ -302,15 +320,16 @@ export const awardsLogic = {
   },
 
   // 12. Create a new template (standalone)
-  async createTemplate(name: string): Promise<number> {
+  async createTemplate(name: string, entryType: string | null = null): Promise<number> {
     const normalized = normalizeAwardName(name);
     if (!normalized) {
       throw new Error("Please enter an award name.");
     }
+    const normalizedType = validateAwardType(entryType);
     const db = await dbService.connect();
     const result: any = await db.execute(
-      "INSERT INTO award_templates (name, created_date) VALUES ($1, datetime('now'))",
-      [normalized]
+      "INSERT INTO award_templates (name, created_date, entry_type) VALUES ($1, datetime('now'), $2)",
+      [normalized, normalizedType]
     );
     return result.lastInsertId;
   },
@@ -384,8 +403,8 @@ export const awardsLogic = {
   async getTemplatesNotUsedInYear(year: number): Promise<AwardTemplate[]> {
     const db = await dbService.connect();
     const templates = await db.select<AwardTemplate[]>(
-      `SELECT t.* 
-       FROM award_templates t 
+      `SELECT t.*
+       FROM award_templates t
        WHERE t.id NOT IN (
          SELECT template_id FROM award_categories WHERE year = $1 AND template_id IS NOT NULL
        )
@@ -393,5 +412,15 @@ export const awardsLogic = {
       [year]
     );
     return templates;
+  },
+
+  // 17. Set an award template's media type (null clears it back to General)
+  async updateTemplateType(templateId: number, entryType: string | null): Promise<void> {
+    const normalizedType = validateAwardType(entryType);
+    const db = await dbService.connect();
+    await db.execute(
+      "UPDATE award_templates SET entry_type = $1 WHERE id = $2",
+      [normalizedType, templateId]
+    );
   }
 };
