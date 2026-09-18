@@ -2017,6 +2017,17 @@ body {
   animation: award-item-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Scrollable but visually chromeless — used by the awards film strip so the
+   rail reads as pure film with no scrollbar track beside the covers. */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* Profile card entrance animation */
 @keyframes profile-card-in {
   from {
