@@ -3,15 +3,15 @@ import { Award, ChevronLeft, Plus, Trash2, Trophy, ArrowUpDown, Sparkles, Histor
 import { useReducedMotion } from "framer-motion";
 import { awardsLogic, type AwardYearSummary, type AwardCategory, type AwardTemplate, type TemplateWinnerHistory, type TemplateDeletionImpact } from "../lib/awards-logic";
 import { MediaCard } from "../components/MediaCard";
-import { formatCardRating, getRatingColor, getTypeBadgeStyle, parseGenres, ENTRY_TYPES } from "../lib/media-config";
+import { formatCardRating, getRatingColor, getTypeBadgeStyle, parseGenres } from "../lib/media-config";
 import { AwardTypeMenu } from "../components/AwardTypeMenu";
 import { WinnerPicker } from "../components/WinnerPicker";
 import { InputModal } from "../components/InputModal";
-import { ReorderModal, type ReorderItem } from "../components/ReorderModal";
 import { CategoryPicker } from "../components/CategoryPicker";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { AwardFilmStrip } from "../components/awards/AwardFilmStrip";
 import { AwardYearPanel } from "../components/awards/AwardYearPanel";
+import { AwardReorderModal, type AwardReorderGroup } from "../components/awards/AwardReorderModal";
 import { useMainScrollContainer } from "../lib/scroll-container";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
@@ -68,7 +68,6 @@ function AwardErrorToast({ message, onDismiss }: { message: string | null; onDis
 
 // Helper type for reorder modal. `entry_type` comes from the template join.
 type CategoryWithWinner = AwardCategory & { winner: MediaEntry | null; entry_type: string | null };
-type ReorderableCategory = ReorderItem & CategoryWithWinner;
 
 // Untagged awards share one catch-all bucket in the year view.
 const GENERAL_GROUP = "General";
@@ -331,8 +330,10 @@ export default function AwardsPage() {
     return () => window.clearTimeout(t);
   }, [awardError]);
 
-  // Categories grouped by media type for the year view: canonical entry-type
-  // order first, unknown tags after those, General always last.
+  // Categories grouped by media type for the year view. `categories` arrives
+  // sorted by sort_order, so first-seen order is the stored group order — a
+  // group sits wherever its earliest category does, and the reorder modal
+  // edits both levels back into the same flat sequence.
   const categoryGroups = useMemo<[string, CategoryWithWinner[]][]>(() => {
     const byType = new Map<string, CategoryWithWinner[]>();
     for (const cat of categories) {
@@ -341,14 +342,7 @@ export default function AwardsPage() {
       if (group) group.push(cat);
       else byType.set(key, [cat]);
     }
-    const rank = (key: string) => {
-      const index = ENTRY_TYPES.indexOf(key);
-      if (index >= 0) return index;
-      return key === GENERAL_GROUP ? ENTRY_TYPES.length + 1 : ENTRY_TYPES.length;
-    };
-    return [...byType.entries()].sort(
-      (a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0])
-    );
+    return [...byType.entries()];
   }, [categories]);
 
   // A filter pointing at a group that no longer exists (e.g. its last award
@@ -584,23 +578,32 @@ export default function AwardsPage() {
     }
   };
 
-  // Reorder handlers
-  const handleReorderSave = async (newOrder: ReorderableCategory[]) => {
+  // Reorder handlers — the modal edits grouped sections, then flattens back to
+  // a single sort_order sequence (group order = each group's earliest member).
+  const handleReorderSave = async (groups: AwardReorderGroup[]) => {
     if (selectedYear) {
-      const ids = newOrder.map(c => c.id);
+      const ids = groups.flatMap(g => g.items.map(i => i.id));
       await awardsLogic.updateCategoryOrder(selectedYear, ids);
-      setCategories(newOrder);
+      const byId = new Map(categories.map(c => [c.id, c]));
+      setCategories(ids.map(id => byId.get(id)).filter((c): c is CategoryWithWinner => !!c));
       setReorderOpen(false);
     }
   };
 
-  const categoriesToReorderItems = (cats: CategoryWithWinner[]): ReorderableCategory[] => {
-    return cats.map(cat => ({
-      ...cat,
-      subtitle: cat.winner ? `Winner: ${cat.winner.name}` : "No winner yet",
-      imageUrl: cat.winner?.image_url ?? undefined,
-    }));
-  };
+  // Memoized so a scroll-driven re-render doesn't hand the open modal a fresh
+  // array and reset an in-progress drag.
+  const reorderGroups = useMemo<AwardReorderGroup[]>(
+    () => categoryGroups.map(([key, group]) => ({
+      key,
+      items: group.map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        subtitle: cat.winner ? `Winner: ${cat.winner.name}` : "No winner yet",
+        imageUrl: cat.winner?.image_url ?? undefined,
+      })),
+    })),
+    [categoryGroups]
+  );
 
   const goBackToMain = () => {
     setView("main");
@@ -950,16 +953,20 @@ export default function AwardsPage() {
           <ChevronLeft size={22} />
         </button>
         <div className="flex gap-2">
-          {/* Reorder Button */}
-          <button
-            onClick={() => setReorderOpen(true)}
-            disabled={categories.length < 2}
-            title="Reorder categories"
-            aria-label="Reorder categories"
-            className="flex items-center bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 p-2.5 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <ArrowUpDown size={18} />
-          </button>
+          {/* Reorder Button — only while viewing All Categories; ordering is
+              two-level (sections, then awards inside each section) so it makes
+              no sense while a single type is filtered in. */}
+          {activeTypeFilter === null && (
+            <button
+              onClick={() => setReorderOpen(true)}
+              disabled={categories.length < 2}
+              title="Reorder categories"
+              aria-label="Reorder categories"
+              className="flex items-center bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 p-2.5 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ArrowUpDown size={18} />
+            </button>
+          )}
 
           <button
             onClick={() => setCategoryPickerOpen(true)}
@@ -1108,12 +1115,12 @@ export default function AwardsPage() {
       />
 
       {/* Reorder Modal */}
-      <ReorderModal
+      <AwardReorderModal
         isOpen={reorderOpen}
         onClose={() => setReorderOpen(false)}
-        items={categoriesToReorderItems(categories)}
+        groups={reorderGroups}
         onSave={handleReorderSave}
-        title={`Reorder ${selectedYear} Categories`}
+        title={`Reorder ${selectedYear} Awards`}
       />
 
       {/* Category Picker for New/Existing */}
