@@ -23,6 +23,17 @@ export const formatDate = (dateString: string | null): string => {
   return `${day}${ordinalSuffix(day)} ${month} ${year}`;
 };
 
+// Long form without the year, e.g. "9th June" — for surfaces where the year
+// is already implied by context (an award-year page).
+export const formatDateNoYear = (dateString: string | null): string => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  const day = date.getDate();
+  const month = date.toLocaleString('en-US', { month: 'long' });
+  return `${day}${ordinalSuffix(day)} ${month}`;
+};
+
 // Short form, e.g. "Jun 9, 2026"
 export const formatShortDate = (dateString: string | null): string => {
   if (!dateString) return 'Unknown Date';

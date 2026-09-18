@@ -15,7 +15,7 @@ import { AwardReorderModal, type AwardReorderGroup } from "../components/awards/
 import { useMainScrollContainer } from "../lib/scroll-container";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
-import { formatDate } from "../lib/dates";
+import { formatDateNoYear } from "../lib/dates";
 import { CoverImage } from "../components/CoverImage";
 
 // Small helper component for loading images asynchronously (required for Tauri)
@@ -238,9 +238,9 @@ function AwardCategoryCard({ cat, index, groupSize, selectedYear, onOpenPicker, 
               {/* Date + change winner row */}
               <div className="flex items-center justify-between gap-3 mt-auto pt-1">
                 {winner.completion_date ? (
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <Calendar size={12} />
-                    <span>{formatDate(winner.completion_date)}</span>
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/10 text-sm font-medium text-gray-200 w-fit">
+                    <Calendar size={14} className="text-amber-400" />
+                    <span>{formatDateNoYear(winner.completion_date)}</span>
                   </div>
                 ) : (
                   <span />
