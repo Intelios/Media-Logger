@@ -1,8 +1,16 @@
 {
-  "generatedAt": "2026-09-15T11:35:06.550Z",
+  "generatedAt": "2026-09-18T22:06:06.807Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "4.3",
+      "title": "Media Logger - 4.3",
+      "date": "2026-09-18",
+      "body": "New Content/Features:\n- Award Page has been revamped:\n  - Award Categories can now be set to a type, so a 'Movie of the Year' can be marked as a movie and then you can (optionally) filter to just show your movie awards when viewing a award year, to keep things more clean.\n  - In Award Year page has been redesigned with a 'strip' of awards on the right to quickly jump between awards. Alongside a quick stats panel on the left.\n  - In Award Year pages have their titles, subtitles removed to give more vertical room to your awards.\n  - Redesigned Reorder Modal for Award Pages to be now type catagory based.\n  - Award Cards in a specific year no longer display their year as it was redundant information.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.3"
+    },
     {
       "version": "4.2",
       "title": "Media Logger - 4.2",
