@@ -23,6 +23,8 @@ const MAX_QUERY_CHARS: usize = 200;
 const MAX_DOWNLOAD_BYTES: u64 = 32 * 1024 * 1024;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
+// Cover originals can be a few MB; give downloads more headroom than search.
+const DOWNLOAD_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 // Refresh the Twitch app-access token this long before it actually expires.
 const IGDB_TOKEN_EXPIRY_MARGIN: Duration = Duration::from_secs(3600);
 // Defensive cap so `Instant::now() + expires_in` can never overflow.
@@ -40,6 +42,11 @@ pub struct CoverSearchResult {
 
 pub struct CoverSearchState {
     client: reqwest::Client,
+    // Some networks advertise IPv6 but cannot route it (broken routers, VPNs,
+    // dead CDN prefixes). The webview falls back to IPv4 transparently;
+    // reqwest does not — so transport-level failures are retried once over
+    // this IPv4-bound client.
+    client_ipv4: reqwest::Client,
     download_root: PathBuf,
     igdb_token: Mutex<IgdbTokenCache>,
 }
@@ -77,15 +84,59 @@ impl CoverSearchState {
             .timeout(REQUEST_TIMEOUT)
             .build()
             .map_err(|error| format!("Failed to create the cover search HTTP client: {error}"))?;
+        let client_ipv4 = reqwest::Client::builder()
+            .user_agent(USER_AGENT)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(REQUEST_TIMEOUT)
+            .local_address(std::net::IpAddr::from(std::net::Ipv4Addr::UNSPECIFIED))
+            .build()
+            .map_err(|error| format!("Failed to create the cover search HTTP client: {error}"))?;
 
         Ok(Self {
             client,
+            client_ipv4,
             download_root,
             igdb_token: Mutex::new(IgdbTokenCache {
                 client_id: String::new(),
                 token: None,
             }),
         })
+    }
+}
+
+/// reqwest's Display only shows the top of the error; the actual cause (DNS,
+/// TLS, connection refused, …) lives in the source chain, so print all of it.
+fn log_error_chain(context: &str, error: &reqwest::Error) {
+    use std::error::Error as _;
+    eprint!("[cover-search] {context}: {error}");
+    let mut source = error.source();
+    while let Some(cause) = source {
+        eprint!(" — {cause}");
+        source = cause.source();
+    }
+    eprintln!();
+}
+
+/// Sends a request, retrying once over the IPv4-bound client when the first
+/// attempt dies at the transport level. The real error is logged so the dev
+/// console shows the actual failure instead of the sanitized UI message.
+async fn send_with_fallback(
+    state: &CoverSearchState,
+    build: impl Fn(&reqwest::Client) -> reqwest::RequestBuilder,
+) -> Result<reqwest::Response, reqwest::Error> {
+    match build(&state.client).send().await {
+        Ok(response) => Ok(response),
+        Err(first) if first.is_connect() || first.is_timeout() => {
+            log_error_chain("transport error, retrying over IPv4", &first);
+            build(&state.client_ipv4)
+                .send()
+                .await
+                .inspect_err(|second| log_error_chain("IPv4 retry also failed", second))
+        }
+        Err(first) => {
+            log_error_chain("request error", &first);
+            Err(first)
+        }
     }
 }
 
@@ -127,19 +178,19 @@ pub async fn cover_search(
     match entry_type.trim().to_ascii_lowercase().as_str() {
         "movie" => {
             let api_key = required_credential(tmdb_api_key, "TMDB API key")?;
-            search_tmdb(&state.client, false, &query, &api_key).await
+            search_tmdb(&state, false, &query, &api_key).await
         }
         "show" | "k-drama" => {
             let api_key = required_credential(tmdb_api_key, "TMDB API key")?;
-            search_tmdb(&state.client, true, &query, &api_key).await
+            search_tmdb(&state, true, &query, &api_key).await
         }
-        "anime" => search_anilist(&state.client, &query).await,
-        "book" => search_open_library(&state.client, &query).await,
-        "album" => search_itunes(&state.client, &query).await,
+        "anime" => search_anilist(&state, &query).await,
+        "book" => search_open_library(&state, &query).await,
+        "album" => search_itunes(&state, &query).await,
         "game" => match game_provider.as_deref().unwrap_or("igdb") {
             "rawg" => {
                 let api_key = required_credential(rawg_api_key, "RAWG API key")?;
-                search_rawg(&state.client, &query, &api_key).await
+                search_rawg(&state, &query, &api_key).await
             }
             _ => {
                 let client_id = required_credential(igdb_client_id, "IGDB Client ID")?;
@@ -166,12 +217,20 @@ pub async fn cover_stage_from_url(
         return Err("Only https cover URLs can be downloaded.".to_string());
     }
 
-    let response = search
-        .client
-        .get(parsed)
-        .send()
-        .await
-        .map_err(|_| "Failed to download the cover — check your network connection.".to_string())?;
+    let response = send_with_fallback(&search, |client| {
+        client.get(parsed.clone()).timeout(DOWNLOAD_REQUEST_TIMEOUT)
+    })
+    .await
+    .map_err(|error| {
+        log_error_chain("cover download failed", &error);
+        if error.is_timeout() {
+            "The cover download timed out — try again or pick a different cover.".to_string()
+        } else if error.is_connect() {
+            "Could not connect to the image provider — check your network connection.".to_string()
+        } else {
+            "Failed to download the cover — check your network connection.".to_string()
+        }
+    })?;
     let status = response.status();
     if !status.is_success() {
         return Err(format!("The cover download failed (HTTP {status})."));
@@ -201,7 +260,10 @@ pub async fn cover_stage_from_url(
     let bytes = response
         .bytes()
         .await
-        .map_err(|_| "Failed to read the downloaded cover.".to_string())?;
+        .map_err(|error| {
+            eprintln!("[cover-search] cover body read failed: {error}");
+            "Failed to read the downloaded cover.".to_string()
+        })?;
     if bytes.len() as u64 > MAX_DOWNLOAD_BYTES {
         return Err("The cover image exceeds the 32 MiB download limit.".to_string());
     }
@@ -228,23 +290,24 @@ pub async fn cover_stage_from_url(
 }
 
 async fn search_tmdb(
-    client: &reqwest::Client,
+    state: &CoverSearchState,
     tv: bool,
     query: &str,
     api_key: &str,
 ) -> Result<Vec<CoverSearchResult>, String> {
     let endpoint = if tv { "tv" } else { "movie" };
-    let response = client
-        .get(format!("https://api.themoviedb.org/3/search/{endpoint}"))
-        .query(&[
-            ("query", query),
-            ("api_key", api_key),
-            ("include_adult", "false"),
-            ("page", "1"),
-        ])
-        .send()
-        .await
-        .map_err(|_| "TMDB search failed — check your network connection.".to_string())?;
+    let response = send_with_fallback(state, |client| {
+        client
+            .get(format!("https://api.themoviedb.org/3/search/{endpoint}"))
+            .query(&[
+                ("query", query),
+                ("api_key", api_key),
+                ("include_adult", "false"),
+                ("page", "1"),
+            ])
+    })
+    .await
+    .map_err(|_| "TMDB search failed — check your network connection.".to_string())?;
 
     if response.status() == reqwest::StatusCode::UNAUTHORIZED {
         return Err("TMDB rejected the API key — verify it in Settings → Cover Art.".to_string());
@@ -275,7 +338,7 @@ async fn search_tmdb(
                     .or(item.first_air_date.as_deref())
                     .and_then(year_from_date),
                 thumbnail_url: format!("https://image.tmdb.org/t/p/w342{poster}"),
-                original_url: format!("https://image.themoviedb.org/t/p/original{poster}"),
+                original_url: format!("https://image.tmdb.org/t/p/original{poster}"),
             })
         })
         .take(MAX_RESULTS)
@@ -283,7 +346,7 @@ async fn search_tmdb(
 }
 
 async fn search_anilist(
-    client: &reqwest::Client,
+    state: &CoverSearchState,
     query: &str,
 ) -> Result<Vec<CoverSearchResult>, String> {
     let graphql_query = "\
@@ -298,12 +361,11 @@ query ($search: String) {
   }
 }";
     let body = serde_json::json!({ "query": graphql_query, "variables": { "search": query } });
-    let response = client
-        .post("https://graphql.anilist.co")
-        .json(&body)
-        .send()
-        .await
-        .map_err(|_| "AniList search failed — check your network connection.".to_string())?;
+    let response = send_with_fallback(state, |client| {
+        client.post("https://graphql.anilist.co").json(&body)
+    })
+    .await
+    .map_err(|_| "AniList search failed — check your network connection.".to_string())?;
     if !response.status().is_success() {
         return Err(format!("AniList search failed (HTTP {}).", response.status()));
     }
@@ -338,22 +400,23 @@ query ($search: String) {
 }
 
 async fn search_open_library(
-    client: &reqwest::Client,
+    state: &CoverSearchState,
     query: &str,
 ) -> Result<Vec<CoverSearchResult>, String> {
-    let response = client
-        .get("https://openlibrary.org/search.json")
-        .query(&[
-            ("q", query),
-            ("limit", "24"),
-            (
-                "fields",
-                "key,title,cover_i,author_name,first_publish_year",
-            ),
-        ])
-        .send()
-        .await
-        .map_err(|_| "Open Library search failed — check your network connection.".to_string())?;
+    let response = send_with_fallback(state, |client| {
+        client
+            .get("https://openlibrary.org/search.json")
+            .query(&[
+                ("q", query),
+                ("limit", "24"),
+                (
+                    "fields",
+                    "key,title,cover_i,author_name,first_publish_year",
+                ),
+            ])
+    })
+    .await
+    .map_err(|_| "Open Library search failed — check your network connection.".to_string())?;
     if !response.status().is_success() {
         return Err(format!(
             "Open Library search failed (HTTP {}).",
@@ -393,16 +456,17 @@ async fn search_open_library(
 }
 
 async fn search_itunes(
-    client: &reqwest::Client,
+    state: &CoverSearchState,
     query: &str,
 ) -> Result<Vec<CoverSearchResult>, String> {
     // iTunes answers with `text/javascript`; read as text and parse from there.
-    let response = client
-        .get("https://itunes.apple.com/search")
-        .query(&[("term", query), ("entity", "album"), ("limit", "24")])
-        .send()
-        .await
-        .map_err(|_| "Album search failed — check your network connection.".to_string())?;
+    let response = send_with_fallback(state, |client| {
+        client
+            .get("https://itunes.apple.com/search")
+            .query(&[("term", query), ("entity", "album"), ("limit", "24")])
+    })
+    .await
+    .map_err(|_| "Album search failed — check your network connection.".to_string())?;
     if !response.status().is_success() {
         return Err(format!("Album search failed (HTTP {}).", response.status()));
     }
@@ -443,20 +507,19 @@ enum IgdbRequestError {
 // no cropping or URL transformation — so what the picker shows is the exact
 // image that gets imported.
 async fn search_rawg(
-    client: &reqwest::Client,
+    state: &CoverSearchState,
     query: &str,
     api_key: &str,
 ) -> Result<Vec<CoverSearchResult>, String> {
-    let response = client
-        .get("https://api.rawg.io/api/games")
-        .query(&[
+    let response = send_with_fallback(state, |client| {
+        client.get("https://api.rawg.io/api/games").query(&[
             ("search", query),
             ("page_size", "24"),
             ("key", api_key),
         ])
-        .send()
-        .await
-        .map_err(|_| "RAWG search failed — check your network connection.".to_string())?;
+    })
+    .await
+    .map_err(|_| "RAWG search failed — check your network connection.".to_string())?;
 
     let status = response.status();
     if status == reqwest::StatusCode::UNAUTHORIZED {
@@ -500,7 +563,7 @@ async fn search_igdb(
     let mut force_refresh = false;
     for _ in 0..2 {
         let token = current_igdb_token(state, client_id, client_secret, force_refresh).await?;
-        match igdb_games_request(&state.client, &token, client_id, query).await {
+        match igdb_games_request(state, &token, client_id, query).await {
             Ok(results) => return Ok(results),
             Err(IgdbRequestError::Unauthorized) => {
                 force_refresh = true;
@@ -534,19 +597,19 @@ async fn current_igdb_token(
         }
     }
 
-    let response = state
-        .client
-        .post("https://id.twitch.tv/oauth2/token")
-        .query(&[
-            ("client_id", client_id),
-            ("client_secret", client_secret),
-            ("grant_type", "client_credentials"),
-        ])
-        .send()
-        .await
-        .map_err(|_| {
-            "Failed to request an IGDB access token — check your network connection.".to_string()
-        })?;
+    let response = send_with_fallback(state, |client| {
+        client
+            .post("https://id.twitch.tv/oauth2/token")
+            .query(&[
+                ("client_id", client_id),
+                ("client_secret", client_secret),
+                ("grant_type", "client_credentials"),
+            ])
+    })
+    .await
+    .map_err(|_| {
+        "Failed to request an IGDB access token — check your network connection.".to_string()
+    })?;
     let status = response.status();
     if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::BAD_REQUEST {
         return Err(
@@ -590,7 +653,7 @@ async fn current_igdb_token(
 }
 
 async fn igdb_games_request(
-    client: &reqwest::Client,
+    state: &CoverSearchState,
     token: &str,
     client_id: &str,
     query: &str,
@@ -605,18 +668,19 @@ async fn igdb_games_request(
         "search \"{sanitized}\"; fields name,cover.image_id,first_release_date; limit {MAX_RESULTS};"
     );
 
-    let response = client
-        .post("https://api.igdb.com/v4/games")
-        .header("Client-ID", client_id)
-        .header("Authorization", format!("Bearer {token}"))
-        .body(body)
-        .send()
-        .await
-        .map_err(|_| {
-            IgdbRequestError::Fatal(
-                "IGDB search failed — check your network connection.".to_string(),
-            )
-        })?;
+    let response = send_with_fallback(state, |client| {
+        client
+            .post("https://api.igdb.com/v4/games")
+            .header("Client-ID", client_id)
+            .header("Authorization", format!("Bearer {token}"))
+            .body(body.clone())
+    })
+    .await
+    .map_err(|_| {
+        IgdbRequestError::Fatal(
+            "IGDB search failed — check your network connection.".to_string(),
+        )
+    })?;
 
     let status = response.status();
     if status == reqwest::StatusCode::UNAUTHORIZED {
