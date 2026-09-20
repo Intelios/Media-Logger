@@ -2251,8 +2251,11 @@ body {
   text-align: center;
 }
 
-/* A spine standing on the shelf. */
+/* A spine standing on the shelf. `isolate` is load-bearing: the artwork layer
+   blends with the tint beneath it, and without a stacking context here that
+   blend would reach past the spine and mix with the shelf and the page. */
 .backlog-spine {
+  isolation: isolate;
   box-shadow:
     inset -1px 0 0 rgba(0, 0, 0, 0.45),
     inset 1px 0 0 rgba(255, 255, 255, 0.16),
@@ -2292,6 +2295,113 @@ body {
   border-radius: inherit;
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
   pointer-events: none;
+}
+
+/* The colour sampled from this item's own cover, painted over the media-type
+   gradient. It fades in rather than swapping, because palettes arrive from the
+   native image service after first paint and a whole shelf changing colour in
+   one frame reads as a glitch. */
+.backlog-spine-tint {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 320ms ease-out;
+}
+
+/* Strips density: the jacket carrying on around onto the spine.
+   `luminosity` is the whole trick — the cover supplies the light and shade, the
+   palette underneath supplies the hue. Printing the artwork straight on instead
+   would hide the extracted colour entirely and turn the rack back into a row of
+   unrelated smudges. */
+.backlog-spine-art {
+  pointer-events: none;
+  mix-blend-mode: luminosity;
+  transition: opacity 220ms ease-out;
+}
+
+/* Blurred at rest, because 34px of unscaled artwork is an unreadable smear —
+   what the eye wants from a rack is colour and texture. The resting scale is
+   what hides the blur's transparent edges. */
+.backlog-spine-art img {
+  transform: scale(1.35);
+  filter: blur(7px) saturate(1.15) brightness(0.72);
+  /* Re-declares CoverImage's own opacity transition: this selector outranks
+     the utility class that would otherwise carry it. */
+  transition:
+    opacity 120ms ease,
+    transform 260ms ease-out,
+    filter 260ms ease-out;
+}
+
+/* Hovering lifts the spine clear of its neighbours, which is exactly when
+   there's room to drop the tint and show the artwork as it really is. */
+.group:hover .backlog-spine-art,
+.backlog-spine:focus-visible .backlog-spine-art {
+  mix-blend-mode: normal;
+}
+
+.group:hover .backlog-spine-art img,
+.backlog-spine:focus-visible .backlog-spine-art img {
+  transform: scale(1.06);
+  filter: blur(0) saturate(1.05) brightness(0.85);
+}
+
+/* The lit-object falloff the bare spine gets from ::before — which sits under
+   the artwork — plus enough darkening down both edges that printed white type
+   survives whatever the cover happens to be. */
+.backlog-spine-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.14) 0%,
+      rgba(255, 255, 255, 0) 22%,
+      rgba(0, 0, 0, 0.2) 72%,
+      rgba(0, 0, 0, 0.46) 100%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.55) 0%,
+      rgba(0, 0, 0, 0.28) 42%,
+      rgba(0, 0, 0, 0.5) 100%
+    );
+}
+
+/* Covers density: the case is turned face-out, so the artwork is the point. No
+   tinting, no blur — only the caption needs protecting. */
+.backlog-spine-art-faceout {
+  mix-blend-mode: normal;
+}
+
+.backlog-spine-art-faceout img {
+  transform: none;
+  filter: saturate(1.02) brightness(0.88);
+}
+
+.group:hover .backlog-spine-art-faceout img,
+.backlog-spine:focus-visible .backlog-spine-art-faceout img {
+  transform: scale(1.04);
+  filter: saturate(1.06) brightness(1);
+}
+
+.backlog-spine-art-faceout::after {
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.92) 0%,
+    rgba(0, 0, 0, 0.55) 26%,
+    rgba(0, 0, 0, 0.04) 54%,
+    rgba(0, 0, 0, 0.32) 100%
+  );
+}
+
+.backlog-spine-caption {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 
 /* Vertical spine type. `nowrap` is load-bearing: without it a long title wraps

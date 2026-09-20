@@ -34,6 +34,17 @@ const MAX_IMAGE_PIXELS: u64 = 100_000_000;
 const MAX_DECODE_ALLOCATION: u64 = 512 * 1024 * 1024;
 const LEGACY_THUMBNAIL_NAMESPACE: &str = "cover-thumbnails";
 
+/// Bumped whenever the palette recipe changes, so cached colours from an older
+/// clustering or clamping pass are ignored rather than re-served.
+const PALETTE_VERSION: u32 = 1;
+/// The palette is clustered from a thumbnail of the `small` derivative. 32x48
+/// is ~1.5k pixels: enough for k-means to find the real print colours, small
+/// enough that a whole backlog costs less than one full-size decode.
+const PALETTE_SAMPLE_WIDTH: u32 = 32;
+const PALETTE_SAMPLE_HEIGHT: u32 = 48;
+const PALETTE_CLUSTERS: usize = 5;
+const PALETTE_ITERATIONS: usize = 12;
+
 #[derive(Clone)]
 pub struct ImageService {
     inner: Arc<ImageServiceInner>,
@@ -47,6 +58,10 @@ struct ImageServiceInner {
     generation_slots: Arc<Semaphore>,
     in_flight: Mutex<HashMap<String, Weak<AsyncMutex<()>>>>,
     memory: Mutex<EncodedMemoryCache>,
+    /// Extracted cover palettes, keyed by palette cache key. A palette is three
+    /// hex strings, so this is unbounded on purpose — an entire library of them
+    /// is a few tens of kilobytes.
+    palettes: Mutex<HashMap<String, CoverPalette>>,
     staged: Mutex<HashMap<String, StagedImport>>,
     disk_entries: AtomicU64,
     disk_bytes: AtomicU64,
@@ -194,6 +209,29 @@ pub struct PrewarmResult {
     failures: Vec<PrewarmFailure>,
 }
 
+/// Three hex colours derived from a cover's own print, ready to drop straight
+/// into CSS. The lightness of each is clamped by `compute_palette`, so every
+/// palette in a library carries white type at roughly the same contrast — raw
+/// dominant colours produce an unreadable, wildly uneven shelf.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoverPalette {
+    /// Darkest stop, for the head of a gradient.
+    shadow: String,
+    /// Mid stop, the colour the cover actually reads as.
+    base: String,
+    /// Bright stop, for small accents (pips, hairlines) against the other two.
+    accent: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoverPaletteEntry {
+    image_path: String,
+    /// None when the cover could not be read; the caller keeps its fallback.
+    palette: Option<CoverPalette>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClearImageServiceCacheResult {
@@ -312,6 +350,7 @@ impl ImageService {
                 generation_slots: Arc::new(Semaphore::new(GENERATION_CONCURRENCY)),
                 in_flight: Mutex::new(HashMap::new()),
                 memory: Mutex::new(EncodedMemoryCache::new(DEFAULT_MEMORY_LIMIT_BYTES)),
+                palettes: Mutex::new(HashMap::new()),
                 staged: Mutex::new(HashMap::new()),
                 disk_entries: AtomicU64::new(0),
                 disk_bytes: AtomicU64::new(0),
@@ -509,6 +548,13 @@ impl ImageService {
         self.inner.cache_root.join("derivatives")
     }
 
+    /// Palettes live beside the derivatives but are deliberately left out of the
+    /// disk-limit accounting: a whole library of them is a few tens of KiB, and
+    /// evicting one would only force an identical recompute.
+    fn palette_root(&self) -> PathBuf {
+        self.inner.cache_root.join("palettes")
+    }
+
     fn lock_for_key(&self, key: &str) -> Result<Arc<AsyncMutex<()>>, String> {
         let mut locks = self
             .inner
@@ -682,9 +728,21 @@ impl ImageService {
             .lock()
             .map_err(|_| "Image memory-cache lock is unavailable".to_string())?
             .clear();
+        self.inner
+            .palettes
+            .lock()
+            .map_err(|_| "Palette cache lock is unavailable".to_string())?
+            .clear();
 
         let derivative_root = self.derivative_root();
+        let palette_root = self.palette_root();
         let result = tauri::async_runtime::spawn_blocking(move || {
+            // Palettes are derived from the derivatives, so they go with them.
+            // Their bytes are not reported: the count the user sees in Settings
+            // is the image cache, and a few KiB of JSON would only muddy it.
+            if palette_root.exists() {
+                let _ = fs::remove_dir_all(&palette_root);
+            }
             let scan = scan_disk_cache(&derivative_root)?;
             if derivative_root.exists() {
                 fs::remove_dir_all(&derivative_root).map_err(|error| {
@@ -761,6 +819,102 @@ impl ImageService {
             failed: failures.len(),
             failures,
         }
+    }
+
+    /// Palettes for a batch of covers. Failures are reported as a `None`
+    /// palette rather than failing the batch — one unreadable cover must not
+    /// cost the caller every other colour it asked for.
+    async fn cover_palettes(
+        &self,
+        image_paths: Vec<String>,
+    ) -> Result<Vec<CoverPaletteEntry>, String> {
+        let configured = self.configured_root()?;
+        let mut entries = Vec::with_capacity(image_paths.len());
+        for image_path in image_paths {
+            let palette = self
+                .cover_palette(configured.clone(), image_path.clone())
+                .await
+                .ok();
+            entries.push(CoverPaletteEntry {
+                image_path,
+                palette,
+            });
+        }
+        Ok(entries)
+    }
+
+    async fn cover_palette(
+        &self,
+        configured: ConfiguredRoot,
+        image_path: String,
+    ) -> Result<CoverPalette, String> {
+        let configured_for_prepare = configured.clone();
+        let path_for_prepare = image_path.clone();
+        let prepared = tauri::async_runtime::spawn_blocking(move || {
+            prepare_source(
+                &configured_for_prepare,
+                &path_for_prepare,
+                ImageVariant::Small,
+            )
+        })
+        .await
+        .map_err(|error| format!("Palette metadata worker failed: {error}"))??;
+        // Keyed off the `small` derivative's cache key, so editing or replacing
+        // a cover invalidates its palette for free.
+        let key = format!("{}-p{PALETTE_VERSION}", prepared.cache_key);
+
+        if let Some(cached) = self
+            .inner
+            .palettes
+            .lock()
+            .map_err(|_| "Palette cache lock is unavailable".to_string())?
+            .get(&key)
+            .cloned()
+        {
+            return Ok(cached);
+        }
+
+        let palette_root = self.palette_root();
+        let key_for_disk = key.clone();
+        let from_disk = tauri::async_runtime::spawn_blocking(move || {
+            read_cached_palette(&palette_root, &key_for_disk)
+        })
+        .await
+        .map_err(|error| format!("Palette cache worker failed: {error}"))?;
+        if let Some(cached) = from_disk {
+            self.remember_palette(key, cached.clone())?;
+            return Ok(cached);
+        }
+
+        // Cluster the `small` derivative rather than the original: prewarm has
+        // almost always generated it already, and its 384x576 decode is a
+        // fraction of what the source file costs.
+        let asset = self
+            .load_asset(configured, image_path, ImageVariant::Small)
+            .await?;
+        let palette_root = self.palette_root();
+        let key_for_write = key.clone();
+        let palette = tauri::async_runtime::spawn_blocking(move || {
+            let decoded = image::load_from_memory(&asset.bytes).map_err(|error| {
+                format!("Failed to decode cover derivative for palette: {error}")
+            })?;
+            let palette = compute_palette(&decoded);
+            write_cached_palette(&palette_root, &key_for_write, &palette);
+            Ok::<_, String>(palette)
+        })
+        .await
+        .map_err(|error| format!("Palette worker failed: {error}"))??;
+        self.remember_palette(key, palette.clone())?;
+        Ok(palette)
+    }
+
+    fn remember_palette(&self, key: String, palette: CoverPalette) -> Result<(), String> {
+        self.inner
+            .palettes
+            .lock()
+            .map_err(|_| "Palette cache lock is unavailable".to_string())?
+            .insert(key, palette);
+        Ok(())
     }
 
     pub async fn stage_import(&self, source_path: String) -> Result<StagedCoverImportResult, String> {
@@ -1440,6 +1594,222 @@ fn fast_resize(
     image_buffer.ok_or_else(|| "fast_image_resize produced an invalid buffer".to_string())
 }
 
+fn palette_cache_path(root: &Path, key: &str) -> PathBuf {
+    root.join(&key[..2]).join(format!("{key}.json"))
+}
+
+fn read_cached_palette(root: &Path, key: &str) -> Option<CoverPalette> {
+    let bytes = fs::read(palette_cache_path(root, key)).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+/// Best-effort: a palette that fails to persist is simply recomputed on the
+/// next launch, which is not worth failing the caller's request over.
+fn write_cached_palette(root: &Path, key: &str, palette: &CoverPalette) {
+    let path = palette_cache_path(root, key);
+    let Some(directory) = path.parent() else {
+        return;
+    };
+    if fs::create_dir_all(directory).is_err() {
+        return;
+    }
+    if let Ok(encoded) = serde_json::to_vec(palette) {
+        let _ = fs::write(path, encoded);
+    }
+}
+
+fn luminance(color: [f32; 3]) -> f32 {
+    0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
+}
+
+fn squared_distance(a: [f32; 3], b: [f32; 3]) -> f32 {
+    let (red, green, blue) = (a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    red * red + green * green + blue * blue
+}
+
+/// Lloyd's algorithm over the sampled pixels, returning each centroid with the
+/// number of pixels that landed on it.
+///
+/// Seeding is deliberately deterministic — evenly spaced picks from the sample
+/// ordered by luminance. Random seeds would give the same cover a different
+/// spine colour on different runs, which is far more noticeable than a slightly
+/// weaker clustering.
+fn cluster_colors(pixels: &[[f32; 3]]) -> Vec<([f32; 3], usize)> {
+    if pixels.is_empty() {
+        return Vec::new();
+    }
+
+    let mut ordered: Vec<usize> = (0..pixels.len()).collect();
+    ordered.sort_by(|left, right| luminance(pixels[*left]).total_cmp(&luminance(pixels[*right])));
+    let clusters = PALETTE_CLUSTERS.min(pixels.len());
+    let mut centroids: Vec<[f32; 3]> = (0..clusters)
+        .map(|index| pixels[ordered[(index * 2 + 1) * pixels.len() / (clusters * 2)]])
+        .collect();
+
+    let mut assignments = vec![0usize; pixels.len()];
+    for _ in 0..PALETTE_ITERATIONS {
+        let mut changed = false;
+        for (index, pixel) in pixels.iter().enumerate() {
+            let mut nearest = 0;
+            let mut nearest_distance = f32::MAX;
+            for (cluster, centroid) in centroids.iter().enumerate() {
+                let distance = squared_distance(*pixel, *centroid);
+                if distance < nearest_distance {
+                    nearest_distance = distance;
+                    nearest = cluster;
+                }
+            }
+            if assignments[index] != nearest {
+                assignments[index] = nearest;
+                changed = true;
+            }
+        }
+
+        let mut sums = vec![[0f32; 3]; clusters];
+        let mut counts = vec![0usize; clusters];
+        for (index, pixel) in pixels.iter().enumerate() {
+            let cluster = assignments[index];
+            for channel in 0..3 {
+                sums[cluster][channel] += pixel[channel];
+            }
+            counts[cluster] += 1;
+        }
+        for (cluster, count) in counts.iter().enumerate() {
+            if *count == 0 {
+                continue;
+            }
+            let divisor = *count as f32;
+            centroids[cluster] = [
+                sums[cluster][0] / divisor,
+                sums[cluster][1] / divisor,
+                sums[cluster][2] / divisor,
+            ];
+        }
+
+        if !changed {
+            break;
+        }
+    }
+
+    let mut counts = vec![0usize; clusters];
+    for cluster in &assignments {
+        counts[*cluster] += 1;
+    }
+    centroids.into_iter().zip(counts).collect()
+}
+
+/// The hue and saturation a person would name if asked what colour a cover is.
+fn dominant_tone(pixels: &[[f32; 3]]) -> (f32, f32) {
+    let total = pixels.len().max(1) as f32;
+    let mut best: Option<(f32, f32, f32)> = None;
+
+    for (centroid, count) in cluster_colors(pixels) {
+        if count == 0 {
+            continue;
+        }
+        let (hue, saturation, lightness) = rgb_to_hsl(centroid);
+        let weight = count as f32 / total;
+        // Near-black and blown-out clusters are usually letterboxing, a drop
+        // shadow or a white margin: they describe the crop, not the print.
+        let usable = if (0.06..=0.94).contains(&lightness) {
+            1.0
+        } else {
+            0.12
+        };
+        // Saturation outranks frequency on purpose. The largest cluster on a
+        // poster is very often a desaturated background, while the colour the
+        // cover actually reads as is a smaller, vivid one.
+        let score = weight * (0.15 + saturation * 1.8) * usable;
+        if best.is_none_or(|(current, _, _)| score > current) {
+            best = Some((score, hue, saturation));
+        }
+    }
+
+    best.map_or((0.0, 0.0), |(_, hue, saturation)| (hue, saturation))
+}
+
+/// Reduce a cover to three CSS-ready colours.
+///
+/// The lightness values below are fixed rather than taken from the image, which
+/// is the whole reason this is usable as a shelf: every spine ends up in the
+/// same contrast band, so white type is legible on all of them and a rack of
+/// two hundred reads as one object instead of a scatter of mismatched swatches.
+fn compute_palette(image: &DynamicImage) -> CoverPalette {
+    let sample = fast_resize(image, PALETTE_SAMPLE_WIDTH, PALETTE_SAMPLE_HEIGHT)
+        .unwrap_or_else(|_| image.thumbnail(PALETTE_SAMPLE_WIDTH, PALETTE_SAMPLE_HEIGHT));
+    let pixels: Vec<[f32; 3]> = sample
+        .to_rgb8()
+        .pixels()
+        .map(|pixel| [f32::from(pixel[0]), f32::from(pixel[1]), f32::from(pixel[2])])
+        .collect();
+
+    let (hue, measured) = dominant_tone(&pixels);
+    // A genuinely monochrome cover keeps a neutral spine: clamping its
+    // saturation up to the floor would invent a hue the artwork never had.
+    let saturation = if measured < 0.06 {
+        0.04
+    } else {
+        measured.clamp(0.26, 0.70)
+    };
+
+    CoverPalette {
+        shadow: hex_color(hsl_to_rgb(hue, saturation * 0.9, 0.12)),
+        base: hex_color(hsl_to_rgb(hue, saturation, 0.34)),
+        accent: hex_color(hsl_to_rgb(hue, (saturation + 0.12).min(0.85), 0.62)),
+    }
+}
+
+fn rgb_to_hsl(color: [f32; 3]) -> (f32, f32, f32) {
+    let (red, green, blue) = (color[0] / 255.0, color[1] / 255.0, color[2] / 255.0);
+    let max = red.max(green).max(blue);
+    let min = red.min(green).min(blue);
+    let lightness = (max + min) / 2.0;
+    let delta = max - min;
+    if delta <= f32::EPSILON {
+        return (0.0, 0.0, lightness);
+    }
+
+    let saturation = delta / (1.0 - (2.0 * lightness - 1.0).abs()).max(f32::EPSILON);
+    let hue = if max == red {
+        60.0 * (((green - blue) / delta) % 6.0)
+    } else if max == green {
+        60.0 * ((blue - red) / delta + 2.0)
+    } else {
+        60.0 * ((red - green) / delta + 4.0)
+    };
+    ((hue + 360.0) % 360.0, saturation.clamp(0.0, 1.0), lightness)
+}
+
+fn hsl_to_rgb(hue: f32, saturation: f32, lightness: f32) -> [f32; 3] {
+    let chroma = (1.0 - (2.0 * lightness - 1.0).abs()) * saturation;
+    let sector = (hue % 360.0) / 60.0;
+    let secondary = chroma * (1.0 - (sector % 2.0 - 1.0).abs());
+    let (red, green, blue) = match sector as u32 {
+        0 => (chroma, secondary, 0.0),
+        1 => (secondary, chroma, 0.0),
+        2 => (0.0, chroma, secondary),
+        3 => (0.0, secondary, chroma),
+        4 => (secondary, 0.0, chroma),
+        _ => (chroma, 0.0, secondary),
+    };
+    let offset = lightness - chroma / 2.0;
+    [
+        (red + offset) * 255.0,
+        (green + offset) * 255.0,
+        (blue + offset) * 255.0,
+    ]
+}
+
+fn hex_color(color: [f32; 3]) -> String {
+    let channel = |value: f32| value.round().clamp(0.0, 255.0) as u8;
+    format!(
+        "#{:02x}{:02x}{:02x}",
+        channel(color[0]),
+        channel(color[1]),
+        channel(color[2])
+    )
+}
+
 fn generate_derivative(
     derivative_root: &Path,
     prepared: PreparedSource,
@@ -1976,6 +2346,14 @@ pub async fn prewarm_image_cache(
     requests: Vec<PrewarmRequest>,
 ) -> Result<PrewarmResult, String> {
     state.prewarm(requests).await
+}
+
+#[tauri::command]
+pub async fn cover_palettes(
+    state: State<'_, ImageService>,
+    image_paths: Vec<String>,
+) -> Result<Vec<CoverPaletteEntry>, String> {
+    state.cover_palettes(image_paths).await
 }
 
 #[tauri::command]

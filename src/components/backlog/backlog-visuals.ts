@@ -1,3 +1,5 @@
+import type { BacklogDensity } from "../../lib/backlog/density";
+
 // Shared visual vocabulary for the Backlog shelf.
 //
 // The page is a bookcase: media types are spine colours, and every shelf shares
@@ -14,6 +16,25 @@ export const HOVER_LIFT = 16;
 /** A queued spine. Narrow enough that ~28 fit a shelf at typical window widths. */
 export const SPINE_WIDTH = 34;
 export const SPINE_GAP = 3;
+
+/**
+ * A case turned face-out but still standing on the shelf, in Covers density.
+ *
+ * Width is set from `ITEM_HEIGHT`, not chosen: at 2:3 a poster fills the case
+ * with almost no crop, and anything narrower slices the artwork down the
+ * middle — which defeats the entire point of the mode. Slightly under the
+ * in-progress `FACEOUT_WIDTH` so a shelved case still reads as smaller than one
+ * that has been pulled off the shelf.
+ */
+export const SHELF_COVER_WIDTH = 124;
+export const SHELF_COVER_GAP = 12;
+
+/** Shelf geometry per density. The plank measures itself from these. */
+export const getShelfItemWidth = (density: BacklogDensity): number =>
+  density === "covers" ? SHELF_COVER_WIDTH : SPINE_WIDTH;
+
+export const getShelfItemGap = (density: BacklogDensity): number =>
+  density === "covers" ? SHELF_COVER_GAP : SPINE_GAP;
 
 /** An in-progress item, pulled off the shelf and turned face-out. */
 export const FACEOUT_WIDTH = 132;

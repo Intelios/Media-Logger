@@ -1,6 +1,7 @@
 import { appLocalDataDir } from '@tauri-apps/api/path';
 import { IS_DATA_DIRECTORY_ISOLATED } from './performance-mode';
 import { isCollectionSortMode, type CollectionSortMode } from './collections/sorting';
+import { isBacklogDensity, type BacklogDensity } from './backlog/density';
 
 const STORAGE_KEY = 'media-logger-data-directory';
 const DISPLAY_NAME_KEY = 'media-logger-display-name';
@@ -9,6 +10,7 @@ const RATING_DISPLAY_MODE_KEY = 'media-logger-rating-display-mode';
 const ADULT_MEDIA_ENABLED_KEY = 'media-logger-adult-media-enabled';
 const FEATURED_ADULT_ALLOWED_KEY = 'media-logger-featured-adult-allowed';
 const BACKLOG_UNRELEASED_COLLAPSED_KEY = 'media-logger-backlog-unreleased-collapsed';
+const BACKLOG_DENSITY_KEY = 'media-logger-backlog-density';
 const COLLECTIONS_SORT_MODE_KEY = 'media-logger-collections-sort';
 const COVER_ART_ENABLED_KEY = 'media-logger-cover-art-enabled';
 const TMDB_API_KEY_STORAGE_KEY = 'media-logger-tmdb-api-key';
@@ -220,6 +222,24 @@ export function isUnreleasedSectionCollapsed(): boolean {
  */
 export function setUnreleasedSectionCollapsed(collapsed: boolean): void {
     localStorage.setItem(BACKLOG_UNRELEASED_COLLAPSED_KEY, collapsed ? 'true' : 'false');
+}
+
+/**
+ * How much cover artwork the Backlog's queued shelves show. Defaults to
+ * 'strips': the shelf keeps its full density and gains the artwork, which is
+ * the setting the other two are variations on.
+ */
+export function getBacklogDensity(): BacklogDensity {
+    const stored = localStorage.getItem(BACKLOG_DENSITY_KEY);
+    return isBacklogDensity(stored) ? stored : 'strips';
+}
+
+/**
+ * Persist the Backlog's density. No change event is needed: the control that
+ * writes this owns the state the page renders from.
+ */
+export function setBacklogDensity(density: BacklogDensity): void {
+    localStorage.setItem(BACKLOG_DENSITY_KEY, density);
 }
 
 /**

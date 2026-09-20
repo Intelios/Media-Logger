@@ -77,6 +77,24 @@ Tauri v2 + React 19 + TypeScript + Tailwind CSS desktop app.
 - Frontend: `createMediaSources()` builds `srcSet`/`sizes`; `CoverImage` handles skeleton/decode/errors and reports `image:` performance samples. `CoverImage`'s `className` prop is intentionally absent — use `containerClassName`/`imageClassName`.
 - `saveImage()` in `src/lib/utils.ts` is a compat shim over stage/commit; the old blob-URL `releaseImageUrl` ref-count cache is gone. Do not reintroduce it, and do not use `convertFileSrc()`/asset-protocol URLs — the `media://` protocol is the only serving path for local files.
 
+## Cover Palettes
+
+`cover_palettes(imagePaths) -> [{ imagePath, palette }]` reduces each cover to three CSS-ready hex colours (`shadow` / `base` / `accent`) in `image_service.rs`. Used by the Backlog shelf; reusable anywhere a colour has to come from artwork.
+
+- Extraction clusters the **`small` derivative** (not the source) downsampled to 32×48, with deterministic-seeded k-means (5 clusters, 12 iterations). Cluster choice weights saturation well above frequency — the biggest cluster on a poster is usually a desaturated background — and heavily penalises near-black/near-white clusters, which are letterboxing and margins.
+- **Lightness is fixed by the recipe, never taken from the image** (`shadow` L 0.12, `base` L 0.34, `accent` L 0.62, saturation clamped to 0.26–0.70). This is what makes a whole library usable as one surface: white type is legible on every palette. Do not "improve" this by passing through the measured lightness. A genuinely monochrome cover keeps a neutral spine rather than being clamped up into an invented hue.
+- Cached in memory **and** on disk at `<cache_root>/palettes/<shard>/<key>.json`, keyed off the `small` derivative's cache key + `PALETTE_VERSION`, so replacing a cover invalidates its palette for free. Bump `PALETTE_VERSION` when changing the recipe. Palettes are cleared with the image cache but deliberately excluded from disk-limit accounting (a whole library is a few tens of KiB).
+- Frontend: `src/lib/cover-palette.ts` — `useCoverPalettes(paths)` returns a `ReadonlyMap`, batches 256 paths per invoke, dedupes in flight, caches process-wide, remembers misses (so a browser-only `npm run dev` doesn't re-request forever), and drops everything on a data-directory generation change. Callers must always have a non-palette fallback; "not extracted yet" and "no artwork" are the same state.
+
+## Backlog Shelf Densities
+
+The Planning and Unreleased shelves render at one of three densities (`src/lib/backlog/density.ts`, persisted as `media-logger-backlog-density`, default `strips`). In Progress is always face-out and unaffected. All three go through the one `BacklogSpine` component; `getShelfItemWidth`/`getShelfItemGap` in `backlog-visuals.ts` drive the plank measurement.
+
+- `spines`: colour only, zero image requests at any library size.
+- `strips`: the cover printed onto the 34px spine face. The artwork layer sits **above** the palette tint with `mix-blend-mode: luminosity`, so the cover supplies light and shade while the extracted palette supplies hue — printing it normally would hide the palette and turn the rack into unrelated smudges. Blurred at rest (`scale(1.35)` hides the blur's transparent edges), sharp and `mix-blend-mode: normal` on hover. `.backlog-spine` carries `isolation: isolate` so that blend cannot reach past the spine into the shelf and page.
+- `covers`: cases turned face-out. `SHELF_COVER_WIDTH` is derived from `ITEM_HEIGHT` at 2:3 — narrowing it slices posters down the middle and defeats the mode.
+- The palette tint is a separate `.backlog-spine-tint` layer that fades in over the media-type gradient, because palettes arrive after first paint and a whole shelf changing colour in one frame reads as a glitch. The type gradient remains the floor for coverless items.
+
 ## Cover Art Search
 
 An **opt-in** remote cover picker: `CoverSearchModal` (opened from a "Search Cover Art" button in `EntryForm`/`BacklogForm`) queries one provider per entry type, shows a grid, and stages the pick through the existing stage/commit/cancel flow. `src-tauri/src/cover_search.rs` owns **all outbound HTTP** — `reqwest` (rustls, no OpenSSL so Windows CI stays green) with the Twitch app-token cache for IGDB; `src/lib/cover-search.ts` is the frontend wrapper. No JS `fetch`, no `connect-src` changes — candidate thumbnails render as remote `https:` `<img>`s (`CoverImage` passes `https?://` URLs straight through; `img-src https:` was already allowed).

@@ -1420,6 +1420,7 @@ pub fn run() {
             image_service::image_service_status,
             image_service::clear_image_service_cache,
             image_service::prewarm_image_cache,
+            image_service::cover_palettes,
             image_service::stage_cover_import,
             image_service::commit_cover_import,
             image_service::cancel_cover_import,

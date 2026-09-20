@@ -19,15 +19,22 @@ import { SortableShelfItem } from "../components/backlog/SortableShelfItem";
 import { BacklogSpine } from "../components/backlog/BacklogSpine";
 import { BacklogFaceout } from "../components/backlog/BacklogFaceout";
 import { BacklogItemMenu, type MenuAnchor } from "../components/backlog/BacklogItemMenu";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../components/HoverTooltip";
 import {
-  FACEOUT_GAP, FACEOUT_WIDTH, SPINE_GAP, SPINE_WIDTH,
+  FACEOUT_GAP, FACEOUT_WIDTH, getShelfItemGap, getShelfItemWidth,
 } from "../components/backlog/backlog-visuals";
 import { BacklogForm } from "../components/BacklogForm";
 import { EntryForm } from "../components/EntryForm";
 import { backlogLogic, type BacklogItemsByStatus } from "../lib/backlog-logic";
+import {
+  BACKLOG_DENSITIES, BACKLOG_DENSITY_HINTS, BACKLOG_DENSITY_LABELS, type BacklogDensity,
+} from "../lib/backlog/density";
+import { useCoverPalettes } from "../lib/cover-palette";
 import { dbService, type BacklogItem, type MediaEntry } from "../lib/db";
 import { getVisibleEntryTypes, useAdultMediaEnabled } from "../lib/media-config";
-import { isUnreleasedSectionCollapsed, setUnreleasedSectionCollapsed } from "../lib/settings";
+import {
+  getBacklogDensity, isUnreleasedSectionCollapsed, setBacklogDensity, setUnreleasedSectionCollapsed,
+} from "../lib/settings";
 import { formatDurationLong, getDaysSince, getDaysUntil } from "../lib/dates";
 import { cn } from "../lib/utils_ui";
 
@@ -108,6 +115,51 @@ function ShelfHeading({
   );
 }
 
+// How much artwork the queued shelves show. This lives on the page rather than
+// in Settings because it is a browsing gesture, not a preference: the density
+// you want depends on whether you're scanning the queue or picking from it.
+function DensityControl({
+  density,
+  onChange,
+}: {
+  density: BacklogDensity;
+  onChange: (next: BacklogDensity) => void;
+}) {
+  const { bindTooltip } = useHoverTooltip();
+
+  return (
+    <div
+      role="group"
+      aria-label="Shelf density"
+      className="flex items-center gap-0.5 rounded-lg border border-white/5 bg-white/5 p-0.5"
+    >
+      {BACKLOG_DENSITIES.map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChange(option)}
+          aria-pressed={density === option}
+          className={cn(
+            "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+            density === option
+              ? "bg-white/10 text-white"
+              : "text-gray-400 hover:text-gray-200"
+          )}
+          {...bindTooltip(
+            <>
+              <TooltipTitle>{BACKLOG_DENSITY_LABELS[option]}</TooltipTitle>
+              <TooltipDetail>{BACKLOG_DENSITY_HINTS[option]}</TooltipDetail>
+            </>,
+            { width: 190 }
+          )}
+        >
+          {BACKLOG_DENSITY_LABELS[option]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function EmptyShelf({
   icon,
   message,
@@ -139,6 +191,7 @@ export default function Backlog() {
   const adultEnabled = useAdultMediaEnabled();
   const [items, setItems] = useState<BacklogItemsByStatus>({ inProgress: [], planning: [], unreleased: [] });
   const [activeFilter, setActiveFilter] = useState("All");
+  const [density, setDensity] = useState<BacklogDensity>(() => getBacklogDensity());
   const [unreleasedCollapsed, setUnreleasedCollapsed] = useState(() => isUnreleasedSectionCollapsed());
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<BacklogItem | null>(null);
@@ -183,6 +236,27 @@ export default function Backlog() {
     () => [...items.inProgress, ...items.planning, ...items.unreleased],
     [items]
   );
+
+  // Colours sampled from each queued item's own cover. Only the shelved
+  // sections need them — In Progress shows the artwork itself — and a missing
+  // palette simply leaves that spine on its media-type gradient.
+  const shelvedItems = useMemo(
+    () => [...items.planning, ...items.unreleased],
+    [items.planning, items.unreleased]
+  );
+  const palettes = useCoverPalettes(useMemo(
+    () => shelvedItems.map((item) => item.image_url),
+    [shelvedItems]
+  ));
+  const paletteFor = useCallback(
+    (item: BacklogItem) => (item.image_url ? palettes.get(item.image_url) ?? null : null),
+    [palettes]
+  );
+
+  const changeDensity = (next: BacklogDensity) => {
+    setDensity(next);
+    setBacklogDensity(next);
+  };
 
   const availableTypes = useMemo(() => {
     const present = new Set(allItems.map((item) => item.entry_type));
@@ -491,23 +565,33 @@ export default function Backlog() {
         </div>
       )}
 
-      {/* Type filter — dims rather than removes, so the shelf keeps its shape. */}
-      {!isEmpty && availableTypes.length > 1 && (
-        <div className="backlog-header-enter mt-5 flex flex-wrap gap-2" style={{ animationDelay: "90ms" }}>
-          {availableTypes.map((type) => (
-            <button
-              key={type}
-              onClick={() => setActiveFilter(type)}
-              className={cn(
-                "rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all",
-                activeFilter === type
-                  ? "border border-amber-500/40 bg-amber-500/20 text-amber-400"
-                  : "border border-white/5 bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300"
-              )}
-            >
-              {type}
-            </button>
-          ))}
+      {/* Type filter — dims rather than removes, so the shelf keeps its shape —
+          alongside the density control, which changes how the same shelf is
+          drawn. Both are "how am I looking at this", so they share a row. */}
+      {!isEmpty && (
+        <div
+          className="backlog-header-enter mt-5 flex flex-wrap items-center justify-between gap-3"
+          style={{ animationDelay: "90ms" }}
+        >
+          <div className="flex flex-wrap gap-2">
+            {availableTypes.length > 1 &&
+              availableTypes.map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setActiveFilter(type)}
+                  className={cn(
+                    "rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all",
+                    activeFilter === type
+                      ? "border border-amber-500/40 bg-amber-500/20 text-amber-400"
+                      : "border border-white/5 bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300"
+                  )}
+                >
+                  {type}
+                </button>
+              ))}
+          </div>
+
+          <DensityControl density={density} onChange={changeDensity} />
         </div>
       )}
 
@@ -612,8 +696,8 @@ export default function Backlog() {
             <BacklogShelf
               containerId={CONTAINER_IDS.planning}
               items={items.planning}
-              itemWidth={SPINE_WIDTH}
-              itemGap={SPINE_GAP}
+              itemWidth={getShelfItemWidth(density)}
+              itemGap={getShelfItemGap(density)}
               dropTarget
               isDragging={isDragging}
               overOverride={overSection === "planning"}
@@ -624,6 +708,8 @@ export default function Backlog() {
                     rank={index + 1}
                     index={index}
                     dimmed={!matches(item)}
+                    density={density}
+                    palette={paletteFor(item)}
                     suppressTooltip={isDragging}
                     land={landedIds.has(item.id)}
                     onOpenMenu={setMenuAnchor}
@@ -655,8 +741,8 @@ export default function Backlog() {
               <BacklogShelf
                 containerId={CONTAINER_IDS.unreleased}
                 items={items.unreleased}
-                itemWidth={SPINE_WIDTH}
-                itemGap={SPINE_GAP}
+                itemWidth={getShelfItemWidth(density)}
+                itemGap={getShelfItemGap(density)}
                 collapsed={unreleasedCollapsed}
                 dropTarget={false}
                 isDragging={isDragging}
@@ -667,6 +753,8 @@ export default function Backlog() {
                       rank={null}
                       index={index}
                       dimmed={!matches(item)}
+                      density={density}
+                      palette={paletteFor(item)}
                       wrapped
                       suppressTooltip={isDragging}
                       onOpenMenu={setMenuAnchor}
@@ -712,6 +800,8 @@ export default function Backlog() {
                 rank={dragged.rank}
                 index={0}
                 dimmed={false}
+                density={density}
+                palette={paletteFor(dragged.item)}
                 wrapped={dragged.item.status === "unreleased"}
                 suppressTooltip
                 preview

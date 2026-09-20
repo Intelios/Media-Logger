@@ -2,6 +2,7 @@ import { Calendar, CalendarClock, Hourglass, Play } from "lucide-react";
 import { formatShortDate, getDaysUntil, getDaysSince, formatDurationLong } from "../../lib/dates";
 import { parseGenres } from "../../lib/media-config";
 import { cn } from "../../lib/utils_ui";
+import { CoverImage } from "../CoverImage";
 import { getTypeSolid } from "./backlog-visuals";
 import type { BacklogItem } from "../../lib/db";
 
@@ -16,22 +17,40 @@ export function BacklogTooltipContent({ item }: { item: BacklogItem }) {
 
   return (
     <div className="space-y-2">
-      <p className="text-sm font-semibold leading-tight text-text">{item.name}</p>
+      {/* The cover at full size, which the shelf can only ever hint at. This is
+          why a spine can stay 34px wide and still be identifiable. */}
+      <div className="flex items-start gap-2.5">
+        {item.image_url && (
+          <CoverImage
+            path={item.image_url}
+            variant="small"
+            alt=""
+            sizes="52px"
+            priority="low"
+            containerClassName="h-[78px] w-[52px] shrink-0 rounded-[3px] ring-1 ring-white/10"
+            imageClassName="h-full w-full object-cover"
+          />
+        )}
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-bold text-white", getTypeSolid(item.entry_type))}>
-          {item.entry_type}
-        </span>
-        {item.status === "in_progress" && (
-          <span className="rounded border border-amber-500/30 bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-400">
-            In Progress
-          </span>
-        )}
-        {item.status === "unreleased" && (
-          <span className="rounded border border-sky-500/30 bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-bold text-sky-400">
-            Unreleased
-          </span>
-        )}
+        <div className="min-w-0 space-y-1.5">
+          <p className="text-sm font-semibold leading-tight text-text">{item.name}</p>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-bold text-white", getTypeSolid(item.entry_type))}>
+              {item.entry_type}
+            </span>
+            {item.status === "in_progress" && (
+              <span className="rounded border border-amber-500/30 bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-400">
+                In Progress
+              </span>
+            )}
+            {item.status === "unreleased" && (
+              <span className="rounded border border-sky-500/30 bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-bold text-sky-400">
+                Unreleased
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {genres.length > 0 && (
