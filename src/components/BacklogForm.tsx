@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, Upload, Save, Sparkles, Image as ImageIcon, CalendarClock } from "lucide-react";
+import { X, Upload, Save, Sparkles, Image as ImageIcon, CalendarClock, Search } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { cn } from "../lib/utils_ui";
 import { getVisibleEntryTypeOptions } from "../lib/media-config";
@@ -14,6 +14,8 @@ import {
   type StagedCoverImport,
 } from "../lib/image-service";
 import { CoverImage } from "./CoverImage";
+import { CoverSearchModal } from "./CoverSearchModal";
+import { getCoverSearchAvailability } from "../lib/cover-search";
 
 interface BacklogFormProps {
   isOpen: boolean;
@@ -32,6 +34,7 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
   const stagedCoverRef = useRef<StagedCoverImport | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCoverSearchOpen, setIsCoverSearchOpen] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   useEscapeToClose(isOpen, onClose);
   useFocusTrap(isOpen, modalRef);
@@ -94,6 +97,15 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
     }
   };
 
+  // A cover picked in CoverSearchModal arrives pre-staged, exactly like a
+  // manual file pick, so it flows through the same preview/commit path.
+  const handleCoverStaged = (staged: StagedCoverImport) => {
+    const previous = stagedCoverRef.current;
+    stagedCoverRef.current = staged;
+    setPreviewImage(staged.previewUrl);
+    if (previous) void cancelCoverImport(previous.token);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -124,6 +136,8 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
   };
 
   if (!isOpen) return null;
+
+  const coverSearchAvailability = getCoverSearchAvailability(entryType);
 
   // Portalled to <body> so a parent's `space-y-*` margin can't offset the
   // fixed overlay — see the note in EntryForm.
@@ -279,6 +293,16 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
                 <span>{previewImage || existingImageUrl ? "Change Image" : "Choose Image"}</span>
               </button>
             </div>
+            {(coverSearchAvailability === "ready" || coverSearchAvailability === "needs-key") && (
+              <button
+                type="button"
+                onClick={() => setIsCoverSearchOpen(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary/10 border border-primary/25 text-primary text-sm font-medium hover:bg-primary/20 transition-all"
+              >
+                <Search size={14} />
+                <span>Search Cover Art</span>
+              </button>
+            )}
           </div>
 
           {/* Actions */}
@@ -306,6 +330,15 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
           </div>
         </form>
       </div>
+
+      {/* Remote cover-art picker (opt-in via Settings → Cover Art) */}
+      <CoverSearchModal
+        isOpen={isCoverSearchOpen}
+        onClose={() => setIsCoverSearchOpen(false)}
+        entryType={entryType}
+        initialQuery={name}
+        onStaged={handleCoverStaged}
+      />
     </div>,
     document.body
   );

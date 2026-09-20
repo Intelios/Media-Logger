@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, Upload, Save, Calendar as CalIcon, Sparkles, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock, RotateCcw, Captions, Puzzle } from "lucide-react";
+import { X, Upload, Save, Calendar as CalIcon, Sparkles, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock, RotateCcw, Captions, Puzzle, Search } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import type { MediaEntry, AutocompleteOptions } from "../lib/db";
 import { dbService } from "../lib/db";
@@ -17,6 +17,8 @@ import {
   type StagedCoverImport,
 } from "../lib/image-service";
 import { CoverImage } from "./CoverImage";
+import { CoverSearchModal } from "./CoverSearchModal";
+import { getCoverSearchAvailability } from "../lib/cover-search";
 
 interface EntryFormProps {
   initialData?: MediaEntry | null;
@@ -31,6 +33,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
   const [, setStagedCover] = useState<StagedCoverImport | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isParentPickerOpen, setIsParentPickerOpen] = useState(false);
+  const [isCoverSearchOpen, setIsCoverSearchOpen] = useState(false);
   const stagedCoverRef = useRef<StagedCoverImport | null>(null);
   const [suggestions, setSuggestions] = useState<AutocompleteOptions>({
     platforms: [],
@@ -145,6 +148,16 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
     }
   };
 
+  // A cover picked in CoverSearchModal arrives pre-staged, exactly like a
+  // manual file pick, so it flows through the same preview/commit path.
+  const handleCoverStaged = (staged: StagedCoverImport) => {
+    const previous = stagedCoverRef.current;
+    stagedCoverRef.current = staged;
+    setStagedCover(staged);
+    setPreviewImage(staged.previewUrl);
+    if (previous) void cancelCoverImport(previous.token);
+  };
+
   // Resolve the linked parent game's display name when an existing expansion is
   // opened for editing, so the "Link to base game" row shows a human-readable
   // label instead of a bare id.
@@ -251,6 +264,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
   if (!isOpen) return null;
 
 const typeOption = getVisibleEntryTypeOptions().find(o => o.value === formData.entry_type);
+  const coverSearchAvailability = getCoverSearchAvailability(formData.entry_type);
 
   const scoreColor = (score: number) => {
     if (score >= 9) return "text-emerald-400";
@@ -306,6 +320,17 @@ const typeOption = getVisibleEntryTypeOptions().find(o => o.value === formData.e
                 </div>
               )}
             </div>
+
+            {(coverSearchAvailability === "ready" || coverSearchAvailability === "needs-key") && (
+              <button
+                type="button"
+                onClick={() => setIsCoverSearchOpen(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary/10 border border-primary/25 text-primary text-sm font-medium hover:bg-primary/20 transition-all"
+              >
+                <Search size={14} />
+                <span>Search Cover Art</span>
+              </button>
+            )}
 
             <div className="space-y-3">
               <div>
@@ -817,6 +842,15 @@ const typeOption = getVisibleEntryTypeOptions().find(o => o.value === formData.e
           </form>
         </div>
       </div>
+
+      {/* Remote cover-art picker (opt-in via Settings → Cover Art) */}
+      <CoverSearchModal
+        isOpen={isCoverSearchOpen}
+        onClose={() => setIsCoverSearchOpen(false)}
+        entryType={formData.entry_type ?? "Movie"}
+        initialQuery={formData.name ?? ""}
+        onStaged={handleCoverStaged}
+      />
 
       {/* Parent base-game picker (Expansion / DLC link) */}
       <WinnerPicker

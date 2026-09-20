@@ -37,6 +37,8 @@ http-body-util = "0.1"
 image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 fast_image_resize = { version = "6.1", features = ["image"] }
 rand = "0.9"
+# rustls (no native-tls/OpenSSL) keeps the Windows CI build working.
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "query"] }
 rmcp = { version = "=2.2.0", features = ["server", "macros", "schemars", "transport-streamable-http-server"] }
 sha2 = "0.10"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "macros"] }

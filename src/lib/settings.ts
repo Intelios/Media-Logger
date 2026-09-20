@@ -10,6 +10,12 @@ const ADULT_MEDIA_ENABLED_KEY = 'media-logger-adult-media-enabled';
 const FEATURED_ADULT_ALLOWED_KEY = 'media-logger-featured-adult-allowed';
 const BACKLOG_UNRELEASED_COLLAPSED_KEY = 'media-logger-backlog-unreleased-collapsed';
 const COLLECTIONS_SORT_MODE_KEY = 'media-logger-collections-sort';
+const COVER_ART_ENABLED_KEY = 'media-logger-cover-art-enabled';
+const TMDB_API_KEY_STORAGE_KEY = 'media-logger-tmdb-api-key';
+const IGDB_CLIENT_ID_STORAGE_KEY = 'media-logger-igdb-client-id';
+const IGDB_CLIENT_SECRET_STORAGE_KEY = 'media-logger-igdb-client-secret';
+const RAWG_API_KEY_STORAGE_KEY = 'media-logger-rawg-api-key';
+const GAME_COVER_PROVIDER_KEY = 'media-logger-game-cover-provider';
 
 /**
  * Window event fired when the Adult Media visibility setting changes, so any
@@ -231,4 +237,81 @@ export function getCollectionsSortMode(): CollectionSortMode {
  */
 export function setCollectionsSortMode(mode: CollectionSortMode): void {
     localStorage.setItem(COLLECTIONS_SORT_MODE_KEY, mode);
+}
+
+/**
+ * Whether the opt-in Cover Art Search feature is available in the entry and
+ * backlog forms. Defaults to false: the search buttons never render until the
+ * user explicitly turns the feature on in Settings. No change event is needed —
+ * the forms mount on demand and read this at render time.
+ */
+export function isCoverArtEnabled(): boolean {
+    return localStorage.getItem(COVER_ART_ENABLED_KEY) === 'true';
+}
+
+export function setCoverArtEnabled(enabled: boolean): void {
+    localStorage.setItem(COVER_ART_ENABLED_KEY, enabled ? 'true' : 'false');
+}
+
+function getStoredCredential(key: string): string | null {
+    const trimmed = localStorage.getItem(key)?.trim();
+    return trimmed ? trimmed : null;
+}
+
+function setStoredCredential(key: string, value: string): void {
+    const trimmed = value.trim();
+    if (trimmed) {
+        localStorage.setItem(key, trimmed);
+    } else {
+        localStorage.removeItem(key);
+    }
+}
+
+/** TMDB API key (v3) — unlocks Movie, Show, and K-Drama cover searches. */
+export function getTmdbApiKey(): string | null {
+    return getStoredCredential(TMDB_API_KEY_STORAGE_KEY);
+}
+
+export function setTmdbApiKey(key: string): void {
+    setStoredCredential(TMDB_API_KEY_STORAGE_KEY, key);
+}
+
+/** IGDB (Twitch) app credentials — unlock Game cover searches. */
+export function getIgdbClientId(): string | null {
+    return getStoredCredential(IGDB_CLIENT_ID_STORAGE_KEY);
+}
+
+export function setIgdbClientId(value: string): void {
+    setStoredCredential(IGDB_CLIENT_ID_STORAGE_KEY, value);
+}
+
+export function getIgdbClientSecret(): string | null {
+    return getStoredCredential(IGDB_CLIENT_SECRET_STORAGE_KEY);
+}
+
+export function setIgdbClientSecret(value: string): void {
+    setStoredCredential(IGDB_CLIENT_SECRET_STORAGE_KEY, value);
+}
+
+/** RAWG API key — the alternative provider for Game cover searches. */
+export function getRawgApiKey(): string | null {
+    return getStoredCredential(RAWG_API_KEY_STORAGE_KEY);
+}
+
+export function setRawgApiKey(value: string): void {
+    setStoredCredential(RAWG_API_KEY_STORAGE_KEY, value);
+}
+
+export type GameCoverProvider = 'igdb' | 'rawg';
+
+/**
+ * Which database Game cover searches use. Defaults to IGDB (portrait box
+ * art); RAWG serves high-resolution promotional screenshots.
+ */
+export function getGameCoverProvider(): GameCoverProvider {
+    return localStorage.getItem(GAME_COVER_PROVIDER_KEY) === 'rawg' ? 'rawg' : 'igdb';
+}
+
+export function setGameCoverProvider(provider: GameCoverProvider): void {
+    localStorage.setItem(GAME_COVER_PROVIDER_KEY, provider);
 }

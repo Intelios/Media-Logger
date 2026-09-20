@@ -1,3 +1,4 @@
+mod cover_search;
 mod database;
 #[cfg(target_os = "macos")]
 mod glass;
@@ -1422,6 +1423,8 @@ pub fn run() {
             image_service::stage_cover_import,
             image_service::commit_cover_import,
             image_service::cancel_cover_import,
+            cover_search::cover_search,
+            cover_search::cover_stage_from_url,
             create_backup_zip,
             read_backup_zip,
             extract_backup_assets,
@@ -1477,6 +1480,10 @@ pub fn run() {
             let mcp_state =
                 mcp::McpState::from_config_dir(mcp_config_dir).map_err(std::io::Error::other)?;
             app.manage(mcp_state);
+
+            let cover_search_state =
+                cover_search::CoverSearchState::new(app.handle()).map_err(std::io::Error::other)?;
+            app.manage(cover_search_state);
 
             let window = app.get_webview_window("main").unwrap();
 

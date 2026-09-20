@@ -763,7 +763,7 @@ impl ImageService {
         }
     }
 
-    async fn stage_import(&self, source_path: String) -> Result<StagedCoverImportResult, String> {
+    pub async fn stage_import(&self, source_path: String) -> Result<StagedCoverImportResult, String> {
         let _transition_guard = self.inner.transition.lock().await;
         let configured = self.configured_root()?;
         let token = Uuid::new_v4().to_string();

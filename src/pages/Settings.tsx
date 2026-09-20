@@ -60,7 +60,20 @@ import {
     isAdultMediaEnabled,
     setAdultMediaEnabled,
     isFeaturedAdultAllowed,
-    setFeaturedAdultAllowed
+    setFeaturedAdultAllowed,
+    isCoverArtEnabled,
+    setCoverArtEnabled,
+    getTmdbApiKey,
+    setTmdbApiKey,
+    getIgdbClientId,
+    setIgdbClientId,
+    getIgdbClientSecret,
+    setIgdbClientSecret,
+    getRawgApiKey,
+    setRawgApiKey,
+    getGameCoverProvider,
+    setGameCoverProvider,
+    type GameCoverProvider
 } from '../lib/settings';
 import { useTheme } from '../lib/ThemeContext';
 import type { ColorTheme, GlassStyle } from '../lib/themes';
@@ -91,7 +104,7 @@ import { getImageCacheLimitGiB, initializeImageService, setImageCacheLimitGiB } 
 
 const SettingsChangelogSection = lazy(() => import('../components/settings/SettingsChangelogSection'));
 
-type SettingsSection = 'general' | 'appearance' | 'ai-access' | 'data' | 'changelog' | 'about';
+type SettingsSection = 'general' | 'appearance' | 'ai-access' | 'cover-art' | 'data' | 'changelog' | 'about';
 type BackupFormat = 'json' | 'zip';
 
 const IMPORT_TABLE_LABELS: Record<BackupTableName, string> = {
@@ -258,6 +271,49 @@ export default function Settings() {
     const [connectionError, setConnectionError] = useState('');
     const [newCredential, setNewCredential] = useState<McpCredentialSecret | null>(null);
     const [showEndpointConfirm, setShowEndpointConfirm] = useState(false);
+
+    // Cover Art Search (opt-in remote cover lookup) — toggle + provider keys.
+    const [coverArtEnabled, setCoverArtEnabledState] = useState<boolean>(() => isCoverArtEnabled());
+    const [tmdbKeyDraft, setTmdbKeyDraft] = useState<string>(() => getTmdbApiKey() ?? '');
+    const [tmdbKeySaved, setTmdbKeySaved] = useState<string>(() => getTmdbApiKey() ?? '');
+    const [igdbIdDraft, setIgdbIdDraft] = useState<string>(() => getIgdbClientId() ?? '');
+    const [igdbSecretDraft, setIgdbSecretDraft] = useState<string>(() => getIgdbClientSecret() ?? '');
+    const [igdbCredentialsSaved, setIgdbCredentialsSaved] = useState<boolean>(
+        () => Boolean(getIgdbClientId() && getIgdbClientSecret())
+    );
+    const [gameProvider, setGameCoverProviderState] = useState<GameCoverProvider>(() => getGameCoverProvider());
+    const [rawgKeyDraft, setRawgKeyDraft] = useState<string>(() => getRawgApiKey() ?? '');
+    const [rawgKeySaved, setRawgKeySaved] = useState<string>(() => getRawgApiKey() ?? '');
+
+    const handleCoverArtToggle = (enabled: boolean) => {
+        setCoverArtEnabled(enabled);
+        setCoverArtEnabledState(enabled);
+    };
+
+    const handleGameProviderChange = (provider: GameCoverProvider) => {
+        setGameCoverProvider(provider);
+        setGameCoverProviderState(provider);
+    };
+
+    const handleRawgKeySave = () => {
+        setRawgApiKey(rawgKeyDraft);
+        setRawgKeySaved(rawgKeyDraft.trim());
+        showToast(rawgKeyDraft.trim() ? 'RAWG API key saved' : 'RAWG API key cleared');
+    };
+
+    const handleTmdbKeySave = () => {
+        setTmdbApiKey(tmdbKeyDraft);
+        setTmdbKeySaved(tmdbKeyDraft.trim());
+        showToast(tmdbKeyDraft.trim() ? 'TMDB API key saved' : 'TMDB API key cleared');
+    };
+
+    const handleIgdbCredentialsSave = () => {
+        setIgdbClientId(igdbIdDraft);
+        setIgdbClientSecret(igdbSecretDraft);
+        const complete = Boolean(igdbIdDraft.trim() && igdbSecretDraft.trim());
+        setIgdbCredentialsSaved(complete);
+        showToast(complete ? 'IGDB credentials saved' : 'IGDB credentials cleared');
+    };
     const pathsLoadedRef = useRef(false);
 
     useEffect(() => {
@@ -937,6 +993,7 @@ export default function Settings() {
         { id: 'general', label: 'General', icon: <User size={18} /> },
         { id: 'appearance', label: 'Appearance', icon: <Palette size={18} /> },
         { id: 'ai-access', label: 'AI Access', icon: <Bot size={18} /> },
+        { id: 'cover-art', label: 'Cover Art', icon: <Image size={18} /> },
         { id: 'data', label: 'Data', icon: <Database size={18} /> },
         { id: 'changelog', label: 'Changelog', icon: <ScrollText size={18} /> },
         { id: 'about', label: 'About', icon: <Info size={18} /> },
@@ -1531,6 +1588,166 @@ export default function Settings() {
                                     <RefreshCw size={14} />
                                     Choose New Endpoint
                                 </button>
+                            </div>
+                        </section>
+                    </div>
+                )}
+
+                {/* Cover Art Section */}
+                {activeSection === 'cover-art' && (
+                    <div className="settings-section-enter" key="cover-art">
+                        <section className="settings-card ai-access-wide">
+                            <div className="settings-row">
+                                <div>
+                                    <div className="settings-row-label">Cover Art Search</div>
+                                    <div className="settings-row-description">
+                                        Adds a "Search Cover Art" button to the entry and backlog forms that looks up covers in online databases — TMDB, IGDB, AniList, Open Library, and iTunes — and imports the one you pick exactly like a manual file pick. Nothing is sent anywhere until you press Search, and only the title you type goes to that one provider. Turn this off and the button disappears everywhere.
+                                    </div>
+                                </div>
+                                <div className="segmented-control">
+                                    <button
+                                        onClick={() => handleCoverArtToggle(true)}
+                                        className={`segmented-control-item ${coverArtEnabled ? 'active' : ''}`}
+                                    >
+                                        On
+                                    </button>
+                                    <button
+                                        onClick={() => handleCoverArtToggle(false)}
+                                        className={`segmented-control-item ${!coverArtEnabled ? 'active' : ''}`}
+                                    >
+                                        Off
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className="settings-card">
+                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+                                <div>
+                                    <div className="settings-row-label">TMDB — Movies, Shows, K-Dramas</div>
+                                    <div className="settings-row-description">
+                                        Create a free account at developer.themoviedb.org, then request an API key (Settings → API → Developer). This product uses the TMDB API but is not endorsed or certified by TMDB.
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                    <input
+                                        type="text"
+                                        value={tmdbKeyDraft}
+                                        onChange={(e) => setTmdbKeyDraft(e.target.value)}
+                                        placeholder="TMDB API key"
+                                        className="settings-input"
+                                        style={{ flex: 1 }}
+                                    />
+                                    {tmdbKeySaved && (
+                                        <span className="settings-badge">Set</span>
+                                    )}
+                                    <button
+                                        onClick={handleTmdbKeySave}
+                                        className="settings-btn settings-btn-primary"
+                                    >
+                                        <CheckCircle2 size={14} />
+                                        Save
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className="settings-card">
+                            <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                                    <div>
+                                        <div className="settings-row-label">Games — Cover Provider</div>
+                                        <div className="settings-row-description">
+                                            Which database game cover searches use. IGDB serves traditional box art; RAWG serves high-resolution promotional screenshots that match the wide card layout. Both are free — the search button uses whichever provider is selected here.
+                                        </div>
+                                    </div>
+                                    <div className="segmented-control">
+                                        <button
+                                            onClick={() => handleGameProviderChange('igdb')}
+                                            className={`segmented-control-item ${gameProvider === 'igdb' ? 'active' : ''}`}
+                                        >
+                                            IGDB
+                                        </button>
+                                        <button
+                                            onClick={() => handleGameProviderChange('rawg')}
+                                            className={`segmented-control-item ${gameProvider === 'rawg' ? 'active' : ''}`}
+                                        >
+                                            RAWG
+                                        </button>
+                                    </div>
+                                </div>
+                                {gameProvider === 'rawg' ? (
+                                    <>
+                                        <div className="settings-row-description">
+                                            Get a free key at rawg.io/apidocs — one static key, no OAuth, 20,000 requests per month.
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                            <input
+                                                type="text"
+                                                value={rawgKeyDraft}
+                                                onChange={(e) => setRawgKeyDraft(e.target.value)}
+                                                placeholder="RAWG API key"
+                                                className="settings-input"
+                                                style={{ flex: 1 }}
+                                            />
+                                            {rawgKeySaved && (
+                                                <span className="settings-badge">Set</span>
+                                            )}
+                                            <button
+                                                onClick={handleRawgKeySave}
+                                                className="settings-btn settings-btn-primary"
+                                            >
+                                                <CheckCircle2 size={14} />
+                                                Save
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="settings-row-description">
+                                            Register a free application at dev.twitch.tv/console (a Twitch account with two-factor authentication is required), then copy the Client ID and Client Secret here. The access token is fetched and refreshed automatically.
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 10 }}>
+                                            <input
+                                                type="text"
+                                                value={igdbIdDraft}
+                                                onChange={(e) => setIgdbIdDraft(e.target.value)}
+                                                placeholder="Client ID"
+                                                className="settings-input"
+                                                style={{ flex: 1 }}
+                                            />
+                                            <input
+                                                type="password"
+                                                value={igdbSecretDraft}
+                                                onChange={(e) => setIgdbSecretDraft(e.target.value)}
+                                                placeholder="Client Secret"
+                                                className="settings-input"
+                                                style={{ flex: 1 }}
+                                            />
+                                            {igdbCredentialsSaved && (
+                                                <span className="settings-badge">Set</span>
+                                            )}
+                                            <button
+                                                onClick={handleIgdbCredentialsSave}
+                                                className="settings-btn settings-btn-primary"
+                                            >
+                                                <CheckCircle2 size={14} />
+                                                Save
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </section>
+
+                        <section className="settings-card">
+                            <div className="settings-row">
+                                <div>
+                                    <div className="settings-row-label">No Setup Needed — Anime, Books, Albums</div>
+                                    <div className="settings-row-description">
+                                        AniList (Anime), Open Library (Books), and iTunes (Albums) require no keys — their searches work as soon as Cover Art Search is turned on above. The TMDB, IGDB, and RAWG keys only unlock Movies, Shows, K-Dramas, and Games.
+                                    </div>
+                                </div>
                             </div>
                         </section>
                     </div>
