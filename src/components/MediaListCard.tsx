@@ -6,6 +6,7 @@ import { formatCardRating, getRatingColor, getReplayTerm, getTypeBadgeStyle, par
 import { formatDate, getYearsAgo } from "../lib/dates";
 import { useHoverTooltip } from "./HoverTooltip";
 import { CoverImage } from "./CoverImage";
+import type { MediaAward } from "./MediaCard";
 import { createMediaUrl, useImageServiceStatus } from "../lib/image-service";
 
 interface MediaListCardProps {
@@ -13,7 +14,9 @@ interface MediaListCardProps {
   onClick?: (entry: MediaEntry) => void;
   index?: number;
   showYearsAgo?: boolean;
-  /** Right-side slot: prominent accent (e.g. award trophy pill). Takes priority over indexLabel. */
+  /** Awards won by the entry — renders the gold trophy pill in the trailing slot. */
+  awards?: MediaAward[];
+  /** Right-side slot: prominent accent (e.g. profile award pill). Takes priority over awards/indexLabel. */
   accentBadge?: ReactNode;
   /** Right-side slot: small index indicator (e.g. timeline "#N"). Used when no accentBadge. */
   indexLabel?: ReactNode;
@@ -38,6 +41,7 @@ export function MediaListCard({
   onClick,
   index = 0,
   showYearsAgo = false,
+  awards = [],
   accentBadge,
   indexLabel,
   cornerBadge,
@@ -63,7 +67,42 @@ export function MediaListCard({
   const isRewatch = entry.is_rewatch === 1;
   const hasSubtitles = entry.has_subtitles === 1;
 
-  const hasTrailingSlot = Boolean(accentBadge ?? indexLabel);
+  // Gold trophy pill — same award identity as MediaCard, scaled for the list row.
+  const awardBadge = awards.length > 0 ? (
+    <div
+      {...bindTooltip(
+        <div>
+          <div className="text-xs font-semibold text-amber-400 mb-2 flex items-center gap-1.5">
+            <Trophy size={12} />
+            <span>Awards Won</span>
+          </div>
+          <ul className="space-y-1">
+            {awards.map((award, i) => (
+              <li key={i} className="text-xs text-gray-200">
+                {award.categoryName}
+                <span className="text-amber-400/70 ml-1">({award.year})</span>
+              </li>
+            ))}
+          </ul>
+        </div>,
+        {
+          width: 192,
+          className: "rounded-xl p-3",
+          style: { borderColor: "color-mix(in srgb, #f59e0b 30%, var(--color-border))" },
+        }
+      )}
+    >
+      <div className="flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full shadow-lg shadow-amber-500/30">
+        <Trophy size={12} className="text-white fill-white/20" />
+        {awards.length > 1 && (
+          <span className="text-[10px] font-bold text-white leading-none">{awards.length}</span>
+        )}
+      </div>
+    </div>
+  ) : null;
+
+  const trailingAccent = accentBadge ?? awardBadge;
+  const hasTrailingSlot = Boolean(trailingAccent ?? indexLabel);
   const interactive = Boolean(onClick);
   const card = (
     <div
@@ -104,7 +143,7 @@ export function MediaListCard({
           <h4 className="flex-1 min-w-0 truncate font-semibold text-sm text-gray-100">
             {entry.name}
           </h4>
-          {hasScore && !leadingRail && !accentBadge && (
+          {hasScore && !leadingRail && !trailingAccent && (
             <span
               className={cn(
                 "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold shadow-sm shrink-0",
@@ -195,7 +234,7 @@ export function MediaListCard({
               <Puzzle size={9} className="text-sky-400" />
             </span>
           )}
-          {hasScore && (leadingRail || accentBadge) && (
+          {hasScore && (leadingRail || trailingAccent) && (
             <span
               className={cn(
                 "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold shadow-sm shrink-0",
@@ -220,10 +259,10 @@ export function MediaListCard({
         )}
       </div>
 
-      {/* Trailing slot: accent badge (award pill) or index label (timeline #N) */}
+      {/* Trailing slot: accent badge (profile award pill), award trophy pill, or index label (timeline #N) */}
       {hasTrailingSlot && (
         <div className="media-list-card-trailing">
-          {accentBadge ?? indexLabel}
+          {trailingAccent ?? indexLabel}
         </div>
       )}
     </div>

@@ -3,9 +3,11 @@ import { Link, useNavigate } from "react-router";
 import { motion, AnimatePresence, useReducedMotion, type Variants } from "framer-motion";
 import { Library, Star, Calendar, Folder, ArrowRight, Sparkles, Hourglass, RotateCcw, Captions, Shuffle, Clock } from "lucide-react";
 import { dashboardLogic, type DashboardStats } from "../lib/dashboard-stats";
+import { awardsLogic } from "../lib/awards-logic";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { MediaListCard } from "../components/MediaListCard";
 import { CoverImage } from "../components/CoverImage";
+import type { MediaAward } from "../components/MediaCard";
 import type { MediaEntry } from "../lib/db";
 import { getDisplayName, FEATURED_ADULT_VISIBILITY_CHANGED_EVENT } from "../lib/settings";
 import { getReplayTerm } from "../lib/media-config";
@@ -45,6 +47,7 @@ export default function Dashboard() {
   const [displayName, setDisplayName] = useState("Collector");
   const [recentYear, setRecentYear] = useState(getCurrentYearString());
   const [onThisDay, setOnThisDay] = useState<MediaEntry[]>([]);
+  const [onThisDayAwards, setOnThisDayAwards] = useState<Map<number, MediaAward[]>>(new Map());
   const [onThisDayLoaded, setOnThisDayLoaded] = useState(false);
   const [isRerolling, setIsRerolling] = useState(false);
   const [spinKey, setSpinKey] = useState(0);
@@ -113,10 +116,21 @@ export default function Dashboard() {
       queryKey: [...mediaQueryKeys.dashboard, ...scope, 'on-this-day', formatTodayMD()],
       queryFn: () => dashboardLogic.getOnThisDayEntries(),
     }).then((entries) => {
-      if (!cancelled) {
-        setOnThisDay(entries);
-        setOnThisDayLoaded(true);
+      if (cancelled) return;
+      setOnThisDay(entries);
+      setOnThisDayLoaded(true);
+      // Award badges ride along in component state (same pattern as YearView's
+      // awards map) so the cached entry list stays the single query.
+      const mediaIds = entries.map((entry) => entry.id).filter((id): id is number => id !== undefined);
+      if (mediaIds.length === 0) {
+        setOnThisDayAwards(new Map());
+        return;
       }
+      void awardsLogic.getAwardsForMediaBatch(mediaIds)
+        .then((awards) => {
+          if (!cancelled) setOnThisDayAwards(awards);
+        })
+        .catch((error) => console.error('Failed to load On This Day awards:', error));
     }).catch((error) => {
       console.error('Failed to load On This Day entries:', error);
       if (!cancelled) setOnThisDayLoaded(true);
@@ -365,7 +379,14 @@ export default function Dashboard() {
           ) : onThisDay.length > 0 ? (
             <div className="dashboard-list-stack">
               {onThisDay.slice(0, 6).map((entry, i) => (
-                <MediaListCard key={entry.id} entry={entry} onClick={handleCardClick} index={i} showYearsAgo />
+                <MediaListCard
+                  key={entry.id}
+                  entry={entry}
+                  onClick={handleCardClick}
+                  index={i}
+                  showYearsAgo
+                  awards={entry.id !== undefined ? onThisDayAwards.get(entry.id) : undefined}
+                />
               ))}
             </div>
           ) : (
