@@ -1,6 +1,14 @@
 import { dbService, type MediaEntry, adultExclusionSql } from "./db";
-import { isFeaturedAdultAllowed } from "./settings";
+import { isDashboardListAdultAllowed, isFeaturedAdultAllowed } from "./settings";
 import { ADULT_ENTRY_TYPES } from "./media-config";
+
+const adultEntryTypesSql = ADULT_ENTRY_TYPES.map((type) => `'${type.replace(/'/g, "''")}'`).join(', ');
+
+function dashboardListAdultExclusionSql(): string {
+  return isDashboardListAdultAllowed()
+    ? ''
+    : ` AND (entry_type IS NULL OR entry_type NOT IN (${adultEntryTypesSql}))`;
+}
 
 export interface DashboardStats {
   total_entries: number;
@@ -70,7 +78,7 @@ export const dashboardLogic = {
     // Optionally also exclude adult entries from the featured pool, independent
     // of the global Adult Media setting (adult entries stay visible elsewhere).
     const featuredAdultExclusion =
-      isFeaturedAdultAllowed() ? '' : ` AND entry_type NOT IN (${ADULT_ENTRY_TYPES.map((t) => `'${t}'`).join(',')})`;
+      isFeaturedAdultAllowed() ? '' : ` AND entry_type NOT IN (${adultEntryTypesSql})`;
     const baseWhere = `WHERE 1=1${adultExclusionSql()}${featuredAdultExclusion}`;
     // On a reroll, skip the entry that's already showing so it never repeats
     // back-to-back — unless it's the only match, in which case we keep it.
@@ -102,7 +110,7 @@ export const dashboardLogic = {
   async getRecentEntries(): Promise<MediaEntry[]> {
     const db = await dbService.connect();
     return await db.select<MediaEntry[]>(
-      `SELECT * FROM entries WHERE completion_date IS NOT NULL${adultExclusionSql()} ORDER BY completion_date DESC, id DESC LIMIT 15`
+      `SELECT * FROM entries WHERE completion_date IS NOT NULL${adultExclusionSql()}${dashboardListAdultExclusionSql()} ORDER BY completion_date DESC, id DESC LIMIT 15`
     );
   },
 
@@ -113,7 +121,7 @@ export const dashboardLogic = {
     const day = String(today.getDate()).padStart(2, '0');
     // substr(completion_date, 6, 5) extracts 'MM-DD' from 'YYYY-MM-DD'
     return await db.select<MediaEntry[]>(
-      `SELECT * FROM entries WHERE completion_date IS NOT NULL AND substr(completion_date, 6, 5) = $1${adultExclusionSql()} ORDER BY completion_date DESC, id DESC LIMIT 12`,
+      `SELECT * FROM entries WHERE completion_date IS NOT NULL AND substr(completion_date, 6, 5) = $1${adultExclusionSql()}${dashboardListAdultExclusionSql()} ORDER BY completion_date DESC, id DESC LIMIT 12`,
       [`${month}-${day}`]
     );
   }

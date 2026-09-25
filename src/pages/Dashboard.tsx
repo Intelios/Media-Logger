@@ -9,7 +9,12 @@ import { MediaListCard } from "../components/MediaListCard";
 import { CoverImage } from "../components/CoverImage";
 import type { MediaAward } from "../components/MediaCard";
 import type { MediaEntry } from "../lib/db";
-import { getDisplayName, FEATURED_ADULT_VISIBILITY_CHANGED_EVENT } from "../lib/settings";
+import {
+  getDisplayName,
+  isDashboardListAdultAllowed,
+  DASHBOARD_LIST_ADULT_VISIBILITY_CHANGED_EVENT,
+  FEATURED_ADULT_VISIBILITY_CHANGED_EVENT,
+} from "../lib/settings";
 import { getReplayTerm } from "../lib/media-config";
 import { formatTodayMD } from "../lib/dates";
 import { getAvailableNavigationYears, getCurrentYearString } from "../lib/navigation-years";
@@ -49,6 +54,7 @@ export default function Dashboard() {
   const [onThisDay, setOnThisDay] = useState<MediaEntry[]>([]);
   const [onThisDayAwards, setOnThisDayAwards] = useState<Map<number, MediaAward[]>>(new Map());
   const [onThisDayLoaded, setOnThisDayLoaded] = useState(false);
+  const [dashboardListAdultAllowed, setDashboardListAdultAllowed] = useState(isDashboardListAdultAllowed);
   const [isRerolling, setIsRerolling] = useState(false);
   const [spinKey, setSpinKey] = useState(0);
 
@@ -91,9 +97,42 @@ export default function Dashboard() {
       if (!cancelled) setStats(data);
     }).catch((error) => console.error('Failed to load dashboard stats:', error));
 
+    void loadFeatured();
+
+    // Refresh the featured entry when its adult filter changes in Settings.
+    const handleFeaturedAdultChange = () => loadFeatured();
+    window.addEventListener(FEATURED_ADULT_VISIBILITY_CHANGED_EVENT, handleFeaturedAdultChange);
+
+    return () => {
+      cancelled = true;
+      // Invalidate any in-flight featured load.
+      loadIdRef.current++;
+      window.removeEventListener(FEATURED_ADULT_VISIBILITY_CHANGED_EVENT, handleFeaturedAdultChange);
+    };
+  }, [loadFeatured]);
+
+  useEffect(() => {
+    const handleDashboardListAdultChange = () => {
+      // Clear previously loaded cards immediately while the new queries run.
+      setRecent([]);
+      setRecentLoaded(false);
+      setOnThisDay([]);
+      setOnThisDayAwards(new Map());
+      setOnThisDayLoaded(false);
+      setDashboardListAdultAllowed(isDashboardListAdultAllowed());
+    };
+    window.addEventListener(DASHBOARD_LIST_ADULT_VISIBILITY_CHANGED_EVENT, handleDashboardListAdultChange);
+    return () => window.removeEventListener(DASHBOARD_LIST_ADULT_VISIBILITY_CHANGED_EVENT, handleDashboardListAdultChange);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const scope = mediaQueryKeys.scope();
+    const listAdultScope = dashboardListAdultAllowed ? 'list-adult:on' : 'list-adult:off';
+
     void Promise.all([
       queryClient.fetchQuery({
-        queryKey: [...mediaQueryKeys.dashboard, ...scope, 'recent'],
+        queryKey: [...mediaQueryKeys.dashboard, ...scope, listAdultScope, 'recent'],
         queryFn: () => dashboardLogic.getRecentEntries(),
       }),
       queryClient.fetchQuery({
@@ -113,7 +152,7 @@ export default function Dashboard() {
     });
 
     void queryClient.fetchQuery({
-      queryKey: [...mediaQueryKeys.dashboard, ...scope, 'on-this-day', formatTodayMD()],
+      queryKey: [...mediaQueryKeys.dashboard, ...scope, listAdultScope, 'on-this-day', formatTodayMD()],
       queryFn: () => dashboardLogic.getOnThisDayEntries(),
     }).then((entries) => {
       if (cancelled) return;
@@ -136,20 +175,10 @@ export default function Dashboard() {
       if (!cancelled) setOnThisDayLoaded(true);
     });
 
-    void loadFeatured();
-
-    // Refresh the featured entry when the Featured-Entry adult filter changes
-    // in Settings, so the card updates without an app restart.
-    const handleFeaturedAdultChange = () => loadFeatured();
-    window.addEventListener(FEATURED_ADULT_VISIBILITY_CHANGED_EVENT, handleFeaturedAdultChange);
-
     return () => {
       cancelled = true;
-      // Invalidate any in-flight featured load.
-      loadIdRef.current++;
-      window.removeEventListener(FEATURED_ADULT_VISIBILITY_CHANGED_EVENT, handleFeaturedAdultChange);
     };
-  }, [loadFeatured]);
+  }, [dashboardListAdultAllowed]);
 
   const handleCardClick = (entry: MediaEntry) => {
     if (entry.year_completed) {

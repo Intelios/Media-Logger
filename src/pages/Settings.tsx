@@ -61,6 +61,8 @@ import {
     setAdultMediaEnabled,
     isFeaturedAdultAllowed,
     setFeaturedAdultAllowed,
+    isDashboardListAdultAllowed,
+    setDashboardListAdultAllowed,
     isCoverArtEnabled,
     setCoverArtEnabled,
     getTmdbApiKey,
@@ -244,6 +246,7 @@ export default function Settings() {
 
     // Featured entry adult filter (independent of the global Adult Media toggle)
     const [featuredAdultAllowed, setFeaturedAdultAllowedState] = useState<boolean>(() => isFeaturedAdultAllowed());
+    const [dashboardListAdultAllowed, setDashboardListAdultAllowedState] = useState<boolean>(() => isDashboardListAdultAllowed());
 
     const { colorTheme, glassStyle, setColorTheme, setGlassStyle, colorThemes } = useTheme();
 
@@ -323,6 +326,7 @@ export default function Settings() {
         setRatingDisplayModeState(getRatingDisplayMode());
         setAdultMediaEnabledState(isAdultMediaEnabled());
         setFeaturedAdultAllowedState(isFeaturedAdultAllowed());
+        setDashboardListAdultAllowedState(isDashboardListAdultAllowed());
 
     }, []);
 
@@ -677,6 +681,13 @@ export default function Settings() {
         setFeaturedAdultAllowed(allowed);
         setFeaturedAdultAllowedState(allowed);
         showToast(allowed ? 'Adult entries eligible for featured' : 'Adult entries hidden from featured');
+    };
+
+    const handleDashboardListAdultToggle = (allowed: boolean) => {
+        if (allowed === dashboardListAdultAllowed) return;
+        setDashboardListAdultAllowed(allowed);
+        setDashboardListAdultAllowedState(allowed);
+        showToast(allowed ? 'Adult entries shown in dashboard lists' : 'Adult entries hidden from dashboard lists');
     };
 
     const handleMcpEnabledToggle = async (enabled: boolean) => {
@@ -1205,6 +1216,35 @@ export default function Settings() {
                                         onClick={() => adultMediaEnabled && handleFeaturedAdultToggle(false)}
                                         disabled={!adultMediaEnabled}
                                         className={`segmented-control-item ${!featuredAdultAllowed && adultMediaEnabled ? 'active' : ''}`}
+                                    >
+                                        Off
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className="settings-card">
+                            <div className="settings-row">
+                                <div>
+                                    <div className="settings-row-label">Adult Entries in Dashboard Lists</div>
+                                    <div className="settings-row-description">
+                                        {adultMediaEnabled
+                                            ? 'Controls whether adult entries appear in Recent Completions and On This Day. When off, they remain visible elsewhere in your library.'
+                                            : 'Enable Adult Media above to manage this. Adult entries are already excluded from these dashboard lists.'}
+                                    </div>
+                                </div>
+                                <div className={`segmented-control ${!adultMediaEnabled ? 'segmented-control-disabled' : ''}`}>
+                                    <button
+                                        onClick={() => handleDashboardListAdultToggle(true)}
+                                        disabled={!adultMediaEnabled}
+                                        className={`segmented-control-item ${dashboardListAdultAllowed && adultMediaEnabled ? 'active' : ''}`}
+                                    >
+                                        On
+                                    </button>
+                                    <button
+                                        onClick={() => handleDashboardListAdultToggle(false)}
+                                        disabled={!adultMediaEnabled}
+                                        className={`segmented-control-item ${!dashboardListAdultAllowed && adultMediaEnabled ? 'active' : ''}`}
                                     >
                                         Off
                                     </button>

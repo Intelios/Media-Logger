@@ -9,6 +9,7 @@ const NAVIGATION_YEARS_KEY = 'media-logger-navigation-years';
 const RATING_DISPLAY_MODE_KEY = 'media-logger-rating-display-mode';
 const ADULT_MEDIA_ENABLED_KEY = 'media-logger-adult-media-enabled';
 const FEATURED_ADULT_ALLOWED_KEY = 'media-logger-featured-adult-allowed';
+const DASHBOARD_LIST_ADULT_ALLOWED_KEY = 'media-logger-dashboard-list-adult-allowed';
 const BACKLOG_UNRELEASED_COLLAPSED_KEY = 'media-logger-backlog-unreleased-collapsed';
 const BACKLOG_DENSITY_KEY = 'media-logger-backlog-density';
 const COLLECTIONS_SORT_MODE_KEY = 'media-logger-collections-sort';
@@ -31,6 +32,9 @@ export const ADULT_MEDIA_VISIBILITY_CHANGED_EVENT = 'adult-media-visibility-chan
  * Dashboard can re-fetch its featured entry without an app restart.
  */
 export const FEATURED_ADULT_VISIBILITY_CHANGED_EVENT = 'featured-adult-visibility-changed';
+
+/** Window event fired when adult visibility in the Dashboard lists changes. */
+export const DASHBOARD_LIST_ADULT_VISIBILITY_CHANGED_EVENT = 'dashboard-list-adult-visibility-changed';
 
 // Default display name for the dashboard greeting
 const DEFAULT_DISPLAY_NAME = 'Collector';
@@ -207,6 +211,20 @@ export function isFeaturedAdultAllowed(): boolean {
 export function setFeaturedAdultAllowed(allowed: boolean): void {
     localStorage.setItem(FEATURED_ADULT_ALLOWED_KEY, allowed ? 'true' : 'false');
     window.dispatchEvent(new CustomEvent(FEATURED_ADULT_VISIBILITY_CHANGED_EVENT));
+}
+
+/**
+ * Whether adult entries can appear in Recent Completions and On This Day.
+ * Defaults to true to preserve the existing Dashboard behavior. This setting
+ * does not affect entries elsewhere in the library.
+ */
+export function isDashboardListAdultAllowed(): boolean {
+    return localStorage.getItem(DASHBOARD_LIST_ADULT_ALLOWED_KEY) !== 'false';
+}
+
+export function setDashboardListAdultAllowed(allowed: boolean): void {
+    localStorage.setItem(DASHBOARD_LIST_ADULT_ALLOWED_KEY, allowed ? 'true' : 'false');
+    window.dispatchEvent(new CustomEvent(DASHBOARD_LIST_ADULT_VISIBILITY_CHANGED_EVENT));
 }
 
 /**
