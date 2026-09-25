@@ -111,11 +111,16 @@ export interface SearchFilterOptions {
   series: string[];
 }
 
+/**
+ * Random Pick filters. Chip filters are tri-state: a value sits in at most one
+ * of the include/exclude arrays for its field. Includes match any listed value;
+ * excludes drop every listed value; fields combine with AND.
+ */
 export interface RandomPickFilters {
-  query: string;
   entryTypes: string[];
-  ratingOperator: "any" | "eq" | "gte" | "lte";
-  ratingValue: number;
+  excludedEntryTypes: string[];
+  /** Inclusive score bounds (0–10); null means no rating filter. */
+  scoreRange: { min: number; max: number } | null;
   yearMode: "any" | "exact" | "range";
   yearExact: number | null;
   yearFrom: number | null;
@@ -124,12 +129,17 @@ export interface RandomPickFilters {
   rewatchStatus: "any" | "never" | "has";
   duplicates: "any" | "yes" | "no";
   genres: string[];
+  excludedGenres: string[];
   platforms: string[];
+  excludedPlatforms: string[];
+  franchises: string[];
+  excludedFranchises: string[];
+  series: string[];
+  excludedSeries: string[];
+  /** Carried over from Search via "Use search filters"; no chip section of their own. */
   actresses: string[];
   directors: string[];
   authors: string[];
-  franchises: string[];
-  series: string[];
 }
 
 export interface RandomPickFilterOptions {

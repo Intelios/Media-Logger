@@ -1,7 +1,7 @@
 import { isAdultMediaEnabled } from '../settings';
 import { ADULT_ENTRY_TYPES } from '../media-config';
 import { connect } from './connection';
-import { adultExclusionSql, escapeLike } from './shared';
+import { adultExclusionSql } from './shared';
 import { getDistinctColumnValues } from './distinct-values';
 import type { MediaEntry, RandomPickFilters, RandomPickFilterOptions } from './types';
 
@@ -53,46 +53,43 @@ export async function getRandomPickFilterOptions(): Promise<RandomPickFilterOpti
   };
 }
 
+// Genre is a comma-delimited string. Wrapping the lower-cased list in commas
+// (with the ", " / " ," spacing normalised away, as the actress filter does)
+// lets each chip match one exact genre token: excluding "RPG" must not also
+// drop an entry whose only related genre is "Action RPG".
+const GENRE_TOKENS_SQL = `(',' || REPLACE(REPLACE(LOWER(COALESCE(genre, '')), ', ', ','), ' ,', ',') || ',')`;
+
 function buildRandomPickWhere(filters: RandomPickFilters): { whereClause: string; params: unknown[] } {
   const conditions: string[] = [];
   const params: unknown[] = [];
 
-  // Free-text query matches the same columns as searchEntries so
-  // "Use current search" yields the same pool as the search page.
-  const query = filters.query?.trim().toLowerCase();
-  if (query) {
-    const searchableColumns = [
-      'name',
-      'author',
-      'artist',
-      'genre',
-      'director',
-      'actress',
-      'platform',
-      'series',
-    ];
-
-    const likeValue = `%${escapeLike(query)}%`;
-    const searchClauses = searchableColumns.map((column) => {
-      params.push(likeValue);
-      return `LOWER(COALESCE(${column}, '')) LIKE $${params.length} ESCAPE '\\'`;
-    });
-
-    conditions.push(`(${searchClauses.join(' OR ')})`);
-  }
-
-  if (filters.entryTypes.length > 0) {
-    const placeholders = filters.entryTypes.map((v) => {
+  const placeholdersFor = (values: string[]) =>
+    values.map((v) => {
       params.push(v);
       return `$${params.length}`;
     });
-    conditions.push(`entry_type IN (${placeholders.join(', ')})`);
-  }
 
-  if (filters.ratingOperator !== "any") {
-    const ops = { eq: "=", gte: ">=", lte: "<=" } as const;
-    params.push(filters.ratingValue);
-    conditions.push(`review_score ${ops[filters.ratingOperator]} $${params.length}`);
+  // Includes match any listed value.
+  const addInFilter = (column: string, values: string[]) => {
+    if (values.length === 0) return;
+    conditions.push(`${column} IN (${placeholdersFor(values).join(', ')})`);
+  };
+
+  // Excludes drop every listed value. A row with no value for the column is
+  // never excluded — "anything but Switch" keeps entries with no platform.
+  const addNotInFilter = (column: string, values: string[]) => {
+    if (values.length === 0) return;
+    conditions.push(`(${column} IS NULL OR ${column} NOT IN (${placeholdersFor(values).join(', ')}))`);
+  };
+
+  addInFilter('entry_type', filters.entryTypes);
+  addNotInFilter('entry_type', filters.excludedEntryTypes);
+
+  if (filters.scoreRange) {
+    params.push(filters.scoreRange.min);
+    conditions.push(`review_score >= $${params.length}`);
+    params.push(filters.scoreRange.max);
+    conditions.push(`review_score <= $${params.length}`);
   }
 
   if (filters.yearMode === "exact" && filters.yearExact != null) {
@@ -137,29 +134,25 @@ function buildRandomPickWhere(filters: RandomPickFilters): { whereClause: string
     );
   }
 
+  const genreTokenMatch = (genre: string) => {
+    params.push(genre.trim().toLowerCase());
+    return `INSTR(${GENRE_TOKENS_SQL}, ',' || $${params.length} || ',')`;
+  };
   if (filters.genres.length > 0) {
-    const genreClauses = filters.genres.map((g) => {
-      const escaped = escapeLike(g);
-      params.push(`%${escaped}%`);
-      return `genre LIKE $${params.length} ESCAPE '\\'`;
-    });
-    conditions.push(`(${genreClauses.join(' OR ')})`);
+    conditions.push(`(${filters.genres.map((g) => `${genreTokenMatch(g)} > 0`).join(' OR ')})`);
+  }
+  for (const genre of filters.excludedGenres) {
+    conditions.push(`${genreTokenMatch(genre)} = 0`);
   }
 
-  const addInFilter = (column: string, values: string[]) => {
-    if (values.length === 0) return;
-    const placeholders = values.map((v) => {
-      params.push(v);
-      return `$${params.length}`;
-    });
-    conditions.push(`${column} IN (${placeholders.join(', ')})`);
-  };
-
   addInFilter('platform', filters.platforms);
+  addNotInFilter('platform', filters.excludedPlatforms);
+  addInFilter('franchise', filters.franchises);
+  addNotInFilter('franchise', filters.excludedFranchises);
+  addInFilter('series', filters.series);
+  addNotInFilter('series', filters.excludedSeries);
   addInFilter('director', filters.directors);
   addInFilter('author', filters.authors);
-  addInFilter('franchise', filters.franchises);
-  addInFilter('series', filters.series);
 
   if (filters.actresses.length > 0) {
     const normalizedActressColumn = `(',' || REPLACE(REPLACE(COALESCE(actress, ''), ', ', ','), ' ,', ',') || ',')`;
@@ -191,15 +184,15 @@ export async function getRandomPickCount(filters: RandomPickFilters): Promise<nu
   return result[0].count;
 }
 
-// Number of candidate names shown in the Random Pick reel. The winner is drawn
+// Number of candidates dealt by Random Pick. The winner is drawn
 // from this same batch, so every name that flashes by is a genuine candidate
 // from the filtered pool.
 const RANDOM_PICK_POOL_SIZE = 12;
 
 /**
- * A random batch of entries from the filtered pool. The modal rolls through
+ * A random batch of entries from the filtered pool. The card deal flashes
  * these names and picks the winner from the batch — one query serves both the
- * animation and the result, and the winner always appears in the reel.
+ * animation and the result, and the winner is always one of the dealt cards.
  */
 export async function getRandomPickCandidates(filters: RandomPickFilters): Promise<MediaEntry[]> {
   const db = await connect();

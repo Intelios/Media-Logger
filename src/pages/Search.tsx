@@ -1,20 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { Search as SearchIcon, X, Filter, ChevronDown, ChevronUp, RotateCcw, Dices, Star } from "lucide-react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { dbService, type EntryCardSummary, type MediaEntry, type SearchFilterOptions } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
 import { ExpansionsModal } from "../components/ExpansionsModal";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
-import { RandomPickModal } from "../components/RandomPickModal";
+import { RandomPickView } from "../components/random-pick/RandomPickView";
+import { useHoverTooltip } from "../components/HoverTooltip";
 import { ScoreRangeSlider, formatScoreRange, type ScoreRange } from "../components/ScoreRangeSlider";
 import { cn } from "../lib/utils_ui";
 import { getVisibleEntryTypes, useAdultMediaEnabled } from "../lib/media-config";
 import { VirtualizedCardGrid } from "../components/VirtualizedCardGrid";
 import { beginPerformanceSpan } from "../lib/performance-diagnostics";
 import { mediaQueryKeys, queryClient } from "../lib/query-client";
+import { useMainScrollContainer } from "../lib/scroll-container";
 
 const SEARCH_FILTERS_KEY = "search-filters";
 const RECENT_SEARCHES_KEY = "media-logger-recent-searches";
@@ -63,6 +65,21 @@ const FILTER_LABELS: Record<Exclude<keyof SearchFilters, "scoreRange">, string> 
 };
 
 const shellTransition = { type: "spring", stiffness: 280, damping: 30 } as const;
+
+// Random Pick slides over from the right while Search eases off to the left,
+// like a navigation push; going back reverses both. The outgoing view fades
+// quickly so it never shows through the translucent panels sliding over it.
+const exitFade = { ...shellTransition, opacity: { duration: 0.15 } };
+const searchPanelMotion = {
+  initial: { x: "-8%", opacity: 0 },
+  animate: { x: 0, opacity: 1 },
+  exit: { x: "-8%", opacity: 0, transition: exitFade },
+};
+const randomPanelMotion = {
+  initial: { x: "100%", opacity: 0.4 },
+  animate: { x: 0, opacity: 1 },
+  exit: { x: "100%", opacity: 0, transition: exitFade },
+};
 
 const isScoreRange = (value: unknown): value is ScoreRange =>
   typeof value === "object" &&
@@ -141,7 +158,12 @@ export default function SearchPage() {
   const [recentSearches, setRecentSearches] = useState<string[]>(loadRecentSearches);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [showRandomPick, setShowRandomPick] = useState(false);
+  // Random Pick lives at /search?view=random so the sidebar Search link and
+  // ⌘3 (plain /search) slide straight back to the search view.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isRandomView = searchParams.get("view") === "random";
+  const { scrollToTop } = useMainScrollContainer();
+  const { bindTooltip } = useHoverTooltip();
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
   const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
   const searchGenerationRef = useRef(0);
@@ -447,6 +469,19 @@ export default function SearchPage() {
     setQuery("");
   };
 
+  const openRandomPick = () => {
+    scrollToTop("auto");
+    setSearchParams({ view: "random" });
+  };
+
+  const closeRandomPick = useCallback(() => {
+    setSearchParams({}, { replace: true });
+  }, [setSearchParams]);
+
+  const handleRandomPickEntryChanged = useCallback(() => {
+    setRefreshToken((current) => current + 1);
+  }, []);
+
   const renderAdvancedFiltersPanel = () => (
     <motion.div
       initial={{ opacity: 0, y: -8 }}
@@ -642,292 +677,324 @@ export default function SearchPage() {
   );
 
   return (
-    <div className="pb-20">
-      {!showResultsLayout ? (
-        <div
-          key="hero"
-          className="flex min-h-[calc(100vh-3rem)] flex-col items-center justify-center gap-6"
-        >
-          <div className="w-full max-w-2xl">{renderSearchShell("hero")}</div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.15 }}
-            className="w-full max-w-2xl space-y-4"
-          >
-            {recentSearches.length > 0 ? (
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Recent searches</p>
-                <div className="flex flex-wrap gap-2">
-                  {recentSearches.map((term) => (
-                    <span
-                      key={term}
-                      className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 py-1 pl-3 pr-1.5 text-sm text-gray-300"
-                    >
-                      <button
-                        onClick={() => {
-                          setQuery(term);
-                          commitSearch(term);
-                        }}
-                        className="hover:text-white"
-                      >
-                        {term}
-                      </button>
-                      <button
-                        onClick={() => removeRecentSearch(term)}
-                        className="rounded-full p-0.5 text-gray-500 hover:bg-white/10 hover:text-white"
-                        aria-label={`Remove ${term}`}
-                      >
-                        <X size={12} />
-                      </button>
-                    </span>
-                  ))}
+    // overflow-x-clip hides the slide without creating a scroll container, so
+    // the results header stays sticky; -mx-6/px-6 keeps its full-bleed edge.
+    <div className={cn("relative -mx-6 overflow-x-clip px-6", isRandomView && "h-full")}>
+      <AnimatePresence initial={false} mode="popLayout">
+        {isRandomView ? (
+          <motion.div key="random-pick" {...randomPanelMotion} transition={shellTransition} className="h-full">
+            <RandomPickView
+              onBack={closeRandomPick}
+              searchFilters={settledFilterCount > 0 ? settledFilters : null}
+              onEntryChanged={handleRandomPickEntryChanged}
+            />
+          </motion.div>
+        ) : (
+          <motion.div key="search" {...searchPanelMotion} transition={shellTransition} className="pb-20">
+            {!showResultsLayout ? (
+              <div
+                key="hero"
+                className="flex min-h-[calc(100vh-3rem)] flex-col items-center justify-center gap-6"
+              >
+                <div className="relative flex w-full justify-center">
+                  <div className="w-full max-w-2xl">{renderSearchShell("hero")}</div>
+                    {/* Pinned to the right edge of the page, level with the search box.
+                        Random Pick is only reachable while nothing is typed. */}
+                    <AnimatePresence>
+                      {!query && (
+                        <motion.button
+                          key="random-pick-entry"
+                          initial={{ opacity: 0, x: 8, y: "-50%" }}
+                          animate={{ opacity: 1, x: 0, y: "-50%" }}
+                          exit={{ opacity: 0, x: 8, y: "-50%" }}
+                          transition={{ duration: 0.15 }}
+                          onClick={openRandomPick}
+                          aria-label="Random Pick"
+                          {...bindTooltip(
+                            <span className="text-xs font-medium text-text">Random Pick</span>,
+                            { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" },
+                          )}
+                          className="group absolute right-0 top-1/2 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-gray-400 backdrop-blur-sm transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white"
+                        >
+                          <Dices size={24} className="transition-transform duration-300 group-hover:rotate-[20deg]" />
+                        </motion.button>
+                      )}
+                    </AnimatePresence>
                 </div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="w-full max-w-2xl space-y-4"
+                >
+                  {recentSearches.length > 0 ? (
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Recent searches</p>
+                      <div className="flex flex-wrap gap-2">
+                        {recentSearches.map((term) => (
+                          <span
+                            key={term}
+                            className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 py-1 pl-3 pr-1.5 text-sm text-gray-300"
+                          >
+                            <button
+                              onClick={() => {
+                                setQuery(term);
+                                commitSearch(term);
+                              }}
+                              className="hover:text-white"
+                            >
+                              {term}
+                            </button>
+                            <button
+                              onClick={() => removeRecentSearch(term)}
+                              className="rounded-full p-0.5 text-gray-500 hover:bg-white/10 hover:text-white"
+                              aria-label={`Remove ${term}`}
+                            >
+                              <X size={12} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      Start typing to search your collection — or try a random pick.
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setShowAdvancedFilters((current) => !current)}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
+                        showAdvancedFilters || activeFilterCount > 0
+                          ? "bg-white/10 border-white/20 text-white"
+                          : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
+                      )}
+                    >
+                      <Filter size={16} />
+                      <span>Filters</span>
+                      {activeFilterCount > 0 && (
+                        <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
+                          {activeFilterCount}
+                        </span>
+                      )}
+                      {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                    <button
+                      onClick={() => setShowRatingPanel((current) => !current)}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
+                        showRatingPanel || filters.scoreRange
+                          ? "bg-white/10 border-white/20 text-white"
+                          : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
+                      )}
+                    >
+                      <Star size={16} />
+                      <span>Rating</span>
+                      {settledFilters.scoreRange && (
+                        <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
+                          {formatScoreRange(settledFilters.scoreRange)}
+                        </span>
+                      )}
+                      {showRatingPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                  </div>
+
+                  {showAdvancedFilters && renderAdvancedFiltersPanel()}
+                  {showRatingPanel && renderRatingPanel()}
+                </motion.div>
               </div>
             ) : (
-              <p className="text-sm text-gray-500">
-                Start typing to search your collection — or try a random pick.
-              </p>
-            )}
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowAdvancedFilters((current) => !current)}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
-                  showAdvancedFilters || activeFilterCount > 0
-                    ? "bg-white/10 border-white/20 text-white"
-                    : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
-                )}
-              >
-                <Filter size={16} />
-                <span>Filters</span>
-                {activeFilterCount > 0 && (
-                  <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
-                    {activeFilterCount}
-                  </span>
-                )}
-                {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-              <button
-                onClick={() => setShowRatingPanel((current) => !current)}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
-                  showRatingPanel || filters.scoreRange
-                    ? "bg-white/10 border-white/20 text-white"
-                    : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
-                )}
-              >
-                <Star size={16} />
-                <span>Rating</span>
-                {settledFilters.scoreRange && (
-                  <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
-                    {formatScoreRange(settledFilters.scoreRange)}
-                  </span>
-                )}
-                {showRatingPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-              <button
-                onClick={() => setShowRandomPick(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white"
-              >
-                <Dices size={16} />
-                <span>Random Pick</span>
-              </button>
-            </div>
-
-            {showAdvancedFilters && renderAdvancedFiltersPanel()}
-            {showRatingPanel && renderRatingPanel()}
-          </motion.div>
-        </div>
-      ) : (
-        <div key="results">
-          <div
-            className="sticky top-0 z-50 -mx-6 border-b border-white/10 px-6 py-3"
-            style={{ backgroundColor: "var(--color-background)" }}
-          >
-            <div className="mx-auto flex max-w-7xl items-center gap-3">
-              {renderSearchShell("header")}
-
-              <motion.div
-                initial={{ opacity: 0, x: 8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex shrink-0 items-center gap-3"
-              >
-                <span className="whitespace-nowrap text-sm text-gray-400">
-                  {isLoadingResults ? (
-                    <span className="flex items-center gap-2">
-                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-primary" />
-                      Updating…
-                    </span>
-                  ) : (
-                    <>
-                      {totalResults} result{totalResults !== 1 ? "s" : ""}
-                    </>
-                  )}
-                </span>
-                <button
-                  onClick={() => setShowAdvancedFilters((current) => !current)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
-                    showAdvancedFilters || activeFilterCount > 0
-                      ? "bg-white/10 border-white/20 text-white"
-                      : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
-                  )}
+              <div key="results">
+                <div
+                  className="sticky top-0 z-50 -mx-6 border-b border-white/10 px-6 py-3"
+                  style={{ backgroundColor: "var(--color-background)" }}
                 >
-                  <Filter size={16} />
-                  <span>Filters</span>
-                  {activeFilterCount > 0 && (
-                    <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                  {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                </button>
-                <button
-                  onClick={() => setShowRatingPanel((current) => !current)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
-                    showRatingPanel || filters.scoreRange
-                      ? "bg-white/10 border-white/20 text-white"
-                      : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
-                  )}
-                >
-                  <Star size={16} />
-                  <span>Rating</span>
-                  {settledFilters.scoreRange && (
-                    <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
-                      {formatScoreRange(settledFilters.scoreRange)}
-                    </span>
-                  )}
-                  {showRatingPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                </button>
-                <button
-                  onClick={() => setShowRandomPick(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white"
-                >
-                  <Dices size={16} />
-                  <span>Random Pick</span>
-                </button>
-              </motion.div>
-            </div>
+                  <div className="mx-auto flex max-w-7xl items-center gap-3">
+                    {renderSearchShell("header")}
 
-            {activeFilterCount > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.15 }}
-                className="mx-auto mt-2 flex max-w-7xl flex-wrap items-center gap-2"
-              >
-                {activeFilterChips.map((chip) => (
-                  <span
-                    key={`${chip.key}:${chip.value}`}
-                    className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 py-1 pl-2.5 pr-1.5 text-xs text-gray-300"
-                  >
-                    <span className="text-gray-500">{chip.label}</span>
-                    <span>{chip.value}</span>
-                    <button
-                      onClick={() => removeFilterValue(chip.key, chip.value)}
-                      className="rounded-full p-0.5 text-gray-500 hover:bg-white/10 hover:text-white"
-                      aria-label={`Remove ${chip.label} ${chip.value}`}
+                    <motion.div
+                      initial={{ opacity: 0, x: 8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex shrink-0 items-center gap-3"
                     >
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-              </motion.div>
-            )}
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
-          >
-            {showAdvancedFilters && (
-              <div className="mx-auto mt-6 max-w-7xl">
-                {renderAdvancedFiltersPanel()}
-              </div>
-            )}
-
-            {showRatingPanel && (
-              <div className="mx-auto mt-6 max-w-7xl">
-                {renderRatingPanel()}
-              </div>
-            )}
-
-            <div className="mx-auto mt-6 max-w-7xl space-y-6">
-              {results.length > 0 ? (
-                <>
-                  <VirtualizedCardGrid
-                    items={results}
-                    getItemKey={(entry) => entry.id}
-                    columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
-                    gap={24}
-                    estimatedRowHeight={520}
-                    onEndReached={loadMoreResults}
-                    className={cn('transition-opacity duration-150', isLoadingResults && 'opacity-80')}
-                    ariaLabel="Search results"
-                    renderItem={(entry) => (
-                      <MediaCard
-                        entry={entry}
-                        imagePriority="auto"
-                        onEdit={handleEdit}
-                        onDelete={handleDelete}
-                        onNavigateToParent={handleNavigateToParent}
-                        awards={entry.id ? awardsMap.get(entry.id) : undefined}
-                      />
+                      <span className="whitespace-nowrap text-sm text-gray-400">
+                        {isLoadingResults ? (
+                          <span className="flex items-center gap-2">
+                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-primary" />
+                            Updating…
+                          </span>
+                        ) : (
+                          <>
+                            {totalResults} result{totalResults !== 1 ? "s" : ""}
+                          </>
+                        )}
+                      </span>
+                      <button
+                        onClick={() => setShowAdvancedFilters((current) => !current)}
+                        className={cn(
+                          "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
+                          showAdvancedFilters || activeFilterCount > 0
+                            ? "bg-white/10 border-white/20 text-white"
+                            : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
+                        )}
+                      >
+                        <Filter size={16} />
+                        <span>Filters</span>
+                        {activeFilterCount > 0 && (
+                          <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
+                            {activeFilterCount}
+                          </span>
+                        )}
+                        {showAdvancedFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                      <button
+                        onClick={() => setShowRatingPanel((current) => !current)}
+                        className={cn(
+                          "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all",
+                          showRatingPanel || filters.scoreRange
+                            ? "bg-white/10 border-white/20 text-white"
+                            : "bg-transparent border-white/10 text-gray-400 hover:border-white/30 hover:text-white",
+                        )}
+                      >
+                        <Star size={16} />
+                        <span>Rating</span>
+                        {settledFilters.scoreRange && (
+                          <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-full text-xs font-bold">
+                            {formatScoreRange(settledFilters.scoreRange)}
+                          </span>
+                        )}
+                        {showRatingPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                    </motion.div>
+                    {!query && (
+                      <button
+                        onClick={openRandomPick}
+                        aria-label="Random Pick"
+                        {...bindTooltip(
+                          <span className="text-xs font-medium text-text">Random Pick</span>,
+                          { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" },
+                        )}
+                        className="group ml-auto flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-xl border border-white/10 text-gray-400 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white"
+                      >
+                        <Dices size={20} className="transition-transform duration-300 group-hover:rotate-[20deg]" />
+                      </button>
                     )}
-                  />
-                  {isLoadingMore && (
-                    <div className="flex items-center justify-center gap-2 py-6 text-sm text-gray-500">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-primary" />
-                      Loading more results…
+                  </div>
+
+                  {activeFilterCount > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="mx-auto mt-2 flex max-w-7xl flex-wrap items-center gap-2"
+                    >
+                      {activeFilterChips.map((chip) => (
+                        <span
+                          key={`${chip.key}:${chip.value}`}
+                          className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 py-1 pl-2.5 pr-1.5 text-xs text-gray-300"
+                        >
+                          <span className="text-gray-500">{chip.label}</span>
+                          <span>{chip.value}</span>
+                          <button
+                            onClick={() => removeFilterValue(chip.key, chip.value)}
+                            className="rounded-full p-0.5 text-gray-500 hover:bg-white/10 hover:text-white"
+                            aria-label={`Remove ${chip.label} ${chip.value}`}
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </motion.div>
+                  )}
+                </div>
+
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {showAdvancedFilters && (
+                    <div className="mx-auto mt-6 max-w-7xl">
+                      {renderAdvancedFiltersPanel()}
                     </div>
                   )}
-                </>
-              ) : isLoadingResults ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 animate-pulse">
-                    <SearchIcon style={{ color: 'var(--color-primary)', opacity: 0.6 }} size={32} />
+
+                  {showRatingPanel && (
+                    <div className="mx-auto mt-6 max-w-7xl">
+                      {renderRatingPanel()}
+                    </div>
+                  )}
+
+                  <div className="mx-auto mt-6 max-w-7xl space-y-6">
+                    {results.length > 0 ? (
+                      <>
+                        <VirtualizedCardGrid
+                          items={results}
+                          getItemKey={(entry) => entry.id}
+                          columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
+                          gap={24}
+                          estimatedRowHeight={520}
+                          onEndReached={loadMoreResults}
+                          className={cn('transition-opacity duration-150', isLoadingResults && 'opacity-80')}
+                          ariaLabel="Search results"
+                          renderItem={(entry) => (
+                            <MediaCard
+                              entry={entry}
+                              imagePriority="auto"
+                              onEdit={handleEdit}
+                              onDelete={handleDelete}
+                              onNavigateToParent={handleNavigateToParent}
+                              awards={entry.id ? awardsMap.get(entry.id) : undefined}
+                            />
+                          )}
+                        />
+                        {isLoadingMore && (
+                          <div className="flex items-center justify-center gap-2 py-6 text-sm text-gray-500">
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-primary" />
+                            Loading more results…
+                          </div>
+                        )}
+                      </>
+                    ) : isLoadingResults ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 animate-pulse">
+                          <SearchIcon style={{ color: 'var(--color-primary)', opacity: 0.6 }} size={32} />
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-300 mb-2">Searching your collection</h3>
+                        <p className="text-gray-500 max-w-md">
+                          Updating results for "{query}".
+                        </p>
+                      </div>
+                    ) : hasActiveSearch ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6">
+                          <SearchIcon className="text-gray-600" size={32} />
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-300 mb-2">No results found</h3>
+                        <p className="text-gray-500 max-w-md">
+                          No entries match your search criteria. Try adjusting your search terms or filters.
+                        </p>
+                        <div className="mt-6 flex items-center gap-3">
+                          <button
+                            onClick={clearAllFilters}
+                            className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm text-gray-300 transition-colors"
+                          >
+                            Clear search & filters
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-300 mb-2">Searching your collection</h3>
-                  <p className="text-gray-500 max-w-md">
-                    Updating results for "{query}".
-                  </p>
-                </div>
-              ) : hasActiveSearch ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6">
-                    <SearchIcon className="text-gray-600" size={32} />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-300 mb-2">No results found</h3>
-                  <p className="text-gray-500 max-w-md">
-                    No entries match your search criteria. Try adjusting your search terms or filters.
-                  </p>
-                  <div className="mt-6 flex items-center gap-3">
-                    <button
-                      onClick={clearAllFilters}
-                      className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm text-gray-300 transition-colors"
-                    >
-                      Clear search & filters
-                    </button>
-                    <button
-                      onClick={() => setShowRandomPick(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm text-gray-300 transition-colors"
-                    >
-                      <Dices size={16} />
-                      Random pick from these filters
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
+                </motion.div>
+              </div>
+            )}
           </motion.div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       <EntryForm
         isOpen={isModalOpen}
@@ -947,25 +1014,6 @@ export default function SearchPage() {
           onNavigateToParent={handleNavigateToParent}
         />
       )}
-
-      <RandomPickModal
-        isOpen={showRandomPick}
-        onClose={() => setShowRandomPick(false)}
-        initialSearchContext={
-          hasActiveSearch
-            ? {
-                query,
-                entryTypes: filters.entryTypes,
-                platforms: filters.platforms,
-                actresses: filters.actresses,
-                directors: filters.directors,
-                authors: filters.authors,
-                franchises: filters.franchises,
-                series: filters.series,
-              }
-            : null
-        }
-      />
     </div>
   );
 }
