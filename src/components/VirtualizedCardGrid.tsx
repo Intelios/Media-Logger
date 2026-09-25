@@ -45,6 +45,7 @@ export interface VirtualizedCardGridHandle {
     key: Key,
     options?: VirtualizedCardGridScrollOptions,
   ) => void;
+  scrollToEnd: (behavior?: "auto" | "smooth") => void;
   getScrollElement: () => HTMLElement | null;
 }
 
@@ -289,14 +290,31 @@ function VirtualizedCardGridInner<T>(
     [findIndexByKey, scrollToItemIndex],
   );
 
+  const scrollToEnd = useCallback(
+    (behavior: "auto" | "smooth" = "auto") => {
+      if (items.length === 0) return;
+      if (shouldVirtualize) {
+        // The container's scrollHeight changes as virtual rows are measured.
+        // The virtualizer keeps the final row aligned while that happens.
+        rowVirtualizer.scrollToEnd({ behavior });
+        return;
+      }
+
+      const element = getScrollElement();
+      element?.scrollTo({ top: element.scrollHeight, behavior });
+    },
+    [getScrollElement, items.length, rowVirtualizer, shouldVirtualize],
+  );
+
   useImperativeHandle(
     forwardedRef,
     () => ({
       scrollToIndex: scrollToItemIndex,
       scrollToKey: scrollToItemKey,
+      scrollToEnd,
       getScrollElement,
     }),
-    [getScrollElement, scrollToItemIndex, scrollToItemKey],
+    [getScrollElement, scrollToEnd, scrollToItemIndex, scrollToItemKey],
   );
 
   const highlightedIndex = useMemo(() => {

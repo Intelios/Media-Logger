@@ -8,9 +8,9 @@ import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
 import { ExpansionsModal } from "../components/ExpansionsModal";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
-import { VirtualizedCardGrid } from "../components/VirtualizedCardGrid";
-import { useMainScrollContainer } from "../lib/scroll-container";
+import { VirtualizedCardGrid, type VirtualizedCardGridHandle } from "../components/VirtualizedCardGrid";
 import { mediaQueryKeys, queryClient } from "../lib/query-client";
+import { getLocalTodayDate } from "../lib/dates";
 import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, getVisibleEntryTypes, getVisiblePresetKeys, useAdultMediaEnabled, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 
 const FILTER_STORAGE_KEY = "yearview-filter-types";
@@ -169,12 +169,11 @@ export default function YearView() {
   const [rewatchFilter, setRewatchFilter] = useState<StatusFilter>(() => loadStatusFilter(REWATCH_FILTER_KEY));
   const [subtitlesFilter, setSubtitlesFilter] = useState<StatusFilter>(() => loadStatusFilter(SUBTITLES_FILTER_KEY));
 
-  // Scroll helper
-  const { scrollToBottom } = useMainScrollContainer();
+  const gridRef = useRef<VirtualizedCardGridHandle>(null);
 
   const handleScrollToBottom = useCallback(() => {
-    scrollToBottom("smooth");
-  }, [scrollToBottom]);
+    gridRef.current?.scrollToEnd();
+  }, []);
 
   // Toggle quick filters visibility
   const toggleQuickFilters = () => {
@@ -375,12 +374,12 @@ export default function YearView() {
     // Create a new entry based on the original, but:
     // - Remove the ID (so it creates a new entry)
     // - Set is_rewatch to 1
-    // - Clear the completion date (so user can set a new date)
+    // - Default the completion date to today (still editable in the form)
     const duplicatedEntry: MediaEntry = {
       ...entry,
       id: undefined as unknown as number, // Remove ID to create new entry
       is_rewatch: 1,
-      completion_date: null, // Clear date for new entry
+      completion_date: getLocalTodayDate(),
     };
     setEditingEntry(duplicatedEntry);
     setIsModalOpen(true);
@@ -610,6 +609,7 @@ export default function YearView() {
       {/* Grid */}
       {deferredEntries.length > 0 ? (
         <VirtualizedCardGrid
+          ref={gridRef}
           items={deferredEntries}
           getItemKey={(entry) => entry.id}
           columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5 }}

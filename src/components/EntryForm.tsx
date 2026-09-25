@@ -19,6 +19,7 @@ import {
 import { CoverImage } from "./CoverImage";
 import { CoverSearchModal } from "./CoverSearchModal";
 import { getCoverSearchAvailability } from "../lib/cover-search";
+import { getLocalTodayDate } from "../lib/dates";
 
 interface EntryFormProps {
   initialData?: MediaEntry | null;
@@ -104,7 +105,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
           early_access_version: null,
           is_expansion: 0,
           parent_entry_id: null,
-          completion_date: new Date().toISOString().split('T')[0]
+          completion_date: getLocalTodayDate()
         });
         setPreviewImage("");
       }

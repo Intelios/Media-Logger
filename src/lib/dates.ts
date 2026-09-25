@@ -2,6 +2,14 @@
 // All formatters guard against invalid dates (new Date("garbage") doesn't throw —
 // it produces an Invalid Date that would otherwise stringify into the UI).
 
+// YYYY-MM-DD for date inputs, using the user's local calendar day.
+export const getLocalTodayDate = (): string => {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${today.getFullYear()}-${month}-${day}`;
+};
+
 const ordinalSuffix = (d: number): string => {
   if (d > 3 && d < 21) return 'th';
   switch (d % 10) {

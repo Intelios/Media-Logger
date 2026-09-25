@@ -5,6 +5,7 @@ import { ProfileDetailView } from '../components/profiles/ProfileDetailView';
 import { ProfileIndexView } from '../components/profiles/ProfileIndexView';
 import { useProfilesPageData } from '../components/profiles/useProfilesPageData';
 import { dbService, type MediaEntry } from '../lib/db';
+import { getLocalTodayDate } from '../lib/dates';
 import { getProfileKey } from '../lib/profiles-logic';
 
 interface ReturnTo {
@@ -72,7 +73,7 @@ export default function ProfilesPage() {
       ...entry,
       id: undefined as unknown as number,
       is_rewatch: 1,
-      completion_date: null,
+      completion_date: getLocalTodayDate(),
     });
     setEditModalOpen(true);
   };
