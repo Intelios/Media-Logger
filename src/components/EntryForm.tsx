@@ -10,6 +10,7 @@ import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { AutocompleteInput } from "./AutocompleteInput";
 import { WinnerPicker } from "./WinnerPicker";
+import { reportMutationError } from "./MutationErrorToast";
 import {
   cancelCoverImport,
   commitCoverImport,
@@ -182,7 +183,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
 
     if (formData.is_expansion === 1 && formData.parent_entry_id != null) {
       if (formData.parent_entry_id === initialData?.id) {
-        alert("An expansion cannot be its own parent game.");
+        reportMutationError("An expansion cannot be its own parent game.");
         setIsSaving(false);
         return;
       }
@@ -210,7 +211,12 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
       });
       onClose();
     } catch (err) {
+      // EntryForm is the single user-facing reporter for entry save failures:
+      // every host page's onSave rejection lands here, so the page handlers
+      // must not swallow (see Layout.handleEntryCreated). onClose() is skipped
+      // so the form stays open and the user's input is preserved.
       console.error("Error in submit:", err);
+      reportMutationError("Could not save this entry.", err);
     } finally {
       setIsSaving(false);
     }

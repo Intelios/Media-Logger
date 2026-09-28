@@ -9,6 +9,7 @@ import { dbService } from "../lib/db";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { VirtualizedCardGrid } from "./VirtualizedCardGrid";
+import { reportMutationError } from "./MutationErrorToast";
 
 interface StatsEntriesModalProps {
     isOpen: boolean;
@@ -45,8 +46,13 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, isLoading =
     };
 
   const handleDelete = async (id: number) => {
-    await dbService.deleteEntry(id);
-    onEntriesChange();
+    try {
+      await dbService.deleteEntry(id);
+      onEntriesChange();
+    } catch (error) {
+      console.error("Failed to delete entry:", error);
+      reportMutationError("Could not delete this entry.", error);
+    }
   };
 
   // Let an expansion card inside this modal jump straight to its parent game.

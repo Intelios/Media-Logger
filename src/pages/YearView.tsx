@@ -9,6 +9,7 @@ import { EntryForm } from "../components/EntryForm";
 import { ExpansionsModal } from "../components/ExpansionsModal";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { VirtualizedCardGrid, type VirtualizedCardGridHandle } from "../components/VirtualizedCardGrid";
+import { reportMutationError } from "../components/MutationErrorToast";
 import { mediaQueryKeys, queryClient } from "../lib/query-client";
 import { useHoverTooltip } from "../components/HoverTooltip";
 import { getLocalTodayDate } from "../lib/dates";
@@ -387,9 +388,16 @@ export default function YearView() {
     await loadData(true);
   };
 
+  // MediaCard invokes onDelete fire-and-forget, so without this catch a DB
+  // failure is an unhandled rejection with no UI feedback.
   const handleDelete = useCallback(async (id: number) => {
-    await dbService.deleteEntry(id);
-    void loadData(true);
+    try {
+      await dbService.deleteEntry(id);
+      void loadData(true);
+    } catch (error) {
+      console.error("Failed to delete entry:", error);
+      reportMutationError("Could not delete this entry.", error);
+    }
   }, [loadData]);
 
   const handleEditFromCard = useCallback((entry: MediaEntry) => {

@@ -7,6 +7,7 @@ import { EntryForm } from "./EntryForm";
 import { VirtualizedCardGrid } from "./VirtualizedCardGrid";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
+import { reportMutationError } from "./MutationErrorToast";
 
 interface ExpansionsModalProps {
   isOpen: boolean;
@@ -75,8 +76,13 @@ export function ExpansionsModal({
   };
 
   const handleDelete = async (id: number) => {
-    await dbService.deleteEntry(id);
-    onEntriesChange();
+    try {
+      await dbService.deleteEntry(id);
+      onEntriesChange();
+    } catch (error) {
+      console.error("Failed to delete entry:", error);
+      reportMutationError("Could not delete this entry.", error);
+    }
   };
 
   return createPortal(

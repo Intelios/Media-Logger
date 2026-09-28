@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { EntryForm } from '../components/EntryForm';
+import { reportMutationError } from '../components/MutationErrorToast';
 import { ProfileDetailView } from '../components/profiles/ProfileDetailView';
 import { ProfileIndexView } from '../components/profiles/ProfileIndexView';
 import { useProfilesPageData } from '../components/profiles/useProfilesPageData';
@@ -90,7 +91,12 @@ export default function ProfilesPage() {
   };
 
   const handleDeleteFromCard = async (id: number) => {
-    await dbService.deleteEntry(id);
+    try {
+      await dbService.deleteEntry(id);
+    } catch (error) {
+      console.error("Failed to delete entry:", error);
+      reportMutationError("Could not delete this entry.", error);
+    }
   };
 
   if (data.selectedProfile) {

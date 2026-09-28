@@ -25,6 +25,7 @@ import {
 } from "../components/backlog/backlog-visuals";
 import { BacklogForm } from "../components/BacklogForm";
 import { EntryForm } from "../components/EntryForm";
+import { reportMutationError } from "../components/MutationErrorToast";
 import { backlogLogic, type BacklogItemsByStatus } from "../lib/backlog-logic";
 import {
   BACKLOG_DENSITIES, BACKLOG_DENSITY_HINTS, BACKLOG_DENSITY_LABELS, type BacklogDensity,
@@ -354,13 +355,23 @@ export default function Backlog() {
   };
 
   const handleStart = async (id: number) => {
-    await backlogLogic.moveToInProgress(id);
-    await loadItems();
+    try {
+      await backlogLogic.moveToInProgress(id);
+      await loadItems();
+    } catch (error) {
+      console.error("Failed to move backlog item to In Progress:", error);
+      reportMutationError("Could not move this item to In Progress.", error);
+    }
   };
 
   const handlePause = async (id: number) => {
-    await backlogLogic.moveToPlanning(id);
-    await loadItems();
+    try {
+      await backlogLogic.moveToPlanning(id);
+      await loadItems();
+    } catch (error) {
+      console.error("Failed to move backlog item back to Planning:", error);
+      reportMutationError("Could not move this item back to Planning.", error);
+    }
   };
 
   const handleComplete = (item: BacklogItem) => {
@@ -396,6 +407,9 @@ export default function Backlog() {
       await loadItems();
     } catch (error) {
       console.error("Failed to complete backlog item:", error);
+      // Rethrow so EntryForm keeps the completion form open and shows the
+      // shared mutation-error toast (same contract as Layout.handleEntryCreated).
+      throw error;
     }
   };
 
@@ -406,9 +420,15 @@ export default function Backlog() {
 
   const confirmRemove = async () => {
     if (showDeleteConfirm !== null) {
-      await backlogLogic.removeItem(showDeleteConfirm);
-      setShowDeleteConfirm(null);
-      await loadItems();
+      try {
+        await backlogLogic.removeItem(showDeleteConfirm);
+        setShowDeleteConfirm(null);
+        await loadItems();
+      } catch (error) {
+        console.error("Failed to remove backlog item:", error);
+        setShowDeleteConfirm(null);
+        reportMutationError("Could not remove this backlog item.", error);
+      }
     }
   };
 

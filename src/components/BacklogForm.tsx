@@ -15,6 +15,7 @@ import {
 } from "../lib/image-service";
 import { CoverImage } from "./CoverImage";
 import { CoverSearchModal } from "./CoverSearchModal";
+import { reportMutationError } from "./MutationErrorToast";
 import { getCoverSearchAvailability } from "../lib/cover-search";
 
 interface BacklogFormProps {
@@ -129,7 +130,10 @@ export function BacklogForm({ isOpen, onClose, onSave, initialData }: BacklogFor
         is_unreleased: isUnreleased,
       });
     } catch (error) {
+      // Same contract as EntryForm: report here (the host page's onSave
+      // rejection lands in this catch) and keep the form open.
       console.error("Failed to save backlog item:", error);
+      reportMutationError("Could not save this backlog item.", error);
     } finally {
       setIsSaving(false);
     }

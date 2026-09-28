@@ -296,6 +296,10 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
       }
     } catch (error) {
       console.error("Failed to save entry:", error);
+      // Rethrow so EntryForm knows the save failed: it keeps the form open and
+      // shows the shared mutation-error toast. Swallowing here would make
+      // onSave resolve successfully and the form would close as if it saved.
+      throw error;
     }
   };
 

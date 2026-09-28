@@ -14,6 +14,7 @@ import { ScoreRangeSlider, formatScoreRange, type ScoreRange } from "../componen
 import { cn } from "../lib/utils_ui";
 import { getVisibleEntryTypes, useAdultMediaEnabled } from "../lib/media-config";
 import { VirtualizedCardGrid } from "../components/VirtualizedCardGrid";
+import { reportMutationError } from "../components/MutationErrorToast";
 import { beginPerformanceSpan } from "../lib/performance-diagnostics";
 import { mediaQueryKeys, queryClient } from "../lib/query-client";
 import { useMainScrollContainer } from "../lib/scroll-container";
@@ -440,8 +441,13 @@ export default function SearchPage() {
   };
 
   const handleDelete = async (id: number) => {
-    await dbService.deleteEntry(id);
-    setRefreshToken((current) => current + 1);
+    try {
+      await dbService.deleteEntry(id);
+      setRefreshToken((current) => current + 1);
+    } catch (error) {
+      console.error("Failed to delete entry:", error);
+      reportMutationError("Could not delete this entry.", error);
+    }
   };
 
   // Expansions modal for a parent game card

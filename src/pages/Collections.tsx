@@ -16,6 +16,7 @@ import { ArrowUpDown } from "lucide-react"; // Import ArrowUpDown icon
 import { ReorderModal } from "../components/ReorderModal"; // Import Modal
 import { EntryForm } from "../components/EntryForm"; // Import EntryForm for editing
 import { ExpansionsModal } from "../components/ExpansionsModal";
+import { reportMutationError } from "../components/MutationErrorToast";
 import { ErasModal } from "../components/ErasModal";
 import { EraAssignMenu } from "../components/EraAssignMenu";
 import { hexToRgb } from "../lib/themes";
@@ -340,10 +341,15 @@ export default function CollectionsPage() {
 
   // Handle delete from MediaCard dropdown
   const handleDeleteFromCard = async (id: number) => {
-    await dbService.deleteEntry(id);
-    if (selectedCollection) {
-      await refreshSelectedCollection(selectedCollection);
-      await loadCollections();
+    try {
+      await dbService.deleteEntry(id);
+      if (selectedCollection) {
+        await refreshSelectedCollection(selectedCollection);
+        await loadCollections();
+      }
+    } catch (error) {
+      console.error("Failed to delete entry:", error);
+      reportMutationError("Could not delete this entry.", error);
     }
   };
 

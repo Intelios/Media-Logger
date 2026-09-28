@@ -6,6 +6,7 @@ import { ThemeProvider } from "./lib/ThemeContext";
 import { useAnimationPause } from "./lib/useAnimationPause";
 import { useMcpLifecycle } from "./lib/mcp";
 import { HoverTooltipProvider } from "./components/HoverTooltip";
+import { MutationErrorToast } from "./components/MutationErrorToast";
 import {
   IMAGE_PREWARM_MARKER_PREFIX,
   initializeImageService,
@@ -186,6 +187,7 @@ function App() {
       <AppBootstrap />
       <ThemeProvider>
         <DevelopmentBuildBadge />
+        <MutationErrorToast />
         <HoverTooltipProvider>
           <Profiler id="RoutedApp" onRender={recordReactCommit}>
             <BrowserRouter>
