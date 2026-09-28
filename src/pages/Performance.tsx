@@ -906,7 +906,7 @@ export default function Performance() {
           <button
             className="settings-btn settings-btn-secondary"
             disabled={busy != null}
-            onClick={() => void run("refresh-cache", async () => { await refreshImageServiceStatus(); })}
+            onClick={() => void run("refresh-cache", async () => { await refreshImageServiceStatus(true); })}
           >
             {busy === "refresh-cache" ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
             Refresh

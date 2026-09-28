@@ -166,8 +166,10 @@ export function createMediaSources(
   };
 }
 
-export async function refreshImageServiceStatus(): Promise<ImageServiceStatus> {
-  const next = await invoke<ImageServiceStatus>('image_service_status');
+// `rescan` walks the whole derivative cache on disk; reserve it for explicit
+// user-initiated refreshes. Default reads the natively maintained counters.
+export async function refreshImageServiceStatus(rescan = false): Promise<ImageServiceStatus> {
+  const next = await invoke<ImageServiceStatus>('image_service_status', { rescan });
   status = { ...next, protocolBase: normalizeProtocolBase(next.protocolBase) };
   emit();
   return status;

@@ -464,7 +464,13 @@ impl ImageService {
             .map_err(|error| format!("Image staging cleanup worker failed: {error}"))??;
         }
 
-        self.refresh_and_enforce_disk_limit(&configured).await?;
+        // The disk-limit pass stats every file in the derivative cache (tens
+        // of thousands of stats at the multi-GiB limits), and no media:// URL
+        // can be built until this command returns — so the pass runs in the
+        // background rather than gating the session's first covers behind a
+        // full cache walk. It seeds the disk counters when it lands, and each
+        // derivative write re-enforces via schedule_cleanup_if_needed.
+        self.spawn_disk_limit_enforcement(&configured);
         let status = self.status().await?;
         if let Err(error) = self.cleanup_legacy_thumbnail_cache_once().await {
             eprintln!("[image-service] legacy thumbnail cleanup skipped: {error}");
@@ -803,15 +809,29 @@ impl ImageService {
     }
 
     fn schedule_cleanup_if_needed(&self, configured: ConfiguredRoot) {
-        if self.inner.disk_bytes.load(Ordering::Relaxed) <= configured.disk_limit_bytes
-            || self.inner.cleanup_running.swap(true, Ordering::AcqRel)
-        {
+        if self.inner.disk_bytes.load(Ordering::Relaxed) <= configured.disk_limit_bytes {
+            return;
+        }
+        self.spawn_disk_limit_enforcement(&configured);
+    }
+
+    /// Runs one disk-limit enforcement pass off the serving path. The pass
+    /// stats the whole derivative cache, so awaiting it anywhere a cover is
+    /// waiting (configure, generation) would block first paint behind tens of
+    /// thousands of filesystem stats. `cleanup_running` collapses overlapping
+    /// walks; the finishing pass stores the fresh totals that the cleanup
+    /// trigger and the status counters read.
+    fn spawn_disk_limit_enforcement(&self, configured: &ConfiguredRoot) {
+        if self.inner.cleanup_running.swap(true, Ordering::AcqRel) {
             return;
         }
 
         let service = self.clone();
+        let configured = configured.clone();
         tauri::async_runtime::spawn(async move {
-            let _ = service.refresh_and_enforce_disk_limit(&configured).await;
+            if let Err(error) = service.refresh_and_enforce_disk_limit(&configured).await {
+                eprintln!("[image-service] background disk-limit pass failed: {error}");
+            }
             service
                 .inner
                 .cleanup_running
@@ -2555,8 +2575,12 @@ pub async fn configure_image_service(
 #[tauri::command]
 pub async fn image_service_status(
     state: State<'_, ImageService>,
+    rescan: Option<bool>,
 ) -> Result<ImageServiceStatus, String> {
-    if let Ok(configured) = state.configured_root() {
+    // A rescan stats the entire derivative cache, so only an explicit request
+    // pays for it; everyone else reads the counters that the enforcement
+    // passes and derivative writes keep current.
+    if rescan.unwrap_or(false) && let Ok(configured) = state.configured_root() {
         state.refresh_and_enforce_disk_limit(&configured).await?;
     }
     state.status().await
