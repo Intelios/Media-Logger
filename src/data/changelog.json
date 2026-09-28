@@ -1,8 +1,48 @@
 {
-  "generatedAt": "2026-09-18T22:06:06.807Z",
+  "generatedAt": "2026-09-28T16:21:30.576Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "4.4.4",
+      "title": "Media Logger - 4.4.4",
+      "date": "2026-09-28",
+      "body": "Bug Fixes:\n- Fix same-year jump-to-parent highlight being silently swallowed\n- Replaced 27 native title tooltips with the in-app built hover-tooltip system\n- Surface silent save/edit failures through a shared  pop up.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.4.4"
+    },
+    {
+      "version": "4.4.3",
+      "title": "Media Logger - 4.4.3",
+      "date": "2026-09-28",
+      "body": "Performance Improvements:\n- Parallelize cover_palettes batches for Backlog shelf first paint. Improving backlog performance and load times.\n- Stop disk-cache scan from gating first image serving. Lowers disk & CPU usage.\n- Cut Stats brush-derive cost with per-row facet memoization and slot-gated lists. Improves memory and CPU usage.\n- Stop search load-more from re-counting and re-skipping matched rows. Faster search and response times.\n- Compute avg-history snapshots for all affected profiles in one SQL pass. Less CPU usage and faster speed across sections of the app.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.4.3"
+    },
+    {
+      "version": "4.4.2",
+      "title": "Media Logger - 4.4.2",
+      "date": "2026-09-25",
+      "body": "New Content/Features:\n- Redesigned the Random Pick UI with an entirely new card based UI.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.4.2"
+    },
+    {
+      "version": "4.4.1",
+      "title": "Media Logger - 4.4.1",
+      "date": "2026-09-25",
+      "body": "New Content/Features:\n- Dashboard's On This Day & Recent Completions can now filter out adult entries via a toggle in settings, still visible elsewhere just not on your home page. The 'Featured' widget on dashboard already had this so just expanding it to the other two widgets.\n\nBug Fixes:\n- Fixed an issue where the 'To The Bottom' button on the year view only went 25% of the way, it now correctly goes to the bottom of the year.\n- Fixed an issue when duplicating a entry that the date would not be filled in automatically, this is now fixed.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.4.1"
+    },
+    {
+      "version": "4.4",
+      "title": "Media Logger - 4.4",
+      "date": "2026-09-20",
+      "body": "New Features:\n- Cover Art Search added, can now auto search for certain media types covers/images all within the app. Not all media types are supported and some require a (free) API key.\n- Backlog now has 3 display options: Spine, the exact same style the Backlog has had since 4.0. Strips, blurred version of your cover images but similar to the spine style in shape and size. Covers, like your viewing the front facing box of a DVD/Blu Ray all eyes on your cover image.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.4"
+    },
     {
       "version": "4.3",
       "title": "Media Logger - 4.3",
