@@ -52,13 +52,24 @@ export type StatsEntry = Omit<
   'description' | 'notes' | 'early_access_version' | 'update_version'
 >;
 
-/** A zero-based page of query results. Search pages are capped at 100 rows. */
+/**
+ * Keyset position for paged search: the (completion_date, id) sort key of the
+ * last row a page served. Pass it back to searchEntriesPaged for the next page.
+ */
+export interface SearchPageCursor {
+  completionDate: string | null;
+  id: number;
+}
+
+/** One page of query results. Search pages are capped at 100 rows. */
 export interface PagedResult<T> {
   items: T[];
-  page: number;
   pageSize: number;
-  total: number;
+  /** Matched-row count; only the first page runs the COUNT, later pages carry it. */
+  total: number | null;
   hasMore: boolean;
+  /** Sort key of the final row in this page; null when the page is empty. */
+  nextCursor: SearchPageCursor | null;
 }
 
 export interface BacklogItem {

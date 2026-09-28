@@ -12,6 +12,7 @@ export type {
   BacklogItem,
   AvgHistoryPoint,
   EntrySearchFilters,
+  SearchPageCursor,
   SearchFilterOptions,
   RandomPickFilters,
   RandomPickFilterOptions,

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { useNavigate, useSearchParams } from "react-router";
 import { Search as SearchIcon, X, Filter, ChevronDown, ChevronUp, RotateCcw, Dices, Star } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { dbService, type EntryCardSummary, type MediaEntry, type SearchFilterOptions } from "../lib/db";
+import { dbService, type EntryCardSummary, type MediaEntry, type SearchFilterOptions, type SearchPageCursor } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
@@ -167,6 +167,9 @@ export default function SearchPage() {
   const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
   const [awardsMap, setAwardsMap] = useState<Map<number, MediaAward[]>>(new Map());
   const searchGenerationRef = useRef(0);
+  // Keyset position of the last served row. The service skips the COUNT on
+  // cursor pages, so the page-0 total stays authoritative while loading more.
+  const searchCursorRef = useRef<SearchPageCursor | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -239,6 +242,7 @@ export default function SearchPage() {
       setHasMoreResults(false);
       setNextPage(1);
       setAwardsMap(new Map());
+      searchCursorRef.current = null;
       setIsLoadingResults(false);
       setIsLoadingMore(false);
       return;
@@ -262,14 +266,15 @@ export default function SearchPage() {
     };
     queryClient.fetchQuery({
       queryKey: mediaQueryKeys.search(searchFilters, 0),
-      queryFn: () => dbService.searchEntriesPaged(searchFilters, 0),
+      queryFn: () => dbService.searchEntriesPaged(searchFilters),
     })
       .then((page) => {
         if (searchGenerationRef.current === generation) {
           setResults(page.items);
-          setTotalResults(page.total);
+          setTotalResults(page.total ?? 0);
           setHasMoreResults(page.hasMore);
           setNextPage(1);
+          searchCursorRef.current = page.nextCursor;
         }
       })
       .catch((error) => {
@@ -279,6 +284,7 @@ export default function SearchPage() {
           setTotalResults(0);
           setHasMoreResults(false);
           setAwardsMap(new Map());
+          searchCursorRef.current = null;
         }
       })
       .finally(() => {
@@ -291,6 +297,8 @@ export default function SearchPage() {
 
   const loadMoreResults = useCallback(() => {
     if (!hasMoreResults || isLoadingResults || isLoadingMore) return;
+    const cursor = searchCursorRef.current;
+    if (!cursor) return;
     const generation = searchGenerationRef.current;
     const pageNumber = nextPage;
     setIsLoadingMore(true);
@@ -308,7 +316,7 @@ export default function SearchPage() {
     };
     void queryClient.fetchQuery({
       queryKey: mediaQueryKeys.search(searchFilters, pageNumber),
-      queryFn: () => dbService.searchEntriesPaged(searchFilters, pageNumber),
+      queryFn: () => dbService.searchEntriesPaged(searchFilters, cursor),
     })
       .then((page) => {
         if (searchGenerationRef.current !== generation) return;
@@ -316,9 +324,11 @@ export default function SearchPage() {
           const known = new Set(current.map((entry) => entry.id));
           return [...current, ...page.items.filter((entry) => !known.has(entry.id))];
         });
-        setTotalResults(page.total);
+        // Cursor pages skip the COUNT; the page-0 total stays authoritative.
+        if (page.total !== null) setTotalResults(page.total);
         setHasMoreResults(page.hasMore);
         setNextPage(pageNumber + 1);
+        searchCursorRef.current = page.nextCursor;
       })
       .catch((error) => {
         console.error('Failed to load the next search page:', error);

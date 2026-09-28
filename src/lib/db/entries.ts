@@ -9,6 +9,7 @@ import type {
   EntrySearchFilters,
   MediaEntry,
   PagedResult,
+  SearchPageCursor,
   StatsEntry,
 } from './types';
 
@@ -322,48 +323,93 @@ function buildSearchQuery(filters: EntrySearchFilters): SearchQueryParts {
 }
 
 /**
- * Fetch one zero-based search page. Queries of three or more characters use
+ * Fetch one page of search results. Queries of three or more characters use
  * the trigram FTS index; one- and two-character queries retain literal LIKE
  * semantics, while still bounding the returned rows.
+ *
+ * Pagination is keyset-based on (completion_date DESC, id DESC), which
+ * idx_entries_completion_id serves as a range, so page N costs the same as
+ * page 1. Only the first call (no cursor) runs the COUNT for the result
+ * header — "load more" pages pass the previous page's cursor back and never
+ * re-run the match a second time just to recount a stable total. hasMore is
+ * derived independently of the COUNT by over-fetching one row past the page
+ * size and trimming it.
+ *
+ * NULL completion dates sort LAST in DESC order, and OR-ing the NULL block
+ * into the row-value range would collapse SQLite's index SEARCH into a full
+ * SCAN, so a dated cursor first pages the dated range (which excludes NULLs)
+ * and only queries the NULL block once that range is exhausted. A NULL cursor
+ * pages the NULL block directly by id.
  */
 export async function searchEntriesPaged(
   filters: EntrySearchFilters,
-  page = 0,
+  cursor?: SearchPageCursor | null,
 ): Promise<PagedResult<EntryCardSummary>> {
   const db = await connect();
-  const safePage = Number.isFinite(page) ? Math.max(0, Math.floor(page)) : 0;
   const { fromClause, whereClause, params } = buildSearchQuery(filters);
-  const pageParams = [
-    ...params,
-    ENTRY_SEARCH_PAGE_SIZE,
-    safePage * ENTRY_SEARCH_PAGE_SIZE,
-  ];
-  const limitParam = `$${params.length + 1}`;
-  const offsetParam = `$${params.length + 2}`;
 
-  const [countRows, items] = await Promise.all([
+  const fetchRows = (condition: string, extraParams: unknown[], limit: number) => {
+    const allParams = [...params, ...extraParams, limit];
+    return db.select<EntryCardSummary[]>(
+      `SELECT ${selectColumns(ENTRY_CARD_SUMMARY_COLUMNS, 'e')}${EXPANSION_PROJECTIONS_E}
+       FROM ${fromClause}
+       ${whereClause}${condition ? ` AND ${condition}` : ''}
+       ORDER BY e.completion_date DESC, e.id DESC
+       LIMIT $${allParams.length}`,
+      allParams,
+    );
+  };
+
+  const toResult = (rows: EntryCardSummary[], total: number | null): PagedResult<EntryCardSummary> => {
+    const hasMore = rows.length > ENTRY_SEARCH_PAGE_SIZE;
+    const items = hasMore ? rows.slice(0, ENTRY_SEARCH_PAGE_SIZE) : rows;
+    const last = items[items.length - 1];
+    return {
+      items,
+      pageSize: ENTRY_SEARCH_PAGE_SIZE,
+      total,
+      hasMore,
+      nextCursor: last ? { completionDate: last.completion_date, id: last.id } : null,
+    };
+  };
+
+  if (cursor && cursor.completionDate != null) {
+    const dateParam = `$${params.length + 1}`;
+    const idParam = `$${params.length + 2}`;
+    const datedRows = await fetchRows(
+      `(e.completion_date, e.id) < (${dateParam}, ${idParam})`,
+      [cursor.completionDate, cursor.id],
+      ENTRY_SEARCH_PAGE_SIZE + 1,
+    );
+    if (datedRows.length > ENTRY_SEARCH_PAGE_SIZE) return toResult(datedRows, null);
+    // Dated range exhausted and the NULL block sorts after it: continue the
+    // same page into it.
+    const nullRows = await fetchRows(
+      'e.completion_date IS NULL',
+      [],
+      ENTRY_SEARCH_PAGE_SIZE + 1 - datedRows.length,
+    );
+    return toResult([...datedRows, ...nullRows], null);
+  }
+
+  if (cursor) {
+    const idParam = `$${params.length + 1}`;
+    const rows = await fetchRows(
+      `e.completion_date IS NULL AND e.id < ${idParam}`,
+      [cursor.id],
+      ENTRY_SEARCH_PAGE_SIZE + 1,
+    );
+    return toResult(rows, null);
+  }
+
+  const [countRows, rows] = await Promise.all([
     db.select<Array<{ total: number }>>(
       `SELECT COUNT(*) AS total FROM ${fromClause} ${whereClause}`,
       params,
     ),
-    db.select<EntryCardSummary[]>(
-      `SELECT ${selectColumns(ENTRY_CARD_SUMMARY_COLUMNS, 'e')}${EXPANSION_PROJECTIONS_E}
-       FROM ${fromClause}
-       ${whereClause}
-       ORDER BY e.completion_date DESC, e.id DESC
-       LIMIT ${limitParam} OFFSET ${offsetParam}`,
-      pageParams,
-    ),
+    fetchRows('', [], ENTRY_SEARCH_PAGE_SIZE + 1),
   ]);
-  const total = countRows[0]?.total ?? 0;
-
-  return {
-    items,
-    page: safePage,
-    pageSize: ENTRY_SEARCH_PAGE_SIZE,
-    total,
-    hasMore: (safePage + 1) * ENTRY_SEARCH_PAGE_SIZE < total,
-  };
+  return toResult(rows, countRows[0]?.total ?? 0);
 }
 
 /**
