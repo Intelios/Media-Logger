@@ -5,7 +5,7 @@ use image::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufReader, BufWriter, Write};
 use std::path::{Component, Path, PathBuf};
@@ -21,6 +21,7 @@ use tauri::http::{
 };
 use tauri::{AppHandle, Manager, State};
 use tokio::sync::{Mutex as AsyncMutex, Semaphore};
+use tokio::task::JoinSet;
 use uuid::Uuid;
 
 const PROTOCOL_VERSION: &str = "v1";
@@ -44,6 +45,15 @@ const PALETTE_SAMPLE_WIDTH: u32 = 32;
 const PALETTE_SAMPLE_HEIGHT: u32 = 48;
 const PALETTE_CLUSTERS: usize = 5;
 const PALETTE_ITERATIONS: usize = 12;
+/// How many covers of one `cover_palettes` batch may decode + cluster at the
+/// same time. Derivative generation inside extraction is separately capped by
+/// the generation slots; this only bounds the tiny `small`-derivative decodes
+/// so a cold batch does not serialize every one of them behind the previous.
+const PALETTE_EXTRACTION_CONCURRENCY: usize = 4;
+/// Wholesale cap for the resolved-source cache. Entries are tiny but the cache
+/// is unbounded in time, so a very long session with a very large library is
+/// trimmed by dropping it entirely — a pure cache, repopulated on demand.
+const SOURCE_CACHE_MAX_ENTRIES: usize = 16_384;
 
 #[derive(Clone)]
 pub struct ImageService {
@@ -62,6 +72,10 @@ struct ImageServiceInner {
     /// hex strings, so this is unbounded on purpose — an entire library of them
     /// is a few tens of kilobytes.
     palettes: Mutex<HashMap<String, CoverPalette>>,
+    /// Resolved cover sources by raw image path, so serving and palette batches
+    /// skip re-canonicalizing paths they have already validated. Entries are
+    /// validated by a single stat before use and dropped with the data root.
+    source_cache: Mutex<HashMap<String, CachedSource>>,
     staged: Mutex<HashMap<String, StagedImport>>,
     disk_entries: AtomicU64,
     disk_bytes: AtomicU64,
@@ -111,6 +125,16 @@ struct PreparedSource {
     source: PathBuf,
     cache_key: String,
     etag: String,
+}
+
+/// A canonicalized cover path plus the metadata that validated it. One stat on
+/// `source` re-validates the entry, so repeat preparations skip the
+/// canonicalize + containment walk that first preparation paid for.
+#[derive(Clone)]
+struct CachedSource {
+    source: PathBuf,
+    len: u64,
+    modified_nanos: u128,
 }
 
 struct GeneratedDerivative {
@@ -351,6 +375,7 @@ impl ImageService {
                 in_flight: Mutex::new(HashMap::new()),
                 memory: Mutex::new(EncodedMemoryCache::new(DEFAULT_MEMORY_LIMIT_BYTES)),
                 palettes: Mutex::new(HashMap::new()),
+                source_cache: Mutex::new(HashMap::new()),
                 staged: Mutex::new(HashMap::new()),
                 disk_entries: AtomicU64::new(0),
                 disk_bytes: AtomicU64::new(0),
@@ -413,6 +438,12 @@ impl ImageService {
                 .memory
                 .lock()
                 .map_err(|_| "Image memory-cache lock is unavailable".to_string())?
+                .clear();
+            // Canonical paths belong to the old root and would never re-validate.
+            self.inner
+                .source_cache
+                .lock()
+                .map_err(|_| "Source cache lock is unavailable".to_string())?
                 .clear();
             let old_staged = self
                 .inner
@@ -570,6 +601,63 @@ impl ImageService {
         Ok(lock)
     }
 
+    /// Blocking preparation of one cover's source: resolve it inside the
+    /// assets root, stat it, and derive the variant's cache key and ETag.
+    /// Always called from `spawn_blocking`. The resolved-source cache lets a
+    /// repeat preparation skip the canonicalize walk — one stat re-validates
+    /// the remembered len/mtime, which are the same facts the cache key is
+    /// built from.
+    fn prepare_source_blocking(
+        &self,
+        configured: &ConfiguredRoot,
+        image_path: &str,
+        variant: ImageVariant,
+    ) -> Result<PreparedSource, String> {
+        let cached = self
+            .inner
+            .source_cache
+            .lock()
+            .map_err(|_| "Source cache lock is unavailable".to_string())?
+            .get(image_path)
+            .cloned();
+        if let Some(cached) = cached
+            && let Ok(metadata) = fs::metadata(&cached.source)
+            && metadata.is_file()
+            && metadata.len() == cached.len
+            && modified_nanos(&metadata) == cached.modified_nanos
+        {
+            return Ok(prepared_from_source(
+                cached.source,
+                cached.len,
+                cached.modified_nanos,
+                variant,
+            ));
+        }
+
+        let source = resolve_source(&configured.assets_root, image_path)?;
+        let metadata = fs::metadata(&source)
+            .map_err(|error| format!("Failed to inspect cover {}: {error}", source.display()))?;
+        let len = metadata.len();
+        let modified = modified_nanos(&metadata);
+        let mut cache = self
+            .inner
+            .source_cache
+            .lock()
+            .map_err(|_| "Source cache lock is unavailable".to_string())?;
+        if cache.len() >= SOURCE_CACHE_MAX_ENTRIES {
+            cache.clear();
+        }
+        cache.insert(
+            image_path.to_string(),
+            CachedSource {
+                source: source.clone(),
+                len,
+                modified_nanos: modified,
+            },
+        );
+        Ok(prepared_from_source(source, len, modified, variant))
+    }
+
     async fn load_asset(
         &self,
         configured: ConfiguredRoot,
@@ -578,12 +666,26 @@ impl ImageService {
     ) -> Result<LoadedAsset, String> {
         let configured_for_prepare = configured.clone();
         let path_for_prepare = image_path.clone();
+        let service_for_prepare = self.clone();
         let prepared = tauri::async_runtime::spawn_blocking(move || {
-            prepare_source(&configured_for_prepare, &path_for_prepare, variant)
+            service_for_prepare.prepare_source_blocking(&configured_for_prepare, &path_for_prepare, variant)
         })
         .await
         .map_err(|error| format!("Image metadata worker failed: {error}"))??;
+        self.load_asset_prepared(configured, prepared, variant)
+            .await
+    }
 
+    /// Everything after source preparation: memory hit, existing derivative,
+    /// then guarded generation. Split from `load_asset` so palette extraction
+    /// reuses the source it already prepared for its cache key instead of
+    /// paying a second preparation round trip per cover.
+    async fn load_asset_prepared(
+        &self,
+        configured: ConfiguredRoot,
+        prepared: PreparedSource,
+        variant: ImageVariant,
+    ) -> Result<LoadedAsset, String> {
         if variant == ImageVariant::Original {
             let source = prepared.source;
             let etag = prepared.etag;
@@ -824,73 +926,191 @@ impl ImageService {
     /// Palettes for a batch of covers. Failures are reported as a `None`
     /// palette rather than failing the batch — one unreadable cover must not
     /// cost the caller every other colour it asked for.
+    ///
+    /// The batch runs in three passes so the Backlog shelf's first paint never
+    /// waits on one cover at a time: every path's source metadata resolves in
+    /// a single blocking round trip, the memory and on-disk palette caches
+    /// answer for everything they hold (the disk lookups share one round trip
+    /// too), and only genuinely missing palettes extract — a few covers
+    /// concurrently, with derivative generation still capped by the generation
+    /// slots.
     async fn cover_palettes(
         &self,
         image_paths: Vec<String>,
     ) -> Result<Vec<CoverPaletteEntry>, String> {
         let configured = self.configured_root()?;
-        let mut entries = Vec::with_capacity(image_paths.len());
-        for image_path in image_paths {
-            let palette = self
-                .cover_palette(configured.clone(), image_path.clone())
-                .await
-                .ok();
-            entries.push(CoverPaletteEntry {
+
+        // Pass 1 — resolve + stat + key every path in one blocking round trip.
+        // One hop per cover serialized the whole shelf before a single colour
+        // was even looked up.
+        let prepared_list: Vec<Option<PreparedSource>> = {
+            let service = self.clone();
+            let configured_for_prepare = configured.clone();
+            let paths_for_prepare = image_paths.clone();
+            let results = tauri::async_runtime::spawn_blocking(move || {
+                paths_for_prepare
+                    .iter()
+                    .map(|path| {
+                        service.prepare_source_blocking(
+                            &configured_for_prepare,
+                            path,
+                            ImageVariant::Small,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .await
+            .map_err(|error| format!("Palette metadata worker failed: {error}"))?;
+            results.into_iter().map(|prepared| prepared.ok()).collect()
+        };
+
+        // Pass 2a — the in-memory palette cache answers first.
+        let mut resolved: Vec<Option<CoverPalette>> = Vec::with_capacity(prepared_list.len());
+        {
+            let palettes = self
+                .inner
+                .palettes
+                .lock()
+                .map_err(|_| "Palette cache lock is unavailable".to_string())?;
+            for prepared in &prepared_list {
+                resolved.push(prepared.as_ref().and_then(|prepared| {
+                    palettes
+                        .get(&palette_cache_key(&prepared.cache_key))
+                        .cloned()
+                }));
+            }
+        }
+
+        // Pass 2b — every memory miss is looked up on disk in one round trip;
+        // hits are remembered so the disk is never asked for them again.
+        let disk_lookups: Vec<(usize, String)> = resolved
+            .iter()
+            .enumerate()
+            .filter_map(|(index, palette)| {
+                if palette.is_some() {
+                    return None;
+                }
+                prepared_list[index].as_ref().map(|prepared| {
+                    (index, palette_cache_key(&prepared.cache_key))
+                })
+            })
+            .collect();
+        if !disk_lookups.is_empty() {
+            let palette_root = self.palette_root();
+            let keys = disk_lookups
+                .iter()
+                .map(|(_, key)| key.clone())
+                .collect::<Vec<_>>();
+            let from_disk = tauri::async_runtime::spawn_blocking(move || {
+                keys.iter()
+                    .map(|key| read_cached_palette(&palette_root, key))
+                    .collect::<Vec<_>>()
+            })
+            .await
+            .map_err(|error| format!("Palette cache worker failed: {error}"))?;
+            let mut palettes = self
+                .inner
+                .palettes
+                .lock()
+                .map_err(|_| "Palette cache lock is unavailable".to_string())?;
+            for ((index, key), cached) in disk_lookups.into_iter().zip(from_disk) {
+                if let Some(cached) = cached {
+                    palettes.insert(key, cached.clone());
+                    resolved[index] = Some(cached);
+                }
+            }
+        }
+
+        // Pass 3 — extract what is still missing. A cover appearing twice in
+        // one batch extracts once; every slot sharing its cache key is filled
+        // from the same result afterwards.
+        let mut seen_keys: HashSet<String> = HashSet::new();
+        let extraction: Vec<(usize, PreparedSource)> = resolved
+            .iter()
+            .enumerate()
+            .filter_map(|(index, palette)| {
+                let prepared = prepared_list[index].as_ref()?;
+                if palette.is_some() || !seen_keys.insert(prepared.cache_key.clone()) {
+                    return None;
+                }
+                Some((index, prepared.clone()))
+            })
+            .collect();
+        if !extraction.is_empty() {
+            let permits = Arc::new(Semaphore::new(PALETTE_EXTRACTION_CONCURRENCY));
+            let mut tasks = JoinSet::new();
+            for (index, prepared) in extraction {
+                let service = self.clone();
+                let configured_for_extraction = configured.clone();
+                let permits = Arc::clone(&permits);
+                tasks.spawn(async move {
+                    // The semaphore is never closed; a failed acquire can only
+                    // mean shutdown, which maps to a `None` palette like any
+                    // other miss.
+                    let Ok(_permit) = permits.acquire_owned().await else {
+                        return (index, None);
+                    };
+                    let palette = service
+                        .extract_palette(configured_for_extraction, prepared)
+                        .await
+                        .ok();
+                    (index, palette)
+                });
+            }
+            while let Some(joined) = tasks.join_next().await {
+                if let Ok((index, palette)) = joined
+                    && let Some(palette) = palette
+                {
+                    resolved[index] = Some(palette);
+                }
+            }
+            if resolved.iter().any(Option::is_none) {
+                let extracted: HashMap<String, CoverPalette> = prepared_list
+                    .iter()
+                    .zip(resolved.iter())
+                    .filter_map(|(prepared, palette)| {
+                        let palette = palette.clone()?;
+                        let prepared = prepared.as_ref()?;
+                        Some((prepared.cache_key.clone(), palette))
+                    })
+                    .collect();
+                for (prepared, palette_slot) in prepared_list.iter().zip(resolved.iter_mut()) {
+                    if palette_slot.is_none()
+                        && let Some(prepared) = prepared
+                        && let Some(palette) = extracted.get(&prepared.cache_key)
+                    {
+                        *palette_slot = Some(palette.clone());
+                    }
+                }
+            }
+        }
+
+        let entries = image_paths
+            .into_iter()
+            .zip(resolved)
+            .map(|(image_path, palette)| CoverPaletteEntry {
                 image_path,
                 palette,
-            });
-        }
+            })
+            .collect();
         Ok(entries)
     }
 
-    async fn cover_palette(
+    /// Extract one cover's palette from its `small` derivative, populating both
+    /// palette caches. Runs inside the batch's extraction permits.
+    async fn extract_palette(
         &self,
         configured: ConfiguredRoot,
-        image_path: String,
+        prepared: PreparedSource,
     ) -> Result<CoverPalette, String> {
-        let configured_for_prepare = configured.clone();
-        let path_for_prepare = image_path.clone();
-        let prepared = tauri::async_runtime::spawn_blocking(move || {
-            prepare_source(
-                &configured_for_prepare,
-                &path_for_prepare,
-                ImageVariant::Small,
-            )
-        })
-        .await
-        .map_err(|error| format!("Palette metadata worker failed: {error}"))??;
         // Keyed off the `small` derivative's cache key, so editing or replacing
         // a cover invalidates its palette for free.
-        let key = format!("{}-p{PALETTE_VERSION}", prepared.cache_key);
-
-        if let Some(cached) = self
-            .inner
-            .palettes
-            .lock()
-            .map_err(|_| "Palette cache lock is unavailable".to_string())?
-            .get(&key)
-            .cloned()
-        {
-            return Ok(cached);
-        }
-
-        let palette_root = self.palette_root();
-        let key_for_disk = key.clone();
-        let from_disk = tauri::async_runtime::spawn_blocking(move || {
-            read_cached_palette(&palette_root, &key_for_disk)
-        })
-        .await
-        .map_err(|error| format!("Palette cache worker failed: {error}"))?;
-        if let Some(cached) = from_disk {
-            self.remember_palette(key, cached.clone())?;
-            return Ok(cached);
-        }
-
+        let key = palette_cache_key(&prepared.cache_key);
         // Cluster the `small` derivative rather than the original: prewarm has
         // almost always generated it already, and its 384x576 decode is a
         // fraction of what the source file costs.
         let asset = self
-            .load_asset(configured, image_path, ImageVariant::Small)
+            .load_asset_prepared(configured, prepared, ImageVariant::Small)
             .await?;
         let palette_root = self.palette_root();
         let key_for_write = key.clone();
@@ -1429,34 +1649,38 @@ fn resolve_source(assets_root: &Path, image_path: &str) -> Result<PathBuf, Strin
     Ok(source)
 }
 
-fn prepare_source(
-    configured: &ConfiguredRoot,
-    image_path: &str,
-    variant: ImageVariant,
-) -> Result<PreparedSource, String> {
-    let source = resolve_source(&configured.assets_root, image_path)?;
-    let metadata = fs::metadata(&source)
-        .map_err(|error| format!("Failed to inspect cover {}: {error}", source.display()))?;
-    let modified = metadata
+fn modified_nanos(metadata: &fs::Metadata) -> u128 {
+    metadata
         .modified()
         .ok()
         .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
         .map(|duration| duration.as_nanos())
-        .unwrap_or(0);
+        .unwrap_or(0)
+}
+
+/// The cache key folds in the recipe, the variant, and the source's identity
+/// (canonical path + length + mtime), so a replaced cover or a changed recipe
+/// both miss every cache downstream of this key.
+fn prepared_from_source(
+    source: PathBuf,
+    len: u64,
+    modified_nanos: u128,
+    variant: ImageVariant,
+) -> PreparedSource {
     let mut hasher = Sha256::new();
     hasher.update(b"media-logger-image-recipe");
     hasher.update(RECIPE_VERSION.to_le_bytes());
     hasher.update(variant.as_protocol().as_bytes());
     hasher.update(source.to_string_lossy().as_bytes());
-    hasher.update(metadata.len().to_le_bytes());
-    hasher.update(modified.to_le_bytes());
+    hasher.update(len.to_le_bytes());
+    hasher.update(modified_nanos.to_le_bytes());
     let cache_key = hex::encode(hasher.finalize());
     let etag = format!("\"ml-{RECIPE_VERSION}-{cache_key}\"");
-    Ok(PreparedSource {
+    PreparedSource {
         source,
         cache_key,
         etag,
-    })
+    }
 }
 
 fn derivative_candidates(root: &Path, cache_key: &str) -> (PathBuf, PathBuf) {
@@ -1592,6 +1816,12 @@ fn fast_resize(
         image::ImageBuffer::from_raw(dst_width, dst_height, bytes).map(DynamicImage::ImageRgb8)
     };
     image_buffer.ok_or_else(|| "fast_image_resize produced an invalid buffer".to_string())
+}
+
+/// Palette cache keys are the `small` derivative's cache key plus the palette
+/// recipe version, so an edited cover or a re-tuned recipe both invalidate.
+fn palette_cache_key(cache_key: &str) -> String {
+    format!("{cache_key}-p{PALETTE_VERSION}")
 }
 
 fn palette_cache_path(root: &Path, key: &str) -> PathBuf {
