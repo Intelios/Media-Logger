@@ -2,11 +2,13 @@ import type Database from '@tauri-apps/plugin-sql';
 import { ADULT_MEDIA_VISIBILITY_CHANGED_EVENT } from '../settings';
 import {
   PROFILE_FIELD_BY_TYPE,
+  PROFILE_TYPES,
   entryMatchesProfile,
   extractProfileIdentities,
   getProfileKey,
   isProfileType,
   type ProfileEntrySource,
+  type ProfileField,
   type ProfileIdentity,
   type ProfileType,
 } from '../profiles/domain';
@@ -16,6 +18,15 @@ import type { AvgHistoryPoint, MediaEntry } from './types';
 
 const HISTORY_BATCH_SIZE = 100;
 const TIMESTAMP_COLLISION_ATTEMPTS = 20;
+// Bounds the parameter count and INSTR OR-chain length of the aggregate query,
+// so even the all-profiles fan-out stays a handful of round trips.
+const SNAPSHOT_QUERY_BATCH_SIZE = 100;
+
+// The aggregate query keys rows by field column; map back to profile type
+// instead of assuming the two strings coincide.
+const TYPE_BY_FIELD = new Map<ProfileField, ProfileType>(
+  PROFILE_TYPES.map((type) => [PROFILE_FIELD_BY_TYPE[type], type]),
+);
 
 interface TrackedProfileRow {
   type: string;
@@ -29,6 +40,8 @@ interface ProfileAverageSnapshot extends ProfileIdentity {
 }
 
 interface ProfileAverageAggregateRow {
+  field: string;
+  name: string;
   average_score: number | null;
   rated_count: number;
   total_count: number;
@@ -172,53 +185,95 @@ function profileEntryTypeConstraint(type: ProfileType): string {
   return '';
 }
 
-async function selectProfileAverageSnapshot(
+/**
+ * One SQL pass computes the post-mutation aggregates for every requested
+ * profile at once. Profile fields are comma-delimited strings; the recursive
+ * CTE preserves splitProfileNames()/entryMatchesProfile semantics (trimmed,
+ * exact tokens) and deduplicates repeated names within one entry — identical
+ * results to running the former per-profile CTE serially, but each `bases`
+ * branch keeps its own INSTR prefilter and entry-type/adult constraints while
+ * the tokenization and aggregation are shared across all (field, name) pairs.
+ */
+async function selectProfileAverageSnapshots(
   db: Database,
-  identity: ProfileIdentity,
-): Promise<ProfileAverageSnapshot | null> {
-  // Profile fields are comma-delimited strings. The recursive CTE preserves
-  // splitProfileNames()/entryMatchesProfile semantics (trimmed, exact tokens),
-  // deduplicates repeated names within one entry, and returns only one aggregate
-  // row across the Tauri boundary.
-  const column = PROFILE_FIELD_BY_TYPE[identity.type];
-  const rows = await db.select<ProfileAverageAggregateRow[]>(
-    `WITH RECURSIVE profile_tokens(id, review_score, rest, token) AS (
-       SELECT id, review_score, COALESCE(${column}, '') || ',', ''
-       FROM entries
-       WHERE INSTR(COALESCE(${column}, ''), $1) > 0
-         ${profileEntryTypeConstraint(identity.type)}${adultExclusionSql()}
-       UNION ALL
-       SELECT id,
-              review_score,
-              SUBSTR(rest, INSTR(rest, ',') + 1),
-              TRIM(
-                SUBSTR(rest, 1, INSTR(rest, ',') - 1),
-                char(9) || char(10) || char(11) || char(12) || char(13) || ' '
-              )
-       FROM profile_tokens
-       WHERE rest <> ''
-     ), matching_entries AS (
-       SELECT id, MAX(review_score) AS review_score
-       FROM profile_tokens
-       WHERE token = $1
-       GROUP BY id
-     )
-     SELECT AVG(review_score) AS average_score,
-            COUNT(review_score) AS rated_count,
-            COUNT(*) AS total_count
-     FROM matching_entries`,
-    [identity.name],
-  );
-  const aggregate = rows[0];
-  if (!aggregate || aggregate.rated_count === 0 || aggregate.average_score == null) {
-    return null;
+  identities: ProfileIdentity[],
+): Promise<ProfileAverageSnapshot[]> {
+  const snapshots: ProfileAverageSnapshot[] = [];
+  for (const batch of chunkRows(identities, SNAPSHOT_QUERY_BATCH_SIZE)) {
+    const params: unknown[] = [];
+    const batchByType = new Map<ProfileType, string[]>();
+    for (const identity of batch) {
+      params.push(identity.name);
+      const names = batchByType.get(identity.type) ?? [];
+      names.push(`$${params.length}`);
+      batchByType.set(identity.type, names);
+    }
+
+    const branches: string[] = [];
+    const tuples: string[] = [];
+    for (const [type, names] of batchByType) {
+      const field = PROFILE_FIELD_BY_TYPE[type];
+      const prefilter = names.map((param) => `INSTR(COALESCE(${field}, ''), ${param}) > 0`).join(' OR ');
+      branches.push(
+        `SELECT id, review_score, '${field}' AS field, COALESCE(${field}, '') AS value
+         FROM entries
+         WHERE ${prefilter}${profileEntryTypeConstraint(type)}${adultExclusionSql()}`,
+      );
+      tuples.push(...names.map((param) => `('${field}', ${param})`));
+    }
+
+    const rows = await db.select<ProfileAverageAggregateRow[]>(
+      `WITH RECURSIVE
+       bases(id, review_score, field, value) AS (
+         ${branches.join('\n         UNION ALL\n         ')}
+       ),
+       requested(field, name) AS (
+         VALUES ${tuples.join(', ')}
+       ),
+       profile_tokens(id, review_score, field, rest, token) AS (
+         SELECT id, review_score, field, value || ',', ''
+         FROM bases
+         UNION ALL
+         SELECT id,
+                review_score,
+                field,
+                SUBSTR(rest, INSTR(rest, ',') + 1),
+                TRIM(
+                  SUBSTR(rest, 1, INSTR(rest, ',') - 1),
+                  char(9) || char(10) || char(11) || char(12) || char(13) || ' '
+                )
+         FROM profile_tokens
+         WHERE rest <> ''
+       ),
+       matching_entries AS (
+         SELECT r.field AS field, r.name AS name, t.id, MAX(t.review_score) AS review_score
+         FROM profile_tokens t
+         JOIN requested r ON r.field = t.field AND r.name = t.token
+         GROUP BY r.field, r.name, t.id
+       )
+       SELECT field, name,
+              AVG(review_score) AS average_score,
+              COUNT(review_score) AS rated_count,
+              COUNT(*) AS total_count
+       FROM matching_entries
+       GROUP BY field, name`,
+      params,
+    );
+
+    for (const row of rows) {
+      if (row.rated_count === 0 || row.average_score == null) continue;
+      const type = TYPE_BY_FIELD.get(row.field as ProfileField);
+      if (!type) continue;
+      snapshots.push({
+        type,
+        name: row.name,
+        averageScore: Number(row.average_score.toFixed(1)),
+        ratedCount: row.rated_count,
+        totalCount: row.total_count,
+      });
+    }
   }
-  return {
-    ...identity,
-    averageScore: Number(aggregate.average_score.toFixed(1)),
-    ratedCount: aggregate.rated_count,
-    totalCount: aggregate.total_count,
-  };
+  return snapshots;
 }
 
 async function appendSnapshotsForTrackedProfiles(
@@ -232,11 +287,7 @@ async function appendSnapshotsForTrackedProfiles(
   if (targets.size === 0) return;
 
   const db = await connect();
-  const snapshots: ProfileAverageSnapshot[] = [];
-  for (const identity of targets.values()) {
-    const snapshot = await selectProfileAverageSnapshot(db, identity);
-    if (snapshot) snapshots.push(snapshot);
-  }
+  const snapshots = await selectProfileAverageSnapshots(db, [...targets.values()]);
   await appendCurrentSnapshots(db, snapshots, 'mutation');
 }
 
