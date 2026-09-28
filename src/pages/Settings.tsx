@@ -78,6 +78,7 @@ import {
     type GameCoverProvider
 } from '../lib/settings';
 import { useTheme } from '../lib/ThemeContext';
+import { useHoverTooltip } from '../components/HoverTooltip';
 import type { ColorTheme, GlassStyle } from '../lib/themes';
 import { getCurrentYearString, updateNavigationYears } from '../lib/navigation-years';
 import {
@@ -216,6 +217,7 @@ function AboutInfoRow({ label, value, mono = false }: { label: string; value: Re
 }
 
 export default function Settings() {
+    const { bindTooltip } = useHoverTooltip();
     const [activeSection, setActiveSection] = useState<SettingsSection>('general');
     const [currentPath, setCurrentPath] = useState<string>('');
     const [defaultPath, setDefaultPath] = useState<string>('');
@@ -1270,7 +1272,10 @@ export default function Settings() {
                                             onClick={() => handleColorThemeChange(theme)}
                                             className={`color-swatch ${colorTheme.id === theme.id ? 'selected' : ''}`}
                                             style={{ background: theme.previewGradient }}
-                                            title={theme.name}
+                                            {...bindTooltip(
+                                                <span>{theme.name}</span>,
+                                                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                                            )}
                                             aria-label={`Select ${theme.name} theme`}
                                         />
                                     ))}

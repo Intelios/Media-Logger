@@ -7,6 +7,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSo
 import { CSS } from '@dnd-kit/utilities';
 import { useEscapeToClose } from "../../lib/useEscapeToClose";
 import { useFocusTrap } from "../../lib/useFocusTrap";
+import { useHoverTooltip } from "../HoverTooltip";
 import { CoverImage } from "../CoverImage";
 import { ENTRY_TYPES, getTypeBadgeStyle } from "../../lib/media-config";
 import { cn } from "../../lib/utils_ui";
@@ -108,6 +109,7 @@ function GroupSection({
   onItemsChange: (items: AwardReorderItem[]) => void;
 }) {
   const [activeId, setActiveId] = useState<number | null>(null);
+  const { bindTooltip } = useHoverTooltip();
   const badge = ENTRY_TYPES.includes(group.key) ? getTypeBadgeStyle(group.key) : null;
   const activeItem = activeId === null ? null : group.items.find(i => i.id === activeId) ?? null;
 
@@ -141,7 +143,10 @@ function GroupSection({
             type="button"
             onClick={() => onMoveGroup(-1)}
             disabled={index === 0}
-            title="Move section up"
+            {...bindTooltip(
+              <span>Move section up</span>,
+              { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+            )}
             aria-label={`Move ${group.key} up`}
             className={moveBtn}
           >
@@ -151,7 +156,10 @@ function GroupSection({
             type="button"
             onClick={() => onMoveGroup(1)}
             disabled={index === groupCount - 1}
-            title="Move section down"
+            {...bindTooltip(
+              <span>Move section down</span>,
+              { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+            )}
             aria-label={`Move ${group.key} down`}
             className={moveBtn}
           >

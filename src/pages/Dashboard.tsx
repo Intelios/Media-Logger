@@ -16,6 +16,7 @@ import {
   FEATURED_ADULT_VISIBILITY_CHANGED_EVENT,
 } from "../lib/settings";
 import { getReplayTerm } from "../lib/media-config";
+import { useHoverTooltip } from "../components/HoverTooltip";
 import { formatTodayMD } from "../lib/dates";
 import { getAvailableNavigationYears, getCurrentYearString } from "../lib/navigation-years";
 import { mediaQueryKeys, queryClient } from "../lib/query-client";
@@ -44,6 +45,7 @@ const greetingWordVariants: Variants = {
 export default function Dashboard() {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
+  const { bindTooltip } = useHoverTooltip();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recent, setRecent] = useState<MediaEntry[]>([]);
   const [recentLoaded, setRecentLoaded] = useState(false);
@@ -306,7 +308,10 @@ export default function Dashboard() {
             onClick={handleReroll}
             disabled={isRerolling}
             aria-label="Reroll featured entry"
-            title="Reroll"
+            {...bindTooltip(
+              <span>Reroll</span>,
+              { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+            )}
           >
             <motion.span
               className="dashboard-reroll-icon"

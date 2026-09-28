@@ -5,6 +5,7 @@ import { type StatItem } from "../lib/stats-logic";
 import { cn } from "../lib/utils_ui";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
+import { useHoverTooltip } from "./HoverTooltip";
 
 const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1"];
 
@@ -19,6 +20,7 @@ interface GenreBreakdownModalProps {
 export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onGenreClick }: GenreBreakdownModalProps) {
     const [sortBy, setSortBy] = useState<"count" | "avgScore" | "perfect">("count");
     const modalRef = useRef<HTMLDivElement>(null);
+    const { bindTooltip } = useHoverTooltip();
 
     useEscapeToClose(isOpen, onClose);
     useFocusTrap(isOpen, modalRef);
@@ -124,7 +126,10 @@ export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onG
                                         <div className="flex items-center gap-4 shrink-0">
                                             {/* Avg Score */}
                                             {genre.avgScore !== undefined && (
-                                                <div className="flex items-center gap-1 text-sm" title="Average Score">
+                                                <div className="flex items-center gap-1 text-sm" {...bindTooltip(
+                                                    <span>Average Score</span>,
+                                                    { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                                                )}>
                                                     <Star size={13} className="text-amber-400" />
                                                     <span className="text-amber-300 font-medium">{genre.avgScore.toFixed(1)}</span>
                                                 </div>
@@ -132,7 +137,10 @@ export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onG
 
                                             {/* Perfect 10s */}
                                             {(genre.perfectCount ?? 0) > 0 && (
-                                                <div className="flex items-center gap-1 text-sm" title="Perfect 10s">
+                                                <div className="flex items-center gap-1 text-sm" {...bindTooltip(
+                                                    <span>Perfect 10s</span>,
+                                                    { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                                                )}>
                                                     <Gem size={13} className="text-pink-400" />
                                                     <span className="text-pink-300 font-medium">{genre.perfectCount}</span>
                                                 </div>

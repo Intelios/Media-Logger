@@ -10,6 +10,7 @@ import { ExpansionsModal } from "../components/ExpansionsModal";
 import { MultiSelectFilter } from "../components/MultiSelectFilter";
 import { VirtualizedCardGrid, type VirtualizedCardGridHandle } from "../components/VirtualizedCardGrid";
 import { mediaQueryKeys, queryClient } from "../lib/query-client";
+import { useHoverTooltip } from "../components/HoverTooltip";
 import { getLocalTodayDate } from "../lib/dates";
 import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, getVisibleEntryTypes, getVisiblePresetKeys, useAdultMediaEnabled, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 
@@ -116,6 +117,7 @@ const loadPersistedFilter = (): string[] => {
 export default function YearView() {
   const { year } = useParams();
   const adultEnabled = useAdultMediaEnabled();
+  const { bindTooltip } = useHoverTooltip();
   const [searchParams, setSearchParams] = useSearchParams();
   const [entries, setEntries] = useState<EntryCardSummary[]>([]);
 
@@ -434,7 +436,10 @@ export default function YearView() {
                     ? 'bg-primary/20 text-primary border border-primary/30'
                     : 'bg-white/5 text-gray-400 hover:text-gray-300 border border-white/10 hover:border-white/20'}
                 `}
-                title={quickFiltersVisible ? "Hide quick filters" : "Show quick filters"}
+                {...bindTooltip(
+                  <span>{quickFiltersVisible ? "Hide quick filters" : "Show quick filters"}</span>,
+                  { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                )}
               >
                 <Sparkles size={14} />
                 <span>Quick Filters</span>
@@ -528,7 +533,10 @@ export default function YearView() {
                     : 'bg-gradient-to-r from-gray-600 to-gray-700 text-white shadow-lg shadow-black/20'
                   : 'bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15]'}
               `}
-              title={localCopyFilter === null ? "Show all" : localCopyFilter ? "Showing only with local copy" : "Showing only without local copy"}
+              {...bindTooltip(
+                <span>{localCopyFilter === null ? "Show all" : localCopyFilter ? "Showing only with local copy" : "Showing only without local copy"}</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
             >
               <HardDrive size={16} className={localCopyFilter !== null ? '' : 'opacity-70 group-hover:opacity-100'} />
               <span>Local Copy</span>
@@ -551,7 +559,10 @@ export default function YearView() {
                     : 'bg-gradient-to-r from-gray-600 to-gray-700 text-white shadow-lg shadow-black/20'
                   : 'bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15]'}
               `}
-              title={rewatchFilter === null ? "Show all" : rewatchFilter ? "Showing only replays" : "Showing only first-time entries"}
+              {...bindTooltip(
+                <span>{rewatchFilter === null ? "Show all" : rewatchFilter ? "Showing only replays" : "Showing only first-time entries"}</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
             >
               <RotateCcw size={16} className={rewatchFilter !== null ? '' : 'opacity-70 group-hover:opacity-100'} />
               <span>Replay</span>
@@ -574,7 +585,10 @@ export default function YearView() {
                     : 'bg-gradient-to-r from-gray-600 to-gray-700 text-white shadow-lg shadow-black/20'
                   : 'bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15]'}
               `}
-              title={subtitlesFilter === null ? "Show all" : subtitlesFilter ? "Showing only with subtitles" : "Showing only without subtitles"}
+              {...bindTooltip(
+                <span>{subtitlesFilter === null ? "Show all" : subtitlesFilter ? "Showing only with subtitles" : "Showing only without subtitles"}</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
             >
               <Captions size={16} className={subtitlesFilter !== null ? '' : 'opacity-70 group-hover:opacity-100'} />
               <span>Subtitles</span>

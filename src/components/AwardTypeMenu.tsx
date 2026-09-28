@@ -3,6 +3,7 @@ import { Check, ChevronDown, Layers } from "lucide-react";
 import { getTypeBadgeStyle, getVisibleEntryTypeOptions } from "../lib/media-config";
 import { cn } from "../lib/utils_ui";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
+import { useHoverTooltip } from "./HoverTooltip";
 
 interface AwardTypeMenuProps {
   /** The award's media type — null means the catch-all "General" group. */
@@ -27,6 +28,7 @@ interface AwardTypeMenuProps {
 export function AwardTypeMenu({ value, onChange, className, onOpenChange }: AwardTypeMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const { bindTooltip } = useHoverTooltip();
 
   useEscapeToClose(isOpen, () => setIsOpen(false));
 
@@ -61,7 +63,10 @@ export function AwardTypeMenu({ value, onChange, className, onOpenChange }: Awar
         }}
         aria-haspopup="menu"
         aria-expanded={isOpen}
-        title="Set award type"
+        {...bindTooltip(
+          <span>Set award type</span>,
+          { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+        )}
         className={cn(
           "flex items-center gap-1.5 rounded-full text-xs font-semibold transition-all",
           value

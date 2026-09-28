@@ -5,6 +5,7 @@ import { Home, BarChart3, Search, Award, Users, Layers, Plus, ChevronDown, Chevr
 import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
 import { WelcomeScreen } from "./WelcomeScreen";
+import { useHoverTooltip } from "./HoverTooltip";
 import { dbService, type MediaEntry, DB_FILENAME, DB_MIGRATED_FLAG_KEY } from "../lib/db";
 import { listen } from "@tauri-apps/api/event";
 import { shouldShowWelcome } from "../lib/onboarding-logic";
@@ -78,6 +79,7 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
   const [isRetryingDatabase, setIsRetryingDatabase] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { bindTooltip } = useHoverTooltip();
   const mainScrollRef = useRef<HTMLElement>(null);
   const routeStartedAtRef = useRef<number | null>(null);
   const currentYear = getCurrentYearString();
@@ -439,7 +441,10 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
                 "w-full flex items-center gap-2 py-2 rounded-lg text-sm transition-all text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-black/5",
                 isCompact ? "justify-center px-2" : "px-3"
               )}
-              title={isCompact ? "Expand sidebar" : "Collapse sidebar"}
+              {...bindTooltip(
+                <span>{isCompact ? "Expand sidebar" : "Collapse sidebar"}</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
             >
               <motion.span layout transition={iconLayoutTransition} className="flex h-5 w-5 items-center justify-center">
                 {isCompact ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
@@ -493,7 +498,10 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
             <button
               onClick={handleDismissDbMigratedBanner}
               className="shrink-0 rounded-md p-1 text-[var(--color-text-muted)] transition-colors hover:bg-black/5 hover:text-[var(--color-text)]"
-              title="Dismiss"
+              {...bindTooltip(
+                <span>Dismiss</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
               aria-label="Dismiss"
             >
               <X size={16} />
@@ -637,6 +645,7 @@ function YearTimelineItem({
   isCompact?: boolean;
   shortcut?: string;
 }) {
+  const { bindTooltip } = useHoverTooltip();
   return (
     <motion.div initial="rest" animate="rest" whileHover="hover">
       <NavLink
@@ -650,7 +659,9 @@ function YearTimelineItem({
               : "text-[var(--color-text-muted)] hover:bg-black/5 hover:text-[var(--color-text)]"
           )
         }
-        title={isCompact ? year : undefined}
+        {...(isCompact
+          ? bindTooltip(<span>{year}</span>, { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" })
+          : {})}
       >
         {({ isActive }) => {
         // Dot marker sitting on the rail: glowing for the current year,
@@ -726,6 +737,7 @@ function NavItem({
   isCompact?: boolean;
   badge?: string;
 }) {
+  const { bindTooltip } = useHoverTooltip();
   return (
     <motion.div initial="rest" animate="rest" whileHover="hover">
       <NavLink
@@ -739,7 +751,9 @@ function NavItem({
               : "text-[var(--color-text-muted)] hover:bg-black/5 hover:text-[var(--color-text)]"
           )
         }
-        title={isCompact ? label : undefined}
+        {...(isCompact
+          ? bindTooltip(<span>{label}</span>, { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" })
+          : {})}
       >
         {({ isActive }) => (
           <>

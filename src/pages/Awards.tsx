@@ -13,6 +13,7 @@ import { AwardFilmStrip } from "../components/awards/AwardFilmStrip";
 import { AwardYearPanel } from "../components/awards/AwardYearPanel";
 import { AwardReorderModal, type AwardReorderGroup } from "../components/awards/AwardReorderModal";
 import { useMainScrollContainer } from "../lib/scroll-container";
+import { useHoverTooltip } from "../components/HoverTooltip";
 import type { MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import { formatDateNoYear } from "../lib/dates";
@@ -87,6 +88,7 @@ interface AwardCategoryCardProps {
 
 // One award category card in the year view: winner showcase or picker prompt.
 function AwardCategoryCard({ cat, index, groupSize, selectedYear, onOpenPicker, onDelete }: AwardCategoryCardProps) {
+  const { bindTooltip } = useHoverTooltip();
   const winner = cat.winner;
   const typeBadge = winner ? getTypeBadgeStyle(winner.entry_type) : null;
   const genres = winner ? parseGenres(winner.genre) : [];
@@ -227,7 +229,7 @@ function AwardCategoryCard({ cat, index, groupSize, selectedYear, onOpenPicker, 
                   {genres.length > 4 && (
                     <span
                       className="px-2 py-0.5 bg-white/5 rounded-md text-[11px] text-gray-500 font-medium"
-                      title={genres.slice(4).join(', ')}
+                      {...bindTooltip(<span>{genres.slice(4).join(', ')}</span>)}
                     >
                       +{genres.length - 4}
                     </span>
@@ -249,7 +251,10 @@ function AwardCategoryCard({ cat, index, groupSize, selectedYear, onOpenPicker, 
                   <button
                     onClick={() => onDelete(cat)}
                     className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                    title={`Remove this award from ${selectedYear}`}
+                    {...bindTooltip(
+                      <span>{`Remove this award from ${selectedYear}`}</span>,
+                      { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                    )}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -277,7 +282,10 @@ function AwardCategoryCard({ cat, index, groupSize, selectedYear, onOpenPicker, 
             <button
               onClick={() => onDelete(cat)}
               className="absolute bottom-3 right-3 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-              title={`Remove this award from ${selectedYear}`}
+              {...bindTooltip(
+                <span>{`Remove this award from ${selectedYear}`}</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
             >
               <Trash2 size={16} />
             </button>
@@ -291,6 +299,7 @@ function AwardCategoryCard({ cat, index, groupSize, selectedYear, onOpenPicker, 
 export default function AwardsPage() {
   const [view, setView] = useState<ViewType>("main");
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const { bindTooltip } = useHoverTooltip();
   // Media-type filter on the year view — null shows every group.
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
 
@@ -717,7 +726,10 @@ export default function AwardsPage() {
                     type="button"
                     onClick={() => setYearToDelete(y)}
                     className="absolute top-3 right-3 z-20 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                    title="Delete empty award year"
+                    {...bindTooltip(
+                      <span>Delete empty award year</span>,
+                      { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                    )}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -774,7 +786,10 @@ export default function AwardsPage() {
                       type="button"
                       onClick={() => openDeleteTemplate(template)}
                       className="absolute top-3 right-3 z-20 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                      title="Delete award"
+                      {...bindTooltip(
+                        <span>Delete award</span>,
+                        { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                      )}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -958,7 +973,10 @@ export default function AwardsPage() {
             <button
               onClick={() => setReorderOpen(true)}
               disabled={categories.length < 2}
-              title="Reorder categories"
+              {...bindTooltip(
+                <span>Reorder categories</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
               aria-label="Reorder categories"
               className="flex items-center bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 p-2.5 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -968,7 +986,10 @@ export default function AwardsPage() {
 
           <button
             onClick={() => setCategoryPickerOpen(true)}
-            title="Add award"
+            {...bindTooltip(
+              <span>Add award</span>,
+              { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+            )}
             aria-label="Add award"
             className="flex items-center bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 p-2.5 rounded-xl transition-all shadow-lg shadow-amber-500/20"
           >

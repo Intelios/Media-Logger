@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { X, Save, Plus, Layers, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
+import { useHoverTooltip } from "./HoverTooltip";
 import type { Era } from "../lib/collections-logic";
 
 interface ErasModalProps {
@@ -25,6 +26,7 @@ export function ErasModal({ isOpen, eras, onClose, onSave }: ErasModalProps) {
   const [newColor, setNewColor] = useState(ERA_PALETTE[0]);
   const [saving, setSaving] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+  const { bindTooltip } = useHoverTooltip();
 
   useEscapeToClose(isOpen, onClose);
   useFocusTrap(isOpen, modalRef);
@@ -129,7 +131,10 @@ export function ErasModal({ isOpen, eras, onClose, onSave }: ErasModalProps) {
                   <label
                     className="relative w-9 h-9 rounded-full cursor-pointer border border-white/20 shadow-md shrink-0 overflow-hidden"
                     style={{ background: era.color }}
-                    title="Choose color"
+                    {...bindTooltip(
+                      <span>Choose color</span>,
+                      { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                    )}
                   >
                     <input
                       type="color"
@@ -153,7 +158,10 @@ export function ErasModal({ isOpen, eras, onClose, onSave }: ErasModalProps) {
                       onClick={() => moveEra(index, -1)}
                       disabled={index === 0}
                       className="p-1 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title="Move up"
+                      {...bindTooltip(
+                        <span>Move up</span>,
+                        { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                      )}
                     >
                       <ChevronUp size={16} />
                     </button>
@@ -161,7 +169,10 @@ export function ErasModal({ isOpen, eras, onClose, onSave }: ErasModalProps) {
                       onClick={() => moveEra(index, 1)}
                       disabled={index === localEras.length - 1}
                       className="p-1 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title="Move down"
+                      {...bindTooltip(
+                        <span>Move down</span>,
+                        { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                      )}
                     >
                       <ChevronDown size={16} />
                     </button>
@@ -171,7 +182,10 @@ export function ErasModal({ isOpen, eras, onClose, onSave }: ErasModalProps) {
                   <button
                     onClick={() => removeEra(era.id)}
                     className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                    title="Delete era"
+                    {...bindTooltip(
+                      <span>Delete era</span>,
+                      { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+                    )}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -185,7 +199,10 @@ export function ErasModal({ isOpen, eras, onClose, onSave }: ErasModalProps) {
             <label
               className="relative w-9 h-9 rounded-full cursor-pointer border border-white/20 shadow-md shrink-0 overflow-hidden"
               style={{ background: newColor }}
-              title="Choose color"
+              {...bindTooltip(
+                <span>Choose color</span>,
+                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
+              )}
             >
               <input
                 type="color"

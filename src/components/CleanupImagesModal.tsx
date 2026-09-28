@@ -3,6 +3,7 @@ import { Check, CheckCircle2, Trash2, X } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { useFocusTrap } from '../lib/useFocusTrap';
+import { useHoverTooltip } from './HoverTooltip';
 import { CoverImage } from './CoverImage';
 import { VirtualizedCardGrid } from './VirtualizedCardGrid';
 import {
@@ -32,6 +33,7 @@ function OrphanTile({
     selected: boolean;
     onToggle: () => void;
 }) {
+    const { bindTooltip } = useHoverTooltip();
     return (
         <div
             role="button"
@@ -81,7 +83,7 @@ function OrphanTile({
             <div style={{ padding: '6px 8px' }}>
                 <div
                     className="truncate"
-                    title={orphan.name}
+                    {...bindTooltip(<span>{orphan.name}</span>)}
                     style={{ fontSize: 11, color: 'var(--color-text-muted)' }}
                 >
                     {orphan.name}
