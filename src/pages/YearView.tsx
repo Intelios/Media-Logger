@@ -138,6 +138,20 @@ export default function YearView() {
   // Highlight state for featured entry navigation
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
   const hasProcessedHighlight = useRef(false);
+  const highlightTimeoutRef = useRef<number | null>(null);
+
+  // The 3s highlight-clear timer must not fire after unmount or outlive a
+  // newer highlight. It is cleared here rather than in the highlight effect's
+  // own cleanup because that effect re-runs as soon as the params are cleared
+  // and would cancel the timer mid-highlight, leaving the ring stuck on.
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current !== null) {
+        window.clearTimeout(highlightTimeoutRef.current);
+        highlightTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Expansion modal state (opened from a parent game's card)
   const [expansionsParent, setExpansionsParent] = useState<{ id: number; name: string } | null>(null);
@@ -324,28 +338,40 @@ export default function YearView() {
     const highlightParam = searchParams.get('highlight');
     const typeParam = searchParams.get('type');
 
-    if (highlightParam && !hasProcessedHighlight.current) {
-      hasProcessedHighlight.current = true;
-      const entryId = parseInt(highlightParam, 10);
-
-      // If a type is specified and not currently in our filter, add it (only if visible)
-      if (typeParam && !selectedTypes.includes(typeParam) && getVisibleEntryTypes().includes(typeParam)) {
-        setSelectedTypes([typeParam]);
-        setActivePreset(null);
-        localStorage.removeItem(PRESET_STORAGE_KEY);
-      }
-
-      // Set highlighted ID for animation
-      setHighlightedId(entryId);
-
-      // Clear animation after 3 seconds
-      setTimeout(() => {
-        setHighlightedId(null);
-      }, 3000);
-
-      // Clean up URL params
-      setSearchParams({}, { replace: true });
+    if (!highlightParam) {
+      // Layout only remounts <main> when the pathname changes, so this page
+      // instance survives same-year highlight navigations (e.g. jumping to a
+      // base game that lives in the year you are already viewing). Re-arm the
+      // latch once the params are cleared, or every highlight after the first
+      // is silently swallowed for the lifetime of this instance.
+      hasProcessedHighlight.current = false;
+      return;
     }
+    if (hasProcessedHighlight.current) return;
+    hasProcessedHighlight.current = true;
+    const entryId = parseInt(highlightParam, 10);
+
+    // If a type is specified and not currently in our filter, add it (only if visible)
+    if (typeParam && !selectedTypes.includes(typeParam) && getVisibleEntryTypes().includes(typeParam)) {
+      setSelectedTypes([typeParam]);
+      setActivePreset(null);
+      localStorage.removeItem(PRESET_STORAGE_KEY);
+    }
+
+    // Set highlighted ID for animation
+    setHighlightedId(entryId);
+
+    // Clear animation after 3 seconds (a newer highlight replaces the timer)
+    if (highlightTimeoutRef.current !== null) {
+      window.clearTimeout(highlightTimeoutRef.current);
+    }
+    highlightTimeoutRef.current = window.setTimeout(() => {
+      highlightTimeoutRef.current = null;
+      setHighlightedId(null);
+    }, 3000);
+
+    // Clean up URL params
+    setSearchParams({}, { replace: true });
   }, [searchParams, selectedTypes, setSearchParams]);
 
   const handleSave = async (data: Partial<MediaEntry>) => {
