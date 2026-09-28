@@ -99,6 +99,44 @@ export type CountableField =
   | "actress"
   | "entry_type";
 
+/**
+ * The aggregate list fields of FullStats. The plate only renders four panels at
+ * a time, so its derivation passes a requirement set and every list outside it
+ * comes back empty — never compute a list no slotted panel can read.
+ */
+export type StatsListId =
+  | "ratings"
+  | "genres"
+  | "platforms"
+  | "franchises"
+  | "series"
+  | "studios"
+  | "authors"
+  | "actresses"
+  | "mediaTypeBreakdown"
+  | "multiLogDays"
+  | "averageScoreByType"
+  | "dailyCompletions"
+  | "mostReplayed";
+
+export type StatsListRequirement = ReadonlySet<StatsListId>;
+
+export const ALL_STATS_LIST_IDS: readonly StatsListId[] = [
+  "ratings",
+  "genres",
+  "platforms",
+  "franchises",
+  "series",
+  "studios",
+  "authors",
+  "actresses",
+  "mediaTypeBreakdown",
+  "multiLogDays",
+  "averageScoreByType",
+  "dailyCompletions",
+  "mostReplayed",
+];
+
 const MONTH_KEYS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 function hasReviewScore(entry: StatsEntry): entry is StatsEntry & { review_score: number } {
@@ -125,6 +163,75 @@ function getDelimitedValues(value: string | null | undefined) {
 }
 
 /**
+ * Per-row facets that a derive would otherwise recompute on every brush frame:
+ * the comma splits of delimited fields, the game/TV type flags, and the parsed
+ * completion month/year. Keyed on the row object, so each facet is computed
+ * once per dataset version — the worker retains its cloned rows and the
+ * synchronous fallback retains the main-thread rows, and replaced datasets
+ * drop out of the map for the GC to collect.
+ */
+interface EntryFacets {
+  delimited: Partial<Record<CountableField, readonly string[]>>;
+  isGame?: boolean;
+  isTv?: boolean;
+  parsedCompletion?: { monthIndex: number; year: number } | null;
+}
+
+const entryFacetsCache = new WeakMap<StatsEntry, EntryFacets>();
+
+function facetsOf(entry: StatsEntry): EntryFacets {
+  let facets = entryFacetsCache.get(entry);
+  if (facets === undefined) {
+    facets = { delimited: {} };
+    entryFacetsCache.set(entry, facets);
+  }
+  return facets;
+}
+
+/** Memoized getDelimitedValues for one field of one row; splitting semantics are identical. */
+export function delimitedFieldValues(entry: StatsEntry, field: CountableField): readonly string[] {
+  const facets = facetsOf(entry);
+  const cached = facets.delimited[field];
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const values = getDelimitedValues(entry[field]);
+  facets.delimited[field] = values;
+  return values;
+}
+
+function isGameEntryCached(entry: StatsEntry): boolean {
+  const facets = facetsOf(entry);
+  if (facets.isGame === undefined) {
+    facets.isGame = isGameEntry(entry);
+  }
+  return facets.isGame;
+}
+
+function isTvEntryCached(entry: StatsEntry): boolean {
+  const facets = facetsOf(entry);
+  if (facets.isTv === undefined) {
+    facets.isTv = isTvEntry(entry);
+  }
+  return facets.isTv;
+}
+
+function parsedCompletionOf(entry: StatsEntry): { monthIndex: number; year: number } | null {
+  const facets = facetsOf(entry);
+  if (facets.parsedCompletion === undefined) {
+    facets.parsedCompletion = null;
+    if (entry.completion_date) {
+      const parsed = new Date(entry.completion_date);
+      if (!Number.isNaN(parsed.getTime())) {
+        facets.parsedCompletion = { monthIndex: parsed.getMonth(), year: parsed.getFullYear() };
+      }
+    }
+  }
+  return facets.parsedCompletion;
+}
+
+/**
  * Counts a comma-delimited field across entries, carrying average and perfect-10
  * counts. `avgScore` is deliberately unrounded — round at the render layer.
  */
@@ -132,13 +239,7 @@ export function countFieldWithScores(entries: StatsEntry[], fieldName: Countable
   const stats: Record<string, { count: number; totalScore: number; scoreCount: number; perfectCount: number }> = {};
 
   for (const entry of entries) {
-    const rawValue = entry[fieldName];
-    if (typeof rawValue !== "string" || rawValue.trim() === "") {
-      continue;
-    }
-
-    const values = getDelimitedValues(rawValue);
-    for (const value of values) {
+    for (const value of delimitedFieldValues(entry, fieldName)) {
       if (!stats[value]) {
         stats[value] = { count: 0, totalScore: 0, scoreCount: 0, perfectCount: 0 };
       }
@@ -171,38 +272,44 @@ export function createStatsDataset(entries: StatsEntry[], now = new Date()): Sta
   return {
     entries,
     ratedEntries: entries.filter(hasReviewScore),
-    gameEntries: entries.filter(isGameEntry),
-    tvEntries: entries.filter(isTvEntry),
+    gameEntries: entries.filter(isGameEntryCached),
+    tvEntries: entries.filter(isTvEntryCached),
     now,
   };
 }
 
 export function selectBasicStats(dataset: StatsDataset) {
   const total = dataset.entries.length;
-  const rewatch_count = dataset.entries.filter((entry) => Boolean(entry.is_rewatch)).length;
-  const perfectTenCount = dataset.ratedEntries.filter((entry) => entry.review_score === 10).length;
-  const totalRatedScore = dataset.ratedEntries.reduce((sum, entry) => sum + entry.review_score, 0);
-  const average_score = dataset.ratedEntries.length > 0 ? totalRatedScore / dataset.ratedEntries.length : 0;
   const currentMonth = dataset.now.getMonth();
   const currentYear = dataset.now.getFullYear();
-  const entriesThisMonth = dataset.entries.filter((entry) => {
-    if (!entry.completion_date) {
-      return false;
+
+  let rewatchCount = 0;
+  let entriesThisMonth = 0;
+  for (const entry of dataset.entries) {
+    if (entry.is_rewatch) {
+      rewatchCount += 1;
     }
 
-    try {
-      const completionDate = new Date(entry.completion_date);
-      return completionDate.getMonth() === currentMonth && completionDate.getFullYear() === currentYear;
-    } catch {
-      return false;
+    const parsed = parsedCompletionOf(entry);
+    if (parsed !== null && parsed.monthIndex === currentMonth && parsed.year === currentYear) {
+      entriesThisMonth += 1;
     }
-  }).length;
+  }
+
+  let totalRatedScore = 0;
+  let perfectTenCount = 0;
+  for (const entry of dataset.ratedEntries) {
+    totalRatedScore += entry.review_score;
+    if (entry.review_score === 10) {
+      perfectTenCount += 1;
+    }
+  }
 
   return {
     total,
-    rewatch_count,
+    rewatch_count: rewatchCount,
     perfectTenCount,
-    average_score,
+    average_score: dataset.ratedEntries.length > 0 ? totalRatedScore / dataset.ratedEntries.length : 0,
     entriesThisMonth,
   };
 }
@@ -312,7 +419,14 @@ export function selectMultiLogDays(dataset: StatsDataset): MultiLogDay[] {
 // One row per month (specific year) or per year (All Time), carrying every series
 // the stats timeline can draw. Month buckets are pre-seeded so the axis stays
 // Jan–Dec regardless of activity; year buckets only exist where there is data.
-export function selectTimelineSeries(dataset: StatsDataset, granularity: "month" | "year"): TimelineBucket[] {
+//
+// Takes the raw row array rather than a StatsDataset: the plate derives the
+// timeline from the full unbrushed set every frame, and building the dataset's
+// rated/game/tv arrays for it was per-brush work nothing ever read.
+export function selectTimelineSeriesFromEntries(
+  entries: StatsEntry[],
+  granularity: "month" | "year"
+): TimelineBucket[] {
   type Accumulator = {
     label: string;
     completions: number;
@@ -339,7 +453,7 @@ export function selectTimelineSeries(dataset: StatsDataset, granularity: "month"
     MONTH_KEYS.forEach((month, index) => ensureBucket(String(index).padStart(2, "0"), month));
   }
 
-  for (const entry of dataset.entries) {
+  for (const entry of entries) {
     if (!entry.completion_date) {
       continue;
     }
@@ -381,14 +495,22 @@ export function selectTimelineSeries(dataset: StatsDataset, granularity: "month"
     }));
 }
 
-export function selectAverageScoreByType(dataset: StatsDataset) {
-  return countFieldWithScores(dataset.entries, "entry_type")
+export function selectTimelineSeries(dataset: StatsDataset, granularity: "month" | "year"): TimelineBucket[] {
+  return selectTimelineSeriesFromEntries(dataset.entries, granularity);
+}
+
+function toAverageScoreByType(items: StatItem[]): StatItem[] {
+  return items
     .filter((item) => item.avgScore !== undefined)
     .sort((left, right) => {
       const avgDiff = (right.avgScore ?? 0) - (left.avgScore ?? 0);
       return avgDiff !== 0 ? avgDiff : right.count - left.count;
     })
     .slice(0, 8);
+}
+
+export function selectAverageScoreByType(dataset: StatsDataset) {
+  return toAverageScoreByType(countFieldWithScores(dataset.entries, "entry_type"));
 }
 
 export function selectDailyCompletions(dataset: StatsDataset): DailyCompletion[] {
@@ -474,24 +596,39 @@ export function selectMostReplayed(dataset: StatsDataset): MostReplayedItem[] {
     }));
 }
 
-export function buildFullStatsFromDataset(dataset: StatsDataset): FullStats {
+/**
+ * Derives every FullStats list from one dataset. Without `requiredLists` all
+ * lists are computed; with it, lists outside the set are returned empty — the
+ * plate passes the set implied by its four slotted panels so a brush frame
+ * never pays for lists nothing on screen can read. `dailyCompletions` is always
+ * computed because the timeline overlay's heatmap is openable at any moment.
+ */
+export function buildFullStatsFromDataset(dataset: StatsDataset, requiredLists?: StatsListRequirement): FullStats {
+  const needs = (listId: StatsListId) => requiredLists === undefined || requiredLists.has(listId);
   const basicStats = selectBasicStats(dataset);
+
+  // entry_type feeds two lists; count it once when either is required, and
+  // gate each derivation on its own need so an unrequired list stays empty.
+  const entryTypeItems =
+    needs("mediaTypeBreakdown") || needs("averageScoreByType")
+      ? countFieldWithScores(dataset.entries, "entry_type")
+      : null;
 
   return {
     ...basicStats,
-    ratings: selectRatingDistribution(dataset),
-    genres: selectGenres(dataset),
-    platforms: selectPlatforms(dataset),
-    franchises: selectFranchises(dataset),
-    series: selectSeries(dataset),
-    studios: selectStudios(dataset),
-    authors: selectAuthors(dataset),
-    actresses: selectActresses(dataset),
-    mediaTypeBreakdown: selectMediaTypeBreakdown(dataset),
-    multiLogDays: selectMultiLogDays(dataset),
-    averageScoreByType: selectAverageScoreByType(dataset),
+    ratings: needs("ratings") ? selectRatingDistribution(dataset) : [],
+    genres: needs("genres") ? selectGenres(dataset) : [],
+    platforms: needs("platforms") ? selectPlatforms(dataset) : [],
+    franchises: needs("franchises") ? selectFranchises(dataset) : [],
+    series: needs("series") ? selectSeries(dataset) : [],
+    studios: needs("studios") ? selectStudios(dataset) : [],
+    authors: needs("authors") ? selectAuthors(dataset) : [],
+    actresses: needs("actresses") ? selectActresses(dataset) : [],
+    mediaTypeBreakdown: needs("mediaTypeBreakdown") && entryTypeItems !== null ? entryTypeItems.slice(0, 15) : [],
+    multiLogDays: needs("multiLogDays") ? selectMultiLogDays(dataset) : [],
+    averageScoreByType: needs("averageScoreByType") && entryTypeItems !== null ? toAverageScoreByType(entryTypeItems) : [],
     dailyCompletions: selectDailyCompletions(dataset),
-    mostReplayed: selectMostReplayed(dataset),
+    mostReplayed: needs("mostReplayed") ? selectMostReplayed(dataset) : [],
   };
 }
 

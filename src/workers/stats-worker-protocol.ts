@@ -1,4 +1,5 @@
 import type { StatsEntry } from "../lib/db";
+import type { PlatePanelId } from "../components/stats/plate/plate-config";
 import type {
   PlateAggregateData,
   PlateComparison,
@@ -29,6 +30,8 @@ export interface StatsWorkerDeriveMessage {
   comparisonYear: string | null;
   selectedTypes: string[];
   range: StatsRange | null;
+  /** Panels currently occupying the plate's four slots — decides which FullStats lists are derived. */
+  slots: PlatePanelId[];
 }
 
 export type StatsWorkerRequest =

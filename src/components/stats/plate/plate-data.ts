@@ -1,11 +1,16 @@
 import type { StatsEntry } from "../../../lib/db";
 import {
+  ALL_STATS_LIST_IDS,
   buildFullStatsFromDataset,
   createStatsDataset,
-  selectTimelineSeries,
+  delimitedFieldValues,
+  selectTimelineSeriesFromEntries,
   type FullStats,
+  type StatsListId,
+  type StatsListRequirement,
   type TimelineBucket,
 } from "../../../lib/stats-logic";
+import type { PlatePanelId } from "./plate-config";
 
 // An inclusive calendar range, both bounds stored as "YYYY-MM-DD" so they compare
 // lexicographically against StatsEntry.completion_date without any Date parsing.
@@ -116,26 +121,16 @@ export function filterEntriesByTypes(entries: StatsEntry[], selectedTypes: strin
   return entries.filter((entry) => typeof entry.entry_type === "string" && allowed.has(entry.entry_type));
 }
 
-function splitDelimited(value: string | null): string[] {
-  if (!value) {
-    return [];
-  }
-
-  return value
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
 /**
  * selectGenres caps its list at 25 for display, so the headline genre count has
- * to be counted separately or it silently plateaus at 25.
+ * to be counted separately or it silently plateaus at 25. Reads the memoized
+ * per-row genre splits, so a brush frame only merges cached arrays.
  */
 export function countDistinctGenres(entries: StatsEntry[]): number {
   const genres = new Set<string>();
 
   for (const entry of entries) {
-    for (const genre of splitDelimited(entry.genre)) {
+    for (const genre of delimitedFieldValues(entry, "genre")) {
       genres.add(genre);
     }
   }
@@ -277,6 +272,39 @@ export function isCellInRange(cell: BrushCell, range: StatsRange | null): boolea
   return cell.to >= range.from && cell.from <= range.to;
 }
 
+/** The lists each panel reads. Anything a slotless panel needs must land here too. */
+const PANEL_REQUIRED_LISTS: Record<PlatePanelId, readonly StatsListId[]> = {
+  genres: ["genres"],
+  scores: ["ratings", "averageScoreByType"],
+  catalogue: ["platforms", "franchises", "series", "studios", "authors", "actresses"],
+  standouts: ["mostReplayed"],
+  "content-types": ["mediaTypeBreakdown"],
+  // dailyCompletions feeds the expanded binge map here and the timeline
+  // overlay's heatmap, which is openable at any moment — it is always required.
+  "multi-log-days": ["multiLogDays", "dailyCompletions"],
+};
+
+/**
+ * The plate renders four slots, but buildFullStatsFromDataset can produce
+ * thirteen lists; deriving only the ones a slotted panel can read keeps a brush
+ * frame from paying for the other nine (or more, with compare on). An absent
+ * slot list means "compute everything" — the pre-plate behaviour for callers
+ * that have no slot configuration.
+ */
+export function panelSlotsToRequiredLists(panelSlots: readonly PlatePanelId[] | null | undefined): StatsListRequirement {
+  if (!panelSlots) {
+    return new Set(ALL_STATS_LIST_IDS);
+  }
+
+  const required = new Set<StatsListId>(["dailyCompletions"]);
+  for (const panelId of panelSlots) {
+    for (const listId of PANEL_REQUIRED_LISTS[panelId]) {
+      required.add(listId);
+    }
+  }
+  return required;
+}
+
 /**
  * Everything the plate renders, derived in memory from one already-fetched row
  * set. Brushing re-runs this and nothing else — there is no query behind it.
@@ -284,16 +312,17 @@ export function isCellInRange(cell: BrushCell, range: StatsRange | null): boolea
 export function derivePlateData(
   entries: StatsEntry[],
   activeYear: string,
-  range: StatsRange | null
+  range: StatsRange | null,
+  requiredLists?: StatsListRequirement
 ): PlateData {
   const granularity = getGranularity(activeYear);
   const rangedEntries = filterEntriesByRange(entries, range);
-  const fullDataset = createStatsDataset(entries);
-  const rangedDataset = rangedEntries === entries ? fullDataset : createStatsDataset(rangedEntries);
 
   return {
-    stats: buildFullStatsFromDataset(rangedDataset),
-    timeline: selectTimelineSeries(fullDataset, granularity),
+    stats: buildFullStatsFromDataset(createStatsDataset(rangedEntries), requiredLists),
+    // The timeline reads only the row array, so the full typed set skips the
+    // dataset build entirely — its derived arrays were never read here.
+    timeline: selectTimelineSeriesFromEntries(entries, granularity),
     granularity,
     // The brush strip always shows the whole year so you can see what you are
     // selecting from, even while a narrower range is active.
@@ -307,8 +336,9 @@ export function derivePlateAggregateData(
   entries: StatsEntry[],
   activeYear: string,
   range: StatsRange | null,
+  requiredLists?: StatsListRequirement,
 ): PlateAggregateData {
-  const data = derivePlateData(entries, activeYear, range);
+  const data = derivePlateData(entries, activeYear, range, requiredLists);
   return {
     stats: data.stats,
     timeline: data.timeline,
@@ -337,19 +367,16 @@ export function projectRangeOntoYear(range: StatsRange | null, year: string): St
 export function deriveComparison(
   comparisonEntries: StatsEntry[],
   comparisonYear: string,
-  range: StatsRange | null
+  range: StatsRange | null,
+  requiredLists?: StatsListRequirement
 ): PlateComparison {
   const projected = projectRangeOntoYear(range, comparisonYear);
   const rangedEntries = filterEntriesByRange(comparisonEntries, projected);
-  const fullDataset = createStatsDataset(comparisonEntries);
-  const rangedDataset = rangedEntries === comparisonEntries
-    ? fullDataset
-    : createStatsDataset(rangedEntries);
 
   return {
     year: comparisonYear,
-    stats: buildFullStatsFromDataset(rangedDataset),
-    timeline: selectTimelineSeries(fullDataset, "month"),
+    stats: buildFullStatsFromDataset(createStatsDataset(rangedEntries), requiredLists),
+    timeline: selectTimelineSeriesFromEntries(comparisonEntries, "month"),
     genreCount: countDistinctGenres(rangedEntries),
   };
 }
@@ -361,18 +388,21 @@ export function derivePlateSelection(
   selectedTypes: string[],
   range: StatsRange | null,
   comparisonDataset: { entries: StatsEntry[]; year: string } | null,
+  panelSlots?: readonly PlatePanelId[],
 ): PlateSelectionResult {
+  const requiredLists = panelSlotsToRequiredLists(panelSlots);
   const typedEntries = filterEntriesByTypes(activeEntries, selectedTypes);
   const comparison = comparisonDataset
     ? deriveComparison(
         filterEntriesByTypes(comparisonDataset.entries, selectedTypes),
         comparisonDataset.year,
         range,
+        requiredLists,
       )
     : null;
 
   return {
-    plate: derivePlateAggregateData(typedEntries, activeYear, range),
+    plate: derivePlateAggregateData(typedEntries, activeYear, range, requiredLists),
     comparison,
   };
 }

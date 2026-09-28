@@ -70,6 +70,7 @@ function processLatestDerivation(): void {
       request.selectedTypes,
       request.range,
       comparison ? { entries: comparison.entries, year: comparison.year } : null,
+      request.slots,
     );
 
     // The main thread also rejects stale IDs. This worker-side check prevents a

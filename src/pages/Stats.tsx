@@ -456,6 +456,10 @@ export default function StatsPage() {
         comparisonYear: usableComparison?.year ?? null,
         selectedTypes,
         range,
+        // The slotted panels decide which FullStats lists the derive computes;
+        // the same value feeds the synchronous fallback so both paths stay
+        // byte-identical.
+        slots: preferences.slots,
       };
 
       if (workerMode === "worker" && workerRef.current) {
@@ -476,6 +480,7 @@ export default function StatsPage() {
           usableComparison
             ? { entries: usableComparison.entries, year: usableComparison.year }
             : null,
+          preferences.slots,
         );
         if (requestId !== latestDerivationRef.current) return;
         setDerivedResult({
@@ -497,6 +502,7 @@ export default function StatsPage() {
     comparisonDataset,
     preferences.compareEnabled,
     preferences.compareYear,
+    preferences.slots,
     range,
     selectedTypes,
     useSynchronousWorkerFallback,
