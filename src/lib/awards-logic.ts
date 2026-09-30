@@ -92,6 +92,18 @@ export const awardsLogic = {
     );
   },
 
+  /** Create a new year, optionally reusing another year's categories without winners. */
+  async createNewYear(year: number, copyFromYear: number | null): Promise<void> {
+    validateAwardYear(year);
+    if (copyFromYear !== null) validateAwardYear(copyFromYear);
+    const db = await dbService.connect();
+    await invoke('database_create_award_year', {
+      databaseUrl: db.path,
+      year,
+      copyFromYear,
+    });
+  },
+
   async deleteYear(year: number): Promise<void> {
     const db = await dbService.connect();
     const categoryCount = await db.select<{ count: number }[]>(

@@ -1436,6 +1436,7 @@ pub fn run() {
             database::database_reorder_collection_items,
             database::database_reorder_collections,
             database::database_reorder_award_categories,
+            database::database_create_award_year,
             database::database_delete_award_template,
             database::database_reorder_backlog_items,
             database::database_export_snapshot,

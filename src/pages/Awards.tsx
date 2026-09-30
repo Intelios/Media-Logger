@@ -6,7 +6,7 @@ import { MediaCard } from "../components/MediaCard";
 import { formatCardRating, getRatingColor, getTypeBadgeStyle, parseGenres } from "../lib/media-config";
 import { AwardTypeMenu } from "../components/AwardTypeMenu";
 import { WinnerPicker } from "../components/WinnerPicker";
-import { InputModal } from "../components/InputModal";
+import { CreateAwardYearModal } from "../components/awards/CreateAwardYearModal";
 import { CategoryPicker } from "../components/CategoryPicker";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { AwardFilmStrip } from "../components/awards/AwardFilmStrip";
@@ -324,8 +324,7 @@ export default function AwardsPage() {
   // how many years and winners the cascade will remove.
   const [templateImpact, setTemplateImpact] = useState<TemplateDeletionImpact | null>(null);
 
-  // New Input Modal State
-  const [inputModalOpen, setInputModalOpen] = useState(false);
+  const [createYearOpen, setCreateYearOpen] = useState(false);
 
   // Visible error message for award/year creation failures (e.g. duplicate
   // template in the same year, invalid year input).
@@ -458,29 +457,19 @@ export default function AwardsPage() {
   };
 
   const openCreateYearModal = () => {
-    setInputModalOpen(true);
+    setCreateYearOpen(true);
   };
 
-  const validateYearInput = (value: string): string | null => {
-    if (!/^\d{4}$/.test(value)) {
-      return "Enter a 4-digit year (e.g. 2026).";
-    }
-    const y = Number(value);
-    if (y < 1900 || y > 9999) {
-      return "Enter a year between 1900 and 9999.";
-    }
-    if (years.some(existing => existing.year === y)) {
-      return `${y} already has an award year.`;
-    }
-    return null;
-  };
-
-  const handleYearInputSubmit = async (value: string) => {
-    const y = Number(value);
+  const handleCreateYear = async (year: number, copyFromYear: number | null) => {
+    await awardsLogic.createNewYear(year, copyFromYear);
+    setCreateYearOpen(false);
+    setAwardError(null);
     try {
-      await awardsLogic.createYear(y);
-      await loadYears();
-      handleYearSelect(y);
+      await Promise.all([loadYears(), loadTemplates(), loadCategories(year)]);
+      setSelectedYear(year);
+      setTypeFilter(null);
+      setView("year");
+      scrollToTop();
     } catch (error) {
       setAwardError(error instanceof Error ? error.message : String(error));
     }
@@ -800,14 +789,11 @@ export default function AwardsPage() {
           )}
         </section>
 
-        <InputModal
-          isOpen={inputModalOpen}
-          onClose={() => setInputModalOpen(false)}
-          onSubmit={handleYearInputSubmit}
-          title="Create New Award Year"
-          placeholder="e.g. 2026"
-          defaultValue={new Date().getFullYear().toString()}
-          validate={validateYearInput}
+        <CreateAwardYearModal
+          isOpen={createYearOpen}
+          years={years}
+          onClose={() => setCreateYearOpen(false)}
+          onSubmit={handleCreateYear}
         />
 
         <ConfirmDialog

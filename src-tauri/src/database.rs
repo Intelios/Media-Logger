@@ -1335,6 +1335,72 @@ pub async fn database_delete_award_template(
         .map_err(|error| database_error("Failed to commit award deletion", error))
 }
 
+/// Create a year and optionally copy the source categories in one transaction.
+/// Template links preserve media types; winners belong only to their original year.
+#[tauri::command]
+pub async fn database_create_award_year(
+    database_url: String,
+    year: i64,
+    copy_from_year: Option<i64>,
+    instances: State<'_, DbInstances>,
+) -> Result<(), String> {
+    if !(1900..=9999).contains(&year) {
+        return Err("Enter a year between 1900 and 9999.".to_string());
+    }
+    if let Some(source_year) = copy_from_year {
+        if !(1900..=9999).contains(&source_year) || source_year == year {
+            return Err("Choose a different award year to copy categories from.".to_string());
+        }
+    }
+
+    let pool = sqlite_pool(&instances, &database_url).await?;
+    let mut tx = pool
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|error| database_error("Failed to begin award year creation", error))?;
+
+    let existing: i64 = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM award_years WHERE year = ?) OR EXISTS(SELECT 1 FROM award_categories WHERE year = ?)",
+    )
+    .bind(year)
+    .bind(year)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|error| database_error("Failed to check the award year", error))?;
+    if existing != 0 {
+        return Err(format!("{year} already has an award year."));
+    }
+
+    sqlx::query("INSERT INTO award_years (year, created_date) VALUES (?, datetime('now'))")
+        .bind(year)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| database_error("Failed to create the award year", error))?;
+
+    if let Some(source_year) = copy_from_year {
+        let result = sqlx::query(
+            r#"INSERT INTO award_categories (year, name, created_date, sort_order, template_id)
+               SELECT ?, name, datetime('now'), sort_order, template_id
+               FROM award_categories
+               WHERE year = ? AND EXISTS(SELECT 1 FROM award_years WHERE year = ?)
+               ORDER BY sort_order ASC, id ASC"#,
+        )
+        .bind(year)
+        .bind(source_year)
+        .bind(source_year)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| database_error("Failed to copy award categories", error))?;
+        if result.rows_affected() == 0 {
+            return Err(format!("{source_year} has no award categories to copy."));
+        }
+    }
+
+    tx.commit()
+        .await
+        .map_err(|error| database_error("Failed to commit award year creation", error))
+}
+
 #[tauri::command]
 pub async fn database_reorder_award_categories(
     database_url: String,
