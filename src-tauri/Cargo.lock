@@ -6,6 +6,7 @@ version = 4
 name = "Media-Logger"
 version = "4.4.4"
 dependencies = [
+ "async-trait",
  "axum",
  "base64 0.22.1",
  "chrono",

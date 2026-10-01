@@ -30,6 +30,7 @@ window-vibrancy = "0.6"
 chrono = "0.4"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 trash = "5"
+async-trait = "0.1"
 axum = "0.8"
 base64 = "0.22"
 hex = "0.4"

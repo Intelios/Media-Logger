@@ -6,7 +6,7 @@
 //! `notes`, image paths, and ownership/private flags are never selected.
 
 use std::{
-    collections::{BTreeMap, HashSet, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     fs::{self, OpenOptions},
     io::Write,
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -35,7 +35,10 @@ use rmcp::{
     model::{Implementation, ServerCapabilities, ServerInfo},
     schemars, tool, tool_handler, tool_router,
     transport::streamable_http_server::{
-        StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+        StreamableHttpServerConfig, StreamableHttpService,
+        session::{
+            SessionState, SessionStore, SessionStoreError, local::LocalSessionManager,
+        },
     },
 };
 use serde::{Deserialize, Serialize};
@@ -71,6 +74,9 @@ const MAX_DETAIL_IDS: usize = 20;
 const MAX_DESCRIPTION_CHARS: usize = 4_000;
 const MAX_CREDENTIALS: usize = 32;
 const MAX_CREDENTIAL_LABEL_CHARS: usize = 64;
+/// Session replays live in memory, so cap them well above any realistic
+/// client count to keep the map bounded on a long-lived desktop process.
+const MAX_STORED_SESSIONS: usize = 128;
 const ADULT_ENTRY_TYPES: [&str; 3] = ["JAV", "Hentai", "Adult Visual Novel"];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,6 +171,48 @@ struct RunningServer {
     task: JoinHandle<()>,
 }
 
+/// Remembers each MCP client's `initialize` parameters so the Streamable HTTP
+/// transport can transparently replay the handshake. Without this, rmcp's
+/// local session manager retires a session after five idle minutes (SSE
+/// keep-alives do not reset that timer) and every later request carrying the
+/// expired `Mcp-Session-Id` fails with a spec-mandated 404, forcing the client
+/// to re-initialize; many clients keep the stale id and never recover.
+///
+/// It lives on `McpState` rather than the service so clients also survive
+/// listener restarts (enable/disable, port changes, data-directory switches).
+/// Explicit `DELETE` requests still end a session permanently. Only the
+/// initialize handshake parameters are retained — never tokens, queries, or
+/// database data — and the map is capped so it stays small.
+#[derive(Debug, Default)]
+struct McpSessionStore {
+    sessions: RwLock<HashMap<String, SessionState>>,
+}
+
+#[async_trait::async_trait]
+impl SessionStore for McpSessionStore {
+    async fn load(&self, session_id: &str) -> Result<Option<SessionState>, SessionStoreError> {
+        Ok(self.sessions.read().await.get(session_id).cloned())
+    }
+
+    async fn store(&self, session_id: &str, state: &SessionState) -> Result<(), SessionStoreError> {
+        let mut sessions = self.sessions.write().await;
+        if !sessions.contains_key(session_id) && sessions.len() >= MAX_STORED_SESSIONS {
+            // Session ids are random, so an arbitrary eviction is a safe cap;
+            // the evicted client just re-initializes on its next request.
+            if let Some(victim) = sessions.keys().next().cloned() {
+                sessions.remove(&victim);
+            }
+        }
+        sessions.insert(session_id.to_owned(), state.clone());
+        Ok(())
+    }
+
+    async fn delete(&self, session_id: &str) -> Result<(), SessionStoreError> {
+        self.sessions.write().await.remove(session_id);
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum McpRuntimeState {
@@ -190,6 +238,7 @@ struct ManagedRuntime {
 pub struct McpState {
     config_path: PathBuf,
     shared: Arc<SharedRuntime>,
+    session_store: Arc<McpSessionStore>,
     inner: Mutex<ManagedRuntime>,
 }
 
@@ -268,6 +317,7 @@ impl McpState {
         Ok(Self {
             config_path,
             shared: Arc::new(shared),
+            session_store: Arc::new(McpSessionStore::default()),
             inner: Mutex::new(ManagedRuntime {
                 config,
                 db_path: None,
@@ -406,6 +456,14 @@ impl McpState {
 
         *self.shared.pool.write().await = Some(pool);
         let cancellation = CancellationToken::new();
+        let session_store: Arc<dyn SessionStore> = self.session_store.clone();
+        let mut server_config = StreamableHttpServerConfig::default()
+            .with_allowed_hosts([format!("127.0.0.1:{port}")])
+            .with_cancellation_token(cancellation.child_token());
+        // Replay stored `initialize` handshakes instead of answering 404
+        // when an idle-expired session id (or one from before a listener
+        // restart) shows up again. Explicit client DELETEs still clear it.
+        server_config.session_store = Some(session_store);
         let service: StreamableHttpService<MediaLoggerMcp, LocalSessionManager> =
             StreamableHttpService::new(
                 {
@@ -413,9 +471,7 @@ impl McpState {
                     move || Ok(MediaLoggerMcp::new(Arc::clone(&shared)))
                 },
                 Default::default(),
-                StreamableHttpServerConfig::default()
-                    .with_allowed_hosts([format!("127.0.0.1:{port}")])
-                    .with_cancellation_token(cancellation.child_token()),
+                server_config,
             );
         let router =
             Router::new()
