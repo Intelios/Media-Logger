@@ -3,6 +3,7 @@ import { AnimatePresence, motion, type TargetAndTransition, type Transition } fr
 import { useNavigate } from "react-router";
 import { CalendarDays, Dices, Eye, Gamepad2, Pencil, RotateCcw, Shuffle, SlidersHorizontal, Trophy, User } from "lucide-react";
 import { awardsLogic } from "../../lib/awards-logic";
+import { formatDate } from "../../lib/dates";
 import { dbService, type MediaEntry, type RandomPickFilters } from "../../lib/db";
 import { getRatingColor, getReplayTerm, getTypeBadgeStyle, parseGenres } from "../../lib/media-config";
 import { cn } from "../../lib/utils_ui";
@@ -252,6 +253,13 @@ function RevealDetails({
   const genres = parseGenres(entry.genre);
   const creator = entry.author || entry.artist || entry.director;
   const replay = getReplayTerm(entry.entry_type);
+  // Prefer the exact completion date ("1st January 2026"); only fall back to
+  // the bare year for entries logged without one.
+  const completedLabel = entry.completion_date
+    ? formatDate(entry.completion_date)
+    : entry.year_completed != null
+      ? String(entry.year_completed)
+      : null;
 
   return (
     <div className="space-y-5">
@@ -277,10 +285,10 @@ function RevealDetails({
             ★ {formatScore(entry.review_score)}
           </span>
         )}
-        {entry.year_completed != null && (
+        {completedLabel != null && (
           <span className="flex items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1 text-gray-200">
             <CalendarDays size={12} />
-            {entry.year_completed}
+            {completedLabel}
           </span>
         )}
         {entry.platform && (
