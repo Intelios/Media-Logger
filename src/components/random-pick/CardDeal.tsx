@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { AnimatePresence, motion, type TargetAndTransition, type Transition } from "framer-motion";
 import { useNavigate } from "react-router";
-import { CalendarDays, Dices, Eye, Gamepad2, Pencil, RotateCcw, Shuffle, SlidersHorizontal, Trophy, User } from "lucide-react";
+import { BookOpen, CalendarDays, Check, Clapperboard, Clock, Dices, Disc3, Eye, Gamepad2, Heart, Layers, Monitor, Pencil, RotateCcw, Shuffle, SlidersHorizontal, Trophy, Tv, type LucideIcon } from "lucide-react";
 import { awardsLogic } from "../../lib/awards-logic";
 import { formatDate } from "../../lib/dates";
 import { dbService, type MediaEntry, type RandomPickFilters } from "../../lib/db";
@@ -236,6 +236,50 @@ function useElementSize(ref: RefObject<HTMLElement | null>) {
   return size;
 }
 
+/**
+ * Type-conditional metadata for the pick — the same fields Search cards
+ * surface (which type carries which column is set in EntryForm), plus
+ * franchise and series, which only this panel has room to spell out.
+ * Comma-separated fields (actresses) come back one value per tag.
+ */
+interface ContextRow {
+  label: string;
+  icon: LucideIcon;
+  values: string[];
+}
+
+function trimToValues(raw: string | null): string[] {
+  return (raw ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+}
+
+function getRevealContextRows(entry: MediaEntry): ContextRow[] {
+  const type = (entry.entry_type || "").toLowerCase();
+  const rows: ContextRow[] = [];
+  const add = (label: string, icon: LucideIcon, raw: string | null) => {
+    const values = trimToValues(raw);
+    if (values.length > 0) rows.push({ label, icon, values });
+  };
+
+  if (type.includes("book")) add("Author", BookOpen, entry.author);
+  if (type.includes("album")) add("Artist", Disc3, entry.artist);
+  if (type.includes("jav") || type.includes("hentai")) {
+    const actresses = trimToValues(entry.actress);
+    if (actresses.length > 0) {
+      rows.push({ label: actresses.length > 1 ? "Actresses" : "Actress", icon: Heart, values: actresses });
+    }
+    add("Studio", Clapperboard, entry.director);
+  }
+  if (type.includes("game")) {
+    add("Platform", Gamepad2, entry.platform);
+    add("Franchise", Layers, entry.franchise);
+  }
+  if (["show", "k-drama", "anime"].includes(type)) add("Series", Tv, entry.series);
+  // A finished VN reports Completed in the badge row instead — the version
+  // string only means something while the game is still unfinished.
+  if (type.includes("visual novel") && entry.is_completed !== 1) add("Version", Monitor, entry.update_version);
+  return rows;
+}
+
 function RevealDetails({
   entry,
   awards,
@@ -251,7 +295,8 @@ function RevealDetails({
 }) {
   const typeStyle = getTypeBadgeStyle(entry.entry_type);
   const genres = parseGenres(entry.genre);
-  const creator = entry.author || entry.artist || entry.director;
+  const contextRows = getRevealContextRows(entry);
+  const isVisualNovel = (entry.entry_type || "").toLowerCase().includes("visual novel");
   const replay = getReplayTerm(entry.entry_type);
   // Prefer the exact completion date ("1st January 2026"); only fall back to
   // the bare year for entries logged without one.
@@ -263,15 +308,7 @@ function RevealDetails({
 
   return (
     <div className="space-y-5">
-      <div className="space-y-2">
-        <h2 className="line-clamp-3 text-3xl font-bold leading-tight text-white">{entry.name}</h2>
-        {creator && (
-          <p className="flex items-center gap-1.5 text-sm text-gray-400">
-            <User size={13} />
-            {creator}
-          </p>
-        )}
-      </div>
+      <h2 className="line-clamp-3 text-3xl font-bold leading-tight text-white">{entry.name}</h2>
 
       <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
         {entry.entry_type && (
@@ -291,19 +328,46 @@ function RevealDetails({
             {completedLabel}
           </span>
         )}
-        {entry.platform && (
-          <span className="flex items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1 text-gray-200">
-            <Gamepad2 size={12} />
-            {entry.platform}
-          </span>
-        )}
         {entry.is_rewatch === 1 && (
           <span className="rounded-lg bg-white/10 px-2.5 py-1 text-gray-200">{replay.label}</span>
         )}
         {entry.is_platinum === 1 && (
           <span className="rounded-lg bg-cyan-500/15 px-2.5 py-1 text-cyan-300">Platinum</span>
         )}
+        {entry.is_early_access === 1 && (
+          <span className="flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-2.5 py-1 text-violet-300">
+            <Clock size={12} />
+            Early Access{entry.early_access_version ? `: ${entry.early_access_version}` : ""}
+          </span>
+        )}
+        {isVisualNovel && entry.is_completed === 1 && (
+          <span className="flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-1 text-emerald-300">
+            <Check size={12} />
+            Completed
+          </span>
+        )}
       </div>
+
+      {contextRows.length > 0 && (
+        <div className="space-y-2.5">
+          {contextRows.map((row) => {
+            const RowIcon = row.icon;
+            return (
+              <div key={row.label} className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                  <RowIcon size={12} />
+                  {row.label}
+                </span>
+                {row.values.map((value, valueIdx) => (
+                  <span key={`${value}-${valueIdx}`} className="rounded-md bg-white/5 px-2 py-0.5 text-xs text-gray-300">
+                    {value}
+                  </span>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {genres.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
