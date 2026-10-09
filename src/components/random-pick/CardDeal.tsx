@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { AnimatePresence, motion, type TargetAndTransition, type Transition } from "framer-motion";
 import { useNavigate } from "react-router";
-import { BookOpen, CalendarDays, Check, Clapperboard, Clock, Dices, Disc3, Eye, Gamepad2, Heart, Layers, Monitor, Pencil, RotateCcw, Shuffle, SlidersHorizontal, Trophy, Tv, type LucideIcon } from "lucide-react";
+import { BookOpen, CalendarDays, Check, Clapperboard, Clock, Dices, Disc3, Eye, Gamepad2, Heart, Layers, Monitor, Pencil, RotateCcw, Shuffle, SlidersHorizontal, Trophy, Tv, ZoomIn, type LucideIcon } from "lucide-react";
 import { awardsLogic } from "../../lib/awards-logic";
 import { formatDate } from "../../lib/dates";
 import { dbService, type MediaEntry, type RandomPickFilters } from "../../lib/db";
@@ -192,7 +192,16 @@ function CardBack() {
 }
 
 /** Winner's face: the cover, or a type-tinted card when there is no artwork. */
-function CardFace({ entry, sizePx }: { entry: MediaEntry; sizePx: number }) {
+function CardFace({
+  entry,
+  sizePx,
+  onExpand,
+}: {
+  entry: MediaEntry;
+  sizePx: number;
+  /** Set once the card is revealed and has artwork — click expands the image. */
+  onExpand?: () => void;
+}) {
   const typeStyle = getTypeBadgeStyle(entry.entry_type);
   return (
     <div
@@ -218,6 +227,19 @@ function CardFace({ entry, sizePx }: { entry: MediaEntry; sizePx: number }) {
       )}
       <div className="pointer-events-none absolute inset-0 rounded-[22px] ring-1 ring-inset ring-white/10" />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-transparent" />
+      {onExpand && entry.image_url && (
+        <button
+          type="button"
+          onClick={onExpand}
+          aria-label={`Expand image of ${entry.name}`}
+          className="group/expand absolute inset-0 z-10 cursor-zoom-in rounded-[22px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+        >
+          <span className="pointer-events-none absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1.5 text-[11px] font-medium text-white/90 opacity-0 backdrop-blur-sm transition-opacity duration-200 group-hover/expand:opacity-100 group-focus-visible/expand:opacity-100">
+            <ZoomIn size={14} />
+            Expand
+          </span>
+        </button>
+      )}
     </div>
   );
 }
@@ -435,6 +457,7 @@ export function CardDeal({ filters, matchCount, onAdjustFilters, onEntryChanged 
   const [pick, setPick] = useState<MediaEntry | null>(null);
   const [awards, setAwards] = useState<MediaAward[]>([]);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [imageOpen, setImageOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [reducedMotion] = useState(prefersReducedMotion);
 
@@ -665,7 +688,13 @@ export function CardDeal({ filters, matchCount, onAdjustFilters, onEntryChanged 
                     }
                   >
                     <CardBack />
-                    {isWinner && pick && <CardFace entry={pick} sizePx={layout.revealW} />}
+                    {isWinner && pick && (
+                      <CardFace
+                        entry={pick}
+                        sizePx={layout.revealW}
+                        onExpand={stage === "revealed" && pick.image_url ? () => setImageOpen(true) : undefined}
+                      />
+                    )}
                   </motion.div>
                 </motion.div>
               );
@@ -781,6 +810,17 @@ export function CardDeal({ filters, matchCount, onAdjustFilters, onEntryChanged 
             entry={pick}
             onClose={() => setDetailsOpen(false)}
             onConfirmDelete={() => setDetailsOpen(false)}
+          />
+        </Suspense>
+      )}
+
+      {imageOpen && pick && (
+        <Suspense fallback={null}>
+          <LazyMediaCardDialogs
+            dialog="image"
+            entry={pick}
+            onClose={() => setImageOpen(false)}
+            onConfirmDelete={() => setImageOpen(false)}
           />
         </Suspense>
       )}
