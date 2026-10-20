@@ -33,7 +33,7 @@
     "d3-scale": "^4.0.2",
     "framer-motion": "^13.3.0",
     "lucide-react": "^1.46.0",
-    "react": "^19.3.0",
+    "react": "^19.3.1",
     "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",
     "react-router": "^8.3.1",
