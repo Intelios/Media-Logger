@@ -1426,6 +1426,7 @@ pub fn run() {
             image_service::cancel_cover_import,
             cover_search::cover_search,
             cover_search::cover_stage_from_url,
+            cover_search::media_synopsis,
             create_backup_zip,
             read_backup_zip,
             extract_backup_assets,

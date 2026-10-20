@@ -558,13 +558,59 @@ async fn search_igdb(
     client_secret: &str,
     query: &str,
 ) -> Result<Vec<CoverSearchResult>, String> {
+    let body = format!(
+        "search \"{}\"; fields name,cover.image_id,first_release_date; limit {MAX_RESULTS};",
+        igdb_search_term(query)
+    );
+    let games = igdb_games(state, client_id, client_secret, &body).await?;
+
+    Ok(games
+        .into_iter()
+        .filter_map(|game| {
+            let image_id = game.cover?.image_id?;
+            Some(CoverSearchResult {
+                id: game.id.to_string(),
+                title: game.name?,
+                subtitle: game.first_release_date.and_then(igdb_year),
+                thumbnail_url: format!(
+                    "https://images.igdb.com/igdb/image/upload/t_cover_big/{image_id}.jpg"
+                ),
+                original_url: format!(
+                    "https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.jpg"
+                ),
+            })
+        })
+        .collect())
+}
+
+// Apicalypse search terms are double-quoted; strip the characters that would
+// break out of the quotes.
+fn igdb_search_term(query: &str) -> String {
+    query
+        .chars()
+        .map(|c| if c == '"' || c == '\\' { ' ' } else { c })
+        .collect()
+}
+
+fn igdb_year(timestamp: i64) -> Option<String> {
+    chrono::DateTime::from_timestamp(timestamp, 0).map(|datetime| datetime.format("%Y").to_string())
+}
+
+/// Runs one Apicalypse query against `/v4/games`, refreshing the app token
+/// once on a 401.
+async fn igdb_games(
+    state: &CoverSearchState,
+    client_id: &str,
+    client_secret: &str,
+    body: &str,
+) -> Result<Vec<IgdbGame>, String> {
     // A 401 means the cached app token went stale (or Twitch rotated it);
     // force one fresh token before giving up on the credentials.
     let mut force_refresh = false;
     for _ in 0..2 {
         let token = current_igdb_token(state, client_id, client_secret, force_refresh).await?;
-        match igdb_games_request(state, &token, client_id, query).await {
-            Ok(results) => return Ok(results),
+        match igdb_games_request(state, &token, client_id, body).await {
+            Ok(games) => return Ok(games),
             Err(IgdbRequestError::Unauthorized) => {
                 force_refresh = true;
                 continue;
@@ -656,24 +702,14 @@ async fn igdb_games_request(
     state: &CoverSearchState,
     token: &str,
     client_id: &str,
-    query: &str,
-) -> Result<Vec<CoverSearchResult>, IgdbRequestError> {
-    // Apicalypse search terms are double-quoted; strip the characters that
-    // would break out of the quotes.
-    let sanitized: String = query
-        .chars()
-        .map(|c| if c == '"' || c == '\\' { ' ' } else { c })
-        .collect();
-    let body = format!(
-        "search \"{sanitized}\"; fields name,cover.image_id,first_release_date; limit {MAX_RESULTS};"
-    );
-
+    body: &str,
+) -> Result<Vec<IgdbGame>, IgdbRequestError> {
     let response = send_with_fallback(state, |client| {
         client
             .post("https://api.igdb.com/v4/games")
             .header("Client-ID", client_id)
             .header("Authorization", format!("Bearer {token}"))
-            .body(body.clone())
+            .body(body.to_string())
     })
     .await
     .map_err(|_| {
@@ -696,31 +732,357 @@ async fn igdb_games_request(
         .text()
         .await
         .map_err(|_| IgdbRequestError::Fatal("IGDB returned an unreadable response.".to_string()))?;
-    let games: Vec<IgdbGame> = serde_json::from_str(&text)
-        .map_err(|_| {
-            IgdbRequestError::Fatal("IGDB returned an unexpected response.".to_string())
-        })?;
+    serde_json::from_str(&text).map_err(|_| {
+        IgdbRequestError::Fatal("IGDB returned an unexpected response.".to_string())
+    })
+}
 
-    Ok(games
-        .into_iter()
-        .filter_map(|game| {
-            let image_id = game.cover?.image_id?;
-            Some(CoverSearchResult {
-                id: game.id.to_string(),
-                title: game.name?,
-                subtitle: game
-                    .first_release_date
-                    .and_then(|timestamp| chrono::DateTime::from_timestamp(timestamp, 0))
-                    .map(|datetime| datetime.format("%Y").to_string()),
-                thumbnail_url: format!(
-                    "https://images.igdb.com/igdb/image/upload/t_cover_big/{image_id}.jpg"
-                ),
-                original_url: format!(
-                    "https://images.igdb.com/igdb/image/upload/t_720p/{image_id}.jpg"
-                ),
-            })
+// ---------------------------------------------------------------------------
+// Synopsis lookup for the Backlog "About" panel. Same providers, keys and
+// error rules as cover search, but only the top match is returned and nothing
+// is persisted — the frontend caches results for the session.
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaSynopsis {
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub overview: String,
+    pub provider: &'static str,
+}
+
+#[tauri::command]
+pub async fn media_synopsis(
+    state: TauriState<'_, CoverSearchState>,
+    query: String,
+    entry_type: String,
+    tmdb_api_key: Option<String>,
+    igdb_client_id: Option<String>,
+    igdb_client_secret: Option<String>,
+    rawg_api_key: Option<String>,
+    game_provider: Option<String>,
+) -> Result<Option<MediaSynopsis>, String> {
+    let query = query.trim().to_string();
+    if query.is_empty() {
+        return Ok(None);
+    }
+    let query: String = query.chars().take(MAX_QUERY_CHARS).collect();
+
+    match entry_type.trim().to_ascii_lowercase().as_str() {
+        "movie" => {
+            let api_key = required_credential(tmdb_api_key, "TMDB API key")?;
+            synopsis_tmdb(&state, false, &query, &api_key).await
+        }
+        "show" | "k-drama" => {
+            let api_key = required_credential(tmdb_api_key, "TMDB API key")?;
+            synopsis_tmdb(&state, true, &query, &api_key).await
+        }
+        "anime" => synopsis_anilist(&state, &query).await,
+        "book" => synopsis_open_library(&state, &query).await,
+        "game" => match game_provider.as_deref().unwrap_or("igdb") {
+            "rawg" => {
+                let api_key = required_credential(rawg_api_key, "RAWG API key")?;
+                synopsis_rawg(&state, &query, &api_key).await
+            }
+            _ => {
+                let client_id = required_credential(igdb_client_id, "IGDB Client ID")?;
+                let client_secret = required_credential(igdb_client_secret, "IGDB Client Secret")?;
+                synopsis_igdb(&state, &client_id, &client_secret, &query).await
+            }
+        },
+        _ => Err(format!(
+            "Synopsis lookup does not support the {} type.",
+            entry_type.trim()
+        )),
+    }
+}
+
+/// Trims a provider synopsis to plain prose: drops HTML tags (AniList and
+/// RAWG leave `<br>`/`<i>` behind), decodes the few common entities, and
+/// collapses runs of blank lines. Empty results become `None`.
+fn clean_overview(raw: Option<String>) -> Option<String> {
+    let raw = raw?;
+    let mut text = String::with_capacity(raw.len());
+    let mut in_tag = false;
+    let mut tag = String::new();
+    for c in raw.chars() {
+        match c {
+            '<' => {
+                in_tag = true;
+                tag.clear();
+            }
+            '>' if in_tag => {
+                in_tag = false;
+                let name = tag.trim_start_matches('/').to_ascii_lowercase();
+                if name.starts_with("br") || name.starts_with('p') {
+                    text.push('\n');
+                }
+            }
+            _ if in_tag => tag.push(c),
+            _ => text.push(c),
+        }
+    }
+    let text = text
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#039;", "'")
+        .replace("&apos;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&nbsp;", " ")
+        .replace("\r\n", "\n");
+
+    let mut paragraphs: Vec<String> = Vec::new();
+    let mut current: Vec<&str> = Vec::new();
+    for line in text.lines().map(str::trim) {
+        if line.is_empty() {
+            if !current.is_empty() {
+                paragraphs.push(current.join(" "));
+                current.clear();
+            }
+        } else {
+            current.push(line);
+        }
+    }
+    if !current.is_empty() {
+        paragraphs.push(current.join(" "));
+    }
+    let cleaned = paragraphs.join("\n\n");
+    (!cleaned.is_empty()).then_some(cleaned)
+}
+
+async fn fetch_json<T: serde::de::DeserializeOwned>(
+    state: &CoverSearchState,
+    provider: &str,
+    build: impl Fn(&reqwest::Client) -> reqwest::RequestBuilder,
+) -> Result<T, String> {
+    let response = send_with_fallback(state, build)
+        .await
+        .map_err(|_| format!("{provider} lookup failed — check your network connection."))?;
+    let status = response.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        return Err(format!(
+            "{provider} rejected the API key — verify it in Settings → Cover Art."
+        ));
+    }
+    if !status.is_success() {
+        return Err(format!("{provider} lookup failed (HTTP {status})."));
+    }
+    let text = response
+        .text()
+        .await
+        .map_err(|_| format!("{provider} returned an unreadable response."))?;
+    serde_json::from_str(&text).map_err(|_| format!("{provider} returned an unexpected response."))
+}
+
+async fn synopsis_tmdb(
+    state: &CoverSearchState,
+    tv: bool,
+    query: &str,
+    api_key: &str,
+) -> Result<Option<MediaSynopsis>, String> {
+    let endpoint = if tv { "tv" } else { "movie" };
+    let payload: TmdbSearchResponse = fetch_json(state, "TMDB", |client| {
+        client
+            .get(format!("https://api.themoviedb.org/3/search/{endpoint}"))
+            .query(&[
+                ("query", query),
+                ("api_key", api_key),
+                ("include_adult", "false"),
+                ("page", "1"),
+            ])
+    })
+    .await?;
+
+    // Only the top-ranked result: skipping ahead to "the first one with an
+    // overview" would quietly describe a different title.
+    Ok(payload.results.into_iter().next().and_then(|item| {
+        Some(MediaSynopsis {
+            overview: clean_overview(item.overview)?,
+            subtitle: item
+                .release_date
+                .as_deref()
+                .or(item.first_air_date.as_deref())
+                .and_then(year_from_date),
+            title: item.title.or(item.name)?,
+            provider: "TMDB",
         })
-        .collect())
+    }))
+}
+
+async fn synopsis_anilist(
+    state: &CoverSearchState,
+    query: &str,
+) -> Result<Option<MediaSynopsis>, String> {
+    let graphql_query = "\
+query ($search: String) {
+  Page(perPage: 5) {
+    media(search: $search, type: ANIME, isAdult: false) {
+      id
+      title { romaji english }
+      startDate { year }
+      popularity
+      description(asHtml: false)
+    }
+  }
+}";
+    let body = serde_json::json!({ "query": graphql_query, "variables": { "search": query } });
+    let payload: AnilistSearchResponse = fetch_json(state, "AniList", |client| {
+        client.post("https://graphql.anilist.co").json(&body)
+    })
+    .await?;
+
+    // AniList's search ranking happily puts spin-off shorts above the main
+    // series ("Frieren" → a chibi ONA), so prefer an exact title match and
+    // otherwise the most popular of the top few.
+    let wanted = query.to_lowercase();
+    let mut candidates = payload.data.page.media;
+    let exact = candidates.iter().position(|media| {
+        [&media.title.english, &media.title.romaji]
+            .into_iter()
+            .flatten()
+            .any(|title| title.to_lowercase() == wanted)
+    });
+    let best = match exact {
+        Some(index) => Some(candidates.swap_remove(index)),
+        None => candidates.into_iter().max_by_key(|media| media.popularity.unwrap_or(0)),
+    };
+
+    Ok(best.and_then(|media| {
+        Some(MediaSynopsis {
+            overview: clean_overview(media.description)?,
+            subtitle: media
+                .start_date
+                .and_then(|date| date.year)
+                .map(|year| year.to_string()),
+            title: media.title.english.or(media.title.romaji)?,
+            provider: "AniList",
+        })
+    }))
+}
+
+async fn synopsis_open_library(
+    state: &CoverSearchState,
+    query: &str,
+) -> Result<Option<MediaSynopsis>, String> {
+    let search: OpenLibrarySearchResponse = fetch_json(state, "Open Library", |client| {
+        client.get("https://openlibrary.org/search.json").query(&[
+            ("q", query),
+            ("limit", "1"),
+            ("fields", "key,title,author_name,first_publish_year"),
+        ])
+    })
+    .await?;
+    let Some(doc) = search.docs.into_iter().next() else {
+        return Ok(None);
+    };
+    let Some(title) = doc.title else {
+        return Ok(None);
+    };
+    // Work keys look like "/works/OL123W"; anything else is not a path we
+    // should be appending to the host.
+    if !doc.key.starts_with("/works/") || doc.key.contains("..") {
+        return Ok(None);
+    }
+
+    let work: OpenLibraryWork = fetch_json(state, "Open Library", |client| {
+        client.get(format!("https://openlibrary.org{}.json", doc.key))
+    })
+    .await?;
+    let description = work.description.map(|value| match value {
+        OpenLibraryText::Plain(text) => text,
+        OpenLibraryText::Typed { value } => value,
+    });
+    let Some(overview) = clean_overview(description) else {
+        return Ok(None);
+    };
+
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(authors) = doc.author_name.filter(|names| !names.is_empty()) {
+        parts.push(authors.join(", "));
+    }
+    if let Some(year) = doc.first_publish_year {
+        parts.push(year.to_string());
+    }
+    Ok(Some(MediaSynopsis {
+        title,
+        subtitle: (!parts.is_empty()).then(|| parts.join(" · ")),
+        overview,
+        provider: "Open Library",
+    }))
+}
+
+async fn synopsis_rawg(
+    state: &CoverSearchState,
+    query: &str,
+    api_key: &str,
+) -> Result<Option<MediaSynopsis>, String> {
+    let search: RawgSearchResponse = fetch_json(state, "RAWG", |client| {
+        client.get("https://api.rawg.io/api/games").query(&[
+            ("search", query),
+            ("page_size", "1"),
+            ("key", api_key),
+        ])
+    })
+    .await?;
+    let Some(game) = search.results.into_iter().next() else {
+        return Ok(None);
+    };
+
+    let detail: RawgGameDetail = fetch_json(state, "RAWG", |client| {
+        client
+            .get(format!("https://api.rawg.io/api/games/{}", game.id))
+            .query(&[("key", api_key)])
+    })
+    .await?;
+    Ok(clean_overview(detail.description_raw).map(|overview| MediaSynopsis {
+        title: game.name,
+        subtitle: game.released.as_deref().and_then(year_from_date),
+        overview,
+        provider: "RAWG",
+    }))
+}
+
+async fn synopsis_igdb(
+    state: &CoverSearchState,
+    client_id: &str,
+    client_secret: &str,
+    query: &str,
+) -> Result<Option<MediaSynopsis>, String> {
+    let body = format!(
+        "search \"{}\"; fields name,summary,first_release_date; limit 1;",
+        igdb_search_term(query)
+    );
+    let games = igdb_games(state, client_id, client_secret, &body).await?;
+    Ok(games.into_iter().next().and_then(|game| {
+        Some(MediaSynopsis {
+            overview: clean_overview(game.summary)?,
+            subtitle: game.first_release_date.and_then(igdb_year),
+            title: game.name?,
+            provider: "IGDB",
+        })
+    }))
+}
+
+#[derive(Deserialize)]
+struct OpenLibraryWork {
+    #[serde(default)]
+    description: Option<OpenLibraryText>,
+}
+
+// Open Library stores descriptions either as a bare string or as
+// `{ "type": "/type/text", "value": "..." }`.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum OpenLibraryText {
+    Plain(String),
+    Typed { value: String },
+}
+
+#[derive(Deserialize)]
+struct RawgGameDetail {
+    #[serde(default)]
+    description_raw: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -736,6 +1098,7 @@ struct TmdbSearchItem {
     poster_path: Option<String>,
     release_date: Option<String>,
     first_air_date: Option<String>,
+    overview: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -762,6 +1125,10 @@ struct AnilistMedia {
     cover_image: Option<AnilistCoverImage>,
     #[serde(rename = "startDate")]
     start_date: Option<AnilistDate>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    popularity: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -837,6 +1204,8 @@ struct IgdbGame {
     name: Option<String>,
     cover: Option<IgdbCover>,
     first_release_date: Option<i64>,
+    #[serde(default)]
+    summary: Option<String>,
 }
 
 #[derive(Deserialize)]

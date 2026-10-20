@@ -83,3 +83,45 @@ export async function searchCoverArt(query: string, entryType: string): Promise<
 export async function stageCoverFromUrl(url: string): Promise<StagedCoverImport> {
   return invoke<StagedCoverImport>('cover_stage_from_url', { url });
 }
+
+/** Top-match synopsis returned by the native `media_synopsis` command. */
+export interface MediaSynopsis {
+  title: string;
+  subtitle: string | null;
+  overview: string;
+  provider: string;
+}
+
+/**
+ * Whether the Backlog About panel can fetch a synopsis for this type. Mirrors
+ * cover search availability, except albums: iTunes carries no description.
+ */
+export function getSynopsisAvailability(
+  entryType: string | null | undefined,
+): CoverSearchAvailability {
+  if (entryType === 'Album') return isCoverArtEnabled() ? 'unsupported' : 'disabled';
+  return getCoverSearchAvailability(entryType);
+}
+
+// Session-only cache, never persisted. Holding the promise dedupes concurrent
+// requests; failures are evicted so reopening the panel retries.
+const synopsisCache = new Map<string, Promise<MediaSynopsis | null>>();
+
+export function fetchSynopsis(name: string, entryType: string): Promise<MediaSynopsis | null> {
+  const key = `${entryType}\u0000${name.trim().toLowerCase()}`;
+  const cached = synopsisCache.get(key);
+  if (cached) return cached;
+
+  const request = invoke<MediaSynopsis | null>('media_synopsis', {
+    query: name,
+    entryType,
+    tmdbApiKey: getTmdbApiKey(),
+    igdbClientId: getIgdbClientId(),
+    igdbClientSecret: getIgdbClientSecret(),
+    rawgApiKey: getRawgApiKey(),
+    gameProvider: getGameCoverProvider(),
+  });
+  synopsisCache.set(key, request);
+  request.catch(() => synopsisCache.delete(key));
+  return request;
+}

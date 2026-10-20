@@ -19,6 +19,7 @@ import { SortableShelfItem } from "../components/backlog/SortableShelfItem";
 import { BacklogSpine } from "../components/backlog/BacklogSpine";
 import { BacklogFaceout } from "../components/backlog/BacklogFaceout";
 import { BacklogItemMenu, type MenuAnchor } from "../components/backlog/BacklogItemMenu";
+import { BacklogAboutModal } from "../components/backlog/BacklogAboutModal";
 import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../components/HoverTooltip";
 import {
   FACEOUT_GAP, FACEOUT_WIDTH, getShelfItemGap, getShelfItemWidth,
@@ -200,6 +201,7 @@ export default function Backlog() {
   const [completionInitialData, setCompletionInitialData] = useState<Partial<MediaEntry> | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
+  const [aboutItem, setAboutItem] = useState<BacklogItem | null>(null);
   const [activeId, setActiveId] = useState<number | null>(null);
   // Section the dragged item is currently over. dnd-kit's per-droppable isOver
   // only lights the shelf container, but during a drag the cursor usually sits
@@ -839,10 +841,13 @@ export default function Backlog() {
           onStart={handleStart}
           onPause={handlePause}
           onComplete={handleComplete}
+          onAbout={setAboutItem}
           onEdit={handleEdit}
           onRemove={(id) => setShowDeleteConfirm(id)}
         />
       )}
+
+      <BacklogAboutModal item={aboutItem} onClose={() => setAboutItem(null)} />
 
       {/* Backlog Add/Edit Form */}
       <BacklogForm

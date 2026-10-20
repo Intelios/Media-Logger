@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Play, Pause, Check, Pencil, Trash2 } from "lucide-react";
+import { Play, Pause, Check, Info, Pencil, Trash2 } from "lucide-react";
 import type { BacklogItem } from "../../lib/db";
 
 const MENU_WIDTH = 176;
@@ -18,6 +18,7 @@ interface BacklogItemMenuProps {
   onStart: (id: number) => void;
   onPause: (id: number) => void;
   onComplete: (item: BacklogItem) => void;
+  onAbout: (item: BacklogItem) => void;
   onEdit: (item: BacklogItem) => void;
   onRemove: (id: number) => void;
 }
@@ -31,6 +32,7 @@ export function BacklogItemMenu({
   onStart,
   onPause,
   onComplete,
+  onAbout,
   onEdit,
   onRemove,
 }: BacklogItemMenuProps) {
@@ -62,9 +64,9 @@ export function BacklogItemMenu({
   }, [onClose]);
 
   // Prefer below-left of the anchor, then flip/clamp to stay on screen. The
-  // height is an estimate (five rows plus a divider) — good enough to decide
+  // height is an estimate (six rows plus a divider) — good enough to decide
   // which side to open on without measuring after paint.
-  const estimatedHeight = 230;
+  const estimatedHeight = 270;
   const left = Math.max(
     VIEWPORT_MARGIN,
     Math.min(rect.left, window.innerWidth - MENU_WIDTH - VIEWPORT_MARGIN)
@@ -120,6 +122,14 @@ export function BacklogItemMenu({
       >
         <Check size={14} />
         <span>Mark Complete</span>
+      </button>
+      <button
+        role="menuitem"
+        onClick={run(() => onAbout(item))}
+        className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 transition-colors hover:bg-sky-500/20 hover:text-sky-400"
+      >
+        <Info size={14} />
+        <span>About</span>
       </button>
       <button
         role="menuitem"
