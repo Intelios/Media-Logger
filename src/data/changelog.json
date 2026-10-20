@@ -1,8 +1,40 @@
 {
-  "generatedAt": "2026-09-28T16:21:30.576Z",
+  "generatedAt": "2026-10-20T00:44:30.038Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "4.5",
+      "title": "Media Logger - 4.5",
+      "date": "2026-10-20",
+      "body": "New Content/Features:\n- Backlog now has a syponosis feature that can re-use your cover art providers API to get a synposis on supported media types.\n\nDependencies Updates:\n- @vitejs/plugin-react updated from 6.1.1 to 6.1.2\n- autoprefixer updated from 10.6.0 to 10.6.1\n- postcss updated from 8.5.28 to 8.5.31\n- react updated from 19.3.0 to 19.3.1\n- react-dom updated from 19.3.0 to 19.3.1\n- @tanstack/react-query updated from 5.102.8 to 5.104.5\n- @tanstack/react-virtual updated from 3.14.13 to 3.14.21\n- vite updated from 8.3.0 to 8.3.4\n- @tauri-apps/api updated from 2.11.1 to 2.12.4\n- @tauri-apps/plugin-sql updated from 2.4.1 to 2.6.0\n- @tauri-apps/plugin-dialog updated from 2.7.3 to 2.8.3\n- @tauri-apps/plugin-fs updated from 2.5.2 to 2.7.1\n- @tauri-apps/plugin-opener updated from 2.5.5 to 2.7.2\n- @tauri-apps/cli updated from 2.11.4 to 2.12.3\n- lucide-react updated from 1.46.0 to 1.59.0\n- react-router updated from 8.3.1 to 8.5.0\n- framer-motion updated from 13.3.0 to 14.4.0",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.5"
+    },
+    {
+      "version": "4.4.7",
+      "title": "Media Logger - 4.4.7",
+      "date": "2026-10-09",
+      "body": "- Random Pick now shows the full date not just '2026'.\n- Random Pick now shows conditional field like Author, Platform etc.\n- Random Pick now lets you click the image to expand a full screen version.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.4.7"
+    },
+    {
+      "version": "4.4.6",
+      "title": "Media Logger - 4.4.6",
+      "date": "2026-10-03",
+      "body": "- Fixed issue where MCP would stop working after 5 minutes from first request.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.4.6"
+    },
+    {
+      "version": "4.4.5",
+      "title": "Media Logger - 4.4.5",
+      "date": "2026-09-30",
+      "body": "- Can now reuse a previous year's award categories.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.4.5"
+    },
     {
       "version": "4.4.4",
       "title": "Media Logger - 4.4.4",
