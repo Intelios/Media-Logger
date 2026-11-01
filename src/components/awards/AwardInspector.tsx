@@ -4,7 +4,7 @@ import type { MediaEntry } from "../../lib/db";
 import type { TemplateWinnerHistory } from "../../lib/awards-logic";
 import { useCoverPalettes } from "../../lib/cover-palette";
 import { formatDateNoYear } from "../../lib/dates";
-import { formatCardRating, getRatingTextColor } from "../../lib/media-config";
+import { formatCardRating, getRatingTextColor, parseGenres } from "../../lib/media-config";
 import { cn } from "../../lib/utils_ui";
 import { CoverImage } from "../CoverImage";
 import { useHoverTooltip } from "../HoverTooltip";
@@ -104,11 +104,15 @@ export function AwardInspector({
         }
       : null;
 
-  // Date and score are always kept; context chips fill whatever is left of a
-  // three-chip budget so the row never wraps into a second line of noise.
-  const reserved = (dateChip ? 1 : 0) + (scoreChip ? 1 : 0);
-  const chips = [
-    ...contextChips.slice(0, Math.max(0, 3 - reserved)),
+  // Genres ride in the same pill row as the platform and date: they describe
+  // the winner, so they belong with its facts rather than in a section of
+  // their own.
+  const chips: Chip[] = [
+    ...contextChips,
+    ...(winner ? parseGenres(winner.genre) : []).map((genre, index) => ({
+      key: `genre-${index}`,
+      text: genre,
+    })),
     ...(dateChip ? [dateChip] : []),
     ...(scoreChip ? [scoreChip] : []),
   ];
@@ -117,7 +121,7 @@ export function AwardInspector({
   const label = mode === "detail" ? String(award.year) : award.name;
 
   const actions = (
-    <div className="mt-5 flex items-center gap-2">
+    <div className="flex items-center gap-2">
       <button
         type="button"
         onClick={() => onChangeWinner(award)}
@@ -150,15 +154,18 @@ export function AwardInspector({
   );
 
   return (
-    <aside className="sticky top-0 w-[300px] self-start xl:w-[360px]">
-      <div className="custom-scrollbar relative max-h-[calc(100vh-3rem)] overflow-x-hidden overflow-y-auto rounded-[18px] border border-white/[0.08] bg-[#17141b]">
+    <aside className="h-full min-h-0 w-[300px] xl:w-[360px]">
+      <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[18px] border border-white/[0.08] bg-[#17141b]">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0"
           style={{ background: tint }}
         />
 
-        <div key={award.categoryId} className="award-inspector-fade relative z-[1] p-5">
+        <div
+          key={award.categoryId}
+          className="award-inspector-fade custom-scrollbar relative z-[1] min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-5"
+        >
           {winner ? (
             <>
               <div className="flex justify-center">
@@ -204,8 +211,6 @@ export function AwardInspector({
                 </div>
               )}
 
-              {actions}
-
               {alsoWon.length > 0 && (
                 <p className="mt-3.5 text-center text-[12.5px] leading-snug text-white/40">
                   Also won{" "}
@@ -232,7 +237,6 @@ export function AwardInspector({
               <p className="mt-2 text-center text-[15px] font-medium text-white/40">
                 No winner yet
               </p>
-              {actions}
             </>
           )}
 
@@ -311,6 +315,10 @@ export function AwardInspector({
               This award has no template, so its history can't be tracked.
             </p>
           )}
+        </div>
+
+        <div className="relative z-[1] shrink-0 border-t border-white/5 p-5">
+          {actions}
         </div>
       </div>
     </aside>

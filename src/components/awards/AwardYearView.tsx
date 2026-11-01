@@ -199,58 +199,56 @@ export function AwardYearView({
   };
 
   return (
-    <div className="w-full pb-16">
-      <header className="award-header-enter relative z-30 flex items-start justify-between gap-6">
-        <div className="flex min-w-0 items-start gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            aria-label="Back to all awards"
-            className={cn(AWARD_ICON_BUTTON, "mt-1.5 rounded-full")}
-          >
-            <ChevronLeft size={18} />
-          </button>
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="award-header-enter relative z-30 grid grid-cols-[1fr_auto_1fr] items-center gap-6">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back to all awards"
+          className={cn(AWARD_ICON_BUTTON, "justify-self-start rounded-full")}
+        >
+          <ChevronLeft size={18} />
+        </button>
 
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-3">
-              {olderYear && (
-                <button
-                  type="button"
-                  onClick={() => onSelectYear(olderYear.year)}
-                  aria-label={`${olderYear.year} awards`}
-                  className={cn(
-                    "rounded-md text-[22px] font-semibold tabular-nums text-white/25 transition-colors hover:text-white/60",
-                    AWARD_FOCUS_RING
-                  )}
-                >
-                  {olderYear.year}
-                </button>
-              )}
-              <h1 className="text-[56px] font-bold leading-[0.9] tracking-[-0.035em] tabular-nums text-white">
-                {year}
-              </h1>
-              {newerYear && (
-                <button
-                  type="button"
-                  onClick={() => onSelectYear(newerYear.year)}
-                  aria-label={`${newerYear.year} awards`}
-                  className={cn(
-                    "rounded-md text-[22px] font-semibold tabular-nums text-white/25 transition-colors hover:text-white/60",
-                    AWARD_FOCUS_RING
-                  )}
-                >
-                  {newerYear.year}
-                </button>
-              )}
-            </div>
-            <DecidedMeter
-              className="mt-3.5"
-              decided={categories.map((category) => category.winner !== null)}
-            />
+        <div className="flex min-w-0 flex-col items-center">
+          <div className="flex items-baseline gap-3">
+            {olderYear && (
+              <button
+                type="button"
+                onClick={() => onSelectYear(olderYear.year)}
+                aria-label={`${olderYear.year} awards`}
+                className={cn(
+                  "rounded-md text-[22px] font-semibold tabular-nums text-white/25 transition-colors hover:text-white/60",
+                  AWARD_FOCUS_RING
+                )}
+              >
+                {olderYear.year}
+              </button>
+            )}
+            <h1 className="text-[56px] font-bold leading-[0.9] tracking-[-0.035em] tabular-nums text-white">
+              {year}
+            </h1>
+            {newerYear && (
+              <button
+                type="button"
+                onClick={() => onSelectYear(newerYear.year)}
+                aria-label={`${newerYear.year} awards`}
+                className={cn(
+                  "rounded-md text-[22px] font-semibold tabular-nums text-white/25 transition-colors hover:text-white/60",
+                  AWARD_FOCUS_RING
+                )}
+              >
+                {newerYear.year}
+              </button>
+            )}
           </div>
+          <DecidedMeter
+            className="mt-3.5"
+            decided={categories.map((category) => category.winner !== null)}
+          />
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2 justify-self-end">
           {typeFilter === null && (
             <button
               type="button"
@@ -286,7 +284,7 @@ export function AwardYearView({
         </div>
       ) : (
         <>
-          <div className="mt-[22px]">
+          <div className="mt-[22px] shrink-0">
             <AwardTypeTabs
               groups={groups}
               value={typeFilter}
@@ -294,8 +292,14 @@ export function AwardYearView({
             />
           </div>
 
-          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_300px] items-start gap-9 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="min-w-0">
+          <div className="mt-2 grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_300px] gap-9 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div
+              className="custom-scrollbar min-h-0 min-w-0 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              style={{
+                maskImage: "linear-gradient(to bottom, black calc(100% - 20px), transparent)",
+                WebkitMaskImage: "linear-gradient(to bottom, black calc(100% - 20px), transparent)",
+              }}
+            >
               {visibleGroups.map(([groupKey, group]) => (
                 <section key={groupKey}>
                   {typeFilter === null && <AwardGroupHeading label={groupKey} />}
