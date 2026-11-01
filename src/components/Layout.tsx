@@ -6,6 +6,7 @@ import { cn } from "../lib/utils_ui";
 import { EntryForm } from "./EntryForm";
 import { WelcomeScreen } from "./WelcomeScreen";
 import { useHoverTooltip } from "./HoverTooltip";
+import { IS_MACOS } from "../lib/platform";
 import { dbService, type MediaEntry, DB_FILENAME, DB_MIGRATED_FLAG_KEY } from "../lib/db";
 import { listen } from "@tauri-apps/api/event";
 import { shouldShowWelcome } from "../lib/onboarding-logic";
@@ -336,6 +337,29 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
       )}
         style={{ borderColor: "var(--color-border)" }}
       >
+        {/* macOS has no title bar: the band hosts the traffic lights and is the
+            window's drag region. Windows keeps its native decorations. */}
+        {IS_MACOS && (
+          <div
+            data-tauri-drag-region
+            className={cn(
+              "flex h-[46px] shrink-0 items-center justify-end border-b pr-1",
+              isCompact ? "-mx-3 -mt-3" : "-mx-2 -mt-4"
+            )}
+            style={{ borderColor: "var(--color-border-subtle)" }}
+          >
+            {!isCompact && (
+              <button
+                onClick={() => setIsCompact(true)}
+                aria-label="Collapse sidebar"
+                className="flex h-[26px] w-7 items-center justify-center rounded-[7px] text-[var(--color-text-muted)] transition-colors hover:bg-white/5 hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6ab5c]/60"
+              >
+                <PanelLeftClose size={16} />
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Navigation Items */}
         <nav
           className={cn(
@@ -438,26 +462,28 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
               </AnimatePresence>
             </button>
 
-            {/* Compact Toggle */}
-            <button
-              onClick={() => setIsCompact(!isCompact)}
-              aria-label={isCompact ? "Expand sidebar" : "Collapse sidebar"}
-              className={cn(
-                "w-full flex items-center gap-2 py-2 rounded-lg text-sm transition-all text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-black/5",
-                isCompact ? "justify-center px-2" : "px-3"
-              )}
-            >
-              <motion.span layout transition={iconLayoutTransition} className="flex h-5 w-5 items-center justify-center">
-                {isCompact ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
-              </motion.span>
-              <AnimatePresence initial={false}>
-                {!isCompact && (
-                  <AnimatedSidebarText key="collapse-label">
-                    Collapse
-                  </AnimatedSidebarText>
+            {/* Compact Toggle — the macOS band carries it while expanded */}
+            {(!IS_MACOS || isCompact) && (
+              <button
+                onClick={() => setIsCompact(!isCompact)}
+                aria-label={isCompact ? "Expand sidebar" : "Collapse sidebar"}
+                className={cn(
+                  "w-full flex items-center gap-2 py-2 rounded-lg text-sm transition-all text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-black/5",
+                  isCompact ? "justify-center px-2" : "px-3"
                 )}
-              </AnimatePresence>
-            </button>
+              >
+                <motion.span layout transition={iconLayoutTransition} className="flex h-5 w-5 items-center justify-center">
+                  {isCompact ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
+                </motion.span>
+                <AnimatePresence initial={false}>
+                  {!isCompact && (
+                    <AnimatedSidebarText key="collapse-label">
+                      Collapse
+                    </AnimatedSidebarText>
+                  )}
+                </AnimatePresence>
+              </button>
+            )}
           </div>
         </LayoutGroup>
       </aside>

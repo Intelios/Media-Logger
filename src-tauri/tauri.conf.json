@@ -16,7 +16,10 @@
         "title": "Media Logger",
         "width": 1920,
         "height": 1080,
-        "transparent": true
+        "transparent": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 8, "y": 25 }
       }
     ],
     "security": {

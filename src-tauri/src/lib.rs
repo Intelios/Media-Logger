@@ -1389,6 +1389,85 @@ fn set_native_window_opaque(window: &tauri::Window, opaque: bool) {
     }
 }
 
+// The macOS window has no title bar: the traffic lights sit inside the
+// sidebar's 46px band. Tauri positions them from config once at creation, but
+// AppKit re-lays the title bar out on fullscreen transitions and style changes,
+// so the inset is re-asserted on window events. It writes nothing when already
+// correct. wry sizes the title bar container as button height + inset and the
+// buttons keep their offset from its bottom edge, so the inset lands on the
+// distance from the window's top edge to the light centres.
+#[cfg(target_os = "macos")]
+const TRAFFIC_LIGHT_X: f64 = 8.0;
+#[cfg(target_os = "macos")]
+const TRAFFIC_LIGHT_INSET_Y: f64 = 25.0;
+
+#[cfg(target_os = "macos")]
+fn ensure_traffic_light_inset(window: &tauri::Window) {
+    use objc2::runtime::AnyObject;
+    use objc2::msg_send;
+    use objc2_app_kit::{NSView, NSWindow};
+
+    // In fullscreen the lights are hidden and AppKit owns the layout; don't
+    // touch the title bar until the window is back on the desktop.
+    if window.is_fullscreen().unwrap_or(false) {
+        return;
+    }
+
+    let Ok(ns_ptr) = window.ns_window() else {
+        return;
+    };
+    if ns_ptr.is_null() {
+        return;
+    }
+
+    unsafe {
+        let ns_window = ns_ptr as *mut AnyObject;
+        // NSWindowButton: close = 0, miniaturize = 1, zoom = 2.
+        let close_raw: *mut AnyObject = msg_send![ns_window, standardWindowButton: 0isize];
+        let mini_raw: *mut AnyObject = msg_send![ns_window, standardWindowButton: 1isize];
+        let zoom_raw: *mut AnyObject = msg_send![ns_window, standardWindowButton: 2isize];
+        if close_raw.is_null() || mini_raw.is_null() {
+            return;
+        }
+
+        let close = &*(close_raw as *const NSView);
+        let miniaturize = &*(mini_raw as *const NSView);
+        let close_frame = NSView::frame(close);
+        let gap = NSView::frame(miniaturize).origin.x - close_frame.origin.x;
+
+        // The buttons sit in the title bar container view inside the theme frame.
+        let Some(title_bar_parent) = NSView::superview(close) else {
+            return;
+        };
+        let Some(title_bar) = NSView::superview(&title_bar_parent) else {
+            return;
+        };
+
+        let target_height = close_frame.size.height + TRAFFIC_LIGHT_INSET_Y;
+        let mut title_bar_frame = NSView::frame(&title_bar);
+        if (title_bar_frame.size.height - target_height).abs() > 0.5 {
+            let window_height = NSWindow::frame(&*(ns_window as *const NSWindow)).size.height;
+            title_bar_frame.size.height = target_height;
+            title_bar_frame.origin.y = window_height - target_height;
+            NSView::setFrame(&title_bar, title_bar_frame);
+        }
+
+        let mut buttons = vec![close, miniaturize];
+        if !zoom_raw.is_null() {
+            buttons.push(&*(zoom_raw as *const NSView));
+        }
+        for (index, button) in buttons.into_iter().enumerate() {
+            let target_x = TRAFFIC_LIGHT_X + index as f64 * gap;
+            let mut frame = NSView::frame(button);
+            if (frame.origin.x - target_x).abs() < 0.5 {
+                continue;
+            }
+            frame.origin.x = target_x;
+            NSView::setFrame(button, frame);
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1457,8 +1536,10 @@ pub fn run() {
         ])
         .on_window_event(|window, event| {
             #[cfg(target_os = "macos")]
-            if let tauri::WindowEvent::Focused(focused) = event {
-                set_native_window_opaque(window, !focused);
+            match event {
+                tauri::WindowEvent::Focused(focused) => set_native_window_opaque(window, !*focused),
+                tauri::WindowEvent::Resized(_) => ensure_traffic_light_inset(window),
+                _ => {}
             }
             #[cfg(not(target_os = "macos"))]
             let _ = (window, event);
@@ -1504,6 +1585,9 @@ pub fn run() {
                     apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None)
                         .expect("Failed to apply vibrancy");
                 }
+
+                let tauri_window = window.as_ref().window();
+                ensure_traffic_light_inset(&tauri_window);
             }
 
             #[cfg(target_os = "windows")]

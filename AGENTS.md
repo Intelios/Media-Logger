@@ -44,7 +44,7 @@ Tauri v2 + React 19 + TypeScript + Tailwind v3 desktop app. Desktop-only, develo
 
 **Backend (`src-tauri/`)**
 
-- `main.rs` → `media_logger_lib::run()` in `lib.rs`: plugins sql/fs/dialog/opener only; `media://` async URI scheme; macOS menu emitting `menu-navigate` (⌘1–9, ⌘,) and `menu-new-entry` (⌘N) — `Layout.tsx` listens; dev-identifier startup guard; window opaque↔transparent on focus (perf: WindowServer recomposites transparent windows even when idle — don't remove).
+- `main.rs` → `media_logger_lib::run()` in `lib.rs`: plugins sql/fs/dialog/opener only; `media://` async URI scheme; macOS menu emitting `menu-navigate` (⌘1–9, ⌘,) and `menu-new-entry` (⌘N) — `Layout.tsx` listens; dev-identifier startup guard; window opaque↔transparent on focus (perf: WindowServer recomposites transparent windows even when idle — don't remove). macOS hides its title bar (`titleBarStyle: Overlay` + `hiddenTitle`): the native traffic lights are inset into the sidebar's 46px band (`ensure_traffic_light_inset`, re-asserted on resize/focus) and that band is the window's drag region (`data-tauri-drag-region`); Windows keeps native decorations and no band.
 - `database.rs` — migrations `user_version` 0→7, backup export/import, collection/award/backlog reorders.
 - `image_service.rs` — derivative pipeline + palette extraction (see below).
 - `cover_search.rs` — **all** outbound HTTP (reqwest/rustls, no OpenSSL); no JS `fetch`.
