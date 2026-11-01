@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Search, X, Plus } from "lucide-react";
+import { Plus, Search, Star, Trophy, X } from "lucide-react";
 import { dbService, type EntryCardSummary } from "../lib/db";
-import { MediaCard } from "./MediaCard"; // Reuse the card!
+import { formatCardRating, getRatingTextColor } from "../lib/media-config";
+import { cn } from "../lib/utils_ui";
+import { CoverImage } from "./CoverImage";
 import { VirtualizedCardGrid } from "./VirtualizedCardGrid";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -11,6 +13,9 @@ import { useFocusTrap } from "../lib/useFocusTrap";
 // on every render (which would cause useMemo/useEffect dependency loops).
 const EMPTY_IDS: number[] = [];
 const getMediaEntryKey = (entry: EntryCardSummary) => entry.id;
+
+const FOCUS_RING =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6ab5c]/60";
 
 interface WinnerPickerProps {
   isOpen: boolean;
@@ -27,6 +32,11 @@ interface WinnerPickerProps {
   entryFilter?: (entry: EntryCardSummary) => boolean;
 }
 
+/**
+ * Winner / entry picker. A wall of prints in the awards language: each entry is
+ * its artwork on a mount with its name and date beneath, every match for the
+ * year is listed (not a fixed handful), and the search narrows in place.
+ */
 export function WinnerPicker({
   isOpen,
   onClose,
@@ -41,7 +51,6 @@ export function WinnerPicker({
   entryFilter,
 }: WinnerPickerProps) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<EntryCardSummary[]>([]);
   const [allEntries, setAllEntries] = useState<EntryCardSummary[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,63 +66,47 @@ export function WinnerPicker({
   // is a fresh array on every parent render, so it must not retrigger this effect
   // or query/selection get wiped mid-use. Exclusion is applied below instead.
   useEffect(() => {
-    if (isOpen) {
-      setQuery("");
-      setSelectedIds([]);
-      setIsSubmitting(false);
-      // Summaries only — description/notes prose is never needed for picking.
-      // MediaCard lazy-loads the full row via getEntryById when a detail/edit
-      // dialog is actually opened, so this matches the 4.0 contract and avoids
-      // a SELECT * feeding the virtualized grid.
-      dbService.getAllEntrySummaries().then(entries => {
-        setAllEntries(entries);
-      });
-    }
+    if (!isOpen) return;
+    setQuery("");
+    setSelectedIds([]);
+    setIsSubmitting(false);
+    // Summaries only — description/notes prose is never needed for picking.
+    dbService.getAllEntrySummaries().then((entries) => {
+      setAllEntries(entries);
+    });
   }, [isOpen, year]);
 
   const filteredEntries = useMemo(() => {
-    // Optional: Filter by the award year automatically?
-    // Usually awards are given to things from that year, but sometimes "Late entries" apply.
-    // Let's keep it open for now, or filter if year is provided.
     let entries = allEntries.filter((entry) => !excludedIdSet.has(entry.id));
-    if (year) {
-      entries = entries.filter(e => e.year_completed === year);
-    }
-    if (entryFilter) {
-      entries = entries.filter(entryFilter);
-    }
+    if (year) entries = entries.filter((entry) => entry.year_completed === year);
+    if (entryFilter) entries = entries.filter(entryFilter);
     return entries;
   }, [allEntries, excludedIdSet, year, entryFilter]);
 
-  useEffect(() => {
-    if (!query) {
-        setResults(filteredEntries.slice(0, 8)); // Show some recent ones
-        return;
-    }
-    const q = query.toLowerCase();
-    setResults(filteredEntries.filter(e => e.name.toLowerCase().includes(q)));
-  }, [query, filteredEntries]);
+  const results = useMemo(() => {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) return filteredEntries;
+    return filteredEntries.filter((entry) => entry.name.toLowerCase().includes(trimmed));
+  }, [filteredEntries, query]);
 
   const toggleSelection = (mediaId: number) => {
-    setSelectedIds((current) => (
+    setSelectedIds((current) =>
       current.includes(mediaId)
         ? current.filter((id) => id !== mediaId)
         : [...current, mediaId]
-    ));
+    );
   };
 
-  const handleCardClick = async (mediaId: number) => {
+  const handleCardClick = (mediaId: number) => {
     if (isMultiSelect) {
       toggleSelection(mediaId);
       return;
     }
-
     onSelect?.(mediaId);
   };
 
   const handleSubmitSelection = async () => {
     if (!isMultiSelect || selectedIds.length === 0 || !onSubmitSelection) return;
-
     setIsSubmitting(true);
     try {
       await onSubmitSelection(selectedIds);
@@ -125,104 +118,191 @@ export function WinnerPicker({
 
   if (!isOpen) return null;
 
-  // Portalled to <body> so a parent's `space-y-*` margin can't offset the
-  // fixed overlay — see the note in EntryForm.
+  const heading = title ?? (isMultiSelect ? "Add collection items" : "Select winner");
+  const subtitle = `${filteredEntries.length} ${
+    filteredEntries.length === 1 ? "entry" : "entries"
+  }${year ? ` from ${year}` : ""}`;
+
+  const emptyMessage =
+    filteredEntries.length === 0
+      ? excludedIds.length > 0
+        ? "Every matching item is already in this collection."
+        : year
+          ? `Nothing completed in ${year} fits this picker yet.`
+          : "No entries match this picker."
+      : `No matches for “${query.trim()}”.`;
+
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div ref={modalRef} className="bg-[#1a1a1a] border border-white/10 w-full max-w-4xl h-[80vh] rounded-2xl shadow-2xl flex flex-col">
-        
-        {/* Header */}
-        <div className="p-4 border-b border-white/5 flex items-center gap-3">
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"
+      onClick={onClose}
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="winner-picker-title"
+        onClick={(event) => event.stopPropagation()}
+        className="flex h-[min(84vh,880px)] w-full max-w-4xl flex-col overflow-hidden rounded-[20px] border border-white/10 bg-gradient-to-b from-[#1c1916] to-[#131110] shadow-2xl shadow-black/60"
+      >
+        <header className="flex items-start gap-3 border-b border-white/5 bg-gradient-to-r from-[#d6ab5c]/[0.08] via-transparent to-transparent px-5 py-4">
+          <div className="rounded-[12px] bg-[#d6ab5c]/15 p-2.5 text-[#f0d391]">
+            <Trophy size={18} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2
+              id="winner-picker-title"
+              className="truncate text-[17px] font-semibold leading-tight text-white"
+            >
+              {heading}
+            </h2>
+            <p className="mt-0.5 text-[12.5px] text-white/45">{subtitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className={cn(
+              "rounded-lg p-1.5 text-white/45 transition-colors hover:bg-white/10 hover:text-white",
+              FOCUS_RING
+            )}
+          >
+            <X size={16} />
+          </button>
+        </header>
+
+        <div className="flex items-center gap-3 border-b border-white/5 px-5 py-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input 
+            <Search
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/35"
+            />
+            <input
               autoFocus
-              className="w-full bg-white/5 border border-white/10 rounded-lg py-2 pl-10 pr-4 text-white focus:border-primary outline-none"
-              placeholder={searchPlaceholder ?? `Search for a winner${year ? ` from ${year}` : ''}...`}
               value={query}
-              onChange={e => setQuery(e.target.value)}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={searchPlaceholder ?? `Search for a winner${year ? ` from ${year}` : ""}…`}
+              className={cn(
+                "h-10 w-full rounded-[10px] border border-white/10 bg-white/[0.04] pl-9 pr-3 text-[13.5px] text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#d6ab5c]/50 focus:bg-white/[0.06]",
+                FOCUS_RING
+              )}
             />
           </div>
-          <div className="text-right min-w-[140px]">
-            <div className="text-sm font-semibold text-white">
-              {title ?? (isMultiSelect ? "Add Collection Items" : "Select Winner")}
-            </div>
-            <div className="text-xs text-gray-500">
-              {isMultiSelect
-                ? `${selectedIds.length} selected`
-                : `${results.length} match${results.length !== 1 ? "es" : ""}`}
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full">
-            <X size={20} />
-          </button>
+          <span className="shrink-0 text-[12.5px] tabular-nums text-white/40">
+            {query.trim()
+              ? `${results.length} match${results.length === 1 ? "" : "es"}`
+              : "Most recent first"}
+          </span>
         </div>
 
-        {/* Grid */}
-        <div ref={resultsScrollRef} className="flex-1 min-h-0 overflow-y-auto p-4 custom-scrollbar">
+        <div
+          ref={resultsScrollRef}
+          className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4"
+        >
           <VirtualizedCardGrid
             items={results}
             getItemKey={getMediaEntryKey}
-            columns={{ base: 2, md: 4 }}
+            columns={{ base: 2, md: 3, lg: 4 }}
             gap={16}
-            estimatedRowHeight={420}
+            estimatedRowHeight={196}
             scrollContainerRef={resultsScrollRef}
             ariaLabel="Media search results"
             renderItem={(entry) => {
               const selectionIndex = selectedIds.indexOf(entry.id);
               const isSelected = selectionIndex >= 0;
-
               return (
-              <div 
-                onClick={() => void handleCardClick(entry.id)}
-                className={`relative cursor-pointer ring-offset-2 ring-offset-[#1a1a1a] rounded-xl transition-all ${
-                  isMultiSelect
-                    ? isSelected
-                      ? "ring-2 ring-primary"
-                      : "hover:ring-2 hover:ring-primary/60"
-                    : "hover:ring-2 hover:ring-primary"
-                }`}
-              >
-                {isMultiSelect && (
-                  <div className={`absolute left-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full border text-white shadow-lg transition-all ${
+                <button
+                  type="button"
+                  onClick={() => handleCardClick(entry.id)}
+                  aria-pressed={isMultiSelect ? isSelected : undefined}
+                  className={cn(
+                    "group flex w-full flex-col gap-2 rounded-[12px] border border-transparent p-2 text-left transition-colors",
                     isSelected
-                      ? "border-primary bg-primary"
-                      : "border-white/20 bg-black/55 backdrop-blur-sm"
-                  }`}>
-                    {isSelected ? (
-                      <span className="text-sm font-bold">{selectionIndex + 1}</span>
-                    ) : (
-                      <Plus size={16} />
+                      ? "border-[#d6ab5c]/40 bg-[#d6ab5c]/[0.10]"
+                      : "hover:border-white/10 hover:bg-white/[0.04]",
+                    FOCUS_RING
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "relative flex aspect-[16/9] w-full items-center justify-center overflow-hidden rounded-[8px] ring-1",
+                      isSelected ? "ring-[#d6ab5c]" : "ring-white/[0.08]"
                     )}
-                  </div>
-                )}
-                <MediaCard entry={entry} imagePriority="auto" />
-              </div>
+                    style={{ background: "rgba(255, 255, 255, 0.03)" }}
+                  >
+                    <CoverImage
+                      path={entry.image_url}
+                      alt=""
+                      variant="small"
+                      priority="low"
+                      containerClassName="flex h-full w-full items-center justify-center p-1.5"
+                      imageClassName="max-h-full max-w-full object-contain"
+                    />
+
+                    {isMultiSelect && (
+                      <span
+                        className={cn(
+                          "absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold",
+                          isSelected
+                            ? "bg-[#d6ab5c] text-[#1d150a]"
+                            : "bg-black/60 text-white/80 ring-1 ring-white/20"
+                        )}
+                      >
+                        {isSelected ? selectionIndex + 1 : <Plus size={12} />}
+                      </span>
+                    )}
+                  </span>
+
+                  <span className="min-w-0 px-0.5">
+                    <span className="block truncate text-[13.5px] font-medium text-white">
+                      {entry.name}
+                    </span>
+                    <span className="mt-0.5 flex items-center gap-1 text-[11.5px]">
+                      {entry.review_score != null ? (
+                        <span
+                          className={cn(
+                            "flex items-center gap-1 font-medium",
+                            getRatingTextColor(entry.review_score)
+                          )}
+                        >
+                          <Star size={9} className="fill-current" />
+                          {formatCardRating(entry.review_score)}/10
+                        </span>
+                      ) : (
+                        <span className="text-white/30">Not rated</span>
+                      )}
+                    </span>
+                  </span>
+                </button>
               );
             }}
           />
+
           {results.length === 0 && (
-            <div className="text-center py-20 text-gray-500">
-              {filteredEntries.length === 0 && excludedIds.length > 0
-                ? "All available items are already in this collection"
-                : "No media found"}
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <Trophy size={26} className="text-white/20" />
+              <p className="mt-3 text-[13.5px] font-medium text-white/55">{emptyMessage}</p>
             </div>
           )}
         </div>
 
         {isMultiSelect && (
-          <div className="border-t border-white/5 p-4 flex items-center justify-between gap-3">
-            <p className="text-sm text-gray-500">
-              Click multiple cards to queue them in the order you want them added.
+          <div className="flex items-center justify-between gap-3 border-t border-white/5 bg-black/20 px-5 py-4">
+            <p className="text-[12.5px] text-white/40">
+              Click multiple entries to queue them in the order you want them added.
             </p>
             <button
               type="button"
               onClick={() => void handleSubmitSelection()}
               disabled={selectedIds.length === 0 || isSubmitting}
-              className="px-4 py-2.5 rounded-xl font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-110"
-              style={{ background: "linear-gradient(to right, var(--color-primary), var(--color-secondary))" }}
+              className={cn(
+                "h-[38px] shrink-0 rounded-[10px] bg-[#d6ab5c] px-4 text-[13px] font-semibold text-[#1d150a] transition-colors hover:bg-[#e0b76b] disabled:cursor-not-allowed disabled:opacity-40",
+                FOCUS_RING
+              )}
             >
-              {isSubmitting ? "Adding..." : `${confirmLabel ?? "Add Selected"} (${selectedIds.length})`}
+              {isSubmitting
+                ? "Adding…"
+                : `${confirmLabel ?? "Add selected"} (${selectedIds.length})`}
             </button>
           </div>
         )}
