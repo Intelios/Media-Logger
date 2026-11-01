@@ -56,6 +56,10 @@ export default function AwardsPage() {
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   // Template to select when the year view mounts (history cover navigation).
   const [initialTemplateId, setInitialTemplateId] = useState<number | null>(null);
+  // Which side a year switch enters from: +1 for a later year, -1 for earlier.
+  const [yearDirection, setYearDirection] = useState<1 | -1>(1);
+  // Set while the outgoing year is playing its exit animation.
+  const [yearExit, setYearExit] = useState<1 | -1 | null>(null);
 
   // Data state
   const [years, setYears] = useState<AwardYearSummary[]>([]);
@@ -182,6 +186,9 @@ export default function AwardsPage() {
   );
 
   const goBackToMain = () => {
+    // Abandon any year swap still in flight so its timer can't reopen a year.
+    categoryLoadRef.current += 1;
+    setYearExit(null);
     setView("main");
     setInitialTemplateId(null);
     setTypeFilter(null);
@@ -197,13 +204,46 @@ export default function AwardsPage() {
       if (templateId !== null) setInitialTemplateId(templateId);
       return;
     }
-    setSelectedYear(year);
-    setInitialTemplateId(templateId);
-    setCategories([]);
-    setTypeFilter(null);
-    void loadCategories(year);
-    setView("year");
-    scrollToTop();
+
+    // A year change is a page turn, not a reload. The outgoing year plays a
+    // short exit while the next year's rows are fetched, then year, data and
+    // view swap in one commit so the keyed view mounts straight onto real
+    // content and slides in from the side that year sits on — a later year
+    // from the right, an earlier one from the left.
+    const direction: 1 | -1 =
+      view === "year" && selectedYear !== null && year < selectedYear ? -1 : 1;
+    const leavingCurrent = view === "year" && selectedYear !== null;
+    setYearDirection(direction);
+    if (leavingCurrent) setYearExit(direction);
+
+    const startedAt = performance.now();
+    const token = ++categoryLoadRef.current;
+    void awardsLogic
+      .getAwardsForYear(year)
+      .then((data) => {
+        if (token !== categoryLoadRef.current) return;
+        const swap = () => {
+          if (token !== categoryLoadRef.current) return;
+          setCategories(data);
+          setSelectedYear(year);
+          setInitialTemplateId(templateId);
+          setTypeFilter(null);
+          setView("year");
+          setYearExit(null);
+          scrollToTop();
+        };
+        if (!leavingCurrent) {
+          swap();
+          return;
+        }
+        const remaining = Math.max(0, 150 - (performance.now() - startedAt));
+        window.setTimeout(swap, remaining);
+      })
+      .catch((error) => {
+        if (token !== categoryLoadRef.current) return;
+        setYearExit(null);
+        setAwardError(error instanceof Error ? error.message : String(error));
+      });
   };
 
   const handleTemplateSelect = (templateId: number) => {
@@ -427,6 +467,7 @@ export default function AwardsPage() {
         <AwardYearView
           key={selectedYear}
           year={selectedYear}
+          direction={yearDirection}
           years={years}
           categories={categories}
           groups={categoryGroups}
@@ -434,6 +475,7 @@ export default function AwardsPage() {
           typeFilter={activeTypeFilter}
           initialTemplateId={initialTemplateId}
           historyVersion={mutationVersion}
+          leaving={yearExit}
           onTypeFilterChange={setTypeFilter}
           onSelectYear={(year) => handleYearSelect(year)}
           onYearSelectWithTemplate={(year, templateId) => handleYearSelect(year, templateId)}

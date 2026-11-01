@@ -26,8 +26,6 @@ interface AwardRowProps {
   decided: boolean;
   selected?: boolean;
   onSelect: () => void;
-  /** Position in the list — drives the mount-only entrance stagger. */
-  index?: number;
   /** Optional hover delete affordance. */
   onDelete?: () => void;
   deleteLabel?: string;
@@ -46,7 +44,6 @@ export function AwardRow({
   decided,
   selected = false,
   onSelect,
-  index = 0,
   onDelete,
   deleteLabel = "Delete award",
   deleteTooltip = "Delete award",
@@ -65,10 +62,7 @@ export function AwardRow({
     : "rgba(255, 255, 255, 0.03)";
 
   return (
-    <div
-      className="group award-item-enter relative"
-      style={{ animationDelay: `${Math.min(Math.max(index, 0) * 40, 300)}ms` }}
-    >
+    <div className="group relative">
       <button
         type="button"
         onClick={onSelect}

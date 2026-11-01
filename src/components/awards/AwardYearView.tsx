@@ -20,6 +20,10 @@ import { DecidedMeter } from "./DecidedMeter";
 
 interface AwardYearViewProps {
   year: number;
+  /** Which side this year entered from: +1 later year, -1 earlier. */
+  direction: 1 | -1;
+  /** Set while a year switch is playing this view out, before the swap. */
+  leaving: 1 | -1 | null;
   /** All award years, newest first — powers the header's year stepping. */
   years: AwardYearSummary[];
   /** Every category in the year, in stored order. */
@@ -60,6 +64,8 @@ function defaultSelection(items: AwardCategoryWithWinner[]): number | null {
  */
 export function AwardYearView({
   year,
+  direction,
+  leaving,
   years,
   categories,
   groups,
@@ -82,15 +88,6 @@ export function AwardYearView({
     () => visibleGroups.flatMap(([, group]) => group),
     [visibleGroups]
   );
-
-  const rowOrder = useMemo(() => {
-    const order = new Map<number, number>();
-    let next = 0;
-    for (const [, group] of visibleGroups) {
-      for (const category of group) order.set(category.id, next++);
-    }
-    return order;
-  }, [visibleGroups]);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   // The initial template only applies once the year's categories have loaded —
@@ -199,7 +196,18 @@ export function AwardYearView({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div
+      className={cn(
+        "flex h-full min-h-0 flex-col",
+        leaving != null
+          ? leaving > 0
+            ? "award-year-exit-next"
+            : "award-year-exit-prev"
+          : direction > 0
+            ? "award-year-enter-next"
+            : "award-year-enter-prev"
+      )}
+    >
       <header className="award-header-enter relative z-30 grid grid-cols-[1fr_auto_1fr] items-center gap-6">
         <button
           type="button"
@@ -317,7 +325,6 @@ export function AwardYearView({
                         imagePath={category.winner?.image_url ?? null}
                         decided={category.winner !== null}
                         selected={category.id === selectedId}
-                        index={rowOrder.get(category.id) ?? 0}
                         onSelect={() => handleSelect(category)}
                       />
                     ))}

@@ -137,7 +137,7 @@ export function AwardDetailView({
   );
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] pb-16">
+    <div className="award-year-enter-next mx-auto w-full max-w-[1500px] pb-16">
       <header className="award-header-enter relative z-30">
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -204,7 +204,7 @@ export function AwardDetailView({
       ) : (
         <div className="mt-6 grid grid-cols-[minmax(0,1fr)_300px] items-start gap-9 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="grid min-w-0 grid-cols-1 gap-x-5 gap-y-1 min-[1440px]:grid-cols-2">
-            {history.map((entry, index) => (
+            {history.map((entry) => (
               <AwardRow
                 key={entry.category_id}
                 label={String(entry.year)}
@@ -212,7 +212,6 @@ export function AwardDetailView({
                 imagePath={entry.winner?.image_url ?? null}
                 decided={entry.winner !== null}
                 selected={entry.category_id === selectedCategoryId}
-                index={index}
                 onSelect={() => {
                   if (entry.winner) setSelectedCategoryId(entry.category_id);
                   else onOpenYear(entry.year, template.id);

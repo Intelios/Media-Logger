@@ -2040,6 +2040,83 @@ body {
   }
 }
 
+/* Award year "page turn". A year switch prefetches the next year's rows and
+   swaps them in one commit, so the keyed view mounts straight onto real data
+   and can slide in from the side that year sits on — a later year from the
+   right, an earlier one from the left. */
+@keyframes award-year-in-next {
+  from {
+    opacity: 0;
+    transform: translateX(26px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes award-year-in-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-26px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes award-year-out-next {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-22px);
+  }
+}
+
+@keyframes award-year-out-prev {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(22px);
+  }
+}
+
+.award-year-enter-next {
+  animation: award-year-in-next 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.award-year-enter-prev {
+  animation: award-year-in-prev 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.award-year-exit-next {
+  animation: award-year-out-next 0.15s ease-in both;
+}
+
+.award-year-exit-prev {
+  animation: award-year-out-prev 0.15s ease-in both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .award-year-enter-next,
+  .award-year-enter-prev,
+  .award-year-exit-next,
+  .award-year-exit-prev {
+    animation: none;
+  }
+}
+
 /* Profile card entrance animation */
 @keyframes profile-card-in {
   from {
