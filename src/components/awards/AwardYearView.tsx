@@ -190,9 +190,11 @@ export function AwardYearView({
     yearIndex >= 0 && yearIndex < years.length - 1 ? years[yearIndex + 1] : null;
   const newerYear = yearIndex > 0 ? years[yearIndex - 1] : null;
 
+  // Selecting an empty award shows it in the inspector, where its Choose
+  // winner action lives — clicking a row shouldn't jump straight into the
+  // picker for someone who only wanted to look at the award.
   const handleSelect = (category: AwardCategoryWithWinner) => {
     setSelectedId(category.id);
-    if (!category.winner) onOpenPicker(category);
   };
 
   return (

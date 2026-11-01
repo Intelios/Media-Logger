@@ -120,7 +120,7 @@ export function AwardRow({
                   )
             )}
           >
-            {placeholder ? "Choose a winner" : headline}
+            {placeholder ? "No winner yet" : headline}
           </span>
         </span>
       </button>
