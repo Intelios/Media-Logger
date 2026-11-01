@@ -10,7 +10,7 @@ import { useCoverPalettes } from "../../lib/cover-palette";
 import { cn } from "../../lib/utils_ui";
 import { CoverImage } from "../CoverImage";
 import { useHoverTooltip } from "../HoverTooltip";
-import { AWARD_FOCUS_RING, AWARD_GOLD_OUTLINE } from "./AwardRow";
+import { AWARD_FOCUS_RING, AWARD_GOLD_ICON_BUTTON, AWARD_GOLD_OUTLINE } from "./AwardRow";
 import { AwardTypeIcon, typeIconTint } from "./AwardTypeTabs";
 import { DecidedMeter } from "./DecidedMeter";
 
@@ -94,9 +94,13 @@ export function AwardHomeView({
             {templates.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <button type="button" onClick={onCreateYear} className={AWARD_GOLD_OUTLINE}>
-          <Plus size={15} />
-          New year
+        <button
+          type="button"
+          onClick={onCreateYear}
+          aria-label="New year"
+          className={AWARD_GOLD_ICON_BUTTON}
+        >
+          <Plus size={17} />
         </button>
       </header>
 

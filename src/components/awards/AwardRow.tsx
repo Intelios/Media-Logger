@@ -9,6 +9,10 @@ export const AWARD_FOCUS_RING =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6ab5c]/60";
 
 /** Gold-outline call to action (“Add award”, “New year”). */
+export const AWARD_GOLD_ICON_BUTTON =
+  "inline-flex h-[38px] w-[38px] items-center justify-center rounded-[10px] border border-[#d6ab5c]/35 bg-[#d6ab5c]/[0.08] text-[#f0d391] transition-colors hover:border-[#d6ab5c]/60 hover:bg-[#d6ab5c]/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6ab5c]/60";
+
+/** Gold-outline call to action (“Add award”, “New year”). */
 export const AWARD_GOLD_OUTLINE =
   "inline-flex h-[38px] items-center justify-center gap-1.5 rounded-[10px] border border-[#d6ab5c]/35 bg-[#d6ab5c]/[0.08] px-3.5 text-[13px] font-semibold text-[#f0d391] transition-colors hover:border-[#d6ab5c]/60 hover:bg-[#d6ab5c]/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6ab5c]/60";
 

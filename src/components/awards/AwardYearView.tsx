@@ -10,6 +10,7 @@ import { cn } from "../../lib/utils_ui";
 import { useHoverTooltip } from "../HoverTooltip";
 import {
   AWARD_FOCUS_RING,
+  AWARD_GOLD_ICON_BUTTON,
   AWARD_GOLD_OUTLINE,
   AWARD_ICON_BUTTON,
   AwardRow,
@@ -275,10 +276,9 @@ export function AwardYearView({
             type="button"
             onClick={onAddAward}
             aria-label="Add award"
-            className={AWARD_GOLD_OUTLINE}
+            className={AWARD_GOLD_ICON_BUTTON}
           >
-            <Plus size={15} />
-            Add award
+            <Plus size={17} />
           </button>
         </div>
       </header>
