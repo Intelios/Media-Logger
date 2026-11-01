@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Calendar, Plus, RefreshCw, Star, Trash2, Trophy } from "lucide-react";
 import type { MediaEntry } from "../../lib/db";
 import type { TemplateWinnerHistory } from "../../lib/awards-logic";
@@ -49,8 +49,13 @@ interface Chip {
   color?: string;
 }
 
-/** Covers are 168px wide; the whole panel is built around that column. */
-const COVER_WIDTH = 168;
+/**
+ * Height of the panel's artwork stage. The stage is fixed so selecting another
+ * award never shifts the title and actions, while the print inside keeps its
+ * own proportions — a wide key-art banner and a tall poster both fit whole.
+ */
+const STAGE_HEIGHT = 238;
+const PRINT_MAX_HEIGHT = 204;
 
 /**
  * The right-hand award inspector: a large cover tinted by its own palette, the
@@ -72,6 +77,18 @@ export function AwardInspector({
   const winnerPath = winner?.image_url ?? null;
   const palettes = useCoverPalettes(winnerPath ? [winnerPath] : []);
   const palette = winnerPath ? palettes.get(winnerPath) : undefined;
+
+  // The "card" srcSet advertises fixed widths, so for a source smaller than
+  // those the browser reports a density-shrunk intrinsic size. A print has to
+  // keep its own proportions, so measure the ratio off the decoded file and
+  // size the stage from that instead.
+  const [printRatio, setPrintRatio] = useState<number | null>(null);
+  useEffect(() => {
+    setPrintRatio(null);
+  }, [winnerPath]);
+  const printWidth = printRatio
+    ? `min(100%, ${Math.round(PRINT_MAX_HEIGHT * printRatio)}px)`
+    : "100%";
 
   if (!award) return null;
 
@@ -168,21 +185,23 @@ export function AwardInspector({
         >
           {winner ? (
             <>
-              <div className="flex justify-center">
-                <div
-                  className="overflow-hidden rounded-[7px] shadow-[0_20px_45px_-14px_rgba(0,0,0,0.85)]"
-                  style={{ width: COVER_WIDTH }}
-                >
-                  <CoverImage
-                    path={winner.image_url}
-                    alt={winner.name}
-                    variant="card"
-                    priority="high"
-                    sizes={`${COVER_WIDTH}px`}
-                    containerClassName="aspect-[2/3] w-full"
-                    imageClassName="h-full w-full object-cover"
-                  />
-                </div>
+              <div className="flex w-full items-center justify-center" style={{ height: STAGE_HEIGHT }}>
+                <CoverImage
+                  path={winner.image_url}
+                  alt={winner.name}
+                  variant="card"
+                  priority="high"
+                  sizes="320px"
+                  containerClassName="flex items-center justify-center"
+                  containerStyle={{ width: printWidth }}
+                  imageClassName="h-auto w-full rounded-[6px] object-contain shadow-[0_22px_40px_-16px_rgba(0,0,0,0.8)] ring-1 ring-white/[0.08]"
+                  onLoad={(event) => {
+                    const image = event.currentTarget;
+                    if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                      setPrintRatio(image.naturalWidth / image.naturalHeight);
+                    }
+                  }}
+                />
               </div>
 
               <div className="mt-5 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold text-[#d6ab5c]">
@@ -221,11 +240,8 @@ export function AwardInspector({
             </>
           ) : (
             <>
-              <div className="flex justify-center">
-                <div
-                  className="flex aspect-[2/3] items-center justify-center rounded-[7px] border-[1.5px] border-dashed border-white/[0.18] bg-white/[0.02] text-white/25"
-                  style={{ width: COVER_WIDTH }}
-                >
+              <div className="flex w-full items-center justify-center" style={{ height: STAGE_HEIGHT }}>
+                <div className="flex h-[200px] w-[150px] items-center justify-center rounded-[7px] border-[1.5px] border-dashed border-white/[0.18] bg-white/[0.02] text-white/25">
                   <Plus size={24} />
                 </div>
               </div>

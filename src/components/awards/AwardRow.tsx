@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { CoverImage } from "../CoverImage";
 import { useHoverTooltip } from "../HoverTooltip";
+import { useCoverPalettes } from "../../lib/cover-palette";
 import { cn } from "../../lib/utils_ui";
 
 /** Gold focus ring shared by every interactive control on the Awards page. */
@@ -27,18 +28,16 @@ interface AwardRowProps {
   onSelect: () => void;
   /** Position in the list — drives the mount-only entrance stagger. */
   index?: number;
-  /** 40px cover variant used by the home view's “Every award” list. */
-  compact?: boolean;
-  /** Optional hover delete affordance (home view only). */
+  /** Optional hover delete affordance. */
   onDelete?: () => void;
   deleteLabel?: string;
   deleteTooltip?: string;
 }
 
 /**
- * One award line in the Folio layout: a 2:3 cover, a dim label and a headline.
- * Selection is a gold wash plus inset ring; undecided rows swap the cover for a
- * dashed slot and prompt for a winner.
+ * One award line in the Folio layout: the print on its mount, a dim label and a
+ * headline. Selection is a gold wash plus inset ring; undecided rows show a
+ * dashed window and prompt for a winner.
  */
 export function AwardRow({
   label,
@@ -48,13 +47,22 @@ export function AwardRow({
   selected = false,
   onSelect,
   index = 0,
-  compact = false,
   onDelete,
   deleteLabel = "Delete award",
   deleteTooltip = "Delete award",
 }: AwardRowProps) {
   const { bindTooltip } = useHoverTooltip();
   const placeholder = headline == null || headline.length === 0;
+
+  // Every thumb is the same window; the artwork sits whole inside it on a
+  // mount tinted from its own cover, so a wide key-art banner and a tall poster
+  // read as the same kind of object. "Not loaded yet" and "no palette" share
+  // the neutral mount.
+  const palettes = useCoverPalettes(decided && imagePath ? [imagePath] : []);
+  const palette = imagePath ? palettes.get(imagePath) : undefined;
+  const mount = palette
+    ? `color-mix(in srgb, ${palette.base} 26%, #151219)`
+    : "rgba(255, 255, 255, 0.03)";
 
   return (
     <div
@@ -67,9 +75,7 @@ export function AwardRow({
         aria-current={selected ? "true" : undefined}
         className={cn(
           "grid w-full items-center gap-3.5 rounded-[10px] p-2 text-left transition-colors duration-150",
-          compact
-            ? "grid-cols-[40px_minmax(0,1fr)]"
-            : "grid-cols-[48px_minmax(0,1fr)]",
+          "grid-cols-[112px_minmax(0,1fr)]",
           selected
             ? "bg-[#d6ab5c]/[0.10] ring-1 ring-inset ring-[#d6ab5c]/[0.28]"
             : "hover:bg-white/5",
@@ -79,11 +85,12 @@ export function AwardRow({
       >
         <span
           className={cn(
-            "relative block aspect-[2/3] overflow-hidden rounded-[5px]",
+            "relative flex h-16 w-[112px] shrink-0 items-center justify-center overflow-hidden rounded-[5px]",
             decided
-              ? "shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
-              : "border-[1.5px] border-dashed border-white/[0.18] bg-white/[0.02]"
+              ? "ring-1 ring-white/[0.08]"
+              : "border-[1.5px] border-dashed border-white/[0.18] text-white/25"
           )}
+          style={decided ? { background: mount } : { background: "rgba(255,255,255,0.02)" }}
         >
           {decided ? (
             <CoverImage
@@ -91,13 +98,11 @@ export function AwardRow({
               alt={headline ?? label}
               variant="small"
               priority="low"
-              containerClassName="h-full w-full"
-              imageClassName="h-full w-full object-cover"
+              containerClassName="flex h-full w-full items-center justify-center p-1.5"
+              imageClassName="max-h-full max-w-full object-contain"
             />
           ) : (
-            <span className="flex h-full w-full items-center justify-center text-white/25">
-              <Plus size={compact ? 14 : 16} />
-            </span>
+            <Plus size={16} />
           )}
         </span>
 

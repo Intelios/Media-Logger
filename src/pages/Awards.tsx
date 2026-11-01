@@ -59,7 +59,7 @@ export default function AwardsPage() {
 
   // Data state
   const [years, setYears] = useState<AwardYearSummary[]>([]);
-  const [yearCovers, setYearCovers] = useState<Map<number, (string | null)[]>>(
+  const [yearLeads, setYearLeads] = useState<Map<number, string | null>>(
     () => new Map()
   );
   const [categories, setCategories] = useState<AwardCategoryWithWinner[]>([]);
@@ -94,12 +94,12 @@ export default function AwardsPage() {
   const categoryLoadRef = useRef(0);
 
   const loadYears = async () => {
-    const [yearRows, covers] = await Promise.all([
+    const [yearRows, leads] = await Promise.all([
       awardsLogic.getAwardYears(),
-      awardsLogic.getAwardYearCovers(),
+      awardsLogic.getAwardYearLeads(),
     ]);
     setYears(yearRows);
-    setYearCovers(covers);
+    setYearLeads(leads);
   };
 
   const loadTemplates = () => awardsLogic.getAllTemplates().then(setTemplates);
@@ -467,7 +467,7 @@ export default function AwardsPage() {
         <AwardHomeView
           years={years}
           templates={templates}
-          yearCovers={yearCovers}
+          yearLeads={yearLeads}
           onOpenYear={(year) => handleYearSelect(year)}
           onOpenTemplate={handleTemplateSelect}
           onCreateYear={() => setCreateYearOpen(true)}

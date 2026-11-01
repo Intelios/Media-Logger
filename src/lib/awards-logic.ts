@@ -9,9 +9,6 @@ export interface AwardTemplate {
   /** Media type the award belongs to (Movie, Game, …). null = General. */
   entry_type: string | null;
   usage_count?: number; // How many years used this template
-  /** Winner of the template's most recent awarded year (home list preview). */
-  latest_winner_name?: string | null;
-  latest_winner_image?: string | null;
 }
 
 export interface AwardCategory {
@@ -167,11 +164,10 @@ export const awardsLogic = {
     }));
   },
 
-  // 2b. First ten winner covers per year, for the home view's year mosaics.
-  //
-  // Null image paths are kept: a winner without artwork still occupies a tile
-  // slot, so the mosaic's “n of N” count and the covers stay in sync.
-  async getAwardYearCovers(): Promise<Map<number, (string | null)[]>> {
+  // 2b. The lead artwork per year for the home view's year cards: the cover of
+  // whichever award comes first in the year's stored order. Null paths are
+  // kept, so a year whose lead winner has no artwork can show an empty band.
+  async getAwardYearLeads(): Promise<Map<number, string | null>> {
     const db = await dbService.connect();
     const rows = await db.select<{ year: number; image_url: string | null }[]>(
       `SELECT c.year AS year, m.image_url AS image_url
@@ -181,16 +177,11 @@ export const awardsLogic = {
        ORDER BY c.year ASC, c.sort_order ASC, c.id ASC`
     );
 
-    const covers = new Map<number, (string | null)[]>();
+    const leads = new Map<number, string | null>();
     for (const row of rows) {
-      const list = covers.get(row.year);
-      if (!list) {
-        covers.set(row.year, [row.image_url]);
-      } else if (list.length < 10) {
-        list.push(row.image_url);
-      }
+      if (!leads.has(row.year)) leads.set(row.year, row.image_url);
     }
-    return covers;
+    return leads;
   },
 
   // 3. Create Category (also creates template if it doesn't exist)
@@ -313,21 +304,7 @@ export const awardsLogic = {
   async getAllTemplates(): Promise<AwardTemplate[]> {
     const db = await dbService.connect();
     const templates = await db.select<(AwardTemplate & { usage_count: number })[]>(
-      `SELECT t.*, COUNT(DISTINCT c.year) as usage_count,
-              (SELECT m.name
-                 FROM award_categories lc
-                 JOIN award_winners w ON w.category_id = lc.id
-                 JOIN entries m ON m.id = w.media_id
-                WHERE lc.template_id = t.id
-                ORDER BY lc.year DESC, lc.id DESC
-                LIMIT 1) AS latest_winner_name,
-              (SELECT m.image_url
-                 FROM award_categories lc
-                 JOIN award_winners w ON w.category_id = lc.id
-                 JOIN entries m ON m.id = w.media_id
-                WHERE lc.template_id = t.id
-                ORDER BY lc.year DESC, lc.id DESC
-                LIMIT 1) AS latest_winner_image
+      `SELECT t.*, COUNT(DISTINCT c.year) as usage_count
        FROM award_templates t 
        LEFT JOIN award_categories c ON c.template_id = t.id 
        GROUP BY t.id 
