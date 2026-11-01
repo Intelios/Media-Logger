@@ -227,6 +227,18 @@ export default function Backlog() {
     }
   }, []);
 
+  // The sidebar's bottom button relabels to "Add to Backlog" on this page and
+  // publishes this window event — the page owns the form and its save path
+  // (same convention as `media:open-expansions` on card grids).
+  useEffect(() => {
+    const handler = () => {
+      setEditingItem(null);
+      setShowForm(true);
+    };
+    window.addEventListener("media:open-backlog-form", handler);
+    return () => window.removeEventListener("media:open-backlog-form", handler);
+  }, []);
+
   // Load on mount, and re-fetch (now adult-filtered) with any stale adult
   // filter cleared when the Adult Media setting is toggled, so the backlog
   // updates without a restart.

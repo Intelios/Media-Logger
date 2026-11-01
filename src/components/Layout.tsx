@@ -80,6 +80,7 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
   const mainScrollRef = useRef<HTMLElement>(null);
   const routeStartedAtRef = useRef<number | null>(null);
   const currentYear = getCurrentYearString();
+  const onBacklog = location.pathname === "/backlog";
 
   const resetMainScroll = useCallback(() => {
     const scrollElement = mainScrollRef.current;
@@ -438,10 +439,14 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
         {/* Bottom Actions */}
         <LayoutGroup id="sidebar-actions">
           <div className="mt-4 pt-4 border-t space-y-2" style={{ borderColor: "var(--color-border-subtle)" }}>
-            {/* Add Entry Button */}
+            {/* Add Entry Button — on Backlog it becomes "Add to Backlog" and
+                asks that page to open its own form; the BacklogForm and its
+                save/reload path live there, not in the layout. */}
             <button
-              onClick={() => setShowEntryForm(true)}
-              aria-label="Add Entry"
+              onClick={() => (onBacklog
+                ? window.dispatchEvent(new CustomEvent("media:open-backlog-form"))
+                : setShowEntryForm(true))}
+              aria-label={onBacklog ? "Add to Backlog" : "Add Entry"}
               className={cn(
                 "group w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold transition-all duration-200",
                 "bg-gradient-to-r from-primary to-secondary hover:shadow-lg hover:shadow-primary/25 hover:scale-[1.02] active:scale-[0.98]",
@@ -453,10 +458,10 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
                   <Plus size={18} />
                 </span>
               </motion.span>
-              <AnimatePresence initial={false}>
+              <AnimatePresence initial={false} mode="wait">
                 {!isCompact && (
-                  <AnimatedSidebarText key="add-entry-label">
-                    Add Entry
+                  <AnimatedSidebarText key={onBacklog ? "add-backlog-label" : "add-entry-label"}>
+                    {onBacklog ? "Add to Backlog" : "Add Entry"}
                   </AnimatedSidebarText>
                 )}
               </AnimatePresence>
