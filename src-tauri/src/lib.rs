@@ -1401,17 +1401,50 @@ const TRAFFIC_LIGHT_X: f64 = 8.0;
 #[cfg(target_os = "macos")]
 const TRAFFIC_LIGHT_INSET_Y: f64 = 25.0;
 
+// macOS hides the window controls when the window goes fullscreen, but only
+// while the title bar keeps its stock geometry — resizing it to host the sidebar
+// band leaves them drawn over the app, so hide them ourselves.
+#[cfg(target_os = "macos")]
+fn set_traffic_lights_hidden(window: &tauri::Window, hidden: bool) {
+    use objc2::runtime::AnyObject;
+    use objc2::msg_send;
+    use objc2_app_kit::NSView;
+
+    let Ok(ns_ptr) = window.ns_window() else {
+        return;
+    };
+    if ns_ptr.is_null() {
+        return;
+    }
+
+    unsafe {
+        let ns_window = ns_ptr as *mut AnyObject;
+        for index in 0isize..3 {
+            let raw: *mut AnyObject = msg_send![ns_window, standardWindowButton: index];
+            if raw.is_null() {
+                continue;
+            }
+            let button = &*(raw as *const NSView);
+            if NSView::isHidden(button) == hidden {
+                continue;
+            }
+            NSView::setHidden(button, hidden);
+        }
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn ensure_traffic_light_inset(window: &tauri::Window) {
     use objc2::runtime::AnyObject;
     use objc2::msg_send;
     use objc2_app_kit::{NSView, NSWindow};
 
-    // In fullscreen the lights are hidden and AppKit owns the layout; don't
-    // touch the title bar until the window is back on the desktop.
+    // In fullscreen the lights belong off-screen; the band and its toggle stay.
     if window.is_fullscreen().unwrap_or(false) {
+        set_traffic_lights_hidden(window, true);
         return;
     }
+    set_traffic_lights_hidden(window, false);
 
     let Ok(ns_ptr) = window.ns_window() else {
         return;
