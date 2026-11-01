@@ -138,6 +138,15 @@ body {
   background: transparent;
 }
 
+/* Overscroll is handled by the WebKit rubber-band guard in
+   lib/overscroll-guard.ts plus this property for engines that honor it.
+   overscroll-behavior is not inherited, so it has to sit on every element;
+   on non-scrollers it is inert. Side effect on all platforms: wheeling past
+   a scroll region's edge no longer chains into its parent. */
+* {
+  overscroll-behavior: none;
+}
+
 .development-build-badge {
   position: fixed;
   top: 10px;

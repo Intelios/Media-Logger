@@ -13,12 +13,8 @@ import { getNavigationYears } from "../lib/settings";
 import { getAvailableNavigationYears, getCurrentYearString, NAVIGATION_YEARS_UPDATED_EVENT } from "../lib/navigation-years";
 import { IS_DEV_OR_PERFORMANCE_BUILD } from "../lib/performance-mode";
 import { MainScrollContainerProvider } from "../lib/scroll-container";
+import { isMacPlatform } from "../lib/overscroll-guard";
 import { recordRouteCommit } from "../lib/performance-diagnostics";
-
-function isMacPlatform(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return /mac/i.test(navigator.platform) || /mac os/i.test(navigator.userAgent);
-}
 
 function getShortcutLabel(key: string): string {
   return isMacPlatform() ? `⌘${key}` : `Ctrl+${key}`;
