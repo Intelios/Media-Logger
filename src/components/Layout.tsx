@@ -332,13 +332,16 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
       {/* Sidebar - transparent to show the native desktop backdrop */}
       <aside className={cn(
         "bg-transparent border-r flex flex-col transition-all duration-300 ease-out",
-        isCompact ? "w-[72px] p-3" : "w-64 p-4"
+        isCompact ? "w-[72px] p-3" : "w-[243px] px-2 py-4"
       )}
         style={{ borderColor: "var(--color-border)" }}
       >
         {/* Navigation Items */}
         <nav
-          className="flex-1 -ml-3 space-y-1 overflow-y-auto pl-3 pr-1 custom-scrollbar"
+          className={cn(
+            "flex-1 space-y-1 overflow-y-auto custom-scrollbar",
+            isCompact && "-ml-3 pl-3 pr-1"
+          )}
           onPointerOver={handleNavigationIntent}
           onFocus={handleNavigationIntent}
           onClickCapture={handleNavigationStart}
@@ -356,7 +359,7 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
                   <div
                     className="absolute top-3 bottom-3 w-px"
                     style={{
-                      left: isCompact ? "50%" : "21px",
+                      left: isCompact ? "50%" : "29px",
                       transform: isCompact ? "translateX(-0.5px)" : undefined,
                       backgroundColor: "var(--color-border)",
                     }}
@@ -607,7 +610,7 @@ function CollapsibleSection({
               exit={{ opacity: 0, x: -6 }}
               transition={labelTransition}
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="w-full flex items-center justify-between px-2 text-xs font-semibold uppercase tracking-wider mb-2 transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              className="w-full flex items-center justify-between px-4 text-xs font-semibold uppercase tracking-wider mb-2 transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
             >
               <span>{label}</span>
               <motion.span layout transition={iconLayoutTransition} className="flex h-4 w-4 items-center justify-center">
@@ -651,7 +654,7 @@ function YearTimelineItem({
         className={({ isActive }) =>
           cn(
             "group relative flex items-center rounded-lg text-sm font-medium transition-all duration-200",
-            isCompact ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2",
+            isCompact ? "justify-center px-2 py-2.5" : "gap-3 px-5 py-2",
             isActive
               ? "text-[var(--color-text)]"
               : "text-[var(--color-text-muted)] hover:bg-black/5 hover:text-[var(--color-text)]"
@@ -740,9 +743,9 @@ function NavItem({
         className={({ isActive }) =>
           cn(
             "group relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200",
-            isCompact ? "justify-center px-2 py-2.5" : "px-3 py-2",
+            isCompact ? "justify-center px-2 py-2.5" : "px-5 py-2",
             isActive
-              ? "bg-primary/15 text-[var(--color-text)]"
+              ? "text-[var(--color-text)]"
               : "text-[var(--color-text-muted)] hover:bg-black/5 hover:text-[var(--color-text)]"
           )
         }
