@@ -526,42 +526,27 @@ export default function Backlog() {
   return (
     <div className="mx-auto max-w-7xl">
       {/* Header */}
-      <div className="backlog-header-enter flex items-start justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div
-            className="flex h-12 w-12 items-center justify-center rounded-2xl shadow-lg"
-            style={{
-              background: `linear-gradient(to bottom right, var(--color-primary), var(--color-secondary))`,
-              boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)`,
-            }}
-          >
-            <Bookmark size={24} style={{ color: "white" }} />
-          </div>
-          <div>
-            <h1
-              className="bg-clip-text text-2xl font-bold text-transparent"
-              style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}
-            >
-              Backlog
-            </h1>
-            <p className="text-sm text-[var(--color-text-muted)]">
-              Your watchlist, playlist, and reading queue
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => { setEditingItem(null); setShowForm(true); }}
-          className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
-          style={{ background: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.boxShadow = `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 25%, transparent)`;
+      <div className="backlog-header-enter flex items-center gap-4">
+        <div
+          className="flex h-12 w-12 items-center justify-center rounded-2xl shadow-lg"
+          style={{
+            background: `linear-gradient(to bottom right, var(--color-primary), var(--color-secondary))`,
+            boxShadow: `0 10px 15px -3px color-mix(in srgb, var(--color-primary) 20%, transparent)`,
           }}
-          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = ""; }}
         >
-          <Plus size={16} />
-          <span>Add to Backlog</span>
-        </button>
+          <Bookmark size={24} style={{ color: "white" }} />
+        </div>
+        <div>
+          <h1
+            className="bg-clip-text text-2xl font-bold text-transparent"
+            style={{ backgroundImage: `linear-gradient(to right, var(--color-primary), var(--color-secondary))` }}
+          >
+            Backlog
+          </h1>
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Your watchlist, playlist, and reading queue
+          </p>
+        </div>
       </div>
 
       {/* Stat line — the sentence that used to require reading the whole page. */}
