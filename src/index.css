@@ -2017,15 +2017,27 @@ body {
   animation: award-item-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Scrollable but visually chromeless — used by the awards film strip so the
-   rail reads as pure film with no scrollbar track beside the covers. */
-.scrollbar-none {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+/* Award inspector content fade — a 150ms opacity lift when the selected award
+   changes. The key on the content wrapper restarts it; reduced-motion users
+   get the content immediately. */
+@keyframes award-inspector-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
-.scrollbar-none::-webkit-scrollbar {
-  display: none;
+.award-inspector-fade {
+  animation: award-inspector-fade-in 150ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .award-inspector-fade {
+    animation: none;
+  }
 }
 
 /* Profile card entrance animation */

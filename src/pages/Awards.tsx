@@ -1,55 +1,26 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Award, ChevronLeft, Plus, Trash2, Trophy, ArrowUpDown, Sparkles, History, Star, Calendar, AlertCircle, X, Layers } from "lucide-react";
-import { useReducedMotion } from "framer-motion";
-import { awardsLogic, type AwardYearSummary, type AwardCategory, type AwardTemplate, type TemplateWinnerHistory, type TemplateDeletionImpact } from "../lib/awards-logic";
-import { MediaCard } from "../components/MediaCard";
-import { formatCardRating, getRatingColor, getTypeBadgeStyle, parseGenres } from "../lib/media-config";
-import { AwardTypeMenu } from "../components/AwardTypeMenu";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, X } from "lucide-react";
+import {
+  awardsLogic,
+  GENERAL_GROUP,
+  type AwardCategoryWithWinner,
+  type AwardTemplate,
+  type AwardYearSummary,
+  type TemplateDeletionImpact,
+  type TemplateWinnerHistory,
+} from "../lib/awards-logic";
 import { WinnerPicker } from "../components/WinnerPicker";
 import { CreateAwardYearModal } from "../components/awards/CreateAwardYearModal";
 import { CategoryPicker } from "../components/CategoryPicker";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { AwardFilmStrip } from "../components/awards/AwardFilmStrip";
-import { AwardYearPanel } from "../components/awards/AwardYearPanel";
 import { AwardReorderModal, type AwardReorderGroup } from "../components/awards/AwardReorderModal";
+import { AwardHomeView } from "../components/awards/AwardHomeView";
+import { AwardYearView } from "../components/awards/AwardYearView";
+import { AwardDetailView } from "../components/awards/AwardDetailView";
 import { useMainScrollContainer } from "../lib/scroll-container";
-import { useHoverTooltip } from "../components/HoverTooltip";
-import type { MediaEntry } from "../lib/db";
-import { cn } from "../lib/utils_ui";
-import { formatDateNoYear } from "../lib/dates";
-import { CoverImage } from "../components/CoverImage";
 
-// Small helper component for loading images asynchronously (required for Tauri)
-function WinnerThumbnail({ entry }: { entry: MediaEntry }) {
-  return (
-    <div className="w-16 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
-      <CoverImage
-        path={entry.image_url}
-        alt={entry.name}
-        variant="small"
-        containerClassName="h-full w-full"
-        imageClassName="h-full w-full object-cover"
-      />
-    </div>
-  );
-}
-
-// Full-size cover image for award winner cards
-function WinnerCoverImage({ entry }: { entry: MediaEntry }) {
-  return (
-    <CoverImage
-      path={entry.image_url}
-      alt={entry.name}
-      variant="card"
-      sizes="(min-width: 1280px) 18vw, 28vw"
-      containerClassName="h-full w-full"
-      imageClassName="h-full w-full object-cover"
-    />
-  );
-}
-
-// Toast for award/year mutation failures. Rendered by every view so an error
-// is never raised into a view that has nowhere to show it.
+// Toast for award/year mutation failures. Rendered by the controller so an
+// error is never raised into a view that has nowhere to show it.
 function AwardErrorToast({ message, onDismiss }: { message: string | null; onDismiss: () => void }) {
   if (!message) return null;
   return (
@@ -58,7 +29,7 @@ function AwardErrorToast({ message, onDismiss }: { message: string | null; onDis
       <p className="text-sm text-red-200 flex-1">{message}</p>
       <button
         onClick={onDismiss}
-        className="p-1 hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
+        className="p-1 hover:bg-white/10 rounded-full transition-colors flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/60"
         aria-label="Dismiss error"
       >
         <X size={14} className="text-red-300" />
@@ -67,293 +38,114 @@ function AwardErrorToast({ message, onDismiss }: { message: string | null; onDis
   );
 }
 
-// Helper type for reorder modal. `entry_type` comes from the template join.
-type CategoryWithWinner = AwardCategory & { winner: MediaEntry | null; entry_type: string | null };
-
-// Untagged awards share one catch-all bucket in the year view.
-const GENERAL_GROUP = "General";
-
 type ViewType = "main" | "year" | "category";
 
-interface AwardCategoryCardProps {
-  cat: CategoryWithWinner;
-  /** Position within its type group — not the global sort_order. */
-  index: number;
-  /** Total awards in this card's type group — hides the "#1" rank when 1. */
-  groupSize: number;
-  selectedYear: number | null;
-  onOpenPicker: (categoryId: number) => void;
-  onDelete: (category: CategoryWithWinner) => void;
+interface PickerTarget {
+  categoryId: number;
+  year: number;
+  entryType: string | null;
 }
 
-// One award category card in the year view: winner showcase or picker prompt.
-function AwardCategoryCard({ cat, index, groupSize, selectedYear, onOpenPicker, onDelete }: AwardCategoryCardProps) {
-  const { bindTooltip } = useHoverTooltip();
-  const winner = cat.winner;
-  const typeBadge = winner ? getTypeBadgeStyle(winner.entry_type) : null;
-  const genres = winner ? parseGenres(winner.genre) : [];
-
-  return (
-    <div
-      style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
-      className={cn(
-        "relative overflow-visible rounded-2xl p-6 transition-all border group award-item-enter",
-        winner
-          ? "bg-gradient-to-br from-amber-500/10 via-white/5 to-yellow-500/5 border-amber-500/20 hover:border-amber-400/40"
-          : "bg-white/5 border-white/10 hover:border-white/20"
-      )}
-    >
-      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
-        {/* Position indicator — rank within this type group; meaningless
-            (always #1) for single-award groups so it stays hidden. */}
-        {groupSize > 1 && (
-          <div className="absolute top-4 right-5 text-7xl font-black text-white/[0.06] leading-none select-none">
-            #{index + 1}
-          </div>
-        )}
-
-        {/* Glow effect for winners */}
-        {winner && (
-          <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl" />
-        )}
-      </div>
-
-      <div className="relative z-10">
-        {/* Category header row — icon + name + media-type tag */}
-        <div className="flex items-start justify-between mb-4">
-          <h3 className="text-2xl font-bold flex items-center gap-2.5">
-            <div className={cn(
-              "p-2 rounded-xl",
-              winner
-                ? "bg-gradient-to-br from-amber-500/20 to-yellow-600/20"
-                : "bg-white/5"
-            )}>
-              <Award className={winner ? "text-amber-400" : "text-gray-500"} size={20} />
-            </div>
-            <span className={winner ? "text-amber-200" : "text-white"}>{cat.name}</span>
-          </h3>
-        </div>
-
-        {winner && typeBadge ? (
-          <div className="flex gap-6 items-stretch">
-            {/* Left: Large cover image */}
-            <div
-              className="w-48 flex-shrink-0 cursor-pointer group/cover"
-              onClick={() => onOpenPicker(cat.id)}
-            >
-              <div className="relative rounded-xl overflow-hidden border border-white/10 shadow-lg transition-transform group-hover/cover:scale-[1.02]">
-                <div className="relative h-72 w-full overflow-hidden">
-                  <WinnerCoverImage entry={winner} />
-                  {/* Winner trophy badge — inside image bounds */}
-                  <div className="absolute top-2 right-2 bg-gradient-to-br from-amber-400 to-yellow-600 p-2 rounded-full shadow-lg shadow-amber-500/30 ring-2 ring-black/20">
-                    <Trophy size={16} className="text-black" />
-                  </div>
-                  {/* Rating pill on image */}
-                  {winner.review_score !== null && winner.review_score !== undefined && (
-                    <div className={cn(
-                      "absolute bottom-2 left-2 px-2.5 py-1 rounded-full flex items-center gap-1 text-xs font-bold shadow-lg",
-                      getRatingColor(winner.review_score)
-                    )}>
-                      <Star size={11} className="fill-current" />
-                      <span>{formatCardRating(winner.review_score)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Right: Metadata block */}
-            <div className="flex-1 flex flex-col gap-3 min-w-0 py-1">
-              {/* Winner pill */}
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-500/20 to-yellow-600/20 text-amber-300 rounded-full text-xs font-bold uppercase tracking-wider border border-amber-500/20 w-fit">
-                <Trophy size={12} />
-                Winner
-              </div>
-
-              {/* Title */}
-              <h4 className="text-3xl font-bold text-white leading-tight">
-                {winner.name}
-              </h4>
-
-              {/* Context line as typed pills */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs text-white font-semibold shadow-md",
-                  typeBadge.bg
-                )}>
-                  {typeBadge.icon}
-                  <span>{winner.entry_type}</span>
-                </span>
-                {winner.author && (
-                  <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
-                    {winner.author}
-                  </span>
-                )}
-                {winner.artist && !winner.author && (
-                  <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
-                    {winner.artist}
-                  </span>
-                )}
-                {winner.actress && winner.actress.split(',').map((a, i) => {
-                  const trimmed = a.trim();
-                  if (!trimmed) return null;
-                  return (
-                    <span key={`actress-${i}`} className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
-                      {trimmed}
-                    </span>
-                  );
-                })}
-                {winner.director && !winner.author && !winner.artist && (
-                  <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
-                    {winner.director}
-                  </span>
-                )}
-                {winner.platform && (
-                  <span className="px-2.5 py-1 bg-white/5 rounded-full text-xs text-gray-300 font-medium">
-                    {winner.platform}
-                  </span>
-                )}
-              </div>
-
-              {/* Genre chips */}
-              {genres.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {genres.slice(0, 4).map((genre, i) => (
-                    <span
-                      key={i}
-                      className="px-2 py-0.5 bg-white/10 rounded-md text-[11px] text-gray-300 font-medium"
-                    >
-                      {genre}
-                    </span>
-                  ))}
-                  {genres.length > 4 && (
-                    <span
-                      className="px-2 py-0.5 bg-white/5 rounded-md text-[11px] text-gray-500 font-medium"
-                      {...bindTooltip(<span>{genres.slice(4).join(', ')}</span>)}
-                    >
-                      +{genres.length - 4}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Date + change winner row */}
-              <div className="flex items-center justify-between gap-3 mt-auto pt-1">
-                {winner.completion_date ? (
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/10 text-sm font-medium text-gray-200 w-fit">
-                    <Calendar size={14} className="text-amber-400" />
-                    <span>{formatDateNoYear(winner.completion_date)}</span>
-                  </div>
-                ) : (
-                  <span />
-                )}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => onDelete(cat)}
-                    className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                    {...bindTooltip(
-                      <span>{`Remove this award from ${selectedYear}`}</span>,
-                      { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
-                    )}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => onOpenPicker(cat.id)}
-                    className="text-sm text-amber-400 hover:text-amber-300 hover:underline font-medium transition-colors"
-                  >
-                    Change Winner →
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="relative">
-            <button
-              onClick={() => onOpenPicker(cat.id)}
-              className="w-full h-80 border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center gap-3 text-gray-500 hover:text-amber-400 hover:border-amber-500/30 hover:bg-amber-500/5 transition-all group/select"
-            >
-              <div className="p-4 rounded-full bg-white/5 group-hover/select:bg-amber-500/10 transition-colors">
-                <Plus size={28} />
-              </div>
-              <span className="font-semibold">Select Winner</span>
-            </button>
-            <button
-              onClick={() => onDelete(cat)}
-              className="absolute bottom-3 right-3 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-              {...bindTooltip(
-                <span>{`Remove this award from ${selectedYear}`}</span>,
-                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
-              )}
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
+/**
+ * Awards controller. Owns the three views' data, every mutation handler and
+ * every modal; the views themselves are presentation + local selection state.
+ */
 export default function AwardsPage() {
   const [view, setView] = useState<ViewType>("main");
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
-  const { bindTooltip } = useHoverTooltip();
-  // Media-type filter on the year view — null shows every group.
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  // Template to select when the year view mounts (history cover navigation).
+  const [initialTemplateId, setInitialTemplateId] = useState<number | null>(null);
 
-  // Data State
+  // Data state
   const [years, setYears] = useState<AwardYearSummary[]>([]);
-  const [categories, setCategories] = useState<CategoryWithWinner[]>([]);
+  const [yearCovers, setYearCovers] = useState<Map<number, (string | null)[]>>(
+    () => new Map()
+  );
+  const [categories, setCategories] = useState<AwardCategoryWithWinner[]>([]);
   const [templates, setTemplates] = useState<AwardTemplate[]>([]);
 
-  // Category view state
+  // Award detail state
   const [selectedTemplate, setSelectedTemplate] = useState<AwardTemplate | null>(null);
   const [templateHistory, setTemplateHistory] = useState<TemplateWinnerHistory[]>([]);
 
-  // Modal States
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
+  // Incremented after every mutation that invalidates a view's per-template /
+  // per-year caches (winner changes, deletes, retags, new years).
+  const [mutationVersion, setMutationVersion] = useState(0);
+
+  // Modals
+  const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
   const [reorderOpen, setReorderOpen] = useState(false);
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
-  const [categoryToDelete, setCategoryToDelete] = useState<CategoryWithWinner | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<AwardCategoryWithWinner | null>(null);
   const [yearToDelete, setYearToDelete] = useState<AwardYearSummary | null>(null);
   const [templateToDelete, setTemplateToDelete] = useState<AwardTemplate | null>(null);
   // Loaded when the delete dialog opens so the confirmation can name exactly
   // how many years and winners the cascade will remove.
   const [templateImpact, setTemplateImpact] = useState<TemplateDeletionImpact | null>(null);
-
   const [createYearOpen, setCreateYearOpen] = useState(false);
 
-  // Visible error message for award/year creation failures (e.g. duplicate
-  // template in the same year, invalid year input).
+  // Visible error message for award/year mutation failures.
   const [awardError, setAwardError] = useState<string | null>(null);
 
-  // Load Years and Templates on Mount
+  const { scrollToTop } = useMainScrollContainer();
+
+  // Guards against a slow year fetch landing after the user has moved on.
+  const categoryLoadRef = useRef(0);
+
+  const loadYears = async () => {
+    const [yearRows, covers] = await Promise.all([
+      awardsLogic.getAwardYears(),
+      awardsLogic.getAwardYearCovers(),
+    ]);
+    setYears(yearRows);
+    setYearCovers(covers);
+  };
+
+  const loadTemplates = () => awardsLogic.getAllTemplates().then(setTemplates);
+
+  const loadCategories = async (year: number) => {
+    const token = ++categoryLoadRef.current;
+    const data = await awardsLogic.getAwardsForYear(year);
+    if (token === categoryLoadRef.current) setCategories(data);
+  };
+
+  const loadTemplateDetail = async (templateId: number) => {
+    const template = await awardsLogic.getTemplateById(templateId);
+    if (!template) {
+      setSelectedTemplate(null);
+      setTemplateHistory([]);
+      setView("main");
+      return;
+    }
+    const history = await awardsLogic.getTemplateHistory(templateId);
+    setSelectedTemplate(template);
+    setTemplateHistory(history);
+  };
+
   useEffect(() => {
-    loadYears();
-    loadTemplates();
+    void loadYears();
+    void loadTemplates();
   }, []);
 
-  // Auto-dismiss award error banner after a few seconds
+  // Auto-dismiss the error toast after a few seconds.
   useEffect(() => {
     if (!awardError) return;
-    const t = window.setTimeout(() => setAwardError(null), 5000);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setAwardError(null), 5000);
+    return () => window.clearTimeout(timer);
   }, [awardError]);
 
-  // Categories grouped by media type for the year view. `categories` arrives
-  // sorted by sort_order, so first-seen order is the stored group order — a
-  // group sits wherever its earliest category does, and the reorder modal
-  // edits both levels back into the same flat sequence.
-  const categoryGroups = useMemo<[string, CategoryWithWinner[]][]>(() => {
-    const byType = new Map<string, CategoryWithWinner[]>();
-    for (const cat of categories) {
-      const key = cat.entry_type ?? GENERAL_GROUP;
+  // Categories grouped by media type. `categories` arrives sorted by
+  // sort_order, so first-seen order is the stored group order — a group sits
+  // wherever its earliest category does, and the reorder modal edits both
+  // levels back into the same flat sequence.
+  const categoryGroups = useMemo<[string, AwardCategoryWithWinner[]][]>(() => {
+    const byType = new Map<string, AwardCategoryWithWinner[]>();
+    for (const category of categories) {
+      const key = category.entry_type ?? GENERAL_GROUP;
       const group = byType.get(key);
-      if (group) group.push(cat);
-      else byType.set(key, [cat]);
+      if (group) group.push(category);
+      else byType.set(key, [category]);
     }
     return [...byType.entries()];
   }, [categories]);
@@ -365,108 +157,76 @@ export default function AwardsPage() {
       ? typeFilter
       : null;
 
-  const visibleGroups = useMemo<[string, CategoryWithWinner[]][]>(
-    () => activeTypeFilter === null
-      ? categoryGroups
-      : categoryGroups.filter(([key]) => key === activeTypeFilter),
+  const visibleGroups = useMemo<[string, AwardCategoryWithWinner[]][]>(
+    () =>
+      activeTypeFilter === null
+        ? categoryGroups
+        : categoryGroups.filter(([key]) => key === activeTypeFilter),
     [categoryGroups, activeTypeFilter]
   );
 
-  // Categories flattened in page order — what the film strip rail mirrors.
-  const visibleItems = useMemo(
-    () => visibleGroups.flatMap(([, group]) => group),
-    [visibleGroups]
+  // Memoized so an unrelated re-render doesn't hand the open modal a fresh
+  // array and reset an in-progress drag.
+  const reorderGroups = useMemo<AwardReorderGroup[]>(
+    () =>
+      categoryGroups.map(([key, group]) => ({
+        key,
+        items: group.map((category) => ({
+          id: category.id,
+          name: category.name,
+          subtitle: category.winner ? `Winner: ${category.winner.name}` : "No winner yet",
+          imageUrl: category.winner?.image_url ?? undefined,
+        })),
+      })),
+    [categoryGroups]
   );
 
-  const { getScrollElement, scrollToTop } = useMainScrollContainer();
-  const reduceMotion = useReducedMotion();
-  const cardRefs = useRef(new Map<number, HTMLElement>());
-  // Category whose card sits under the viewport focus line — drives the
-  // film-strip pointer and the strip's auto-scroll.
-  const [inViewId, setInViewId] = useState<number | null>(null);
+  const goBackToMain = () => {
+    setView("main");
+    setInitialTemplateId(null);
+    setTypeFilter(null);
+    void loadYears();
+    void loadTemplates();
+    scrollToTop();
+  };
 
-  // "Current" award = the last visible card whose top has crossed a focus line
-  // partway down the scroll viewport (docs-TOC style section tracking).
-  const updateInView = useCallback(() => {
-    const scrollEl = getScrollElement();
-    if (!scrollEl || visibleItems.length === 0) return;
-    const focusY = scrollEl.getBoundingClientRect().top + scrollEl.clientHeight * 0.35;
-    let current: number | null = null;
-    for (const cat of visibleItems) {
-      const el = cardRefs.current.get(cat.id);
-      if (el && el.getBoundingClientRect().top <= focusY) current = cat.id;
+  const handleYearSelect = (year: number, templateId: number | null = null) => {
+    // Clicking the year already on screen (a history cover for the current
+    // year) must not clear and reload the list it is already showing.
+    if (view === "year" && selectedYear === year) {
+      if (templateId !== null) setInitialTemplateId(templateId);
+      return;
     }
-    setInViewId(current ?? visibleItems[0]?.id ?? null);
-  }, [getScrollElement, visibleItems]);
-
-  useEffect(() => {
-    const scrollEl = getScrollElement();
-    if (!scrollEl || view !== "year") return;
-    let raf = 0;
-    const onScroll = () => {
-      if (raf) return;
-      raf = window.requestAnimationFrame(() => {
-        raf = 0;
-        updateInView();
-      });
-    };
-    updateInView();
-    scrollEl.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      scrollEl.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (raf) window.cancelAnimationFrame(raf);
-    };
-  }, [getScrollElement, updateInView, view]);
-
-  const scrollToCategory = useCallback((id: number) => {
-    cardRefs.current.get(id)?.scrollIntoView({
-      behavior: reduceMotion ? "auto" : "smooth",
-      block: "center",
-    });
-  }, [reduceMotion]);
-
-  const loadYears = () => awardsLogic.getAwardYears().then(setYears);
-  const loadTemplates = () => awardsLogic.getAllTemplates().then(setTemplates);
-
-  const loadCategories = async (year: number) => {
-    const data = await awardsLogic.getAwardsForYear(year);
-    setCategories(data);
-  };
-
-  const loadTemplateDetail = async (templateId: number) => {
-    const template = await awardsLogic.getTemplateById(templateId);
-    const history = await awardsLogic.getTemplateHistory(templateId);
-    setSelectedTemplate(template);
-    setTemplateHistory(history);
-  };
-
-  const handleYearSelect = (year: number) => {
     setSelectedYear(year);
+    setInitialTemplateId(templateId);
     setCategories([]);
     setTypeFilter(null);
-    loadCategories(year);
+    void loadCategories(year);
     setView("year");
     scrollToTop();
   };
 
   const handleTemplateSelect = (templateId: number) => {
-    loadTemplateDetail(templateId);
     setView("category");
-  };
-
-  const openCreateYearModal = () => {
-    setCreateYearOpen(true);
+    setSelectedTemplate(null);
+    setTemplateHistory([]);
+    scrollToTop();
+    void loadTemplateDetail(templateId).catch((error) => {
+      setAwardError(error instanceof Error ? error.message : String(error));
+      setView("main");
+    });
   };
 
   const handleCreateYear = async (year: number, copyFromYear: number | null) => {
+    // A creation failure rejects into the modal, which shows its own error.
     await awardsLogic.createNewYear(year, copyFromYear);
     setCreateYearOpen(false);
     setAwardError(null);
+    setMutationVersion((version) => version + 1);
     try {
       await Promise.all([loadYears(), loadTemplates(), loadCategories(year)]);
       setSelectedYear(year);
+      setInitialTemplateId(null);
       setTypeFilter(null);
       setView("year");
       scrollToTop();
@@ -475,34 +235,31 @@ export default function AwardsPage() {
     }
   };
 
-  // Category creation handlers
   const handleCreateNewCategory = async (name: string, entryType: string | null) => {
-    if (selectedYear) {
-      try {
-        await awardsLogic.createCategory(name, selectedYear, entryType);
-        // Reset the filter so the new card is visible wherever it lands.
-        setTypeFilter(null);
-        loadCategories(selectedYear);
-        loadTemplates(); // Refresh templates since a new one was created
-        setAwardError(null);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        setAwardError(message);
-      }
+    if (!selectedYear) return;
+    try {
+      await awardsLogic.createCategory(name, selectedYear, entryType);
+      // Reset the filter so the new row is visible wherever it lands.
+      setTypeFilter(null);
+      setMutationVersion((version) => version + 1);
+      await loadCategories(selectedYear);
+      await loadTemplates();
+      setAwardError(null);
+    } catch (error) {
+      setAwardError(error instanceof Error ? error.message : String(error));
     }
   };
 
   const handleUseExistingCategory = async (templateId: number) => {
-    if (selectedYear) {
-      try {
-        await awardsLogic.createCategoryFromTemplate(templateId, selectedYear);
-        setTypeFilter(null);
-        loadCategories(selectedYear);
-        setAwardError(null);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        setAwardError(message);
-      }
+    if (!selectedYear) return;
+    try {
+      await awardsLogic.createCategoryFromTemplate(templateId, selectedYear);
+      setTypeFilter(null);
+      setMutationVersion((version) => version + 1);
+      await loadCategories(selectedYear);
+      setAwardError(null);
+    } catch (error) {
+      setAwardError(error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -512,6 +269,7 @@ export default function AwardsPage() {
     if (!selectedTemplate) return;
     try {
       await awardsLogic.updateTemplateType(selectedTemplate.id, entryType);
+      setMutationVersion((version) => version + 1);
       await Promise.all([loadTemplateDetail(selectedTemplate.id), loadTemplates()]);
       setAwardError(null);
     } catch (error) {
@@ -519,20 +277,71 @@ export default function AwardsPage() {
     }
   };
 
+  const openPickerFor = (categoryId: number, year: number, entryType: string | null) => {
+    setPickerTarget({ categoryId, year, entryType });
+  };
+
+  const handleWinnerSelect = async (mediaId: number) => {
+    if (!pickerTarget) return;
+    const target = pickerTarget;
+    try {
+      await awardsLogic.setWinner(target.categoryId, mediaId);
+      setPickerTarget(null);
+      setMutationVersion((version) => version + 1);
+      if (view === "year" && selectedYear === target.year) {
+        await loadCategories(target.year);
+      }
+      if (view === "category" && selectedTemplate) {
+        await loadTemplateDetail(selectedTemplate.id);
+      }
+    } catch (error) {
+      setPickerTarget(null);
+      setAwardError(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  // The modal edits grouped sections, then flattens back to one sort_order
+  // sequence (group order = each group's earliest member).
+  const handleReorderSave = async (groups: AwardReorderGroup[]) => {
+    if (!selectedYear) return;
+    const ids = groups.flatMap((group) => group.items.map((item) => item.id));
+    await awardsLogic.updateCategoryOrder(selectedYear, ids);
+    const byId = new Map(categories.map((category) => [category.id, category]));
+    setCategories(
+      ids
+        .map((id) => byId.get(id))
+        .filter((category): category is AwardCategoryWithWinner => !!category)
+    );
+    setReorderOpen(false);
+  };
+
   const confirmDeleteCategory = async () => {
     if (!categoryToDelete) return;
-
-    await awardsLogic.deleteCategory(categoryToDelete.id);
-    if (selectedYear) await loadCategories(selectedYear);
-    setCategoryToDelete(null);
+    const target = categoryToDelete;
+    try {
+      await awardsLogic.deleteCategory(target.id);
+      setCategoryToDelete(null);
+      setMutationVersion((version) => version + 1);
+      await Promise.all([loadYears(), loadTemplates()]);
+      if (selectedYear) await loadCategories(selectedYear);
+    } catch (error) {
+      setCategoryToDelete(null);
+      setAwardError(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const confirmDeleteYear = async () => {
     if (!yearToDelete) return;
-
-    await awardsLogic.deleteYear(yearToDelete.year);
-    await loadYears();
-    setYearToDelete(null);
+    const target = yearToDelete;
+    try {
+      await awardsLogic.deleteYear(target.year);
+      setYearToDelete(null);
+      setMutationVersion((version) => version + 1);
+      await Promise.all([loadYears(), loadTemplates()]);
+    } catch (error) {
+      setYearToDelete(null);
+      setAwardError(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const openDeleteTemplate = async (template: AwardTemplate) => {
@@ -547,86 +356,48 @@ export default function AwardsPage() {
 
   const confirmDeleteTemplate = async () => {
     if (!templateToDelete) return;
+    const target = templateToDelete;
 
     try {
-      await awardsLogic.deleteTemplate(templateToDelete.id);
+      await awardsLogic.deleteTemplate(target.id);
     } catch (error) {
-      setAwardError(error instanceof Error ? error.message : String(error));
       setTemplateToDelete(null);
+      setTemplateImpact(null);
+      setAwardError(error instanceof Error ? error.message : String(error));
       return;
     }
 
     setTemplateToDelete(null);
     setTemplateImpact(null);
+    setMutationVersion((version) => version + 1);
     // Removing an award changes year category/winner counts too.
-    await Promise.all([loadYears(), loadTemplates()]);
+    try {
+      await Promise.all([loadYears(), loadTemplates()]);
+    } catch (error) {
+      setAwardError(error instanceof Error ? error.message : String(error));
+    }
+
     // The detail view for this award no longer has anything to show.
-    if (view === "category" && selectedTemplate?.id === templateToDelete.id) {
+    if (view === "category" && selectedTemplate?.id === target.id) {
       setSelectedTemplate(null);
       setTemplateHistory([]);
       setView("main");
     }
   };
 
-  const openPicker = (catId: number) => {
-    setActiveCategoryId(catId);
-    setPickerOpen(true);
-  };
-
-  const handleWinnerSelect = async (mediaId: number) => {
-    if (activeCategoryId && selectedYear) {
-      await awardsLogic.setWinner(activeCategoryId, mediaId);
-      loadCategories(selectedYear);
-      setPickerOpen(false);
-    }
-  };
-
-  // Reorder handlers — the modal edits grouped sections, then flattens back to
-  // a single sort_order sequence (group order = each group's earliest member).
-  const handleReorderSave = async (groups: AwardReorderGroup[]) => {
-    if (selectedYear) {
-      const ids = groups.flatMap(g => g.items.map(i => i.id));
-      await awardsLogic.updateCategoryOrder(selectedYear, ids);
-      const byId = new Map(categories.map(c => [c.id, c]));
-      setCategories(ids.map(id => byId.get(id)).filter((c): c is CategoryWithWinner => !!c));
-      setReorderOpen(false);
-    }
-  };
-
-  // Memoized so a scroll-driven re-render doesn't hand the open modal a fresh
-  // array and reset an in-progress drag.
-  const reorderGroups = useMemo<AwardReorderGroup[]>(
-    () => categoryGroups.map(([key, group]) => ({
-      key,
-      items: group.map(cat => ({
-        id: cat.id,
-        name: cat.name,
-        subtitle: cat.winner ? `Winner: ${cat.winner.name}` : "No winner yet",
-        imageUrl: cat.winner?.image_url ?? undefined,
-      })),
-    })),
-    [categoryGroups]
-  );
-
-  const goBackToMain = () => {
-    setView("main");
-    loadYears();
-    loadTemplates();
-  };
-
   const describeTemplateImpact = (impact: TemplateDeletionImpact | null): string => {
     if (!impact) return "Checking where this award is used…";
     if (impact.years === 0) return "This award isn't used in any year yet.";
 
-    const years = `${impact.years} year${impact.years !== 1 ? "s" : ""}`;
+    const yearsLabel = `${impact.years} year${impact.years !== 1 ? "s" : ""}`;
     if (impact.winners === 0) {
-      return `Removes it from ${years}. No winners were recorded.`;
+      return `Removes it from ${yearsLabel}. No winners were recorded.`;
     }
-    const winners = `${impact.winners} recorded winner${impact.winners !== 1 ? "s" : ""}`;
-    return `Removes it from ${years} and clears ${winners}.`;
+    const winnersLabel = `${impact.winners} recorded winner${impact.winners !== 1 ? "s" : ""}`;
+    return `Removes it from ${yearsLabel} and clears ${winnersLabel}.`;
   };
 
-  // Shared by the main grid and the award detail view, which delete from
+  // Shared by the home grid and the award detail view, which delete from
   // different places but ask the same question.
   const templateDeleteDialog = (
     <ConfirmDialog
@@ -640,487 +411,82 @@ export default function AwardsPage() {
       confirmLabel="Delete Award"
       detail={describeTemplateImpact(templateImpact)}
     >
-      Are you sure you want to delete <span className="font-semibold text-white">"{templateToDelete?.name}"</span>?
-      {" "}This removes the award from every year it appears in.
+      Are you sure you want to delete{" "}
+      <span className="font-semibold text-white">"{templateToDelete?.name}"</span>?{" "}
+      This removes the award from every year it appears in.
     </ConfirmDialog>
   );
 
-  // --- VIEW 0: MAIN (Browse by Year + Browse by Category) ---
-  if (view === "main") {
-    return (
-      <div className="space-y-10 max-w-6xl mx-auto">
-        <AwardErrorToast message={awardError} onDismiss={() => setAwardError(null)} />
-        <header className="award-header-enter">
-          <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-amber-600 inline-flex items-center gap-3">
-            <Trophy className="text-yellow-500" />
-            Awards
-          </h2>
-          <p className="text-gray-400">Celebrate your favorites with yearly awards.</p>
-        </header>
-
-        {/* Browse by Year Section */}
-        <section>
-          <h3 className="text-lg font-semibold text-gray-300 mb-4 flex items-center gap-2">
-            <Sparkles size={18} className="text-amber-400" />
-            Browse by Year
-          </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {/* Create New Year Card */}
-            <button
-              onClick={openCreateYearModal}
-              className="flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 border-dashed border-white/10 hover:border-amber-500/50 hover:bg-gradient-to-br hover:from-amber-500/5 hover:to-yellow-500/5 transition-all group min-h-[140px]"
-            >
-              <div className="p-3 rounded-full bg-gradient-to-br from-amber-500/20 to-yellow-600/20 group-hover:scale-110 transition-all">
-                <Plus size={24} className="text-amber-400" />
-              </div>
-              <span className="font-semibold text-gray-400 group-hover:text-amber-300 text-sm">New Year</span>
-            </button>
-
-            {/* Year Cards */}
-            {years.map((y, index) => (
-              <div
-                key={y.year}
-                className="relative group min-h-[140px] award-card-enter"
-                style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
-              >
-                <button
-                  onClick={() => handleYearSelect(y.year)}
-                  className="relative h-full w-full bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl p-5 text-left hover:border-amber-500/50 transition-all hover:shadow-xl hover:shadow-amber-500/10 overflow-hidden min-h-[140px]"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500/0 to-yellow-500/0 group-hover:from-amber-500/5 group-hover:to-yellow-500/10 transition-all duration-500" />
-                  <div className="relative z-10">
-                    <h3 className="text-3xl font-black text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-amber-300 group-hover:to-yellow-500 transition-all">
-                      {y.year}
-                    </h3>
-                    <div className="mt-3 space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Awards</span>
-                        <span className="font-mono">{y.categories}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Winners</span>
-                        <span className="font-mono text-amber-400">{y.winners}</span>
-                      </div>
-                    </div>
-                    <div className="h-1 w-full bg-white/5 rounded-full mt-3 overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full transition-all"
-                        style={{ width: `${y.categories > 0 ? (y.winners / y.categories) * 100 : 0}%` }}
-                      />
-                    </div>
-                  </div>
-                </button>
-                {y.categories === 0 && y.winners === 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setYearToDelete(y)}
-                    className="absolute top-3 right-3 z-20 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                    {...bindTooltip(
-                      <span>Delete empty award year</span>,
-                      { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
-                    )}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Browse by Category Section */}
-        <section>
-          <h3 className="text-lg font-semibold text-gray-300 mb-4 flex items-center gap-2">
-            <Award size={18} className="text-amber-400" />
-            Browse by Award
-          </h3>
-          {templates.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 border border-white/5 rounded-2xl bg-white/[0.02]">
-              <Award size={40} className="mx-auto mb-3 text-gray-600" />
-              <p>No awards created yet.</p>
-              <p className="text-sm text-gray-600">Create award categories in a year view above.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {templates.map((template, index) => {
-                return (
-                  <div
-                    key={template.id}
-                    className="relative group award-card-enter"
-                    style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
-                  >
-                    <button
-                      onClick={() => handleTemplateSelect(template.id)}
-                      className="relative h-full w-full bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl p-5 text-left hover:border-amber-500/40 transition-all overflow-hidden"
-                    >
-                      <div className="absolute -top-10 -right-10 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-all" />
-                      <div className="relative z-10 flex items-start gap-3">
-                        <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500/20 to-yellow-600/20 flex-shrink-0">
-                          <Trophy size={18} className="text-amber-400" />
-                        </div>
-                        <div className="flex-1 min-w-0 pr-8">
-                          <h4 className="font-semibold truncate group-hover:text-amber-200 transition-colors">
-                            {template.name}
-                          </h4>
-                          <div className="text-sm text-gray-500 flex items-center gap-2 mt-1">
-                            <span className="flex items-center gap-1">
-                              <History size={12} />
-                              {template.usage_count || 0} year{(template.usage_count || 0) !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openDeleteTemplate(template)}
-                      className="absolute top-3 right-3 z-20 p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                      {...bindTooltip(
-                        <span>Delete award</span>,
-                        { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
-                      )}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        <CreateAwardYearModal
-          isOpen={createYearOpen}
-          years={years}
-          onClose={() => setCreateYearOpen(false)}
-          onSubmit={handleCreateYear}
-        />
-
-        <ConfirmDialog
-          isOpen={yearToDelete !== null}
-          onClose={() => setYearToDelete(null)}
-          onConfirm={confirmDeleteYear}
-          title="Delete Award Year"
-          confirmLabel="Delete Year"
-          detail="Only the empty year shell will be removed. Award templates and other years will stay intact."
-        >
-          Are you sure you want to delete <span className="font-semibold text-white">{yearToDelete?.year}</span>?
-        </ConfirmDialog>
-
-        {templateDeleteDialog}
-      </div>
-    );
-  }
-
-  // --- VIEW 1: CATEGORY DETAIL ---
-  if (view === "category" && selectedTemplate) {
-    const mostRecent = templateHistory[0];
-    const pastWinners = templateHistory.slice(1);
-
-    return (
-      <div className="space-y-8 max-w-5xl mx-auto pb-20">
-        <AwardErrorToast message={awardError} onDismiss={() => setAwardError(null)} />
-        <header className="relative z-30 flex items-center gap-4 award-header-enter">
-          <button
-            onClick={goBackToMain}
-            className="p-2.5 hover:bg-white/10 rounded-full transition-colors border border-white/10 hover:border-white/20"
-          >
-            <ChevronLeft size={22} />
-          </button>
-          <div className="flex-1">
-            <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-300 to-yellow-500 inline-flex items-center gap-2">
-              <Trophy size={24} className="text-amber-400" />
-              {selectedTemplate.name}
-            </h2>
-            <p className="text-gray-400">
-              Awarded in {templateHistory.length} year{templateHistory.length !== 1 ? 's' : ''}
-            </p>
-          </div>
-          <AwardTypeMenu
-            value={selectedTemplate.entry_type}
-            onChange={type => void handleTemplateTypeChange(type)}
-          />
-          <button
-            onClick={() => openDeleteTemplate(selectedTemplate)}
-            className="flex items-center gap-2 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40 text-gray-300 hover:text-red-400 px-4 py-2 rounded-xl font-semibold transition-all"
-          >
-            <Trash2 size={18} />
-            Delete Award
-          </button>
-        </header>
-
-        {/* Most Recent Winner */}
-        {mostRecent && (
-          <section className="bg-gradient-to-br from-amber-500/10 via-white/5 to-yellow-500/5 border border-amber-500/20 rounded-2xl p-6 award-card-enter" style={{ animationDelay: '80ms' }}>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-500/20 to-yellow-600/20 text-amber-300 rounded-full text-xs font-bold uppercase tracking-wider border border-amber-500/20">
-                <Sparkles size={12} />
-                Most Recent • {mostRecent.year}
-              </div>
-            </div>
-
-            {mostRecent.winner ? (
-              <div className="flex gap-6 items-center">
-                <div className="w-48 flex-shrink-0">
-                  <div className="relative">
-                    <MediaCard entry={mostRecent.winner} />
-                    <div className="absolute -top-2 -right-2 bg-gradient-to-br from-amber-400 to-yellow-600 p-1.5 rounded-full shadow-lg shadow-amber-500/30">
-                      <Trophy size={14} className="text-black" />
-                    </div>
-                  </div>
-                </div>
-                <div className="flex-1 space-y-2">
-                  <h4 className="text-2xl font-bold text-white">{mostRecent.winner.name}</h4>
-                  <p className="text-gray-400">{mostRecent.winner.author || mostRecent.winner.director || mostRecent.winner.entry_type}</p>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <Trophy size={32} className="mx-auto mb-2 text-gray-600" />
-                <p>No winner selected for {mostRecent.year}</p>
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* Past Winners Timeline */}
-        {pastWinners.length > 0 && (
-          <section>
-            <h3 className="text-lg font-semibold text-gray-300 mb-4 flex items-center gap-2">
-              <History size={18} className="text-amber-400" />
-              Past Winners
-            </h3>
-            <div className="space-y-3">
-              {pastWinners.map((entry, index) => (
-                <div
-                  key={entry.category_id}
-                  style={{ animationDelay: `${Math.min(index * 60, 300)}ms` }}
-                  className={cn(
-                    "award-item-enter",
-                    "flex items-center gap-4 p-4 rounded-xl border transition-all",
-                    entry.winner
-                      ? "bg-white/5 border-white/10 hover:border-white/20"
-                      : "bg-white/[0.02] border-white/5"
-                  )}
-                >
-                  <div className="text-2xl font-bold text-gray-400 w-16 text-center">{entry.year}</div>
-                  {entry.winner ? (
-                    <>
-                      <WinnerThumbnail entry={entry.winner} />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold truncate">{entry.winner.name}</div>
-                        <div className="text-sm text-gray-500 truncate">
-                          {entry.winner.author || entry.winner.director || entry.winner.entry_type}
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex-1 text-gray-500 italic">No winner selected</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {templateHistory.length === 0 && (
-          <div className="text-center py-20 text-gray-500 border-2 border-dashed border-white/5 rounded-2xl">
-            <Trophy size={48} className="mx-auto mb-4 text-gray-600" />
-            <p className="text-lg">This award hasn't been used yet.</p>
-            <p className="text-sm text-gray-600">Add it to a year to start awarding winners.</p>
-          </div>
-        )}
-
-        {templateDeleteDialog}
-      </div>
-    );
-  }
-
-  // --- VIEW 2: YEAR DETAIL (Category Editor) ---
-  // The category the winner picker is open for — typed awards pre-filter
-  // candidates to that media type (a "Game" award only offers games).
-  const activeCategory = categories.find(c => c.id === activeCategoryId) ?? null;
+  const pickerEntryType = pickerTarget?.entryType ?? null;
 
   return (
-    <div className="space-y-8 mx-auto w-full max-w-[1700px] pb-20">
+    <>
       <AwardErrorToast message={awardError} onDismiss={() => setAwardError(null)} />
-      <header className="flex items-center justify-between gap-4 award-header-enter">
-        <button
-          onClick={goBackToMain}
-          className="p-2.5 hover:bg-white/10 rounded-full transition-colors border border-white/10 hover:border-white/20"
-        >
-          <ChevronLeft size={22} />
-        </button>
-        <div className="flex gap-2">
-          {/* Reorder Button — only while viewing All Categories; ordering is
-              two-level (sections, then awards inside each section) so it makes
-              no sense while a single type is filtered in. */}
-          {activeTypeFilter === null && (
-            <button
-              onClick={() => setReorderOpen(true)}
-              disabled={categories.length < 2}
-              {...bindTooltip(
-                <span>Reorder categories</span>,
-                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
-              )}
-              aria-label="Reorder categories"
-              className="flex items-center bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 p-2.5 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ArrowUpDown size={18} />
-            </button>
-          )}
 
-          <button
-            onClick={() => setCategoryPickerOpen(true)}
-            {...bindTooltip(
-              <span>Add award</span>,
-              { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
-            )}
-            aria-label="Add award"
-            className="flex items-center bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 p-2.5 rounded-xl transition-all shadow-lg shadow-amber-500/20"
-          >
-            <Plus size={18} />
-          </button>
-        </div>
-      </header>
-
-      {/* Media-type filter chips — only below 2xl, where the left rail (which
-          owns filtering on wide windows) is hidden. */}
-      {categoryGroups.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 2xl:hidden">
-          <button
-            onClick={() => setTypeFilter(null)}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all whitespace-nowrap",
-              activeTypeFilter === null
-                ? "bg-amber-500/15 border-amber-500/50 text-amber-300"
-                : "bg-white/5 border-white/10 text-gray-400 hover:border-white/25 hover:text-gray-200"
-            )}
-          >
-            <Trophy size={14} />
-            All
-            <span className="font-mono text-xs opacity-70">{categories.length}</span>
-          </button>
-          {categoryGroups.map(([key, group]) => {
-            const isActive = activeTypeFilter === key;
-            const chipBadge = key === GENERAL_GROUP ? null : getTypeBadgeStyle(key);
-            return (
-              <button
-                key={key}
-                onClick={() => setTypeFilter(key)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all whitespace-nowrap",
-                  isActive
-                    ? "bg-amber-500/15 border-amber-500/50 text-amber-300"
-                    : "bg-white/5 border-white/10 text-gray-400 hover:border-white/25 hover:text-gray-200"
-                )}
-              >
-                {key === GENERAL_GROUP ? <Layers size={14} /> : chipBadge?.icon}
-                {key}
-                <span className="font-mono text-xs opacity-70">{group.length}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {categories.length === 0 ? (
-        <div className="text-center py-20 text-gray-500 border-2 border-dashed border-white/5 rounded-2xl bg-gradient-to-br from-white/[0.02] to-transparent max-w-6xl mx-auto">
-          <Trophy size={48} className="mx-auto mb-4 text-gray-600" />
-          <p className="text-lg">No categories yet.</p>
-          <p className="text-sm text-gray-600">Click "Add Award" to start creating awards.</p>
-        </div>
+      {view === "year" && selectedYear !== null ? (
+        <AwardYearView
+          key={selectedYear}
+          year={selectedYear}
+          years={years}
+          categories={categories}
+          groups={categoryGroups}
+          visibleGroups={visibleGroups}
+          typeFilter={activeTypeFilter}
+          initialTemplateId={initialTemplateId}
+          historyVersion={mutationVersion}
+          onTypeFilterChange={setTypeFilter}
+          onSelectYear={(year) => handleYearSelect(year)}
+          onYearSelectWithTemplate={(year, templateId) => handleYearSelect(year, templateId)}
+          onOpenPicker={(category) =>
+            openPickerFor(category.id, category.year, category.entry_type)
+          }
+          onDeleteCategory={setCategoryToDelete}
+          onAddAward={() => setCategoryPickerOpen(true)}
+          onReorder={() => setReorderOpen(true)}
+          onBack={goBackToMain}
+        />
+      ) : view === "category" ? (
+        selectedTemplate ? (
+          <AwardDetailView
+            key={selectedTemplate.id}
+            template={selectedTemplate}
+            history={templateHistory}
+            version={mutationVersion}
+            onBack={goBackToMain}
+            onTypeChange={(type) => void handleTemplateTypeChange(type)}
+            onDeleteTemplate={() => void openDeleteTemplate(selectedTemplate)}
+            onOpenYear={handleYearSelect}
+            onChangeWinner={(categoryId, year, entryType) =>
+              openPickerFor(categoryId, year, entryType)
+            }
+          />
+        ) : (
+          <div className="min-h-[40vh]" />
+        )
       ) : (
-        /* Three-column shell: ceremony dashboard | award cards | film strip.
-           The side rails appear only once the window is wide enough to give
-           them room without squeezing the cards below their old max-w-6xl. */
-        <div className="grid grid-cols-1 items-start gap-8 xl:grid-cols-[minmax(0,1fr)_112px] 2xl:grid-cols-[68px_minmax(0,1fr)_112px]">
-          <aside className="sticky top-6 hidden self-start 2xl:block">
-            {selectedYear !== null && (
-              <AwardYearPanel
-                year={selectedYear}
-                total={categories.length}
-                groups={categoryGroups}
-                typeFilter={activeTypeFilter}
-                onSelectType={setTypeFilter}
-                years={years}
-                onSelectYear={handleYearSelect}
-              />
-            )}
-          </aside>
-
-          <div className="min-w-0 space-y-8">
-            {/* Category groups */}
-            {visibleGroups.map(([groupKey, group]) => {
-              const groupBadge = groupKey === GENERAL_GROUP ? null : getTypeBadgeStyle(groupKey);
-              return (
-                <section key={groupKey} className="space-y-4">
-                  {activeTypeFilter === null && (
-                    <h3 className="text-lg font-semibold text-gray-300 flex items-center gap-2.5">
-                      {groupKey === GENERAL_GROUP ? (
-                        <span className="p-1.5 rounded-lg bg-white/10 text-gray-300">
-                          <Layers size={14} />
-                        </span>
-                      ) : (
-                        <span className={cn("p-1.5 rounded-lg text-white", groupBadge?.bg)}>
-                          {groupBadge?.icon}
-                        </span>
-                      )}
-                      {groupKey}
-                      <span className="text-sm font-normal text-gray-500">
-                        {group.length} award{group.length !== 1 ? "s" : ""}
-                      </span>
-                    </h3>
-                  )}
-                  <div className="space-y-6">
-                    {group.map((cat, index) => (
-                      <div
-                        key={cat.id}
-                        ref={el => {
-                          if (el) cardRefs.current.set(cat.id, el);
-                          else cardRefs.current.delete(cat.id);
-                        }}
-                      >
-                        <AwardCategoryCard
-                          cat={cat}
-                          index={index}
-                          groupSize={group.length}
-                          selectedYear={selectedYear}
-                          onOpenPicker={openPicker}
-                          onDelete={setCategoryToDelete}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              );
-            })}
-          </div>
-
-          <aside className="sticky top-6 hidden w-[112px] self-start justify-self-end xl:block">
-            <AwardFilmStrip
-              items={visibleItems}
-              activeId={inViewId}
-              onSelect={scrollToCategory}
-            />
-          </aside>
-        </div>
+        <AwardHomeView
+          years={years}
+          templates={templates}
+          yearCovers={yearCovers}
+          onOpenYear={(year) => handleYearSelect(year)}
+          onOpenTemplate={handleTemplateSelect}
+          onCreateYear={() => setCreateYearOpen(true)}
+          onDeleteYear={setYearToDelete}
+          onDeleteTemplate={(template) => void openDeleteTemplate(template)}
+        />
       )}
 
       <WinnerPicker
-        isOpen={pickerOpen}
-        onClose={() => setPickerOpen(false)}
+        isOpen={pickerTarget !== null}
+        onClose={() => setPickerTarget(null)}
         onSelect={handleWinnerSelect}
-        year={selectedYear || undefined}
-        title={activeCategory?.entry_type ? `Select ${activeCategory.entry_type} Winner` : undefined}
+        year={pickerTarget?.year}
+        title={pickerEntryType ? `Select ${pickerEntryType} Winner` : undefined}
         entryFilter={
-          activeCategory?.entry_type
-            ? (entry) => entry.entry_type === activeCategory.entry_type
-            : undefined
+          pickerEntryType ? (entry) => entry.entry_type === pickerEntryType : undefined
         }
       />
 
-      {/* Reorder Modal */}
       <AwardReorderModal
         isOpen={reorderOpen}
         onClose={() => setReorderOpen(false)}
@@ -1129,13 +495,19 @@ export default function AwardsPage() {
         title={`Reorder ${selectedYear} Awards`}
       />
 
-      {/* Category Picker for New/Existing */}
       <CategoryPicker
         isOpen={categoryPickerOpen}
         onClose={() => setCategoryPickerOpen(false)}
         onSelectExisting={handleUseExistingCategory}
         onCreateNew={handleCreateNewCategory}
-        year={selectedYear || new Date().getFullYear()}
+        year={selectedYear ?? new Date().getFullYear()}
+      />
+
+      <CreateAwardYearModal
+        isOpen={createYearOpen}
+        years={years}
+        onClose={() => setCreateYearOpen(false)}
+        onSubmit={handleCreateYear}
       />
 
       <ConfirmDialog
@@ -1146,8 +518,23 @@ export default function AwardsPage() {
         confirmLabel="Remove"
         detail="The award itself stays in your library and in any other years. Any winner selected here will be cleared."
       >
-        Remove <span className="font-semibold text-white">"{categoryToDelete?.name}"</span> from {selectedYear}?
+        Remove <span className="font-semibold text-white">"{categoryToDelete?.name}"</span> from{" "}
+        {selectedYear}?
       </ConfirmDialog>
-    </div>
+
+      <ConfirmDialog
+        isOpen={yearToDelete !== null}
+        onClose={() => setYearToDelete(null)}
+        onConfirm={confirmDeleteYear}
+        title="Delete Award Year"
+        confirmLabel="Delete Year"
+        detail="Only the empty year shell will be removed. Award templates and other years will stay intact."
+      >
+        Are you sure you want to delete{" "}
+        <span className="font-semibold text-white">{yearToDelete?.year}</span>?
+      </ConfirmDialog>
+
+      {templateDeleteDialog}
+    </>
   );
 }

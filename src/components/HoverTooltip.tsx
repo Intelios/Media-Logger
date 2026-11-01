@@ -109,9 +109,20 @@ export function HoverTooltipProvider({ children }: { children: ReactNode }) {
     const hideActiveTooltip = () => hideTooltip(active.anchor);
     window.addEventListener("scroll", hideActiveTooltip, true);
     window.addEventListener("resize", hideActiveTooltip);
+
+    // The anchor can be unmounted while its tooltip is open — stepping to
+    // another award year remounts the view the button sits in — and a node
+    // that no longer exists never fires pointerleave, which left the bubble
+    // stranded until the next scroll. Dismiss it as soon as the anchor goes.
+    const observer = new MutationObserver(() => {
+      if (!active.anchor.isConnected) hideActiveTooltip();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
     return () => {
       window.removeEventListener("scroll", hideActiveTooltip, true);
       window.removeEventListener("resize", hideActiveTooltip);
+      observer.disconnect();
     };
   }, [active, hideTooltip]);
 

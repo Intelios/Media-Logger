@@ -68,7 +68,7 @@ export function AwardTypeMenu({ value, onChange, className, onOpenChange }: Awar
           { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
         )}
         className={cn(
-          "flex items-center gap-1.5 rounded-full text-xs font-semibold transition-all",
+          "flex items-center gap-1.5 rounded-full text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6ab5c]/60",
           value
             ? cn("px-2.5 py-1 text-white shadow-md", badge.bg)
             : "px-2.5 py-1 border border-dashed border-white/20 text-gray-400 hover:border-amber-500/40 hover:text-amber-300"
@@ -98,7 +98,7 @@ export function AwardTypeMenu({ value, onChange, className, onOpenChange }: Awar
                   setIsOpen(false);
                 }}
                 className={cn(
-                  "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors text-left",
+                  "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6ab5c]/60",
                   isActive ? "bg-amber-500/10 text-amber-300 font-medium" : "text-gray-300 hover:bg-white/5"
                 )}
               >
