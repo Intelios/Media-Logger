@@ -414,6 +414,7 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
             {/* Add Entry Button */}
             <button
               onClick={() => setShowEntryForm(true)}
+              aria-label="Add Entry"
               className={cn(
                 "group w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold transition-all duration-200",
                 "bg-gradient-to-r from-primary to-secondary hover:shadow-lg hover:shadow-primary/25 hover:scale-[1.02] active:scale-[0.98]",
@@ -437,13 +438,10 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
             {/* Compact Toggle */}
             <button
               onClick={() => setIsCompact(!isCompact)}
+              aria-label={isCompact ? "Expand sidebar" : "Collapse sidebar"}
               className={cn(
                 "w-full flex items-center gap-2 py-2 rounded-lg text-sm transition-all text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-black/5",
                 isCompact ? "justify-center px-2" : "px-3"
-              )}
-              {...bindTooltip(
-                <span>{isCompact ? "Expand sidebar" : "Collapse sidebar"}</span>,
-                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
               )}
             >
               <motion.span layout transition={iconLayoutTransition} className="flex h-5 w-5 items-center justify-center">
@@ -645,11 +643,11 @@ function YearTimelineItem({
   isCompact?: boolean;
   shortcut?: string;
 }) {
-  const { bindTooltip } = useHoverTooltip();
   return (
     <motion.div initial="rest" animate="rest" whileHover="hover">
       <NavLink
         to={`/year/${year}`}
+        aria-label={year}
         className={({ isActive }) =>
           cn(
             "group relative flex items-center rounded-lg text-sm font-medium transition-all duration-200",
@@ -659,9 +657,6 @@ function YearTimelineItem({
               : "text-[var(--color-text-muted)] hover:bg-black/5 hover:text-[var(--color-text)]"
           )
         }
-        {...(isCompact
-          ? bindTooltip(<span>{year}</span>, { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" })
-          : {})}
       >
         {({ isActive }) => {
         // Dot marker sitting on the rail: glowing for the current year,
@@ -737,11 +732,11 @@ function NavItem({
   isCompact?: boolean;
   badge?: string;
 }) {
-  const { bindTooltip } = useHoverTooltip();
   return (
     <motion.div initial="rest" animate="rest" whileHover="hover">
       <NavLink
         to={to}
+        aria-label={label}
         className={({ isActive }) =>
           cn(
             "group relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200",
@@ -751,9 +746,6 @@ function NavItem({
               : "text-[var(--color-text-muted)] hover:bg-black/5 hover:text-[var(--color-text)]"
           )
         }
-        {...(isCompact
-          ? bindTooltip(<span>{label}</span>, { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" })
-          : {})}
       >
         {({ isActive }) => (
           <>
