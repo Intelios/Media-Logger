@@ -1396,8 +1396,10 @@ fn set_native_window_opaque(window: &tauri::Window, opaque: bool) {
 // correct. wry sizes the title bar container as button height + inset and the
 // buttons keep their offset from its bottom edge, so the inset lands on the
 // distance from the window's top edge to the light centres.
+// x mirrors Apple's modern chrome inset: the close-button frame starts 20pt
+// from the window's left edge (Mail's measured dot edge on macOS 26).
 #[cfg(target_os = "macos")]
-const TRAFFIC_LIGHT_X: f64 = 8.0;
+const TRAFFIC_LIGHT_X: f64 = 20.0;
 #[cfg(target_os = "macos")]
 const TRAFFIC_LIGHT_INSET_Y: f64 = 25.0;
 
