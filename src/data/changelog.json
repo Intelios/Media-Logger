@@ -1,8 +1,24 @@
 {
-  "generatedAt": "2026-10-20T00:44:30.038Z",
+  "generatedAt": "2026-11-03T18:47:28.891Z",
   "source": "github-releases",
   "repository": "Intelios/Media-Logger",
   "releases": [
+    {
+      "version": "4.6.1",
+      "title": "Media Logger - 4.6.1",
+      "date": "2026-11-03",
+      "body": "Backlog UI Improvements:\n- The number of order box on each backlog entry in 'Cover' mode is removed.\n- Divider no longer has useless drag to reorder info\n- Backlog Tooltip fixed to now be back to how it used to be as 4.6 added a delay.\n- In Progress Covers have a visual fix to stop a darkened black line issue.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.6.1"
+    },
+    {
+      "version": "4.6",
+      "title": "Media Logger - 4.6",
+      "date": "2026-11-02",
+      "body": "Actual new features for the first time in a month!\n\nNew Content/Features:\n- Award Page has been fully redesigned from scratch. Brand new design language, layout, modals, and flow entirely. Almost nothing left from the old version of this page.\n- Backlog Page now dynamically updates the sidebars add entry to when on backlog page to show 'Add to Backlog'.\n- On MacOS Only the Title Bar has been removed and the traffic lights are moved into the sidebar. Giving you more screen real estate for the app.\n- MacOS Webkit Rubber-banding guard added so when you over-scroll a page it no longer rubberbands and shows you under the app's UI.\n- Expanded Sidebar is now reduced by about 10% in width to give more space to the main content of the app.\n- Tooltip now has a delay on showing and an animation on entrance/leaving.\n\nBug Fixes:\n- Fixed excessive tooltips in collapsed sidebar view.",
+      "prerelease": false,
+      "url": "https://github.com/Intelios/Media-Logger/releases/tag/4.6"
+    },
     {
       "version": "4.5",
       "title": "Media Logger - 4.5",
