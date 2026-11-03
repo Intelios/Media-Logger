@@ -56,7 +56,7 @@ export function BacklogFaceout({
 
   const tooltipProps = suppressTooltip || preview
     ? {}
-    : bindTooltip(<BacklogTooltipContent item={item} />, { width: 220 });
+    : bindTooltip(<BacklogTooltipContent item={item} />, { width: 220, immediate: true });
 
   const handlePointerDown = (event: React.PointerEvent) => {
     // The pointer is captured for the whole drag, so the tooltip opened on
@@ -119,9 +119,8 @@ export function BacklogFaceout({
           </div>
         )}
 
-        {/* Inner case-edge shading, then the dark hinge strip down the left. */}
+        {/* Inner case-edge shading. */}
         <div aria-hidden className="backlog-faceout-inner absolute inset-0 rounded-r-md" />
-        <div aria-hidden className="absolute inset-y-0 left-0 w-[7px] bg-black/35" />
 
         <div className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 shadow-[0_0_16px_rgba(245,165,36,0.55)]">
           <Play size={10} className="ml-px text-amber-950" fill="currentColor" />

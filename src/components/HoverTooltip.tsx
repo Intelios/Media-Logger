@@ -29,6 +29,10 @@ export interface HoverTooltipOptions {
   width?: number | "content";
   className?: string;
   style?: CSSProperties;
+  /** Skip the shared show delay. For dense surfaces where the pointer is
+   *  already choosing between neighbouring targets, the wait reads as a
+   *  missed hover rather than as restraint. */
+  immediate?: boolean;
 }
 
 interface ActiveTooltip {
@@ -161,6 +165,7 @@ export function HoverTooltipProvider({ children }: { children: ReactNode }) {
       const tooltip = { anchor, content, options };
       const warm =
         immediate ||
+        options.immediate ||
         activeRef.current !== null ||
         Date.now() - lastShownAt.current < WARM_WINDOW_MS;
 

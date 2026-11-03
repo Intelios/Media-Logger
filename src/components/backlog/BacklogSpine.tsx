@@ -17,7 +17,8 @@ const CLICK_SLOP = 8;
 
 interface BacklogSpineProps {
   item: BacklogItem;
-  /** 1-based queue position. Null for unreleased items, which aren't ranked. */
+  /** 1-based queue position, printed on spines. Null for unreleased items,
+   *  which aren't ranked; face-out covers don't print it either. */
   rank: number | null;
   /** Entrance stagger index within its section. */
   index: number;
@@ -67,7 +68,7 @@ export function BacklogSpine({
 
   const tooltipProps = suppressTooltip || preview
     ? {}
-    : bindTooltip(<BacklogTooltipContent item={item} />, { width: 220 });
+    : bindTooltip(<BacklogTooltipContent item={item} />, { width: 220, immediate: true });
 
   // dnd-kit owns pointer events on the wrapper, so the click that reaches us
   // after a drag has to be filtered out by distance rather than by a flag.
@@ -173,8 +174,7 @@ export function BacklogSpine({
         <span aria-hidden className="backlog-spine-hinge" />
 
         {faceOut ? (
-          <span className="relative flex h-full w-full flex-col justify-between">
-            <span className="flex px-2 pt-2">{rankChip}</span>
+          <span className="relative flex h-full w-full flex-col justify-end">
             <span className="backlog-spine-caption flex flex-col gap-1 px-2.5 pb-2.5">
               <span className="line-clamp-2 text-[12px] font-semibold leading-tight text-white">
                 {item.name}

@@ -74,7 +74,6 @@ function ShelfHeading({
   count,
   total,
   tone,
-  hint,
   onToggle,
   collapsed,
 }: {
@@ -83,7 +82,6 @@ function ShelfHeading({
   count: number;
   total: number;
   tone: keyof typeof HEADING_TONES;
-  hint?: string;
   onToggle?: () => void;
   collapsed?: boolean;
 }) {
@@ -112,7 +110,6 @@ function ShelfHeading({
         heading
       )}
       <span className="h-px flex-1 bg-white/[0.07]" />
-      {hint && <span className="text-xs text-gray-500">{hint}</span>}
     </div>
   );
 }
@@ -710,7 +707,6 @@ export default function Backlog() {
               count={countMatching(items.planning)}
               total={items.planning.length}
               tone="neutral"
-              hint={items.planning.length > 1 ? "Drag to reorder" : undefined}
             />
             <BacklogShelf
               containerId={CONTAINER_IDS.planning}
