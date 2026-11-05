@@ -138,13 +138,27 @@ body {
   background: transparent;
 }
 
-/* Overscroll is handled by the WebKit rubber-band guard in
-   lib/overscroll-guard.ts plus this property for engines that honor it.
-   overscroll-behavior is not inherited, so it has to sit on every element;
-   on non-scrollers it is inert. Side effect on all platforms: wheeling past
-   a scroll region's edge no longer chains into its parent. */
-* {
+/* Stop edge bounce on the document and intentional scrolling regions.
+   Never apply this universally: overflow:hidden cover/card wrappers are
+   scroll containers too, and Chromium can trap wheel input over them instead
+   of passing it to the page. Keep each axis independent so horizontal strips
+   still pass vertical wheel input through. The macOS guard in
+   lib/overscroll-guard.ts remains the WebKit/keyboard backstop. */
+html,
+body,
+.overflow-auto,
+.overflow-scroll {
   overscroll-behavior: none;
+}
+
+.overflow-x-auto,
+.overflow-x-scroll {
+  overscroll-behavior-x: none;
+}
+
+.overflow-y-auto,
+.overflow-y-scroll {
+  overscroll-behavior-y: none;
 }
 
 .development-build-badge {
@@ -1348,6 +1362,7 @@ body {
   display: block;
   max-width: 100%;
   overflow: auto;
+  overscroll-behavior: none;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text-muted);

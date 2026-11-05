@@ -265,8 +265,8 @@ export function CleanupImagesModal({
 
                             <div
                                 ref={tilesScrollRef}
+                                className="overflow-y-auto"
                                 style={{
-                                    overflowY: 'auto',
                                     flex: 1,
                                     minHeight: 0,
                                     paddingRight: 4,
