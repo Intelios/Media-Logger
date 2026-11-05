@@ -24,7 +24,7 @@ import { useMainScrollContainer } from "../lib/scroll-container";
 function AwardErrorToast({ message, onDismiss }: { message: string | null; onDismiss: () => void }) {
   if (!message) return null;
   return (
-    <div className="fixed bottom-6 right-6 z-[80] flex items-start gap-3 max-w-sm bg-[#2a1a1a] border border-red-500/40 rounded-xl p-4 shadow-2xl">
+    <div className="app-error-toast fixed bottom-6 right-6 z-[80] flex items-start gap-3 max-w-sm bg-[#2a1a1a] border border-red-500/40 rounded-xl p-4 shadow-2xl">
       <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
       <p className="text-sm text-red-200 flex-1">{message}</p>
       <button

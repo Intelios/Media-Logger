@@ -164,9 +164,8 @@ body,
 .development-build-badge {
   position: fixed;
   bottom: 10px;
-  left: 50%;
+  right: 12px;
   z-index: 10000;
-  transform: translateX(-50%);
   pointer-events: none;
   padding: 5px 12px;
   border: 1px solid rgba(254, 202, 202, 0.55);
@@ -181,6 +180,11 @@ body,
   text-transform: uppercase;
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
+}
+
+/* Error toasts share the badge's corner, so lift them clear of it. */
+body:has(.development-build-badge) .app-error-toast {
+  bottom: 46px;
 }
 
 /* Custom Scrollbar - uses theme variables */

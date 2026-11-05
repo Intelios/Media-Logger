@@ -76,7 +76,7 @@ export function MutationErrorToast() {
           exit={{ opacity: 0, y: 8, scale: 0.97 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
           role="alert"
-          className="fixed bottom-6 right-6 z-[110] flex items-start gap-3 max-w-sm bg-[#2a1a1a] border border-red-500/40 rounded-xl p-4 shadow-2xl"
+          className="app-error-toast fixed bottom-6 right-6 z-[110] flex items-start gap-3 max-w-sm bg-[#2a1a1a] border border-red-500/40 rounded-xl p-4 shadow-2xl"
         >
           <AlertCircle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
