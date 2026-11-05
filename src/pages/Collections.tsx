@@ -11,7 +11,7 @@ import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { useHoverTooltip } from "../components/HoverTooltip";
 import { CollectionModal } from "../components/CollectionModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { WinnerPicker } from "../components/WinnerPicker"; // Reusing the picker for adding items
+import { CollectionItemPicker } from "../components/collections/CollectionItemPicker";
 import { ArrowUpDown } from "lucide-react"; // Import ArrowUpDown icon
 import { ReorderModal } from "../components/ReorderModal"; // Import Modal
 import { EntryForm } from "../components/EntryForm"; // Import EntryForm for editing
@@ -531,13 +531,9 @@ export default function CollectionsPage() {
           </div>
         )}
 
-        <WinnerPicker
+        <CollectionItemPicker
           isOpen={pickerOpen}
           onClose={() => setPickerOpen(false)}
-          mode="multiple"
-          title="Add Collection Items"
-          searchPlaceholder="Search your library to add multiple items..."
-          confirmLabel="Add Items"
           excludedIds={items.map((entry) => entry.id)}
           onSubmitSelection={handleAddItems}
         />
