@@ -334,7 +334,7 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
       {/* Sidebar - transparent to show the native desktop backdrop */}
       <aside className={cn(
         "bg-transparent border-r flex flex-col transition-all duration-300 ease-out",
-        isCompact ? "w-[72px] p-3" : "w-[243px] px-2 py-4"
+        isCompact ? "w-[88px] p-3" : "w-[243px] px-2 py-4"
       )}
         style={{ borderColor: "var(--color-border)" }}
       >
