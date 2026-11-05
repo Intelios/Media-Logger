@@ -81,6 +81,7 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
   const routeStartedAtRef = useRef<number | null>(null);
   const currentYear = getCurrentYearString();
   const onBacklog = location.pathname === "/backlog";
+  const onDashboard = location.pathname === "/";
 
   const resetMainScroll = useCallback(() => {
     const scrollElement = mainScrollRef.current;
@@ -511,7 +512,10 @@ export function Layout({ onPrefetchRoute }: LayoutProps) {
         <main
           key={location.pathname}
           ref={mainScrollRef}
-          className="relative z-[1] h-full overflow-y-auto p-6"
+          className={cn(
+            "relative z-[1] h-full overflow-y-auto p-6",
+            onDashboard && "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          )}
           style={{ overflowAnchor: "none" }}
         >
           {showDbMigratedBanner && (
