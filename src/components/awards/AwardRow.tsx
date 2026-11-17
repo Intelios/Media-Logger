@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { CoverImage } from "../CoverImage";
 import { useHoverTooltip } from "../HoverTooltip";
@@ -30,6 +31,8 @@ interface AwardRowProps {
   decided: boolean;
   selected?: boolean;
   onSelect: () => void;
+  /** Optional right-aligned badge inside the row button (e.g. win count pill). */
+  badge?: ReactNode;
   /** Optional hover delete affordance. */
   onDelete?: () => void;
   deleteLabel?: string;
@@ -48,6 +51,7 @@ export function AwardRow({
   decided,
   selected = false,
   onSelect,
+  badge,
   onDelete,
   deleteLabel = "Delete award",
   deleteTooltip = "Delete award",
@@ -73,7 +77,9 @@ export function AwardRow({
         aria-current={selected ? "true" : undefined}
         className={cn(
           "grid w-full items-center gap-3.5 rounded-[10px] p-2 text-left transition-colors duration-150",
-          "grid-cols-[112px_minmax(0,1fr)]",
+          badge
+            ? "grid-cols-[112px_minmax(0,1fr)_auto]"
+            : "grid-cols-[112px_minmax(0,1fr)]",
           selected
             ? "bg-[#d6ab5c]/[0.10] ring-1 ring-inset ring-[#d6ab5c]/[0.28]"
             : "hover:bg-white/5",
@@ -127,6 +133,8 @@ export function AwardRow({
             {placeholder ? "No winner yet" : headline}
           </span>
         </span>
+
+        {badge && <span className="shrink-0 pr-1">{badge}</span>}
       </button>
 
       {onDelete && (

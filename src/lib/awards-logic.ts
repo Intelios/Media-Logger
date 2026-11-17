@@ -1,4 +1,4 @@
-import { dbService, type MediaEntry } from "./db";
+import { adultExclusionSql, dbService, type EntryCardSummary, type MediaEntry } from "./db";
 import { ENTRY_TYPES } from "./media-config";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -52,6 +52,23 @@ export interface TemplateWinnerHistory {
   year: number;
   winner: MediaEntry | null;
   category_id: number;
+}
+
+export interface MediaAwardWin {
+  categoryId: number;
+  categoryName: string;
+  year: number;
+  templateId: number | null;
+  sortOrder: number;
+}
+
+export interface MostAwardedEntry {
+  entry: EntryCardSummary;
+  winCount: number;
+  /** Distinct award years in descending order (e.g. [2024] or [2025, 2024]). */
+  years: number[];
+  /** Every award won by this entry, ordered by year DESC, sort_order ASC, id ASC. */
+  awards: MediaAwardWin[];
 }
 
 /** Normalize an award/template name: trim whitespace and collapse internal runs. */
@@ -463,5 +480,122 @@ export const awardsLogic = {
       "UPDATE award_templates SET entry_type = $1 WHERE id = $2",
       [normalizedType, templateId]
     );
+  },
+
+  // 18. Get entries that have won multiple awards across all time
+  async getMostAwardedEntries(minWins = 2): Promise<MostAwardedEntry[]> {
+    const db = await dbService.connect();
+    type WinRow = EntryCardSummary & {
+      award_category_id: number;
+      award_category_name: string;
+      award_year: number;
+      award_template_id: number | null;
+      award_sort_order: number;
+    };
+
+    const rows = await db.select<WinRow[]>(
+      `SELECT c.id AS award_category_id,
+              c.name AS award_category_name,
+              c.year AS award_year,
+              c.template_id AS award_template_id,
+              c.sort_order AS award_sort_order,
+              m.id,
+              m.name,
+              m.genre,
+              m.completion_date,
+              m.review_score,
+              m.year_completed,
+              m.is_rewatch,
+              m.own_local_copy,
+              m.has_subtitles,
+              m.is_platinum,
+              m.is_completed,
+              m.is_early_access,
+              m.early_access_version,
+              m.is_expansion,
+              m.parent_entry_id,
+              m.image_url,
+              m.entry_type,
+              m.platform,
+              m.author,
+              m.artist,
+              m.director,
+              m.actress,
+              m.update_version,
+              m.franchise,
+              m.series
+       FROM award_winners w
+       JOIN award_categories c ON c.id = w.category_id
+       JOIN entries m ON m.id = w.media_id
+       WHERE 1 = 1${adultExclusionSql()}
+       ORDER BY c.year DESC, c.sort_order ASC, c.id ASC`
+    );
+
+    const byMediaId = new Map<
+      number,
+      {
+        entry: EntryCardSummary;
+        yearsSet: Set<number>;
+        awards: MediaAwardWin[];
+      }
+    >();
+
+    for (const row of rows) {
+      const {
+        award_category_id,
+        award_category_name,
+        award_year,
+        award_template_id,
+        award_sort_order,
+        ...entry
+      } = row;
+
+      let record = byMediaId.get(entry.id);
+      if (!record) {
+        record = {
+          entry,
+          yearsSet: new Set<number>(),
+          awards: [],
+        };
+        byMediaId.set(entry.id, record);
+      }
+
+      record.yearsSet.add(award_year);
+      record.awards.push({
+        categoryId: award_category_id,
+        categoryName: award_category_name,
+        year: award_year,
+        templateId: award_template_id,
+        sortOrder: award_sort_order,
+      });
+    }
+
+    const result: MostAwardedEntry[] = [];
+    for (const record of byMediaId.values()) {
+      if (record.awards.length < minWins) continue;
+      result.push({
+        entry: record.entry,
+        winCount: record.awards.length,
+        years: [...record.yearsSet],
+        awards: record.awards,
+      });
+    }
+
+    result.sort((a, b) => {
+      if (b.winCount !== a.winCount) return b.winCount - a.winCount;
+      const latestA = a.years[0] ?? 0;
+      const latestB = b.years[0] ?? 0;
+      if (latestB !== latestA) return latestB - latestA;
+      const scoreA = a.entry.review_score;
+      const scoreB = b.entry.review_score;
+      if (scoreA != null && scoreB != null && scoreB !== scoreA) {
+        return scoreB - scoreA;
+      }
+      if (scoreA != null && scoreB == null) return -1;
+      if (scoreA == null && scoreB != null) return 1;
+      return a.entry.name.localeCompare(b.entry.name);
+    });
+
+    return result;
   }
 };

@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import { Plus, Trash2, Trophy } from "lucide-react";
+import { ChevronRight, Plus, Trash2, Trophy } from "lucide-react";
 import {
   GENERAL_GROUP,
   type AwardTemplate,
   type AwardYearSummary,
+  type MostAwardedEntry,
 } from "../../lib/awards-logic";
 import { ENTRY_TYPES } from "../../lib/media-config";
 import { useCoverPalettes } from "../../lib/cover-palette";
@@ -19,8 +20,10 @@ interface AwardHomeViewProps {
   templates: AwardTemplate[];
   /** The lead cover of each year (its first award's winner), null when none. */
   yearLeads: Map<number, string | null>;
+  mostAwarded: MostAwardedEntry[];
   onOpenYear: (year: number) => void;
   onOpenTemplate: (templateId: number) => void;
+  onOpenMostAwarded: () => void;
   onCreateYear: () => void;
   onDeleteYear: (year: AwardYearSummary) => void;
   onDeleteTemplate: (template: AwardTemplate) => void;
@@ -50,19 +53,37 @@ export function AwardHomeView({
   years,
   templates,
   yearLeads,
+  mostAwarded,
   onOpenYear,
   onOpenTemplate,
+  onOpenMostAwarded,
   onCreateYear,
   onDeleteYear,
   onDeleteTemplate,
 }: AwardHomeViewProps) {
   const { bindTooltip } = useHoverTooltip();
 
+  const previewWinners = useMemo(
+    () => mostAwarded.slice(0, 4),
+    [mostAwarded]
+  );
+
   const leadPaths = useMemo(
-    () => years.map((year) => yearLeads.get(year.year) ?? null),
-    [years, yearLeads]
+    () => [
+      ...years.map((year) => yearLeads.get(year.year) ?? null),
+      ...previewWinners.map((item) => item.entry.image_url ?? null),
+    ],
+    [years, yearLeads, previewWinners]
   );
   const palettes = useCoverPalettes(leadPaths);
+
+  const mostAwardedTypeCount = useMemo(
+    () =>
+      new Set(
+        mostAwarded.map((item) => item.entry.entry_type ?? GENERAL_GROUP)
+      ).size,
+    [mostAwarded]
+  );
 
   // One flat index: the canonical media-type order, then name. The old
   // per-type sections produced a stuttering run of headings with one or two
@@ -253,6 +274,70 @@ export function AwardHomeView({
             })}
           </div>
         )}
+      </section>
+
+      <section className="mt-10">
+        <button
+          type="button"
+          onClick={onOpenMostAwarded}
+          className={cn(
+            "group flex w-full items-center justify-between gap-5 rounded-[16px] border border-white/[0.08] bg-white/[0.03] px-5 py-4 text-left transition-colors hover:border-[#d6ab5c]/40 hover:bg-[#d6ab5c]/[0.06]",
+            AWARD_FOCUS_RING
+          )}
+        >
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-[#d6ab5c]/30 bg-[#d6ab5c]/10 text-[#f0d391] transition-colors group-hover:border-[#d6ab5c]/50 group-hover:bg-[#d6ab5c]/15">
+              <Trophy size={19} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[16.5px] font-semibold tracking-tight text-white group-hover:text-[#f0d391] transition-colors">
+                Most Awarded
+              </div>
+              <p className="mt-0.5 truncate text-[12.5px] text-white/45">
+                {mostAwarded.length > 0
+                  ? `${mostAwarded.length} ${
+                      mostAwarded.length === 1 ? "entry" : "entries"
+                    } won 2+ awards across ${mostAwardedTypeCount} media ${
+                      mostAwardedTypeCount === 1 ? "type" : "types"
+                    }`
+                  : "Entries that sweep 2 or more awards across your log"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-3">
+            {previewWinners.length > 0 && (
+              <div className="hidden items-center gap-2 sm:flex">
+                {previewWinners.map((item) => {
+                  const imagePath = item.entry.image_url;
+                  const mount = mountFor(
+                    imagePath ? palettes.get(imagePath) : undefined
+                  );
+                  return (
+                    <span
+                      key={item.entry.id}
+                      className="relative flex h-12 w-[76px] items-center justify-center overflow-hidden rounded-[6px] ring-1 ring-white/[0.08]"
+                      style={{ background: mount }}
+                    >
+                      <CoverImage
+                        path={imagePath}
+                        alt={item.entry.name}
+                        variant="small"
+                        priority="low"
+                        containerClassName="flex h-full w-full items-center justify-center p-1"
+                        imageClassName="max-h-full max-w-full object-contain"
+                      />
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            <ChevronRight
+              size={18}
+              className="text-white/35 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-[#f0d391]"
+            />
+          </div>
+        </button>
       </section>
     </div>
   );

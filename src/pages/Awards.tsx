@@ -6,9 +6,11 @@ import {
   type AwardCategoryWithWinner,
   type AwardTemplate,
   type AwardYearSummary,
+  type MostAwardedEntry,
   type TemplateDeletionImpact,
   type TemplateWinnerHistory,
 } from "../lib/awards-logic";
+import { useAdultMediaEnabled } from "../lib/media-config";
 import { WinnerPicker } from "../components/WinnerPicker";
 import { CreateAwardYearModal } from "../components/awards/CreateAwardYearModal";
 import { CategoryPicker } from "../components/CategoryPicker";
@@ -17,6 +19,7 @@ import { AwardReorderModal, type AwardReorderGroup } from "../components/awards/
 import { AwardHomeView } from "../components/awards/AwardHomeView";
 import { AwardYearView } from "../components/awards/AwardYearView";
 import { AwardDetailView } from "../components/awards/AwardDetailView";
+import { AwardMostAwardedView } from "../components/awards/AwardMostAwardedView";
 import { useMainScrollContainer } from "../lib/scroll-container";
 
 // Toast for award/year mutation failures. Rendered by the controller so an
@@ -38,7 +41,7 @@ function AwardErrorToast({ message, onDismiss }: { message: string | null; onDis
   );
 }
 
-type ViewType = "main" | "year" | "category";
+type ViewType = "main" | "year" | "category" | "most-awarded";
 
 interface PickerTarget {
   categoryId: number;
@@ -68,6 +71,9 @@ export default function AwardsPage() {
   );
   const [categories, setCategories] = useState<AwardCategoryWithWinner[]>([]);
   const [templates, setTemplates] = useState<AwardTemplate[]>([]);
+  const [mostAwarded, setMostAwarded] = useState<MostAwardedEntry[]>([]);
+
+  const adultMediaEnabled = useAdultMediaEnabled();
 
   // Award detail state
   const [selectedTemplate, setSelectedTemplate] = useState<AwardTemplate | null>(null);
@@ -108,6 +114,9 @@ export default function AwardsPage() {
 
   const loadTemplates = () => awardsLogic.getAllTemplates().then(setTemplates);
 
+  const loadMostAwarded = () =>
+    awardsLogic.getMostAwardedEntries().then(setMostAwarded);
+
   const loadCategories = async (year: number) => {
     const token = ++categoryLoadRef.current;
     const data = await awardsLogic.getAwardsForYear(year);
@@ -131,6 +140,10 @@ export default function AwardsPage() {
     void loadYears();
     void loadTemplates();
   }, []);
+
+  useEffect(() => {
+    void loadMostAwarded();
+  }, [adultMediaEnabled]);
 
   // Auto-dismiss the error toast after a few seconds.
   useEffect(() => {
@@ -194,6 +207,17 @@ export default function AwardsPage() {
     setTypeFilter(null);
     void loadYears();
     void loadTemplates();
+    void loadMostAwarded();
+    scrollToTop();
+  };
+
+  const handleOpenMostAwarded = () => {
+    categoryLoadRef.current += 1;
+    setYearExit(null);
+    setInitialTemplateId(null);
+    setTypeFilter(null);
+    setView("most-awarded");
+    void loadMostAwarded();
     scrollToTop();
   };
 
@@ -328,6 +352,7 @@ export default function AwardsPage() {
       await awardsLogic.setWinner(target.categoryId, mediaId);
       setPickerTarget(null);
       setMutationVersion((version) => version + 1);
+      void loadMostAwarded();
       if (view === "year" && selectedYear === target.year) {
         await loadCategories(target.year);
       }
@@ -362,7 +387,7 @@ export default function AwardsPage() {
       await awardsLogic.deleteCategory(target.id);
       setCategoryToDelete(null);
       setMutationVersion((version) => version + 1);
-      await Promise.all([loadYears(), loadTemplates()]);
+      await Promise.all([loadYears(), loadTemplates(), loadMostAwarded()]);
       if (selectedYear) await loadCategories(selectedYear);
     } catch (error) {
       setCategoryToDelete(null);
@@ -412,7 +437,7 @@ export default function AwardsPage() {
     setMutationVersion((version) => version + 1);
     // Removing an award changes year category/winner counts too.
     try {
-      await Promise.all([loadYears(), loadTemplates()]);
+      await Promise.all([loadYears(), loadTemplates(), loadMostAwarded()]);
     } catch (error) {
       setAwardError(error instanceof Error ? error.message : String(error));
     }
@@ -505,13 +530,23 @@ export default function AwardsPage() {
         ) : (
           <div className="min-h-[40vh]" />
         )
+      ) : view === "most-awarded" ? (
+        <AwardMostAwardedView
+          entries={mostAwarded}
+          typeFilter={typeFilter}
+          onTypeFilterChange={setTypeFilter}
+          onOpenYear={(year, templateId) => handleYearSelect(year, templateId)}
+          onBack={goBackToMain}
+        />
       ) : (
         <AwardHomeView
           years={years}
           templates={templates}
           yearLeads={yearLeads}
+          mostAwarded={mostAwarded}
           onOpenYear={(year) => handleYearSelect(year)}
           onOpenTemplate={handleTemplateSelect}
+          onOpenMostAwarded={handleOpenMostAwarded}
           onCreateYear={() => setCreateYearOpen(true)}
           onDeleteYear={setYearToDelete}
           onDeleteTemplate={(template) => void openDeleteTemplate(template)}
