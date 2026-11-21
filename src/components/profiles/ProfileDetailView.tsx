@@ -586,6 +586,7 @@ export function ProfileDetailView({
                           key={`${item.entry.id}-${item.categoryName}-${index}`}
                           entry={item.entry}
                           categoryName={item.categoryName}
+                          creditedPerson={item.creditedPerson}
                           profileConfig={profileConfig}
                           index={index}
                           onClick={onEntryClick}

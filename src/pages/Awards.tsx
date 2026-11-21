@@ -3,6 +3,7 @@ import { AlertCircle, X } from "lucide-react";
 import {
   awardsLogic,
   GENERAL_GROUP,
+  withCreditedPerson,
   type AwardCategoryWithWinner,
   type AwardTemplate,
   type AwardYearSummary,
@@ -11,6 +12,7 @@ import {
   type TemplateWinnerHistory,
 } from "../lib/awards-logic";
 import { useAdultMediaEnabled } from "../lib/media-config";
+import { invalidateMediaQueries, mediaQueryKeys } from "../lib/query-client";
 import { WinnerPicker } from "../components/WinnerPicker";
 import { CreateAwardYearModal } from "../components/awards/CreateAwardYearModal";
 import { CategoryPicker } from "../components/CategoryPicker";
@@ -20,6 +22,7 @@ import { AwardHomeView } from "../components/awards/AwardHomeView";
 import { AwardYearView } from "../components/awards/AwardYearView";
 import { AwardDetailView } from "../components/awards/AwardDetailView";
 import { AwardMostAwardedView } from "../components/awards/AwardMostAwardedView";
+import type { InspectorAward } from "../components/awards/AwardInspector";
 import { useMainScrollContainer } from "../lib/scroll-container";
 
 // Toast for award/year mutation failures. Rendered by the controller so an
@@ -47,7 +50,17 @@ interface PickerTarget {
   categoryId: number;
   year: number;
   entryType: string | null;
+  /** The award asks who to credit alongside the winner. */
+  creditsPerson: boolean;
+  /** The current winner and its name, so re-picking that entry keeps the name. */
+  current: { mediaId: number; name: string | null } | null;
 }
+
+/** What opening the winner picker needs to know about an award. */
+type PickerSource = Pick<
+  InspectorAward,
+  "categoryId" | "year" | "entryType" | "creditsPerson" | "winner" | "creditedPerson"
+>;
 
 /**
  * Awards controller. Owns the three views' data, every mutation handler and
@@ -72,6 +85,8 @@ export default function AwardsPage() {
   const [categories, setCategories] = useState<AwardCategoryWithWinner[]>([]);
   const [templates, setTemplates] = useState<AwardTemplate[]>([]);
   const [mostAwarded, setMostAwarded] = useState<MostAwardedEntry[]>([]);
+  // Every name credited so far, for the picker's and inspector's suggestions.
+  const [creditedPeople, setCreditedPeople] = useState<string[]>([]);
 
   const adultMediaEnabled = useAdultMediaEnabled();
 
@@ -82,6 +97,14 @@ export default function AwardsPage() {
   // Incremented after every mutation that invalidates a view's per-template /
   // per-year caches (winner changes, deletes, retags, new years).
   const [mutationVersion, setMutationVersion] = useState(0);
+
+  // Every award mutation bumps the views' cache version and drops Review's
+  // cached "Award Night" (its staleTime is infinite, so it never refetches on
+  // its own).
+  const noteAwardsChanged = () => {
+    setMutationVersion((version) => version + 1);
+    void invalidateMediaQueries(mediaQueryKeys.review);
+  };
 
   // Modals
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
@@ -117,6 +140,14 @@ export default function AwardsPage() {
   const loadMostAwarded = () =>
     awardsLogic.getMostAwardedEntries().then(setMostAwarded);
 
+  const loadCreditedPeople = () =>
+    awardsLogic
+      .getCreditedPeople()
+      .then(setCreditedPeople)
+      .catch(() => {
+        // Suggestions are advisory; the name fields still work without them.
+      });
+
   const loadCategories = async (year: number) => {
     const token = ++categoryLoadRef.current;
     const data = await awardsLogic.getAwardsForYear(year);
@@ -143,6 +174,7 @@ export default function AwardsPage() {
 
   useEffect(() => {
     void loadMostAwarded();
+    void loadCreditedPeople();
   }, [adultMediaEnabled]);
 
   // Auto-dismiss the error toast after a few seconds.
@@ -191,7 +223,9 @@ export default function AwardsPage() {
         items: group.map((category) => ({
           id: category.id,
           name: category.name,
-          subtitle: category.winner ? `Winner: ${category.winner.name}` : "No winner yet",
+          subtitle: category.winner
+            ? `Winner: ${withCreditedPerson(category.winner.name, category.credited_person)}`
+            : "No winner yet",
           imageUrl: category.winner?.image_url ?? undefined,
         })),
       })),
@@ -286,7 +320,7 @@ export default function AwardsPage() {
     await awardsLogic.createNewYear(year, copyFromYear);
     setCreateYearOpen(false);
     setAwardError(null);
-    setMutationVersion((version) => version + 1);
+    noteAwardsChanged();
     try {
       await Promise.all([loadYears(), loadTemplates(), loadCategories(year)]);
       setSelectedYear(year);
@@ -299,13 +333,17 @@ export default function AwardsPage() {
     }
   };
 
-  const handleCreateNewCategory = async (name: string, entryType: string | null) => {
+  const handleCreateNewCategory = async (
+    name: string,
+    entryType: string | null,
+    creditsPerson: boolean
+  ) => {
     if (!selectedYear) return;
     try {
-      await awardsLogic.createCategory(name, selectedYear, entryType);
+      await awardsLogic.createCategory(name, selectedYear, entryType, creditsPerson);
       // Reset the filter so the new row is visible wherever it lands.
       setTypeFilter(null);
-      setMutationVersion((version) => version + 1);
+      noteAwardsChanged();
       await loadCategories(selectedYear);
       await loadTemplates();
       setAwardError(null);
@@ -319,7 +357,7 @@ export default function AwardsPage() {
     try {
       await awardsLogic.createCategoryFromTemplate(templateId, selectedYear);
       setTypeFilter(null);
-      setMutationVersion((version) => version + 1);
+      noteAwardsChanged();
       await loadCategories(selectedYear);
       setAwardError(null);
     } catch (error) {
@@ -333,7 +371,7 @@ export default function AwardsPage() {
     if (!selectedTemplate) return;
     try {
       await awardsLogic.updateTemplateType(selectedTemplate.id, entryType);
-      setMutationVersion((version) => version + 1);
+      noteAwardsChanged();
       await Promise.all([loadTemplateDetail(selectedTemplate.id), loadTemplates()]);
       setAwardError(null);
     } catch (error) {
@@ -341,18 +379,33 @@ export default function AwardsPage() {
     }
   };
 
-  const openPickerFor = (categoryId: number, year: number, entryType: string | null) => {
-    setPickerTarget({ categoryId, year, entryType });
+  const openPickerFor = (award: PickerSource) => {
+    setPickerTarget({
+      categoryId: award.categoryId,
+      year: award.year,
+      entryType: award.entryType,
+      creditsPerson: award.creditsPerson,
+      current: award.winner
+        ? { mediaId: award.winner.id, name: award.creditedPerson }
+        : null,
+    });
   };
 
-  const handleWinnerSelect = async (mediaId: number) => {
+  const handleWinnerSelect = async (mediaId: number, creditedPerson?: string | null) => {
     if (!pickerTarget) return;
     const target = pickerTarget;
     try {
-      await awardsLogic.setWinner(target.categoryId, mediaId);
+      // Replacing the winner row means a new winner never inherits a name; an
+      // award that doesn't credit a person stores none.
+      await awardsLogic.setWinner(
+        target.categoryId,
+        mediaId,
+        target.creditsPerson ? creditedPerson ?? null : null
+      );
       setPickerTarget(null);
-      setMutationVersion((version) => version + 1);
+      noteAwardsChanged();
       void loadMostAwarded();
+      if (target.creditsPerson) void loadCreditedPeople();
       if (view === "year" && selectedYear === target.year) {
         await loadCategories(target.year);
       }
@@ -365,12 +418,53 @@ export default function AwardsPage() {
     }
   };
 
+  // Inline name edits from the inspector. Rejects on failure so the editor
+  // stays open with the typed name; the toast carries the message.
+  const handleCreditedPersonSave = async (categoryId: number, name: string | null) => {
+    try {
+      await awardsLogic.setCreditedPerson(categoryId, name);
+    } catch (error) {
+      setAwardError(error instanceof Error ? error.message : String(error));
+      throw error;
+    }
+    setAwardError(null);
+    noteAwardsChanged();
+    void loadMostAwarded();
+    void loadCreditedPeople();
+    try {
+      if (view === "year" && selectedYear !== null) await loadCategories(selectedYear);
+      if (view === "category" && selectedTemplate) await loadTemplateDetail(selectedTemplate.id);
+    } catch (error) {
+      setAwardError(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  // The "Credit a person" switch lives on the template, so it flips the award
+  // in every year. Turning it off hides names; turning it on brings them back.
+  const handleCreditsPersonChange = async (templateId: number, enabled: boolean) => {
+    try {
+      await awardsLogic.updateTemplateCreditsPerson(templateId, enabled);
+      noteAwardsChanged();
+      const reloads: Promise<unknown>[] = [loadTemplates(), loadMostAwarded()];
+      if (view === "year" && selectedYear !== null) reloads.push(loadCategories(selectedYear));
+      if (view === "category" && selectedTemplate) {
+        reloads.push(loadTemplateDetail(selectedTemplate.id));
+      }
+      await Promise.all(reloads);
+      setAwardError(null);
+    } catch (error) {
+      setAwardError(error instanceof Error ? error.message : String(error));
+    }
+  };
+
   // The modal edits grouped sections, then flattens back to one sort_order
   // sequence (group order = each group's earliest member).
   const handleReorderSave = async (groups: AwardReorderGroup[]) => {
     if (!selectedYear) return;
     const ids = groups.flatMap((group) => group.items.map((item) => item.id));
     await awardsLogic.updateCategoryOrder(selectedYear, ids);
+    // Review's "Award Night" lists awards in this order.
+    void invalidateMediaQueries(mediaQueryKeys.review);
     const byId = new Map(categories.map((category) => [category.id, category]));
     setCategories(
       ids
@@ -386,7 +480,7 @@ export default function AwardsPage() {
     try {
       await awardsLogic.deleteCategory(target.id);
       setCategoryToDelete(null);
-      setMutationVersion((version) => version + 1);
+      noteAwardsChanged();
       await Promise.all([loadYears(), loadTemplates(), loadMostAwarded()]);
       if (selectedYear) await loadCategories(selectedYear);
     } catch (error) {
@@ -401,7 +495,7 @@ export default function AwardsPage() {
     try {
       await awardsLogic.deleteYear(target.year);
       setYearToDelete(null);
-      setMutationVersion((version) => version + 1);
+      noteAwardsChanged();
       await Promise.all([loadYears(), loadTemplates()]);
     } catch (error) {
       setYearToDelete(null);
@@ -434,7 +528,7 @@ export default function AwardsPage() {
 
     setTemplateToDelete(null);
     setTemplateImpact(null);
-    setMutationVersion((version) => version + 1);
+    noteAwardsChanged();
     // Removing an award changes year category/winner counts too.
     try {
       await Promise.all([loadYears(), loadTemplates(), loadMostAwarded()]);
@@ -505,12 +599,24 @@ export default function AwardsPage() {
           onSelectYear={(year) => handleYearSelect(year)}
           onYearSelectWithTemplate={(year, templateId) => handleYearSelect(year, templateId)}
           onOpenPicker={(category) =>
-            openPickerFor(category.id, category.year, category.entry_type)
+            openPickerFor({
+              categoryId: category.id,
+              year: category.year,
+              entryType: category.entry_type,
+              creditsPerson: category.credits_person === 1,
+              winner: category.winner,
+              creditedPerson: category.credited_person,
+            })
           }
           onDeleteCategory={setCategoryToDelete}
           onAddAward={() => setCategoryPickerOpen(true)}
           onReorder={() => setReorderOpen(true)}
           onBack={goBackToMain}
+          creditSuggestions={creditedPeople}
+          onSaveCreditedPerson={handleCreditedPersonSave}
+          onToggleCreditsPerson={(templateId, enabled) =>
+            void handleCreditsPersonChange(templateId, enabled)
+          }
         />
       ) : view === "category" ? (
         selectedTemplate ? (
@@ -523,8 +629,11 @@ export default function AwardsPage() {
             onTypeChange={(type) => void handleTemplateTypeChange(type)}
             onDeleteTemplate={() => void openDeleteTemplate(selectedTemplate)}
             onOpenYear={handleYearSelect}
-            onChangeWinner={(categoryId, year, entryType) =>
-              openPickerFor(categoryId, year, entryType)
+            onChangeWinner={openPickerFor}
+            creditSuggestions={creditedPeople}
+            onSaveCreditedPerson={handleCreditedPersonSave}
+            onToggleCreditsPerson={(templateId, enabled) =>
+              void handleCreditsPersonChange(templateId, enabled)
             }
           />
         ) : (
@@ -561,6 +670,11 @@ export default function AwardsPage() {
         title={pickerEntryType ? `Select ${pickerEntryType} Winner` : undefined}
         entryFilter={
           pickerEntryType ? (entry) => entry.entry_type === pickerEntryType : undefined
+        }
+        personCredit={
+          pickerTarget?.creditsPerson
+            ? { current: pickerTarget.current, suggestions: creditedPeople }
+            : undefined
         }
       />
 

@@ -26,6 +26,8 @@ interface AwardRowProps {
   label: string;
   /** Winner name (year/award views) or award name (home view). */
   headline: string | null;
+  /** Person credited beside the winner, shown after it: "Oppenheimer — Cillian Murphy". */
+  credit?: string | null;
   imagePath: string | null;
   /** Whether a winner exists — drives cover vs dashed slot (a winner may lack art). */
   decided: boolean;
@@ -47,6 +49,7 @@ interface AwardRowProps {
 export function AwardRow({
   label,
   headline,
+  credit = null,
   imagePath,
   decided,
   selected = false,
@@ -119,19 +122,32 @@ export function AwardRow({
           >
             {label}
           </span>
-          <span
-            className={cn(
-              "block truncate tracking-tight",
-              placeholder
-                ? "text-[15px] font-medium text-white/40"
-                : cn(
-                    "text-[16.5px] font-semibold",
-                    selected ? "text-[#f0d391]" : "text-white"
-                  )
-            )}
-          >
-            {placeholder ? "No winner yet" : headline}
-          </span>
+          {placeholder ? (
+            <span className="block truncate text-[15px] font-medium tracking-tight text-white/40">
+              No winner yet
+            </span>
+          ) : (
+            // The entry gives way first so the credited person stays readable;
+            // the name only truncates once it alone passes 55% of the line.
+            <span
+              className={cn(
+                "flex min-w-0 items-baseline text-[16.5px] font-semibold tracking-tight",
+                selected ? "text-[#f0d391]" : "text-white"
+              )}
+            >
+              <span className="min-w-0 truncate">{headline}</span>
+              {credit && (
+                <span
+                  className={cn(
+                    "ml-1.5 max-w-[55%] shrink-0 truncate font-medium",
+                    selected ? "text-[#f0d391]/70" : "text-white/55"
+                  )}
+                >
+                  — {credit}
+                </span>
+              )}
+            </span>
+          )}
         </span>
 
         {badge && <span className="shrink-0 pr-1">{badge}</span>}

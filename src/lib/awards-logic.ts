@@ -8,6 +8,8 @@ export interface AwardTemplate {
   created_date: string;
   /** Media type the award belongs to (Movie, Game, …). null = General. */
   entry_type: string | null;
+  /** 0/1: each winner also credits a person (the actor for Best Actor). */
+  credits_person: number;
   usage_count?: number; // How many years used this template
 }
 
@@ -19,19 +21,74 @@ export interface AwardCategory {
   template_id: number | null;
 }
 
-/** A year's award category joined with its winner and template media type. */
+/** A year's award category joined with its winner and template settings. */
 export type AwardCategoryWithWinner = AwardCategory & {
   winner: MediaEntry | null;
   entry_type: string | null;
+  /** 0/1 from the template: whether this award credits a person. */
+  credits_person: number;
+  /** The winner's credited person; null when none, or while the award's switch is off. */
+  credited_person: string | null;
 };
 
 /** Award labels are grouped by media type; untagged awards share this bucket. */
 export const GENERAL_GROUP = "General";
 
+/** Winner columns selected next to `m.*` (aliased so they can't collide with entries columns). */
 interface AwardWinner {
   category_id: number;
   media_id: number;
-  media?: MediaEntry; // Joined data
+  award_credited_person: string | null;
+}
+
+/** One award an entry won, for card badges, tooltips and chips. */
+export interface EntryAward {
+  categoryName: string;
+  year: number;
+  creditedPerson: string | null;
+}
+
+/**
+ * The winner's credited person, but only while its award still credits one.
+ * Switching the option off hides stored names without deleting them, so
+ * switching it back on brings them back.
+ *
+ * Expects `w` (award_winners) and `c` (award_categories) in scope. This is a
+ * correlated lookup rather than a JOIN on purpose: award_templates has its own
+ * `entry_type` column, which would make adultExclusionSql()'s bare
+ * `entry_type` ambiguous in the queries that append it.
+ */
+export const CREDITED_PERSON_SQL =
+  "CASE WHEN EXISTS (SELECT 1 FROM award_templates ct WHERE ct.id = c.template_id AND ct.credits_person = 1) THEN w.credited_person END";
+
+/** Longest credited name we store. */
+export const CREDITED_PERSON_MAX_LENGTH = 120;
+
+/** "Oppenheimer — Cillian Murphy", or just the entry name when no one is credited. */
+export function withCreditedPerson(name: string, person: string | null | undefined): string {
+  return person ? `${name} — ${person}` : name;
+}
+
+// Award names that almost always honour a person. Only a hint: it pre-ticks
+// "Credit a person" when creating an award, and the user can untick it. Word
+// boundaries keep "Podcast" and "Ghost" from matching "cast" and "host".
+const PERSON_AWARD_HINT =
+  /\b(actors?|actress(es)?|acting|performances?|performers?|directors?|directing|voice|cast|ensemble|composers?|narrator|narration|host|supporting)\b/i;
+
+/** Whether an award's name suggests it honours a person (Best Actor, Best Director…). */
+export function suggestsPersonCredit(name: string): boolean {
+  return PERSON_AWARD_HINT.test(name);
+}
+
+/** Trim and collapse whitespace; an empty name means no one is credited. */
+function normalizeCreditedPerson(name: string | null | undefined): string | null {
+  if (name == null) return null;
+  const normalized = name.trim().replace(/\s+/g, ' ');
+  if (!normalized) return null;
+  if (normalized.length > CREDITED_PERSON_MAX_LENGTH) {
+    throw new Error(`Keep the name under ${CREDITED_PERSON_MAX_LENGTH} characters.`);
+  }
+  return normalized;
 }
 
 export interface AwardYearSummary {
@@ -51,6 +108,8 @@ export interface TemplateDeletionImpact {
 export interface TemplateWinnerHistory {
   year: number;
   winner: MediaEntry | null;
+  /** That year's credited person; null when none, or while the award's switch is off. */
+  credited_person: string | null;
   category_id: number;
 }
 
@@ -60,6 +119,7 @@ export interface MediaAwardWin {
   year: number;
   templateId: number | null;
   sortOrder: number;
+  creditedPerson: string | null;
 }
 
 export interface MostAwardedEntry {
@@ -148,9 +208,11 @@ export const awardsLogic = {
   async getAwardsForYear(year: number): Promise<AwardCategoryWithWinner[]> {
     const db = await dbService.connect();
 
-    // Get Categories (with each template's media type for grouping/filtering)
-    const categories = await db.select<(AwardCategory & { entry_type: string | null })[]>(
-      `SELECT c.*, t.entry_type AS entry_type
+    // Get Categories (with each template's media type and person-credit switch)
+    const categories = await db.select<
+      (AwardCategory & { entry_type: string | null; credits_person: number })[]
+    >(
+      `SELECT c.*, t.entry_type AS entry_type, COALESCE(t.credits_person, 0) AS credits_person
        FROM award_categories c
        LEFT JOIN award_templates t ON t.id = c.template_id
        WHERE c.year = $1
@@ -160,25 +222,33 @@ export const awardsLogic = {
 
     // Get Winners and join Media info
     const winnersRaw = await db.select<(AwardWinner & MediaEntry)[]>(
-      `SELECT w.category_id, w.media_id, m.* 
-         FROM award_winners w 
-         JOIN entries m ON w.media_id = m.id 
-         WHERE w.category_id IN (SELECT id FROM award_categories WHERE year = $1)`,
+      `SELECT w.category_id, w.media_id, ${CREDITED_PERSON_SQL} AS award_credited_person, m.*
+         FROM award_winners w
+         JOIN award_categories c ON c.id = w.category_id
+         JOIN entries m ON w.media_id = m.id
+         WHERE c.year = $1`,
       [year]
     );
 
     // Map winners to categories for easy UI consumption
-    const winnerMap = new Map<number, MediaEntry>();
+    const winnerMap = new Map<number, { media: MediaEntry; creditedPerson: string | null }>();
     winnersRaw.forEach(w => {
       // Extract MediaEntry part
-      const { category_id, media_id, ...media } = w;
-      winnerMap.set(category_id, media as MediaEntry);
+      const { category_id, media_id, award_credited_person, ...media } = w;
+      winnerMap.set(category_id, {
+        media: media as MediaEntry,
+        creditedPerson: award_credited_person,
+      });
     });
 
-    return categories.map(cat => ({
-      ...cat,
-      winner: winnerMap.get(cat.id) || null
-    }));
+    return categories.map(cat => {
+      const winner = winnerMap.get(cat.id);
+      return {
+        ...cat,
+        winner: winner?.media ?? null,
+        credited_person: winner?.creditedPerson ?? null,
+      };
+    });
   },
 
   // 2b. The lead artwork per year for the home view's year cards: the cover of
@@ -202,7 +272,12 @@ export const awardsLogic = {
   },
 
   // 3. Create Category (also creates template if it doesn't exist)
-  async createCategory(name: string, year: number, entryType: string | null = null) {
+  async createCategory(
+    name: string,
+    year: number,
+    entryType: string | null = null,
+    creditsPerson = false
+  ) {
     const normalized = normalizeAwardName(name);
     if (!normalized) {
       throw new Error("Please enter an award name.");
@@ -214,10 +289,11 @@ export const awardsLogic = {
     await this.createYear(year);
 
     // First, ensure template exists for this normalized name. INSERT OR IGNORE
-    // leaves an existing template's stored type untouched.
+    // leaves an existing template's stored type and person-credit switch
+    // untouched.
     await db.execute(
-      "INSERT OR IGNORE INTO award_templates (name, created_date, entry_type) VALUES ($1, datetime('now'), $2)",
-      [normalized, normalizedType]
+      "INSERT OR IGNORE INTO award_templates (name, created_date, entry_type, credits_person) VALUES ($1, datetime('now'), $2, $3)",
+      [normalized, normalizedType, creditsPerson ? 1 : 0]
     );
 
     // Get the template id
@@ -250,13 +326,50 @@ export const awardsLogic = {
     );
   },
 
-  // 4. Set Winner
-  async setWinner(categoryId: number, mediaId: number) {
+  // 4. Set Winner. The whole row is replaced, so a new winner never inherits
+  // the previous winner's credited person.
+  async setWinner(categoryId: number, mediaId: number, creditedPerson: string | null = null) {
+    const person = normalizeCreditedPerson(creditedPerson);
     const db = await dbService.connect();
     await db.execute(
-      "INSERT OR REPLACE INTO award_winners (category_id, media_id, selected_date) VALUES ($1, $2, datetime('now'))",
-      [categoryId, mediaId]
+      "INSERT OR REPLACE INTO award_winners (category_id, media_id, selected_date, credited_person) VALUES ($1, $2, datetime('now'), $3)",
+      [categoryId, mediaId, person]
     );
+  },
+
+  // 4b. Credit (or clear, with null/empty) the person beside an existing winner
+  async setCreditedPerson(categoryId: number, name: string | null): Promise<void> {
+    const person = normalizeCreditedPerson(name);
+    const db = await dbService.connect();
+    const result = await db.execute(
+      "UPDATE award_winners SET credited_person = $1 WHERE category_id = $2",
+      [person, categoryId]
+    );
+    if (result.rowsAffected === 0) {
+      throw new Error("Choose a winner before crediting a person.");
+    }
+  },
+
+  // 4c. Every name credited so far, for autocomplete. Names on hidden adult
+  // entries' awards stay hidden. Deduplicated case-insensitively.
+  async getCreditedPeople(): Promise<string[]> {
+    const db = await dbService.connect();
+    const rows = await db.select<{ name: string }[]>(
+      `SELECT DISTINCT w.credited_person AS name
+       FROM award_winners w
+       JOIN entries m ON m.id = w.media_id
+       WHERE w.credited_person IS NOT NULL${adultExclusionSql()}
+       ORDER BY name COLLATE NOCASE`
+    );
+    const seen = new Set<string>();
+    return rows
+      .map((row) => row.name)
+      .filter((name) => {
+        const key = name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
   },
 
   // 5. Delete Category
@@ -278,38 +391,44 @@ export const awardsLogic = {
   },
 
   // 7. Get all awards won by a specific media entry
-  async getAwardsForMedia(mediaId: number): Promise<{ categoryName: string; year: number }[]> {
+  async getAwardsForMedia(mediaId: number): Promise<EntryAward[]> {
     const db = await dbService.connect();
-    const results = await db.select<{ name: string; year: number }[]>(
-      `SELECT c.name, c.year 
-       FROM award_winners w 
-       JOIN award_categories c ON w.category_id = c.id 
-       WHERE w.media_id = $1 
+    const results = await db.select<{ name: string; year: number; credited_person: string | null }[]>(
+      `SELECT c.name, c.year, ${CREDITED_PERSON_SQL} AS credited_person
+       FROM award_winners w
+       JOIN award_categories c ON w.category_id = c.id
+       WHERE w.media_id = $1
        ORDER BY c.year DESC, c.name ASC`,
       [mediaId]
     );
-    return results.map(r => ({ categoryName: r.name, year: r.year }));
+    return results.map(r => ({
+      categoryName: r.name,
+      year: r.year,
+      creditedPerson: r.credited_person,
+    }));
   },
 
   // 8. Get all awards for a list of media IDs (batch query for efficiency)
-  async getAwardsForMediaBatch(mediaIds: number[]): Promise<Map<number, { categoryName: string; year: number }[]>> {
+  async getAwardsForMediaBatch(mediaIds: number[]): Promise<Map<number, EntryAward[]>> {
     if (mediaIds.length === 0) return new Map();
 
     const db = await dbService.connect();
     const placeholders = mediaIds.map((_, i) => `$${i + 1}`).join(',');
-    const results = await db.select<{ media_id: number; name: string; year: number }[]>(
-      `SELECT w.media_id, c.name, c.year 
-       FROM award_winners w 
-       JOIN award_categories c ON w.category_id = c.id 
-       WHERE w.media_id IN (${placeholders}) 
+    const results = await db.select<
+      { media_id: number; name: string; year: number; credited_person: string | null }[]
+    >(
+      `SELECT w.media_id, c.name, c.year, ${CREDITED_PERSON_SQL} AS credited_person
+       FROM award_winners w
+       JOIN award_categories c ON w.category_id = c.id
+       WHERE w.media_id IN (${placeholders})
        ORDER BY c.year DESC, c.name ASC`,
       mediaIds
     );
 
-    const awardsMap = new Map<number, { categoryName: string; year: number }[]>();
+    const awardsMap = new Map<number, EntryAward[]>();
     for (const r of results) {
       const existing = awardsMap.get(r.media_id) || [];
-      existing.push({ categoryName: r.name, year: r.year });
+      existing.push({ categoryName: r.name, year: r.year, creditedPerson: r.credited_person });
       awardsMap.set(r.media_id, existing);
     }
     return awardsMap;
@@ -357,24 +476,32 @@ export const awardsLogic = {
     const placeholders = categoryIds.map((_, i) => `$${i + 1}`).join(',');
 
     const winners = await db.select<(AwardWinner & MediaEntry)[]>(
-      `SELECT w.category_id, w.media_id, m.* 
-       FROM award_winners w 
-       JOIN entries m ON w.media_id = m.id 
+      `SELECT w.category_id, w.media_id, ${CREDITED_PERSON_SQL} AS award_credited_person, m.*
+       FROM award_winners w
+       JOIN award_categories c ON c.id = w.category_id
+       JOIN entries m ON w.media_id = m.id
        WHERE w.category_id IN (${placeholders})`,
       categoryIds
     );
 
-    const winnerMap = new Map<number, MediaEntry>();
+    const winnerMap = new Map<number, { media: MediaEntry; creditedPerson: string | null }>();
     winners.forEach(w => {
-      const { category_id, media_id, ...media } = w;
-      winnerMap.set(category_id, media as MediaEntry);
+      const { category_id, media_id, award_credited_person, ...media } = w;
+      winnerMap.set(category_id, {
+        media: media as MediaEntry,
+        creditedPerson: award_credited_person,
+      });
     });
 
-    return categories.map(cat => ({
-      year: cat.year,
-      winner: winnerMap.get(cat.id) || null,
-      category_id: cat.id
-    }));
+    return categories.map(cat => {
+      const winner = winnerMap.get(cat.id);
+      return {
+        year: cat.year,
+        winner: winner?.media ?? null,
+        credited_person: winner?.creditedPerson ?? null,
+        category_id: cat.id,
+      };
+    });
   },
 
   // 12. Create a new template (standalone)
@@ -482,6 +609,16 @@ export const awardsLogic = {
     );
   },
 
+  // 17b. Switch whether an award credits a person with each winner. Turning it
+  // off hides stored names (see CREDITED_PERSON_SQL) without deleting them.
+  async updateTemplateCreditsPerson(templateId: number, enabled: boolean): Promise<void> {
+    const db = await dbService.connect();
+    await db.execute(
+      "UPDATE award_templates SET credits_person = $1 WHERE id = $2",
+      [enabled ? 1 : 0, templateId]
+    );
+  },
+
   // 18. Get entries that have won multiple awards across all time
   async getMostAwardedEntries(minWins = 2): Promise<MostAwardedEntry[]> {
     const db = await dbService.connect();
@@ -491,6 +628,7 @@ export const awardsLogic = {
       award_year: number;
       award_template_id: number | null;
       award_sort_order: number;
+      award_credited_person: string | null;
     };
 
     const rows = await db.select<WinRow[]>(
@@ -499,6 +637,7 @@ export const awardsLogic = {
               c.year AS award_year,
               c.template_id AS award_template_id,
               c.sort_order AS award_sort_order,
+              ${CREDITED_PERSON_SQL} AS award_credited_person,
               m.id,
               m.name,
               m.genre,
@@ -547,6 +686,7 @@ export const awardsLogic = {
         award_year,
         award_template_id,
         award_sort_order,
+        award_credited_person,
         ...entry
       } = row;
 
@@ -567,6 +707,7 @@ export const awardsLogic = {
         year: award_year,
         templateId: award_template_id,
         sortOrder: award_sort_order,
+        creditedPerson: award_credited_person,
       });
     }
 

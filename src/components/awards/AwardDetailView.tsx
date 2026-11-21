@@ -27,7 +27,13 @@ interface AwardDetailViewProps {
   onDeleteTemplate: () => void;
   /** Undecided rows open that year with this award pre-selected. */
   onOpenYear: (year: number, templateId: number) => void;
-  onChangeWinner: (categoryId: number, year: number, entryType: string | null) => void;
+  onChangeWinner: (award: InspectorAward) => void;
+  /** Names credited before, for the inspector's name editor. */
+  creditSuggestions: string[];
+  /** Save (or clear) a winner's credited person. Rejects on failure. */
+  onSaveCreditedPerson: (categoryId: number, name: string | null) => Promise<void>;
+  /** Flip this award's "Credit a person" switch. */
+  onToggleCreditsPerson: (templateId: number, enabled: boolean) => void;
 }
 
 const TOOLTIP_OPTIONS = {
@@ -49,6 +55,9 @@ export function AwardDetailView({
   onDeleteTemplate,
   onOpenYear,
   onChangeWinner,
+  creditSuggestions,
+  onSaveCreditedPerson,
+  onToggleCreditsPerson,
 }: AwardDetailViewProps) {
   const { bindTooltip } = useHoverTooltip();
 
@@ -117,7 +126,11 @@ export function AwardDetailView({
       .filter(
         (category) => category.id !== selectedEntry.category_id && category.winner?.id === winnerId
       )
-      .map((category) => category.name);
+      .map((category) =>
+        category.credited_person
+          ? `${category.name} (${category.credited_person})`
+          : category.name
+      );
   }, [selectedEntry, yearAwards]);
 
   const inspectorAward: InspectorAward | null = selectedEntry
@@ -128,6 +141,8 @@ export function AwardDetailView({
         entryType: template.entry_type,
         templateId: template.id,
         winner: selectedEntry.winner,
+        creditsPerson: template.credits_person === 1,
+        creditedPerson: selectedEntry.credited_person,
       }
     : null;
 
@@ -209,6 +224,7 @@ export function AwardDetailView({
                 key={entry.category_id}
                 label={String(entry.year)}
                 headline={entry.winner?.name ?? null}
+                credit={entry.credited_person}
                 imagePath={entry.winner?.image_url ?? null}
                 decided={entry.winner !== null}
                 selected={entry.category_id === selectedCategoryId}
@@ -225,9 +241,12 @@ export function AwardDetailView({
             mode="detail"
             alsoWon={alsoWon}
             alsoWonYear={selectedYear ?? 0}
-            onChangeWinner={(award) =>
-              onChangeWinner(award.categoryId, award.year, award.entryType)
+            onChangeWinner={onChangeWinner}
+            creditSuggestions={creditSuggestions}
+            onSaveCreditedPerson={(award, name) =>
+              onSaveCreditedPerson(award.categoryId, name)
             }
+            onToggleCreditsPerson={(_, enabled) => onToggleCreditsPerson(template.id, enabled)}
           />
         </div>
       )}

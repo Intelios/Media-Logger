@@ -1,3 +1,4 @@
+import { CREDITED_PERSON_SQL } from "../awards-logic";
 import { adultExclusionSql, dbService } from "../db";
 import type { ReviewAward, ReviewYearCoverRow, ReviewYearTypeRow } from "./types";
 
@@ -23,12 +24,15 @@ export async function getReviewAwards(year: number): Promise<ReviewAward[]> {
       {
         category_name: string;
         winner_name: string;
+        credited_person: string | null;
         image_url: string | null;
         entry_type: string | null;
         review_score: number | null;
       }[]
     >(
-      `SELECT c.name as category_name, m.name as winner_name, m.image_url, m.entry_type, m.review_score
+      `SELECT c.name as category_name, m.name as winner_name,
+              ${CREDITED_PERSON_SQL} AS credited_person,
+              m.image_url, m.entry_type, m.review_score
        FROM award_categories c
        JOIN award_winners w ON w.category_id = c.id
        JOIN entries m ON w.media_id = m.id
@@ -40,6 +44,7 @@ export async function getReviewAwards(year: number): Promise<ReviewAward[]> {
     return rows.map((row) => ({
       category: row.category_name,
       winner: row.winner_name,
+      creditedPerson: row.credited_person,
       imageUrl: row.image_url,
       entryType: row.entry_type,
       score: row.review_score,

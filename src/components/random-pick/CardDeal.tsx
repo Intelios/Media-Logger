@@ -410,6 +410,9 @@ function RevealDetails({
             >
               <Trophy size={12} />
               {award.categoryName} {award.year}
+              {award.creditedPerson && (
+                <span className="font-normal text-amber-200/70">· {award.creditedPerson}</span>
+              )}
             </span>
           ))}
         </div>

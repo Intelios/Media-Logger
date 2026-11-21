@@ -182,6 +182,8 @@ export function validateBackupTables(value: unknown): asserts value is BackupTab
     requireString(row, 'created_date', context);
     // Optional: pre-v7 backups have no media-type tag to carry.
     if (row.entry_type !== undefined) requireNullableString(row, 'entry_type', context);
+    // Optional: pre-v8 backups have no person-credit switch to carry.
+    if (row.credits_person !== undefined) requireBooleanInteger(row, 'credits_person', context);
   });
 
   const categories = asRows(tables.award_categories, 'award_categories');
@@ -208,6 +210,8 @@ export function validateBackupTables(value: unknown): asserts value is BackupTab
     if (!categoryIds.has(categoryId)) throw new Error(`${context} references missing category ${categoryId}`);
     if (!entryIds.has(mediaId)) throw new Error(`${context} references missing media entry ${mediaId}`);
     requireNullableString(row, 'selected_date', context);
+    // Optional: pre-v8 backups have no credited person to carry.
+    if (row.credited_person !== undefined) requireNullableString(row, 'credited_person', context);
   });
 
   const profiles = asRows(tables.profiles, 'profiles');

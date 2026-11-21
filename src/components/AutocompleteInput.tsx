@@ -9,6 +9,10 @@ interface AutocompleteInputProps {
   className?: string;
   /** If true, treats value as comma-separated and autocompletes the current token */
   multiValue?: boolean;
+  id?: string;
+  autoFocus?: boolean;
+  maxLength?: number;
+  ariaLabel?: string;
 }
 
 export function AutocompleteInput({
@@ -18,6 +22,10 @@ export function AutocompleteInput({
   placeholder,
   className,
   multiValue = false,
+  id,
+  autoFocus,
+  maxLength,
+  ariaLabel,
 }: AutocompleteInputProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
@@ -116,6 +124,9 @@ export function AutocompleteInput({
       e.preventDefault();
       selectSuggestion(filtered[highlightIndex]);
     } else if (e.key === "Escape") {
+      // Marked handled so a surrounding editor can tell "close the list" from
+      // "cancel" (propagation is untouched, so modal Escape still works).
+      e.preventDefault();
       setIsFocused(false);
     }
   };
@@ -138,7 +149,11 @@ export function AutocompleteInput({
     <div className="relative" ref={containerRef}>
       <input
         ref={inputRef}
+        id={id}
         type="text"
+        autoFocus={autoFocus}
+        maxLength={maxLength}
+        aria-label={ariaLabel}
         value={value}
         onChange={e => onChange(e.target.value)}
         onFocus={() => setIsFocused(true)}

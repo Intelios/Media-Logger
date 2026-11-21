@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { Plus, Search, Star, Trophy, X } from "lucide-react";
+import { CREDITED_PERSON_MAX_LENGTH } from "../lib/awards-logic";
 import { dbService, type EntryCardSummary } from "../lib/db";
 import { formatCardRating, getRatingTextColor } from "../lib/media-config";
 import { cn } from "../lib/utils_ui";
+import { AutocompleteInput } from "./AutocompleteInput";
 import { CoverImage } from "./CoverImage";
 import { VirtualizedCardGrid } from "./VirtualizedCardGrid";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
@@ -17,10 +19,22 @@ const getMediaEntryKey = (entry: EntryCardSummary) => entry.id;
 const FOCUS_RING =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6ab5c]/60";
 
+/** Turns single-pick into two steps: choose the entry, then who to credit. */
+export interface PersonCreditOptions {
+  /**
+   * The award's current winner and its credited name. The name is offered
+   * again only when that same entry is re-picked; a new winner starts empty.
+   */
+  current: { mediaId: number; name: string | null } | null;
+  /** Names credited before, for autocomplete. */
+  suggestions: string[];
+}
+
 interface WinnerPickerProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect?: (mediaId: number) => void;
+  /** `creditedPerson` is only passed when `personCredit` is set (null = none). */
+  onSelect?: (mediaId: number, creditedPerson?: string | null) => void;
   onSubmitSelection?: (mediaIds: number[]) => void | Promise<void>;
   year?: number; // Optional: filter search by year automatically?
   mode?: "single" | "multiple";
@@ -30,6 +44,8 @@ interface WinnerPickerProps {
   excludedIds?: number[];
   /** Client-side filter applied after the year/exclusion filters. */
   entryFilter?: (entry: EntryCardSummary) => boolean;
+  /** Single mode only: ask who to credit after an entry is picked. */
+  personCredit?: PersonCreditOptions;
 }
 
 /**
@@ -49,17 +65,22 @@ export function WinnerPicker({
   confirmLabel,
   excludedIds = EMPTY_IDS,
   entryFilter,
+  personCredit,
 }: WinnerPickerProps) {
   const [query, setQuery] = useState("");
   const [allEntries, setAllEntries] = useState<EntryCardSummary[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Person-credit step: the entry picked in step one, and the name typed for it.
+  const [pendingEntry, setPendingEntry] = useState<EntryCardSummary | null>(null);
+  const [personName, setPersonName] = useState("");
   const modalRef = useRef<HTMLDivElement>(null);
   const resultsScrollRef = useRef<HTMLDivElement>(null);
   const isMultiSelect = mode === "multiple";
   const excludedIdSet = useMemo(() => new Set(excludedIds), [excludedIds]);
 
-  useEscapeToClose(isOpen, onClose);
+  // Escape on the credit step steps back to the grid rather than closing.
+  useEscapeToClose(isOpen, pendingEntry ? () => setPendingEntry(null) : onClose);
   useFocusTrap(isOpen, modalRef);
 
   // Fetch + reset only when the picker opens (or the year changes) — excludedIds
@@ -70,6 +91,8 @@ export function WinnerPicker({
     setQuery("");
     setSelectedIds([]);
     setIsSubmitting(false);
+    setPendingEntry(null);
+    setPersonName("");
     // Summaries only — description/notes prose is never needed for picking.
     dbService.getAllEntrySummaries().then((entries) => {
       setAllEntries(entries);
@@ -97,12 +120,25 @@ export function WinnerPicker({
     );
   };
 
-  const handleCardClick = (mediaId: number) => {
+  const handleCardClick = (entry: EntryCardSummary) => {
     if (isMultiSelect) {
-      toggleSelection(mediaId);
+      toggleSelection(entry.id);
       return;
     }
-    onSelect?.(mediaId);
+    if (personCredit) {
+      const current = personCredit.current;
+      setPersonName(current?.mediaId === entry.id ? current.name ?? "" : "");
+      setPendingEntry(entry);
+      return;
+    }
+    onSelect?.(entry.id);
+  };
+
+  const handleSaveWinner = (event: FormEvent) => {
+    event.preventDefault();
+    if (!pendingEntry) return;
+    const name = personName.trim();
+    onSelect?.(pendingEntry.id, name.length > 0 ? name : null);
   };
 
   const handleSubmitSelection = async () => {
@@ -119,9 +155,11 @@ export function WinnerPicker({
   if (!isOpen) return null;
 
   const heading = title ?? (isMultiSelect ? "Add collection items" : "Select winner");
-  const subtitle = `${filteredEntries.length} ${
-    filteredEntries.length === 1 ? "entry" : "entries"
-  }${year ? ` from ${year}` : ""}`;
+  const subtitle = pendingEntry
+    ? "Who should be credited alongside the winner?"
+    : `${filteredEntries.length} ${
+        filteredEntries.length === 1 ? "entry" : "entries"
+      }${year ? ` from ${year}` : ""}`;
 
   const emptyMessage =
     filteredEntries.length === 0
@@ -171,120 +209,195 @@ export function WinnerPicker({
           </button>
         </header>
 
-        <div className="flex items-center gap-3 border-b border-white/5 px-5 py-3">
-          <div className="relative flex-1">
-            <Search
-              size={15}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/35"
-            />
-            <input
-              autoFocus
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={searchPlaceholder ?? `Search for a winner${year ? ` from ${year}` : ""}…`}
-              className={cn(
-                "h-10 w-full rounded-[10px] border border-white/10 bg-white/[0.04] pl-9 pr-3 text-[13.5px] text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#d6ab5c]/50 focus:bg-white/[0.06]",
-                FOCUS_RING
-              )}
-            />
-          </div>
-          <span className="shrink-0 text-[12.5px] tabular-nums text-white/40">
-            {query.trim()
-              ? `${results.length} match${results.length === 1 ? "" : "es"}`
-              : "Most recent first"}
-          </span>
-        </div>
+        {pendingEntry ? (
+          <form onSubmit={handleSaveWinner} className="flex min-h-0 flex-1 flex-col">
+            <div className="custom-scrollbar flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-8">
+              <div className="flex w-full max-w-sm flex-col items-center">
+                <span
+                  className="flex h-[180px] w-full items-center justify-center overflow-hidden rounded-[12px] ring-1 ring-white/[0.08]"
+                  style={{ background: "rgba(255, 255, 255, 0.03)" }}
+                >
+                  <CoverImage
+                    path={pendingEntry.image_url}
+                    alt=""
+                    variant="card"
+                    priority="high"
+                    sizes="384px"
+                    containerClassName="flex h-full w-full items-center justify-center p-3"
+                    imageClassName="h-full w-full object-contain"
+                  />
+                </span>
+                <p className="mt-4 max-w-full break-words text-center text-[19px] font-semibold leading-tight text-white">
+                  {pendingEntry.name}
+                </p>
 
-        <div
-          ref={resultsScrollRef}
-          className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4"
-        >
-          <VirtualizedCardGrid
-            items={results}
-            getItemKey={getMediaEntryKey}
-            columns={{ base: 2, md: 3, lg: 4 }}
-            gap={16}
-            estimatedRowHeight={196}
-            scrollContainerRef={resultsScrollRef}
-            ariaLabel="Media search results"
-            renderItem={(entry) => {
-              const selectionIndex = selectedIds.indexOf(entry.id);
-              const isSelected = selectionIndex >= 0;
-              return (
-                <button
-                  type="button"
-                  onClick={() => handleCardClick(entry.id)}
-                  aria-pressed={isMultiSelect ? isSelected : undefined}
+                <label
+                  htmlFor="winner-picker-person"
+                  className="mt-6 self-start text-[12.5px] font-medium text-white/55"
+                >
+                  Credited person
+                </label>
+                <div className="mt-1.5 w-full">
+                  <AutocompleteInput
+                    id="winner-picker-person"
+                    value={personName}
+                    onChange={setPersonName}
+                    suggestions={personCredit?.suggestions ?? []}
+                    autoFocus
+                    maxLength={CREDITED_PERSON_MAX_LENGTH}
+                    placeholder="e.g. Cillian Murphy"
+                    className={cn(
+                      "h-10 w-full rounded-[10px] border border-white/10 bg-white/[0.04] px-3 text-[13.5px] text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#d6ab5c]/50 focus:bg-white/[0.06]",
+                      FOCUS_RING
+                    )}
+                  />
+                </div>
+                <p className="mt-2 self-start text-[12px] text-white/35">
+                  Optional. You can add or change it later.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-white/5 bg-black/20 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setPendingEntry(null)}
+                className={cn(
+                  "h-[38px] rounded-[10px] border border-white/10 px-4 text-[13px] font-semibold text-white/70 transition-colors hover:border-white/20 hover:bg-white/[0.06] hover:text-white",
+                  FOCUS_RING
+                )}
+              >
+                Back
+              </button>
+              <button
+                type="submit"
+                className={cn(
+                  "h-[38px] rounded-[10px] bg-[#d6ab5c] px-4 text-[13px] font-semibold text-[#1d150a] transition-colors hover:bg-[#e0b76b]",
+                  FOCUS_RING
+                )}
+              >
+                Save winner
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 border-b border-white/5 px-5 py-3">
+              <div className="relative flex-1">
+                <Search
+                  size={15}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/35"
+                />
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={searchPlaceholder ?? `Search for a winner${year ? ` from ${year}` : ""}…`}
                   className={cn(
-                    "group flex w-full flex-col gap-2 rounded-[12px] border border-transparent p-2 text-left transition-colors",
-                    isSelected
-                      ? "border-[#d6ab5c]/40 bg-[#d6ab5c]/[0.10]"
-                      : "hover:border-white/10 hover:bg-white/[0.04]",
+                    "h-10 w-full rounded-[10px] border border-white/10 bg-white/[0.04] pl-9 pr-3 text-[13.5px] text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#d6ab5c]/50 focus:bg-white/[0.06]",
                     FOCUS_RING
                   )}
-                >
-                  <span
-                    className={cn(
-                      "relative flex aspect-[16/9] w-full items-center justify-center overflow-hidden rounded-[8px] ring-1",
-                      isSelected ? "ring-[#d6ab5c]" : "ring-white/[0.08]"
-                    )}
-                    style={{ background: "rgba(255, 255, 255, 0.03)" }}
-                  >
-                    <CoverImage
-                      path={entry.image_url}
-                      alt=""
-                      variant="small"
-                      priority="low"
-                      containerClassName="flex h-full w-full items-center justify-center p-1.5"
-                      imageClassName="max-h-full max-w-full object-contain"
-                    />
+                />
+              </div>
+              <span className="shrink-0 text-[12.5px] tabular-nums text-white/40">
+                {query.trim()
+                  ? `${results.length} match${results.length === 1 ? "" : "es"}`
+                  : "Most recent first"}
+              </span>
+            </div>
 
-                    {isMultiSelect && (
+            <div
+              ref={resultsScrollRef}
+              className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4"
+            >
+              <VirtualizedCardGrid
+                items={results}
+                getItemKey={getMediaEntryKey}
+                columns={{ base: 2, md: 3, lg: 4 }}
+                gap={16}
+                estimatedRowHeight={196}
+                scrollContainerRef={resultsScrollRef}
+                ariaLabel="Media search results"
+                renderItem={(entry) => {
+                  const selectionIndex = selectedIds.indexOf(entry.id);
+                  const isSelected = selectionIndex >= 0;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => handleCardClick(entry)}
+                      aria-pressed={isMultiSelect ? isSelected : undefined}
+                      className={cn(
+                        "group flex w-full flex-col gap-2 rounded-[12px] border border-transparent p-2 text-left transition-colors",
+                        isSelected
+                          ? "border-[#d6ab5c]/40 bg-[#d6ab5c]/[0.10]"
+                          : "hover:border-white/10 hover:bg-white/[0.04]",
+                        FOCUS_RING
+                      )}
+                    >
                       <span
                         className={cn(
-                          "absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold",
-                          isSelected
-                            ? "bg-[#d6ab5c] text-[#1d150a]"
-                            : "bg-black/60 text-white/80 ring-1 ring-white/20"
+                          "relative flex aspect-[16/9] w-full items-center justify-center overflow-hidden rounded-[8px] ring-1",
+                          isSelected ? "ring-[#d6ab5c]" : "ring-white/[0.08]"
                         )}
+                        style={{ background: "rgba(255, 255, 255, 0.03)" }}
                       >
-                        {isSelected ? selectionIndex + 1 : <Plus size={12} />}
+                        <CoverImage
+                          path={entry.image_url}
+                          alt=""
+                          variant="small"
+                          priority="low"
+                          containerClassName="flex h-full w-full items-center justify-center p-1.5"
+                          imageClassName="max-h-full max-w-full object-contain"
+                        />
+
+                        {isMultiSelect && (
+                          <span
+                            className={cn(
+                              "absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold",
+                              isSelected
+                                ? "bg-[#d6ab5c] text-[#1d150a]"
+                                : "bg-black/60 text-white/80 ring-1 ring-white/20"
+                            )}
+                          >
+                            {isSelected ? selectionIndex + 1 : <Plus size={12} />}
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </span>
 
-                  <span className="min-w-0 px-0.5">
-                    <span className="block truncate text-[13.5px] font-medium text-white">
-                      {entry.name}
-                    </span>
-                    <span className="mt-0.5 flex items-center gap-1 text-[11.5px]">
-                      {entry.review_score != null ? (
-                        <span
-                          className={cn(
-                            "flex items-center gap-1 font-medium",
-                            getRatingTextColor(entry.review_score)
-                          )}
-                        >
-                          <Star size={9} className="fill-current" />
-                          {formatCardRating(entry.review_score)}/10
+                      <span className="min-w-0 px-0.5">
+                        <span className="block truncate text-[13.5px] font-medium text-white">
+                          {entry.name}
                         </span>
-                      ) : (
-                        <span className="text-white/30">Not rated</span>
-                      )}
-                    </span>
-                  </span>
-                </button>
-              );
-            }}
-          />
+                        <span className="mt-0.5 flex items-center gap-1 text-[11.5px]">
+                          {entry.review_score != null ? (
+                            <span
+                              className={cn(
+                                "flex items-center gap-1 font-medium",
+                                getRatingTextColor(entry.review_score)
+                              )}
+                            >
+                              <Star size={9} className="fill-current" />
+                              {formatCardRating(entry.review_score)}/10
+                            </span>
+                          ) : (
+                            <span className="text-white/30">Not rated</span>
+                          )}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                }}
+              />
 
-          {results.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <Trophy size={26} className="text-white/20" />
-              <p className="mt-3 text-[13.5px] font-medium text-white/55">{emptyMessage}</p>
+              {results.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <Trophy size={26} className="text-white/20" />
+                  <p className="mt-3 text-[13.5px] font-medium text-white/55">{emptyMessage}</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
 
         {isMultiSelect && (
           <div className="flex items-center justify-between gap-3 border-t border-white/5 bg-black/20 px-5 py-4">

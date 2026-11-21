@@ -80,6 +80,9 @@ export function MediaListCard({
             {awards.map((award, i) => (
               <li key={i} className="text-xs text-gray-200">
                 {award.categoryName}
+                {award.creditedPerson && (
+                  <span className="text-gray-400"> — {award.creditedPerson}</span>
+                )}
                 <span className="text-amber-400/70 ml-1">({award.year})</span>
               </li>
             ))}

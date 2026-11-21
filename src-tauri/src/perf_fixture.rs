@@ -79,7 +79,10 @@ mod implementation {
 
     const DATABASE_FILENAME: &str = "media_logger.db";
     const FIXTURE_PREFIX: &str = "__media_logger_perf_fixture_v1__";
-    const SCHEMA_VERSION: i64 = 6;
+    // The fixture writes every table with the current columns, so it needs the
+    // schema the app itself migrates to. Tied to the real constant so a new
+    // migration can't leave the generator refusing every database again.
+    const SCHEMA_VERSION: i64 = crate::database::DATABASE_SCHEMA_VERSION;
     const ENTRY_INSERT_BATCH: usize = 32;
     const IMAGE_PROGRESS_BATCH: usize = 50;
     static FIXTURE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -1034,28 +1037,32 @@ mod implementation {
         tx: &mut sqlx::Transaction<'_, Sqlite>,
         preset: FixturePreset,
     ) -> Result<usize, String> {
-        const CATEGORIES: [(&str, Option<&str>); 12] = [
-            ("Best Picture", Some("Movie")),
-            ("Best Direction", Some("Movie")),
-            ("Best Performance", Some("Movie")),
-            ("Best Writing", Some("Book")),
-            ("Best Art", Some("Game")),
-            ("Best Music", Some("Album")),
-            ("Best Game", Some("Game")),
-            ("Best Series", Some("Show")),
-            ("Best Debut", None),
-            ("Best Rewatch", None),
-            ("Biggest Surprise", None),
-            ("Personal Favourite", None),
+        // (name, media type, credits a person). The person-credit awards give
+        // every winner a synthetic name so the Performance Lab renders the
+        // "Entry — Person" path too.
+        const CATEGORIES: [(&str, Option<&str>, bool); 12] = [
+            ("Best Picture", Some("Movie"), false),
+            ("Best Direction", Some("Movie"), true),
+            ("Best Performance", Some("Movie"), true),
+            ("Best Writing", Some("Book"), false),
+            ("Best Art", Some("Game"), false),
+            ("Best Music", Some("Album"), false),
+            ("Best Game", Some("Game"), false),
+            ("Best Series", Some("Show"), false),
+            ("Best Debut", None, false),
+            ("Best Rewatch", None, false),
+            ("Biggest Surprise", None, false),
+            ("Personal Favourite", None, false),
         ];
-        for (index, (category, entry_type)) in CATEGORIES.iter().enumerate() {
+        for (index, (category, entry_type, credits_person)) in CATEGORIES.iter().enumerate() {
             sqlx::query(
-                "INSERT INTO award_templates (id,name,created_date,entry_type) VALUES (?,?,?,?)",
+                "INSERT INTO award_templates (id,name,created_date,entry_type,credits_person) VALUES (?,?,?,?,?)",
             )
             .bind((index + 1) as i64)
             .bind(*category)
             .bind("2026-01-01T10:00:00Z")
             .bind(*entry_type)
+            .bind(i64::from(*credits_person))
             .execute(&mut **tx)
             .await
             .map_err(|error| format!("Failed to insert fixture award templates: {error}"))?;
@@ -1069,7 +1076,7 @@ mod implementation {
                 .execute(&mut **tx)
                 .await
                 .map_err(|error| format!("Failed to insert fixture award years: {error}"))?;
-            for (order, (category, _)) in CATEGORIES.iter().enumerate() {
+            for (order, (category, _, credits_person)) in CATEGORIES.iter().enumerate() {
                 sqlx::query(
                     "INSERT INTO award_categories (id,year,name,created_date,sort_order,template_id) VALUES (?,?,?,?,?,?)",
                 )
@@ -1084,12 +1091,15 @@ mod implementation {
                 .map_err(|error| format!("Failed to insert fixture award categories: {error}"))?;
                 let media_id =
                     1 + (((year as usize - 2017) * 97 + order * 31) % preset.entries()) as i64;
+                let credited_person =
+                    credits_person.then(|| format!("Fixture Person {}", category_id % 37 + 1));
                 sqlx::query(
-                    "INSERT INTO award_winners (category_id,media_id,selected_date) VALUES (?,?,?)",
+                    "INSERT INTO award_winners (category_id,media_id,selected_date,credited_person) VALUES (?,?,?,?)",
                 )
                 .bind(category_id)
                 .bind(media_id)
                 .bind(format!("{year}-12-31T20:00:00Z"))
+                .bind(credited_person)
                 .execute(&mut **tx)
                 .await
                 .map_err(|error| format!("Failed to insert fixture award winners: {error}"))?;

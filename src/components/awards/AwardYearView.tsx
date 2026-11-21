@@ -47,6 +47,12 @@ interface AwardYearViewProps {
   onAddAward: () => void;
   onReorder: () => void;
   onBack: () => void;
+  /** Names credited before, for the inspector's name editor. */
+  creditSuggestions: string[];
+  /** Save (or clear) a winner's credited person. Rejects on failure. */
+  onSaveCreditedPerson: (categoryId: number, name: string | null) => Promise<void>;
+  /** Flip an award template's "Credit a person" switch. */
+  onToggleCreditsPerson: (templateId: number, enabled: boolean) => void;
 }
 
 const TOOLTIP_OPTIONS = {
@@ -82,6 +88,9 @@ export function AwardYearView({
   onAddAward,
   onReorder,
   onBack,
+  creditSuggestions,
+  onSaveCreditedPerson,
+  onToggleCreditsPerson,
 }: AwardYearViewProps) {
   const { bindTooltip } = useHoverTooltip();
 
@@ -131,6 +140,8 @@ export function AwardYearView({
         entryType: selectedCategory.entry_type,
         templateId: selectedCategory.template_id,
         winner: selectedCategory.winner,
+        creditsPerson: selectedCategory.credits_person === 1,
+        creditedPerson: selectedCategory.credited_person,
       }
     : null;
 
@@ -141,7 +152,11 @@ export function AwardYearView({
       .filter(
         (category) => category.id !== selectedCategory.id && category.winner?.id === winnerId
       )
-      .map((category) => category.name);
+      .map((category) =>
+        category.credited_person
+          ? `${category.name} (${category.credited_person})`
+          : category.name
+      );
   }, [categories, selectedCategory]);
 
   // Template history is immutable between mutations and shared by every
@@ -324,6 +339,7 @@ export function AwardYearView({
                         key={category.id}
                         label={category.name}
                         headline={category.winner?.name ?? null}
+                        credit={category.credited_person}
                         imagePath={category.winner?.image_url ?? null}
                         decided={category.winner !== null}
                         selected={category.id === selectedId}
@@ -350,6 +366,13 @@ export function AwardYearView({
                 if (category) onDeleteCategory(category);
               }}
               onSelectHistoryYear={onYearSelectWithTemplate}
+              creditSuggestions={creditSuggestions}
+              onSaveCreditedPerson={(award, name) =>
+                onSaveCreditedPerson(award.categoryId, name)
+              }
+              onToggleCreditsPerson={(award, enabled) => {
+                if (award.templateId != null) onToggleCreditsPerson(award.templateId, enabled);
+              }}
             />
           </div>
         </>

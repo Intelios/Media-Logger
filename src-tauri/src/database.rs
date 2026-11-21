@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use tauri::State;
 use tauri_plugin_sql::{DbInstances, DbPool};
 
-const DATABASE_SCHEMA_VERSION: i64 = 7;
+pub(crate) const DATABASE_SCHEMA_VERSION: i64 = 8;
 const MAX_SQLITE_BIND_PARAMS: usize = 999;
 const MAX_BULK_MUTATION_ITEMS: usize = 10_000;
 
@@ -89,6 +89,10 @@ pub struct AwardTemplateRow {
     // Defaulted for serde so backups written before schema v7 still load.
     #[serde(default)]
     pub entry_type: Option<String>,
+    // 0/1: whether each winner of this award also credits a person (the actor
+    // for Best Actor). Defaulted for serde so pre-v8 backups still load.
+    #[serde(default)]
+    pub credits_person: i64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
@@ -106,6 +110,10 @@ pub struct AwardWinnerRow {
     pub category_id: i64,
     pub media_id: i64,
     pub selected_date: Option<String>,
+    // The person credited alongside the winning entry. Kept even while the
+    // template's switch is off. Defaulted for serde so pre-v8 backups load.
+    #[serde(default)]
+    pub credited_person: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
@@ -285,7 +293,8 @@ async fn create_current_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<(), S
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
             created_date TEXT NOT NULL,
-            entry_type TEXT
+            entry_type TEXT,
+            credits_person INTEGER NOT NULL DEFAULT 0
         )"#,
         r#"CREATE TABLE IF NOT EXISTS award_years (
             year INTEGER PRIMARY KEY,
@@ -320,6 +329,7 @@ async fn create_current_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<(), S
             category_id INTEGER PRIMARY KEY,
             media_id INTEGER NOT NULL,
             selected_date TEXT,
+            credited_person TEXT,
             FOREIGN KEY (category_id) REFERENCES award_categories(id) ON DELETE CASCADE,
             FOREIGN KEY (media_id) REFERENCES entries(id) ON DELETE CASCADE
         )"#,
@@ -942,6 +952,32 @@ async fn migrate_to_v7(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
     .await
 }
 
+async fn migrate_to_v8(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
+    // Awards can credit a person alongside the winning entry ("Oppenheimer —
+    // Cillian Murphy" for Best Actor). The switch lives on the template so it
+    // applies to every year the award appears in, and existing awards start
+    // switched off. The name lives on the winner row because it changes with
+    // each year's winner.
+    let mut template_columns = table_columns(tx, "award_templates").await?;
+    add_missing_column(
+        tx,
+        "award_templates",
+        &mut template_columns,
+        "credits_person",
+        "INTEGER NOT NULL DEFAULT 0",
+    )
+    .await?;
+    let mut winner_columns = table_columns(tx, "award_winners").await?;
+    add_missing_column(
+        tx,
+        "award_winners",
+        &mut winner_columns,
+        "credited_person",
+        "TEXT",
+    )
+    .await
+}
+
 #[tauri::command]
 pub async fn database_run_migrations(
     database_url: String,
@@ -1137,6 +1173,36 @@ pub async fn database_run_migrations(
             .await
             .map_err(|error| database_error("Failed to commit database migration", error))?;
         applied.push(7);
+        migrated_version = 7;
+    }
+
+    if migrated_version < 8 {
+        let mut tx = pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(|error| database_error("Failed to begin database migration", error))?;
+        let migration_result = async {
+            migrate_to_v8(&mut tx).await?;
+            execute_schema_sql(
+                &mut tx,
+                "PRAGMA user_version = 8",
+                "Failed to record the database schema version",
+            )
+            .await
+        }
+        .await;
+        if let Err(error) = migration_result {
+            return match tx.rollback().await {
+                Ok(()) => Err(error),
+                Err(rollback_error) => Err(format!(
+                    "{error}; migration rollback also failed: {rollback_error}"
+                )),
+            };
+        }
+        tx.commit()
+            .await
+            .map_err(|error| database_error("Failed to commit database migration", error))?;
+        applied.push(8);
     }
 
     if !applied.is_empty() {
@@ -1531,7 +1597,7 @@ pub async fn database_export_snapshot(
         ),
         award_templates: fetch_rows!(
             AwardTemplateRow,
-            "SELECT id, name, created_date, entry_type FROM award_templates ORDER BY id",
+            "SELECT id, name, created_date, entry_type, credits_person FROM award_templates ORDER BY id",
             "Failed to export award templates"
         ),
         award_categories: fetch_rows!(
@@ -1541,7 +1607,7 @@ pub async fn database_export_snapshot(
         ),
         award_winners: fetch_rows!(
             AwardWinnerRow,
-            "SELECT category_id, media_id, selected_date FROM award_winners ORDER BY category_id",
+            "SELECT category_id, media_id, selected_date, credited_person FROM award_winners ORDER BY category_id",
             "Failed to export award winners"
         ),
         profiles: fetch_rows!(
@@ -1664,6 +1730,7 @@ struct PlannedWinner {
     target_category_id: i64,
     target_media_id: i64,
     selected_date: Option<String>,
+    credited_person: Option<String>,
 }
 
 #[derive(Debug)]
@@ -1856,16 +1923,17 @@ async fn insert_award_templates(
     tx: &mut Transaction<'_, Sqlite>,
     rows: &[PlannedTemplate],
 ) -> Result<(), String> {
-    for chunk in rows.chunks(batch_size(4)) {
+    for chunk in rows.chunks(batch_size(5)) {
         let mut query = QueryBuilder::<Sqlite>::new(
-            "INSERT INTO award_templates (id, name, created_date, entry_type) ",
+            "INSERT INTO award_templates (id, name, created_date, entry_type, credits_person) ",
         );
         query.push_values(chunk, |mut values, planned| {
             values
                 .push_bind(planned.target_id)
                 .push_bind(&planned.row.name)
                 .push_bind(&planned.row.created_date)
-                .push_bind(&planned.row.entry_type);
+                .push_bind(&planned.row.entry_type)
+                .push_bind(planned.row.credits_person);
         });
         query
             .build()
@@ -1906,15 +1974,16 @@ async fn insert_award_winners(
     tx: &mut Transaction<'_, Sqlite>,
     rows: &[PlannedWinner],
 ) -> Result<(), String> {
-    for chunk in rows.chunks(batch_size(3)) {
+    for chunk in rows.chunks(batch_size(4)) {
         let mut query = QueryBuilder::<Sqlite>::new(
-            "INSERT INTO award_winners (category_id, media_id, selected_date) ",
+            "INSERT INTO award_winners (category_id, media_id, selected_date, credited_person) ",
         );
         query.push_values(chunk, |mut values, planned| {
             values
                 .push_bind(planned.target_category_id)
                 .push_bind(planned.target_media_id)
-                .push_bind(&planned.selected_date);
+                .push_bind(&planned.selected_date)
+                .push_bind(&planned.credited_person);
         });
         query
             .build()
@@ -2262,7 +2331,7 @@ async fn import_backup_transaction(
     }
 
     let existing_templates = sqlx::query_as::<_, AwardTemplateRow>(
-        "SELECT id, name, created_date, entry_type FROM award_templates ORDER BY id",
+        "SELECT id, name, created_date, entry_type, credits_person FROM award_templates ORDER BY id",
     )
     .fetch_all(&mut **tx)
     .await
@@ -2374,6 +2443,7 @@ async fn import_backup_transaction(
                 target_category_id,
                 target_media_id,
                 selected_date: winner.selected_date,
+                credited_person: winner.credited_person,
             });
             count_mut(&mut counts, "award_winners").inserted += 1;
         } else {

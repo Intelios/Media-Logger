@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Search, X, Plus, Trophy, Check, Layers } from "lucide-react";
-import { awardsLogic, type AwardTemplate } from "../lib/awards-logic";
+import { Search, X, Plus, Trophy, Check, Layers, UserRound } from "lucide-react";
+import { awardsLogic, suggestsPersonCredit, type AwardTemplate } from "../lib/awards-logic";
 import { getTypeBadgeStyle, getVisibleEntryTypeOptions } from "../lib/media-config";
 import { cn } from "../lib/utils_ui";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
@@ -11,7 +11,7 @@ interface CategoryPickerProps {
     isOpen: boolean;
     onClose: () => void;
     onSelectExisting: (templateId: number) => void;
-    onCreateNew: (name: string, entryType: string | null) => void;
+    onCreateNew: (name: string, entryType: string | null, creditsPerson: boolean) => void;
     year: number;
 }
 
@@ -28,6 +28,9 @@ export function CategoryPicker({
     const [showNewInput, setShowNewInput] = useState(false);
     const [newName, setNewName] = useState("");
     const [newType, setNewType] = useState<string | null>(null);
+    const [newCreditsPerson, setNewCreditsPerson] = useState(false);
+    // Once the user flips the switch themselves, stop guessing from the name.
+    const [creditsPersonTouched, setCreditsPersonTouched] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
 
     useEscapeToClose(isOpen, onClose);
@@ -39,6 +42,8 @@ export function CategoryPicker({
             setShowNewInput(false);
             setNewName("");
             setNewType(null);
+            setNewCreditsPerson(false);
+            setCreditsPersonTouched(false);
             // Load templates not already used in this year
             awardsLogic.getTemplatesNotUsedInYear(year).then(setTemplates);
         }
@@ -55,9 +60,16 @@ export function CategoryPicker({
 
     const handleCreateNew = () => {
         if (newName.trim()) {
-            onCreateNew(newName.trim(), newType);
+            onCreateNew(newName.trim(), newType, newCreditsPerson);
             onClose();
         }
+    };
+
+    const handleNameChange = (value: string) => {
+        setNewName(value);
+        // "Best Actor", "Best Director"… pre-tick the person credit until the
+        // user decides for themselves.
+        if (!creditsPersonTouched) setNewCreditsPerson(suggestsPersonCredit(value));
     };
 
     if (!isOpen) return null;
@@ -110,7 +122,7 @@ export function CategoryPicker({
                                 className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:border-amber-500/50 outline-none"
                                 placeholder="Enter new award name..."
                                 value={newName}
-                                onChange={e => setNewName(e.target.value)}
+                                onChange={e => handleNameChange(e.target.value)}
                                 onKeyDown={e => e.key === "Enter" && handleCreateNew()}
                             />
                             <div className="space-y-1.5">
@@ -140,6 +152,45 @@ export function CategoryPicker({
                                     })}
                                 </div>
                             </div>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={newCreditsPerson}
+                                onClick={() => {
+                                    setCreditsPersonTouched(true);
+                                    setNewCreditsPerson(on => !on);
+                                }}
+                                className={cn(
+                                    "w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50",
+                                    newCreditsPerson
+                                        ? "border-amber-500/40 bg-amber-500/10"
+                                        : "border-white/10 bg-white/[0.03] hover:border-white/20"
+                                )}
+                            >
+                                <UserRound size={16} className={cn("shrink-0", newCreditsPerson ? "text-amber-300" : "text-gray-500")} />
+                                <span className="min-w-0 flex-1">
+                                    <span className={cn("block text-sm font-medium", newCreditsPerson ? "text-amber-200" : "text-gray-300")}>
+                                        Credit a person
+                                    </span>
+                                    <span className="block text-xs text-gray-500">
+                                        Name who won it alongside the entry, like the actor for Best Actor
+                                    </span>
+                                </span>
+                                <span
+                                    aria-hidden
+                                    className={cn(
+                                        "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+                                        newCreditsPerson ? "bg-amber-500" : "bg-white/15"
+                                    )}
+                                >
+                                    <span
+                                        className={cn(
+                                            "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                                            newCreditsPerson ? "translate-x-[18px]" : "translate-x-0.5"
+                                        )}
+                                    />
+                                </span>
+                            </button>
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => setShowNewInput(false)}
@@ -195,6 +246,12 @@ export function CategoryPicker({
                                             <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-white", typeBadge.bg)}>
                                                 {typeBadge.icon}
                                                 {template.entry_type}
+                                            </span>
+                                        )}
+                                        {template.credits_person === 1 && (
+                                            <span className="inline-flex items-center gap-1 text-[11px] text-amber-300/80">
+                                                <UserRound size={11} />
+                                                Credits a person
                                             </span>
                                         )}
                                     </div>

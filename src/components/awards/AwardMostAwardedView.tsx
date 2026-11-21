@@ -217,6 +217,11 @@ function MostAwardedInspector({
                     />
                     <span className="truncate text-[13px] font-medium text-white group-hover:text-[#f0d391]">
                       {win.categoryName}
+                      {win.creditedPerson && (
+                        <span className="font-normal text-white/45 group-hover:text-[#f0d391]/70">
+                          {" "}· {win.creditedPerson}
+                        </span>
+                      )}
                     </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-1 text-[11.5px] tabular-nums text-white/45 group-hover:text-[#f0d391]/80">

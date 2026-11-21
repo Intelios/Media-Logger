@@ -36,6 +36,8 @@ export interface ReviewYearCoverRow {
 export interface ReviewAward {
   category: string;
   winner: string;
+  /** Person credited beside the winner (Best Actor); null when none. */
+  creditedPerson: string | null;
   imageUrl: string | null;
   entryType: string | null;
   score: number | null;

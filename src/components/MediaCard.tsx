@@ -67,6 +67,8 @@ const isPerfectTen = (score: number | null | undefined): boolean => {
 export interface MediaAward {
   categoryName: string;
   year: number;
+  /** Person credited beside the win (Best Actor), when the award credits one. */
+  creditedPerson?: string | null;
 }
 
 interface MediaCardProps {
@@ -346,6 +348,9 @@ export const MediaCard = React.memo(function MediaCard({
                     {awards.map((award, i) => (
                       <li key={i} className="text-xs text-gray-200">
                         {award.categoryName}
+                        {award.creditedPerson && (
+                          <span className="text-gray-400"> — {award.creditedPerson}</span>
+                        )}
                         <span className="text-amber-400/70 ml-1">({award.year})</span>
                       </li>
                     ))}

@@ -40,7 +40,12 @@ function findProfileSummary(index: ProfileIndex, profile: ProfileSummary): Profi
 
 export interface ProfileAwardYearGroup {
   year: number;
-  awards: Array<{ entry: MediaEntry; categoryName: string; year: number }>;
+  awards: Array<{
+    entry: MediaEntry;
+    categoryName: string;
+    year: number;
+    creditedPerson: string | null;
+  }>;
 }
 
 export function useProfilesPageData() {
@@ -204,7 +209,12 @@ export function useProfilesPageData() {
       if (!entry) continue;
       for (const award of awards) {
         const group = grouped.get(award.year) ?? [];
-        group.push({ entry, categoryName: award.categoryName, year: award.year });
+        group.push({
+          entry,
+          categoryName: award.categoryName,
+          year: award.year,
+          creditedPerson: award.creditedPerson ?? null,
+        });
         grouped.set(award.year, group);
       }
     }

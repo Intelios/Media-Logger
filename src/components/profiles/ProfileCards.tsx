@@ -89,20 +89,26 @@ export function TimelineCard({
 export function AwardCard({
   entry,
   categoryName,
+  creditedPerson = null,
   profileConfig,
   index,
   onClick,
 }: {
   entry: MediaEntry;
   categoryName: string;
+  /** Person credited beside the win (Best Actor), shown after the award name. */
+  creditedPerson?: string | null;
   profileConfig: ProfileTypeConfig;
   index: number;
   onClick: (entry: MediaEntry) => void;
 }) {
   const accentBadge = (
-    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r ${profileConfig.badgeGradient} shadow-lg ${profileConfig.badgeShadow}`}>
-      <Trophy size={14} className="text-white" />
+    <div className={`flex max-w-[320px] items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r ${profileConfig.badgeGradient} shadow-lg ${profileConfig.badgeShadow}`}>
+      <Trophy size={14} className="shrink-0 text-white" />
       <span className="text-white text-xs font-bold whitespace-nowrap">{categoryName}</span>
+      {creditedPerson && (
+        <span className="min-w-0 truncate text-xs font-medium text-white/80">· {creditedPerson}</span>
+      )}
     </div>
   );
   return (

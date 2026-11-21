@@ -88,6 +88,9 @@ export function AwardsChapter({ data, ctx }: { data: AwardsData; ctx: ReviewCont
               </span>
               <span className="truncate text-lg text-white">
                 <Serif style={{ fontSize: 22, lineHeight: 1.15 }}>{award.winner}</Serif>
+                {award.creditedPerson && (
+                  <span className="text-[15px] text-white/55"> — {award.creditedPerson}</span>
+                )}
               </span>
             </div>
             {award.score != null && (

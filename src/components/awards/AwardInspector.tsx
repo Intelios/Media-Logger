@@ -1,13 +1,29 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Calendar, Plus, RefreshCw, Star, Trash2, Trophy } from "lucide-react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  Calendar,
+  Check,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Star,
+  Trash2,
+  Trophy,
+  UserRound,
+  X,
+} from "lucide-react";
 import type { MediaEntry } from "../../lib/db";
-import type { TemplateWinnerHistory } from "../../lib/awards-logic";
+import {
+  CREDITED_PERSON_MAX_LENGTH,
+  withCreditedPerson,
+  type TemplateWinnerHistory,
+} from "../../lib/awards-logic";
 import { useCoverPalettes } from "../../lib/cover-palette";
 import { formatDateNoYear } from "../../lib/dates";
 import { formatCardRating, getRatingTextColor, parseGenres } from "../../lib/media-config";
 import { cn } from "../../lib/utils_ui";
+import { AutocompleteInput } from "../AutocompleteInput";
 import { CoverImage } from "../CoverImage";
-import { useHoverTooltip } from "../HoverTooltip";
+import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../HoverTooltip";
 import { AWARD_FOCUS_RING } from "./AwardRow";
 
 /** What the inspector needs to know about the award it is showing. */
@@ -18,6 +34,10 @@ export interface InspectorAward {
   entryType: string | null;
   templateId: number | null;
   winner: MediaEntry | null;
+  /** The award asks for a person with each winner (template switch). */
+  creditsPerson: boolean;
+  /** The winner's credited person; null when none. */
+  creditedPerson: string | null;
 }
 
 interface AwardInspectorProps {
@@ -35,7 +55,15 @@ interface AwardInspectorProps {
   onChangeWinner: (award: InspectorAward) => void;
   onRemove?: (award: InspectorAward) => void;
   onSelectHistoryYear?: (year: number, templateId: number) => void;
+  /** Names credited before, for the inline name editor's suggestions. */
+  creditSuggestions?: string[];
+  /** Save (or clear, with null) the winner's credited person. Rejects on failure. */
+  onSaveCreditedPerson?: (award: InspectorAward, name: string | null) => Promise<void>;
+  /** Flip the award's "Credit a person" switch (applies to every year). */
+  onToggleCreditsPerson?: (award: InspectorAward, enabled: boolean) => void;
 }
+
+const EMPTY_SUGGESTIONS: string[] = [];
 
 const TOOLTIP_OPTIONS = {
   width: "content",
@@ -58,6 +86,152 @@ const STAGE_HEIGHT = 238;
 const PRINT_MAX_HEIGHT = 204;
 
 /**
+ * The credited person under the winner's title. The name opens an inline
+ * editor (with suggestions from earlier credits); without a name it offers an
+ * "Add a name" pill. Saving an empty field clears the credit.
+ */
+function CreditedPersonLine({
+  name,
+  suggestions,
+  onSave,
+}: {
+  name: string | null;
+  suggestions: string[];
+  onSave?: (name: string | null) => Promise<void>;
+}) {
+  const { bindTooltip } = useHoverTooltip();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const startEditing = () => {
+    setDraft(name ?? "");
+    setEditing(true);
+  };
+
+  if (editing && onSave) {
+    const submit = async (event: FormEvent) => {
+      event.preventDefault();
+      if (saving) return;
+      setSaving(true);
+      try {
+        const trimmed = draft.trim();
+        await onSave(trimmed.length > 0 ? trimmed : null);
+        setEditing(false);
+      } catch {
+        // The page shows the error toast; keep the editor open so the typed
+        // name isn't lost.
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    return (
+      <form
+        onSubmit={(event) => void submit(event)}
+        onKeyDown={(event) => {
+          // An Escape that only closed the suggestion list arrives handled.
+          if (event.key === "Escape" && !event.defaultPrevented) {
+            event.preventDefault();
+            setEditing(false);
+          }
+        }}
+        className="mt-3 flex items-center gap-1.5"
+      >
+        <div className="min-w-0 flex-1">
+          <AutocompleteInput
+            value={draft}
+            onChange={setDraft}
+            suggestions={suggestions}
+            autoFocus
+            maxLength={CREDITED_PERSON_MAX_LENGTH}
+            ariaLabel="Credited person"
+            placeholder="e.g. Cillian Murphy"
+            className={cn(
+              "h-9 w-full rounded-[9px] border border-white/10 bg-black/30 px-3 text-[13.5px] text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#d6ab5c]/50",
+              AWARD_FOCUS_RING
+            )}
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={saving}
+          aria-label="Save name"
+          className={cn(
+            "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-[#d6ab5c] text-[#1d150a] transition-colors hover:bg-[#e0b76b] disabled:opacity-50",
+            AWARD_FOCUS_RING
+          )}
+        >
+          <Check size={15} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          aria-label="Cancel"
+          className={cn(
+            "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border border-white/10 text-white/50 transition-colors hover:border-white/20 hover:bg-white/[0.06] hover:text-white",
+            AWARD_FOCUS_RING
+          )}
+        >
+          <X size={15} />
+        </button>
+      </form>
+    );
+  }
+
+  if (name) {
+    const label = (
+      <>
+        <UserRound size={14} className="shrink-0 text-[#d6ab5c]" />
+        <span className="min-w-0 break-words text-[16px] font-semibold leading-snug text-[#f0d391]">
+          {name}
+        </span>
+      </>
+    );
+    if (!onSave) {
+      return <div className="mt-2 flex items-center justify-center gap-1.5">{label}</div>;
+    }
+    return (
+      <div className="mt-2 flex justify-center">
+        <button
+          type="button"
+          onClick={startEditing}
+          aria-label={`Credited person: ${name}. Edit`}
+          {...bindTooltip(<span>Edit name</span>, TOOLTIP_OPTIONS)}
+          className={cn(
+            "group inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-white/[0.06]",
+            AWARD_FOCUS_RING
+          )}
+        >
+          {label}
+          <Pencil
+            size={12}
+            className="shrink-0 text-white/25 transition-colors group-hover:text-[#f0d391]"
+          />
+        </button>
+      </div>
+    );
+  }
+
+  if (!onSave) return null;
+  return (
+    <div className="mt-3 flex justify-center">
+      <button
+        type="button"
+        onClick={startEditing}
+        className={cn(
+          "inline-flex h-7 items-center gap-1.5 rounded-full border border-dashed border-[#d6ab5c]/35 px-3 text-[12px] font-medium text-[#d6ab5c]/85 transition-colors hover:border-[#d6ab5c]/60 hover:bg-[#d6ab5c]/[0.08] hover:text-[#f0d391]",
+          AWARD_FOCUS_RING
+        )}
+      >
+        <Plus size={12} />
+        Add a name
+      </button>
+    </div>
+  );
+}
+
+/**
  * The right-hand award inspector: a large cover tinted by its own palette, the
  * winning entry's details, and the award's history. Sticky inside the page
  * scroll so the selection stays readable while the year list moves.
@@ -71,6 +245,9 @@ export function AwardInspector({
   onChangeWinner,
   onRemove,
   onSelectHistoryYear,
+  creditSuggestions = EMPTY_SUGGESTIONS,
+  onSaveCreditedPerson,
+  onToggleCreditsPerson,
 }: AwardInspectorProps) {
   const { bindTooltip } = useHoverTooltip();
   const winner = award?.winner ?? null;
@@ -150,6 +327,46 @@ export function AwardInspector({
         <RefreshCw size={14} />
         {winner ? "Change winner" : "Choose winner"}
       </button>
+      {onToggleCreditsPerson && (
+        <button
+          type="button"
+          onClick={() => onToggleCreditsPerson(award, !award.creditsPerson)}
+          disabled={award.templateId == null}
+          aria-pressed={award.creditsPerson}
+          aria-label="Credit a person"
+          {...bindTooltip(
+            award.templateId == null ? (
+              <TooltipDetail>This award has no template, so it can't credit a person.</TooltipDetail>
+            ) : award.creditsPerson ? (
+              <>
+                <TooltipTitle>Credits a person</TooltipTitle>
+                <TooltipDetail>
+                  Asks who won with each winner, in every year of this award. Turning it
+                  off hides names but keeps them.
+                </TooltipDetail>
+              </>
+            ) : (
+              <>
+                <TooltipTitle>Credit a person</TooltipTitle>
+                <TooltipDetail>
+                  Name who won alongside the entry, like the actor for Best Actor. Applies to
+                  every year of this award.
+                </TooltipDetail>
+              </>
+            ),
+            { width: 250, className: "rounded-xl px-3 py-2" }
+          )}
+          className={cn(
+            "inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] border transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+            award.creditsPerson
+              ? "border-[#d6ab5c]/45 bg-[#d6ab5c]/[0.12] text-[#f0d391] hover:border-[#d6ab5c]/65 hover:bg-[#d6ab5c]/[0.18]"
+              : "border-white/10 text-white/45 hover:border-white/20 hover:bg-white/[0.06] hover:text-white",
+            AWARD_FOCUS_RING
+          )}
+        >
+          <UserRound size={15} />
+        </button>
+      )}
       {mode === "year" && onRemove && (
         <button
           type="button"
@@ -213,6 +430,18 @@ export function AwardInspector({
                 {winner.name}
               </h2>
 
+              {award.creditsPerson && (
+                <CreditedPersonLine
+                  name={award.creditedPerson}
+                  suggestions={creditSuggestions}
+                  onSave={
+                    onSaveCreditedPerson
+                      ? (name) => onSaveCreditedPerson(award, name)
+                      : undefined
+                  }
+                />
+              )}
+
               {chips.length > 0 && (
                 <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
                   {chips.map((chip) => (
@@ -253,6 +482,12 @@ export function AwardInspector({
               <p className="mt-2 text-center text-[15px] font-medium text-white/40">
                 No winner yet
               </p>
+              {award.creditsPerson && (
+                <p className="mt-1.5 flex items-center justify-center gap-1 text-[12px] text-white/35">
+                  <UserRound size={12} className="shrink-0" />
+                  Credits a person with the winner
+                </p>
+              )}
             </>
           )}
 
@@ -272,11 +507,17 @@ export function AwardInspector({
                         }
                       }}
                       disabled={award.templateId == null}
-                      aria-label={`${entry.year} — ${entry.winner ? entry.winner.name : "no winner"}`}
+                      aria-label={`${entry.year}: ${
+                        entry.winner
+                          ? withCreditedPerson(entry.winner.name, entry.credited_person)
+                          : "no winner"
+                      }`}
                       {...bindTooltip(
                         <span>
                           {entry.year}
-                          {entry.winner ? ` · ${entry.winner.name}` : " · No winner"}
+                          {entry.winner
+                            ? ` · ${withCreditedPerson(entry.winner.name, entry.credited_person)}`
+                            : " · No winner"}
                         </span>,
                         TOOLTIP_OPTIONS
                       )}

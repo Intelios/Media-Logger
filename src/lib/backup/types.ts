@@ -42,6 +42,9 @@ export interface AwardTemplateBackupRow {
   // Added with schema v7. Backups written before it omit the field and import
   // as null, which lands the award in the "General" group.
   entry_type?: string | null;
+  // Added with schema v8 (0/1). Older backups omit it and import as 0, so the
+  // award doesn't ask for a credited person.
+  credits_person?: number;
 }
 
 export interface AwardCategoryBackupRow {
@@ -57,6 +60,8 @@ export interface AwardWinnerBackupRow {
   category_id: number;
   media_id: number;
   selected_date: string | null;
+  // Added with schema v8. Older backups omit it and import as null.
+  credited_person?: string | null;
 }
 
 export interface ProfileBackupRow {
