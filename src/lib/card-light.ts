@@ -21,6 +21,9 @@ export const LIGHT_FROM = {
   bottomRight: 128,
 } as const;
 
+/** The cards that cast light: a 10/10 glows. Stable, for VirtualizedCardGrid's lightSource. */
+export const castsCardLight = (entry: { review_score?: number | null }) => entry.review_score === 10;
+
 /** Bitmask of LIGHT_FROM directions; 0 means no lit neighbours. */
 export const CardLightContext = createContext(0);
 

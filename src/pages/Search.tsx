@@ -14,6 +14,7 @@ import { ScoreRangeSlider, formatScoreRange, type ScoreRange } from "../componen
 import { cn } from "../lib/utils_ui";
 import { getVisibleEntryTypes, useAdultMediaEnabled } from "../lib/media-config";
 import { VirtualizedCardGrid } from "../components/VirtualizedCardGrid";
+import { castsCardLight } from "../lib/card-light";
 import { reportMutationError } from "../components/MutationErrorToast";
 import { beginPerformanceSpan } from "../lib/performance-diagnostics";
 import { mediaQueryKeys, queryClient } from "../lib/query-client";
@@ -957,6 +958,7 @@ export default function SearchPage() {
                           onEndReached={loadMoreResults}
                           className={cn('transition-opacity duration-150', isLoadingResults && 'opacity-80')}
                           ariaLabel="Search results"
+                          lightSource={castsCardLight}
                           renderItem={(entry) => (
                             <MediaCard
                               entry={entry}

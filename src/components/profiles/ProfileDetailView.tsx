@@ -29,6 +29,7 @@ import { useHoverTooltip } from '../HoverTooltip';
 import { MediaCard, type MediaAward } from '../MediaCard';
 import { CoverImage } from '../CoverImage';
 import { VirtualizedCardGrid } from '../VirtualizedCardGrid';
+import { castsCardLight } from "../../lib/card-light";
 import { AwardCard, TimelineCard } from './ProfileCards';
 import { getTypeConfig, type ProfileSortOrder } from './profile-config';
 import type { ProfileAwardYearGroup } from './useProfilesPageData';
@@ -497,6 +498,7 @@ export function ProfileDetailView({
               estimatedRowHeight={420}
               className="pb-10"
               ariaLabel={`${profile.name} collection`}
+              lightSource={castsCardLight}
               renderItem={(entry, index) => (
                 <div
                   className={`${index % 5 === 0 ? 'row-span-1' : ''} transform hover:scale-[1.02] transition-transform duration-200`}

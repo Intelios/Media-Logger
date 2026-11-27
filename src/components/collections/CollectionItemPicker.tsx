@@ -7,6 +7,7 @@ import { useFocusTrap } from "../../lib/useFocusTrap";
 import { cn } from "../../lib/utils_ui";
 import { MediaCard } from "../MediaCard";
 import { VirtualizedCardGrid } from "../VirtualizedCardGrid";
+import { castsCardLight } from "../../lib/card-light";
 
 const getMediaEntryKey = (entry: EntryCardSummary) => entry.id;
 
@@ -122,6 +123,7 @@ export function CollectionItemPicker({
             estimatedRowHeight={340}
             scrollContainerRef={resultsScrollRef}
             ariaLabel="Media search results"
+            lightSource={castsCardLight}
             renderItem={(entry) => {
               const selectionIndex = selectedIds.indexOf(entry.id);
               const isSelected = selectionIndex >= 0;

@@ -27,6 +27,7 @@ import {
   useResponsiveColumnCount,
   type ResponsiveGridColumns,
 } from "../components/VirtualizedCardGrid";
+import { CardLightContext, castsCardLight, incomingLight } from "../lib/card-light";
 import { buildEraBands, type EraBandSegment } from "../lib/collections/era-bands";
 import { sortCollections, type CollectionSortMode } from "../lib/collections/sorting";
 import { CollectionSortMenu } from "../components/collections/CollectionSortMenu";
@@ -164,6 +165,7 @@ export default function CollectionsPage() {
   // Era bands are derived from item order and the grid's column count — the same
   // count the grid itself lays out with — so no DOM measurement is involved.
   const columnCount = useResponsiveColumnCount(COLLECTION_GRID_COLUMNS);
+  const lightSources = useMemo(() => items.map(castsCardLight), [items]);
   // Driven by the era columns already joined onto each item, not the `eras`
   // list, so bands never blink out while the two are refetched in sequence.
   const bands = useMemo(() => buildEraBands(items, columnCount), [columnCount, items]);
@@ -523,10 +525,17 @@ export default function CollectionsPage() {
                 threshold={1}
                 className="relative z-10"
                 ariaLabel={`${selectedCollection.name} collection`}
+                lightSource={castsCardLight}
                 renderItem={(entry, index) => renderCollectionItem(entry, index)}
               />
             ) : (
-              items.map((entry, index) => renderCollectionItem(entry, index))
+              // Below the threshold this grid is plain CSS, so it hands out
+              // the 10/10 light itself, as VirtualizedCardGrid does.
+              items.map((entry, index) => (
+                <CardLightContext.Provider key={entry.id} value={incomingLight(lightSources, index, columnCount)}>
+                  {renderCollectionItem(entry, index)}
+                </CardLightContext.Provider>
+              ))
             )}
           </div>
         )}

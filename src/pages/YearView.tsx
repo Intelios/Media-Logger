@@ -8,6 +8,7 @@ import { EntryForm } from "../components/EntryForm";
 import { ExpansionsModal } from "../components/ExpansionsModal";
 import { YearViewToolbar, YEAR_SORT_OPTIONS, type StatusFilter, type StatusKey, type YearSort } from "../components/YearViewToolbar";
 import { VirtualizedCardGrid, type VirtualizedCardGridHandle } from "../components/VirtualizedCardGrid";
+import { castsCardLight } from "../lib/card-light";
 import { reportMutationError } from "../components/MutationErrorToast";
 import { mediaQueryKeys, queryClient } from "../lib/query-client";
 import { getLocalTodayDate } from "../lib/dates";
@@ -19,9 +20,6 @@ const LOCAL_COPY_FILTER_KEY = "yearview-local-copy-filter";
 const REWATCH_FILTER_KEY = "yearview-rewatch-filter";
 const SUBTITLES_FILTER_KEY = "yearview-subtitles-filter";
 const SORT_STORAGE_KEY = "yearview-sort";
-
-/** A 10/10's glow spills onto the cards around it. */
-const castsCardLight = (entry: EntryCardSummary) => entry.review_score === 10;
 
 const STATUS_STORAGE_KEYS: Record<StatusKey, string> = {
   localCopy: LOCAL_COPY_FILTER_KEY,

@@ -5,6 +5,7 @@ import { dbService, type EntryCardSummary, type MediaEntry } from "../lib/db";
 import { MediaCard } from "./MediaCard";
 import { EntryForm } from "./EntryForm";
 import { VirtualizedCardGrid } from "./VirtualizedCardGrid";
+import { castsCardLight } from "../lib/card-light";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { reportMutationError } from "./MutationErrorToast";
@@ -131,6 +132,7 @@ export function ExpansionsModal({
               estimatedRowHeight={420}
               scrollContainerRef={scrollRef}
               ariaLabel={`Expansions for ${parentName}`}
+              lightSource={castsCardLight}
               renderItem={(entry) => (
                 <MediaCard
                   entry={entry}

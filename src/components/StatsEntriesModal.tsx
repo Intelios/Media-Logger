@@ -9,6 +9,7 @@ import { dbService } from "../lib/db";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { VirtualizedCardGrid } from "./VirtualizedCardGrid";
+import { castsCardLight } from "../lib/card-light";
 import { reportMutationError } from "./MutationErrorToast";
 
 interface StatsEntriesModalProps {
@@ -106,6 +107,7 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, isLoading =
                             estimatedRowHeight={420}
                             scrollContainerRef={scrollRef}
                             ariaLabel={title}
+                            lightSource={castsCardLight}
                             renderItem={(entry) => (
                 <MediaCard
                   entry={entry}
