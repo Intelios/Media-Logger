@@ -1,7 +1,8 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useContext, type ReactNode } from "react";
 import { Calendar, Captions, Check, Clock, Puzzle, RotateCcw, Trophy } from "lucide-react";
 import type { EntryCardSummary, MediaEntry } from "../lib/db";
 import { useCoverPalette } from "../lib/cover-palette";
+import { CardLightContext, LIGHT_FROM, syncGlowPhase } from "../lib/card-light";
 import { cn } from "../lib/utils_ui";
 import { formatDate } from "../lib/dates";
 import {
@@ -49,6 +50,19 @@ const ELEVATION_SHADOW = {
 /** One per side; each swells in turn (index.css staggers them). */
 const PERFECT_SWELLS = ["perfect-swell-top", "perfect-swell-right", "perfect-swell-bottom", "perfect-swell-left"] as const;
 
+/** Light a neighbouring 10/10 casts on this card, by the direction it comes
+ *  from. Sides take a rim, a spill and a swell; corners a dimmer rim and spill. */
+const CARD_LIGHT = [
+  { bit: LIGHT_FROM.left, className: "card-light-edge card-light-from-left", edge: true },
+  { bit: LIGHT_FROM.right, className: "card-light-edge card-light-from-right", edge: true },
+  { bit: LIGHT_FROM.top, className: "card-light-edge card-light-from-top", edge: true },
+  { bit: LIGHT_FROM.bottom, className: "card-light-edge card-light-from-bottom", edge: true },
+  { bit: LIGHT_FROM.topLeft, className: "card-light-corner card-light-from-top-left", edge: false },
+  { bit: LIGHT_FROM.topRight, className: "card-light-corner card-light-from-top-right", edge: false },
+  { bit: LIGHT_FROM.bottomLeft, className: "card-light-corner card-light-from-bottom-left", edge: false },
+  { bit: LIGHT_FROM.bottomRight, className: "card-light-corner card-light-from-bottom-right", edge: false },
+] as const;
+
 const SMALL_TOOLTIP = { width: "content" as const, className: "rounded-lg px-3 py-1.5 whitespace-nowrap" };
 
 interface MediaCardPosterProps {
@@ -84,6 +98,8 @@ export function MediaCardPoster({
   const { bindTooltip } = useHoverTooltip();
   // Null until extracted, and for coverless entries: the neutral scrim stands in.
   const palette = useCoverPalette(entry.image_url);
+  const lightFrom = useContext(CardLightContext);
+  const incomingLight = lightFrom === 0 ? [] : CARD_LIGHT.filter(({ bit }) => (lightFrom & bit) !== 0);
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const genres = parseGenres(entry.genre);
   const isGameEntry = (entry.entry_type || "").toLowerCase().includes("game");
@@ -120,7 +136,7 @@ export function MediaCardPoster({
       {perfectTen ? (
         <>
           <div aria-hidden className="perfect-aura pointer-events-none absolute -inset-[3px] -z-10 rounded-[20px]" />
-          <div aria-hidden className="perfect-bloom pointer-events-none absolute -inset-[3px] -z-10 rounded-[20px]" />
+          <div ref={syncGlowPhase} aria-hidden className="perfect-bloom pointer-events-none absolute -inset-[3px] -z-10 rounded-[20px]" />
         </>
       ) : hasPlatinum ? (
         <div aria-hidden className="platinum-aura pointer-events-none absolute -inset-[3px] -z-10 rounded-[20px]" />
@@ -132,13 +148,22 @@ export function MediaCardPoster({
       {/* Light in the 2px frame: these cover the whole card, but the article
           paints over everything inside the frame. */}
       {perfectTen && PERFECT_SWELLS.map((side) => (
-        <div key={side} aria-hidden className={cn("perfect-swell pointer-events-none absolute inset-0 rounded-2xl", side)} />
+        <div key={side} ref={syncGlowPhase} aria-hidden className={cn("perfect-swell pointer-events-none absolute inset-0 rounded-2xl", side)} />
       ))}
       {hasPlatinum && (
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
           <div className="platinum-sweep platinum-sweep-shine" />
         </div>
       )}
+      {/* A neighbouring 10/10's light catching the frame on the side facing it */}
+      {incomingLight.map(({ className }) => (
+        <div
+          key={className}
+          ref={syncGlowPhase}
+          aria-hidden
+          className={cn("card-light-rim card-light-breathe pointer-events-none absolute inset-0 rounded-2xl", className)}
+        />
+      ))}
 
       <article
         className={cn(
@@ -175,6 +200,15 @@ export function MediaCardPoster({
             className="pointer-events-none absolute inset-0 transition-opacity duration-500"
             style={{ background: palette ? scrimGradient(palette.shadow) : "none", opacity: palette ? 1 : 0 }}
           />
+          {/* ...and spilling across the art, above the scrims and beneath the text */}
+          {incomingLight.map(({ className, edge }) => (
+            <Fragment key={className}>
+              <div ref={syncGlowPhase} aria-hidden className={cn("card-light-face card-light-breathe pointer-events-none absolute inset-0", className)} />
+              {edge && (
+                <div ref={syncGlowPhase} aria-hidden className={cn("card-light-face card-light-swell pointer-events-none absolute inset-0", className)} />
+              )}
+            </Fragment>
+          ))}
           {/* Platinum foil: above the art and scrims, beneath the text. */}
           {hasPlatinum && (
             <>

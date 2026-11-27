@@ -16,6 +16,7 @@ import {
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useOptionalMainScrollContainer } from "../lib/scroll-container";
+import { CardLightContext, incomingLight } from "../lib/card-light";
 import { cn } from "../lib/utils_ui";
 
 export const DEFAULT_GRID_VIRTUALIZATION_THRESHOLD = 80;
@@ -70,6 +71,10 @@ export interface VirtualizedCardGridProps<T> {
   onEndReached?: () => void;
   endReachedThresholdRows?: number;
   ariaLabel?: string;
+  /** Items that cast light on their neighbours (the 10/10 glow). Every item
+   *  then gets the directions of its lit neighbours through CardLightContext.
+   *  Pass a stable function: the sources are recomputed when it changes. */
+  lightSource?: (item: T) => boolean;
 }
 
 interface GridRow {
@@ -153,6 +158,7 @@ function VirtualizedCardGridInner<T>(
     onEndReached,
     endReachedThresholdRows = DEFAULT_GRID_END_THRESHOLD_ROWS,
     ariaLabel,
+    lightSource,
   }: VirtualizedCardGridProps<T>,
   forwardedRef: Ref<VirtualizedCardGridHandle>,
 ) {
@@ -196,6 +202,11 @@ function VirtualizedCardGridInner<T>(
     }
     return nextRows;
   }, [columnCount, getItemKey, items]);
+
+  const lightSources = useMemo(
+    () => (lightSource ? items.map(lightSource) : null),
+    [items, lightSource],
+  );
 
   const getRowKey = useCallback(
     (rowIndex: number) => rows[rowIndex]?.key ?? `row:${columnCount}:${rowIndex}`,
@@ -446,7 +457,11 @@ function VirtualizedCardGridInner<T>(
             && (highlightClassName ?? "rounded-2xl ring-2 ring-primary ring-offset-2 ring-offset-transparent"),
         )}
       >
-        {renderItem(item, index)}
+        {lightSources ? (
+          <CardLightContext.Provider value={incomingLight(lightSources, index, columnCount)}>
+            {renderItem(item, index)}
+          </CardLightContext.Provider>
+        ) : renderItem(item, index)}
       </div>
     );
   };

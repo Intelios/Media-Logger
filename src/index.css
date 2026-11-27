@@ -60,6 +60,9 @@
 html.animations-paused :is(
   .perfect-bloom,
   .perfect-swell,
+  .card-light-breathe,
+  .card-light-swell,
+  .glow-clock,
   .platinum-sweep,
   .cover-skeleton,
   .animate-float,
@@ -82,6 +85,9 @@ html.animations-paused :is(
 html.animations-scrolling :is(
   .perfect-bloom,
   .perfect-swell,
+  .card-light-breathe,
+  .card-light-swell,
+  .glow-clock,
   .platinum-sweep,
   .dashboard-featured-bg img
 ) {
@@ -326,6 +332,7 @@ body:has(.development-build-badge) .app-error-toast {
     0 0 60px rgba(52, 211, 153, 0.14);
   opacity: 0.6;
   animation: perfect-breathe 3s ease-in-out infinite;
+  animation-delay: var(--glow-sync, 0s);
 }
 
 @keyframes perfect-breathe {
@@ -337,6 +344,7 @@ body:has(.development-build-badge) .app-error-toast {
 .perfect-swell {
   opacity: 0;
   animation: perfect-swell 10s ease-in-out infinite;
+  animation-delay: calc(var(--glow-sync, 0s) + var(--swell-offset, 0s));
 }
 
 @keyframes perfect-swell {
@@ -352,19 +360,95 @@ body:has(.development-build-badge) .app-error-toast {
 .perfect-swell-right {
   background: linear-gradient(to left, rgba(236, 253, 245, 1), rgba(209, 250, 229, 0) 50%);
   box-shadow: 10px 0 28px -6px rgba(52, 211, 153, 0.65);
-  animation-delay: -7.5s;
+  --swell-offset: -7.5s;
 }
 
 .perfect-swell-bottom {
   background: linear-gradient(to top, rgba(236, 253, 245, 1), rgba(209, 250, 229, 0) 50%);
   box-shadow: 0 10px 28px -6px rgba(52, 211, 153, 0.65);
-  animation-delay: -5s;
+  --swell-offset: -5s;
 }
 
 .perfect-swell-left {
   background: linear-gradient(to right, rgba(236, 253, 245, 1), rgba(209, 250, 229, 0) 50%);
   box-shadow: -10px 0 28px -6px rgba(52, 211, 153, 0.65);
-  animation-delay: -2.5s;
+  --swell-offset: -2.5s;
+}
+
+/* The light a 10/10 casts on the cards around it (lib/card-light.ts): a rim
+   on the frame and a soft spill across the art on the side facing it, both
+   breathing with its bloom. A side also swells when the 10/10's own side
+   facing it does; a diagonal neighbour gets a dimmer corner. Every layer is
+   a static gradient animated by opacity, synced to the shared glow clock. */
+.card-light-from-left { --light-edge: to right; --swell-offset: -7.5s; }
+.card-light-from-right { --light-edge: to left; --swell-offset: -2.5s; }
+.card-light-from-top { --light-edge: to bottom; --swell-offset: -5s; }
+.card-light-from-bottom { --light-edge: to top; --swell-offset: 0s; }
+.card-light-from-top-left { --light-corner: 0% 0%; }
+.card-light-from-top-right { --light-corner: 100% 0%; }
+.card-light-from-bottom-left { --light-corner: 0% 100%; }
+.card-light-from-bottom-right { --light-corner: 100% 100%; }
+
+/* Under the article, so only the frame shows it. */
+.card-light-rim.card-light-edge {
+  background: linear-gradient(var(--light-edge), rgba(167, 243, 208, 0.95), rgba(52, 211, 153, 0.5) 40px, rgba(52, 211, 153, 0) 120px);
+}
+
+.card-light-rim.card-light-corner {
+  background: radial-gradient(circle at var(--light-corner), rgba(167, 243, 208, 0.75), rgba(52, 211, 153, 0) 64px);
+}
+
+/* Screened over the art, so it lifts dark areas more than bright ones. */
+.card-light-face {
+  mix-blend-mode: screen;
+}
+
+.card-light-face.card-light-edge {
+  background: linear-gradient(var(--light-edge), rgba(52, 211, 153, 0.34), rgba(52, 211, 153, 0.12) 24px, rgba(52, 211, 153, 0.04) 56px, rgba(52, 211, 153, 0) 96px);
+}
+
+.card-light-face.card-light-corner {
+  background: radial-gradient(circle at var(--light-corner), rgba(52, 211, 153, 0.26), rgba(52, 211, 153, 0.07) 32px, rgba(52, 211, 153, 0) 72px);
+}
+
+.card-light-face.card-light-swell {
+  background: linear-gradient(var(--light-edge), rgba(110, 231, 183, 0.42), rgba(52, 211, 153, 0.14) 32px, rgba(52, 211, 153, 0) 110px);
+}
+
+/* Bottoms out where the bloom does, but the steady aura keeps it lit. Its
+   resting opacity is what reduced motion shows. */
+.card-light-breathe {
+  opacity: 0.7;
+  animation: card-light-breathe 3s ease-in-out infinite;
+  animation-delay: var(--glow-sync, 0s);
+}
+
+@keyframes card-light-breathe {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.card-light-swell {
+  opacity: 0;
+  animation: perfect-swell 10s ease-in-out infinite;
+  animation-delay: calc(var(--glow-sync, 0s) + var(--swell-offset, 0s));
+}
+
+/* The shared clock the glow layers read their phase from: invisible, and
+   paused by the energy saver along with them. */
+.glow-clock {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  animation: glow-clock 30s linear infinite;
+}
+
+@keyframes glow-clock {
+  from, to { opacity: 0; }
 }
 
 /* Platinum — holo foil. A faint, still iridescence on the art, and every few
@@ -427,6 +511,9 @@ body:has(.development-build-badge) .app-error-toast {
 @media (prefers-reduced-motion: reduce) {
   .perfect-bloom,
   .perfect-swell,
+  .card-light-breathe,
+  .card-light-swell,
+  .glow-clock,
   .platinum-sweep {
     animation: none;
   }

@@ -20,6 +20,9 @@ const REWATCH_FILTER_KEY = "yearview-rewatch-filter";
 const SUBTITLES_FILTER_KEY = "yearview-subtitles-filter";
 const SORT_STORAGE_KEY = "yearview-sort";
 
+/** A 10/10's glow spills onto the cards around it. */
+const castsCardLight = (entry: EntryCardSummary) => entry.review_score === 10;
+
 const STATUS_STORAGE_KEYS: Record<StatusKey, string> = {
   localCopy: LOCAL_COPY_FILTER_KEY,
   rewatch: REWATCH_FILTER_KEY,
@@ -520,6 +523,7 @@ export default function YearView() {
           scrollOptions={{ behavior: 'smooth', align: 'center' }}
           className="pb-20"
           ariaLabel={`${year} collection entries`}
+          lightSource={castsCardLight}
           renderItem={(entry) => {
             const isGameEntry = (entry.entry_type || "").toLowerCase().includes("game");
             const hasCardGlow = entry.review_score === 10 || (isGameEntry && entry.is_platinum === 1);
