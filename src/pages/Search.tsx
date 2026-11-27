@@ -953,7 +953,7 @@ export default function SearchPage() {
                           getItemKey={(entry) => entry.id}
                           columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
                           gap={24}
-                          estimatedRowHeight={520}
+                          estimatedRowHeight={420}
                           onEndReached={loadMoreResults}
                           className={cn('transition-opacity duration-150', isLoadingResults && 'opacity-80')}
                           ariaLabel="Search results"

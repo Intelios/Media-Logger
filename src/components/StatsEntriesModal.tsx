@@ -29,6 +29,16 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, isLoading =
     useEscapeToClose(isOpen, onClose);
     useFocusTrap(isOpen, modalRef);
 
+    // Let an expansion card inside this modal jump straight to its parent game.
+    // Hooks stay above the early return below, or opening the modal changes
+    // the hook count and React throws.
+    const navigate = useNavigate();
+    const handleNavigateToParent = useCallback(async (parentEntryId: number) => {
+        const parent = await dbService.getEntryById(parentEntryId);
+        if (!parent?.year_completed) return;
+        navigate(`/year/${parent.year_completed}?highlight=${parentEntryId}&type=${encodeURIComponent(parent.entry_type || "")}`);
+    }, [navigate]);
+
     if (!isOpen) return null;
 
     const handleEdit = (entry: MediaEntry) => {
@@ -54,14 +64,6 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, isLoading =
       reportMutationError("Could not delete this entry.", error);
     }
   };
-
-  // Let an expansion card inside this modal jump straight to its parent game.
-  const navigate = useNavigate();
-  const handleNavigateToParent = useCallback(async (parentEntryId: number) => {
-    const parent = await dbService.getEntryById(parentEntryId);
-    if (!parent?.year_completed) return;
-    navigate(`/year/${parent.year_completed}?highlight=${parentEntryId}&type=${encodeURIComponent(parent.entry_type || "")}`);
-  }, [navigate]);
 
     return createPortal(
         <>
@@ -99,9 +101,9 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, isLoading =
                         <VirtualizedCardGrid
                             items={entries}
                             getItemKey={(entry) => entry.id}
-                            columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
+                            columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5, '2xl': 6 }}
                             gap={24}
-                            estimatedRowHeight={520}
+                            estimatedRowHeight={420}
                             scrollContainerRef={scrollRef}
                             ariaLabel={title}
                             renderItem={(entry) => (

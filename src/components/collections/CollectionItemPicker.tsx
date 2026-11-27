@@ -119,7 +119,7 @@ export function CollectionItemPicker({
             getItemKey={getMediaEntryKey}
             columns={{ base: 2, md: 4 }}
             gap={16}
-            estimatedRowHeight={420}
+            estimatedRowHeight={340}
             scrollContainerRef={resultsScrollRef}
             ariaLabel="Media search results"
             renderItem={(entry) => {
@@ -141,23 +141,30 @@ export function CollectionItemPicker({
                     }
                   }}
                   className={cn(
-                    "relative cursor-pointer ring-offset-2 ring-offset-[#1a1a1a] rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                    "relative cursor-pointer ring-offset-2 ring-offset-[#1a1a1a] rounded-2xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                     isSelected ? "ring-2 ring-primary" : "hover:ring-2 hover:ring-primary/60"
                   )}
                 >
-                  <div
-                    className={cn(
-                      "absolute left-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full border text-white shadow-lg transition-all",
-                      isSelected ? "border-primary bg-primary" : "border-white/20 bg-black/55 backdrop-blur-sm"
-                    )}
-                  >
-                    {isSelected ? (
-                      <span className="text-sm font-bold">{selectionIndex + 1}</span>
-                    ) : (
-                      <Plus size={16} />
-                    )}
-                  </div>
-                  <MediaCard entry={entry} imagePriority="auto" />
+                  {/* The selection marker joins the card's own top-left stack so
+                      it never covers the platinum or award chips. */}
+                  <MediaCard
+                    entry={entry}
+                    imagePriority="auto"
+                    topLeftActions={
+                      <div
+                        className={cn(
+                          "flex h-8 w-8 items-center justify-center rounded-full border text-white shadow-lg transition-all",
+                          isSelected ? "border-primary bg-primary" : "border-white/20 bg-black/55 backdrop-blur-sm"
+                        )}
+                      >
+                        {isSelected ? (
+                          <span className="text-sm font-bold">{selectionIndex + 1}</span>
+                        ) : (
+                          <Plus size={16} />
+                        )}
+                      </div>
+                    }
+                  />
                 </div>
               );
             }}

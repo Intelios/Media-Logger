@@ -55,8 +55,6 @@ import {
     clearDisplayName,
     hasCustomDisplayName,
     getNavigationYears,
-    getRatingDisplayMode,
-    setRatingDisplayMode,
     isAdultMediaEnabled,
     setAdultMediaEnabled,
     isFeaturedAdultAllowed,
@@ -237,7 +235,6 @@ export default function Settings() {
     const [navigationYears, setNavigationYearsState] = useState<string[]>(() => getNavigationYears());
     const [yearInput, setYearInput] = useState('');
     const [yearError, setYearError] = useState('');
-    const [ratingDisplayMode, setRatingDisplayModeState] = useState<'pill' | 'vertical-pill' | 'thermometer'>(() => getRatingDisplayMode());
 
     // Adult Media visibility toggle + its "hide existing entries" confirmation
     const [adultMediaEnabled, setAdultMediaEnabledState] = useState<boolean>(() => isAdultMediaEnabled());
@@ -325,7 +322,6 @@ export default function Settings() {
         setDisplayNameState(getDisplayName());
         setIsCustomName(hasCustomDisplayName());
         setNavigationYearsState(getNavigationYears());
-        setRatingDisplayModeState(getRatingDisplayMode());
         setAdultMediaEnabledState(isAdultMediaEnabled());
         setFeaturedAdultAllowedState(isFeaturedAdultAllowed());
         setDashboardListAdultAllowedState(isDashboardListAdultAllowed());
@@ -602,13 +598,6 @@ export default function Settings() {
         if (style === glassStyle) return;
         setGlassStyle(style);
         showToast(style === 'clear' ? 'Backdrop style set to Clear' : 'Backdrop style set to Default');
-    };
-
-    const handleRatingDisplayChange = (mode: 'pill' | 'vertical-pill' | 'thermometer') => {
-        if (mode === ratingDisplayMode) return;
-        setRatingDisplayMode(mode);
-        setRatingDisplayModeState(mode);
-        showToast(`Rating display set to ${mode === 'pill' ? 'Pill' : mode === 'vertical-pill' ? 'Vertical Pill' : 'Thermometer'}`);
     };
 
     const applyAdultMedia = async (enabled: boolean) => {
@@ -1306,35 +1295,6 @@ export default function Settings() {
                                         className={`segmented-control-item ${glassStyle === 'clear' ? 'active' : ''}`}
                                     >
                                         Clear
-                                    </button>
-                                </div>
-                            </div>
-                        </section>
-
-                        <section className="settings-card">
-                            <div className="settings-row">
-                                <div>
-                                    <div className="settings-row-label">Card Rating Style</div>
-                                    <div className="settings-row-description">How ratings appear on entry cards</div>
-                                </div>
-                                <div className="segmented-control">
-                                    <button
-                                        onClick={() => handleRatingDisplayChange('pill')}
-                                        className={`segmented-control-item ${ratingDisplayMode === 'pill' ? 'active' : ''}`}
-                                    >
-                                        Pill
-                                    </button>
-                                    <button
-                                        onClick={() => handleRatingDisplayChange('vertical-pill')}
-                                        className={`segmented-control-item ${ratingDisplayMode === 'vertical-pill' ? 'active' : ''}`}
-                                    >
-                                        Vertical Pill
-                                    </button>
-                                    <button
-                                        onClick={() => handleRatingDisplayChange('thermometer')}
-                                        className={`segmented-control-item ${ratingDisplayMode === 'thermometer' ? 'active' : ''}`}
-                                    >
-                                        Thermometer
                                     </button>
                                 </div>
                             </div>

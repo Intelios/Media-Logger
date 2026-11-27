@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useImageServiceStatus } from './image-service';
 
 /**
@@ -54,6 +54,20 @@ function normalizePaths(paths: ReadonlyArray<string | null | undefined>): string
   return [...unique].sort();
 }
 
+// Per-cover subscriptions for useCoverPalette. Cards ask one path at a time, so
+// requests made in the same tick are pooled and sent as one batch: a grid that
+// mounts forty cards costs one invoke, not forty.
+const listeners = new Map<string, Set<() => void>>();
+const queued = new Set<string>();
+let flushScheduled = false;
+
+function notify(paths: Iterable<string>): void {
+  for (const path of paths) {
+    const set = listeners.get(path);
+    if (set) for (const listener of set) listener();
+  }
+}
+
 async function loadBatch(paths: string[]): Promise<void> {
   try {
     const entries = await invoke<CoverPaletteEntry[]>('cover_palettes', { imagePaths: paths });
@@ -65,6 +79,8 @@ async function loadBatch(paths: string[]): Promise<void> {
     for (const path of paths) if (!cache.has(path)) cache.set(path, null);
   } finally {
     for (const path of paths) inFlight.delete(path);
+    // Wake any single-cover subscribers, whoever asked for this batch.
+    notify(paths);
   }
 }
 
@@ -96,6 +112,55 @@ export async function loadCoverPalettes(paths: string[]): Promise<boolean> {
 
 export function getCoverPaletteSnapshot(path: string | null | undefined): CoverPalette | null {
   return (path && cache.get(path)) || null;
+}
+
+function flushQueued(): void {
+  flushScheduled = false;
+  const paths = [...queued];
+  queued.clear();
+  if (paths.length === 0) return;
+  void loadCoverPalettes(paths);
+}
+
+function requestPalette(path: string): void {
+  if (cache.has(path) || inFlight.has(path)) return;
+  queued.add(path);
+  if (!flushScheduled) {
+    flushScheduled = true;
+    queueMicrotask(flushQueued);
+  }
+}
+
+/**
+ * The palette for one cover, for components that render a single item (each
+ * media card). Same cache and fallback contract as useCoverPalettes: null
+ * until extracted, and for coverless or remote images.
+ */
+export function useCoverPalette(imagePath: string | null | undefined): CoverPalette | null {
+  const service = useImageServiceStatus();
+  const configured = Boolean(service?.configured);
+  const generation = service?.generation ?? null;
+  const path = imagePath && !/^https?:\/\//iu.test(imagePath) ? imagePath : null;
+
+  const subscribe = useCallback((onChange: () => void) => {
+    if (!path) return () => {};
+    let set = listeners.get(path);
+    if (!set) listeners.set(path, (set = new Set()));
+    set.add(onChange);
+    return () => {
+      set.delete(onChange);
+      if (set.size === 0) listeners.delete(path);
+    };
+  }, [path]);
+  const palette = useSyncExternalStore(subscribe, () => (path ? cache.get(path) ?? null : null));
+
+  useEffect(() => {
+    if (!configured || !path) return;
+    ensureGeneration(generation);
+    requestPalette(path);
+  }, [configured, generation, path]);
+
+  return palette;
 }
 
 /**

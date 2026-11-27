@@ -126,9 +126,9 @@ export function ExpansionsModal({
             <VirtualizedCardGrid
               items={entries}
               getItemKey={(entry) => entry.id}
-              columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
+              columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5, '2xl': 6 }}
               gap={24}
-              estimatedRowHeight={520}
+              estimatedRowHeight={420}
               scrollContainerRef={scrollRef}
               ariaLabel={`Expansions for ${parentName}`}
               renderItem={(entry) => (

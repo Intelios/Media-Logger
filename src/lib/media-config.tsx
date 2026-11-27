@@ -65,6 +65,22 @@ export const getTypeBadgeStyle = (type: string | null) => {
   return { bg: "bg-gray-600", icon: <MonitorPlay size={12} /> };
 };
 
+// Light tone of each getTypeBadgeStyle colour, for type labels set straight
+// onto artwork rather than inside a filled badge.
+export const getTypeAccentClass = (type: string | null) => {
+  const normalizedType = (type || "").toLowerCase();
+  if (normalizedType.includes("album")) return "text-emerald-400";
+  if (normalizedType.includes("game")) return "text-purple-400";
+  if (normalizedType.includes("anime")) return "text-pink-400";
+  if (normalizedType.includes("k-drama")) return "text-teal-400";
+  if (normalizedType.includes("movie")) return "text-blue-400";
+  if (normalizedType.includes("show")) return "text-cyan-400";
+  if (normalizedType.includes("book")) return "text-amber-400";
+  if (normalizedType.includes("jav") || normalizedType.includes("hentai")) return "text-rose-400";
+  if (normalizedType.includes("visual novel")) return "text-indigo-400";
+  return "text-gray-300";
+};
+
 export interface ReplayTerm {
   label: string;
   plural: string;
@@ -104,6 +120,16 @@ export const getRatingTextColor = (score: number | null) => {
   if (score >= 7) return "text-blue-400";
   if (score >= 5) return "text-yellow-400";
   return "text-red-400";
+};
+
+// Same thresholds again as raw colours, for styles that need a value rather
+// than a class (the poster card's conic score ring).
+export const getRatingHex = (score: number | null) => {
+  if (!score && score !== 0) return "#4b5563";
+  if (score >= 9) return "#10b981";
+  if (score >= 7) return "#3b82f6";
+  if (score >= 5) return "#eab308";
+  return "#ef4444";
 };
 
 export const formatCardRating = (score: number) => Math.round(score).toString();

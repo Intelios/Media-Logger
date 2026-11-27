@@ -6,7 +6,6 @@ import { isBacklogDensity, type BacklogDensity } from './backlog/density';
 const STORAGE_KEY = 'media-logger-data-directory';
 const DISPLAY_NAME_KEY = 'media-logger-display-name';
 const NAVIGATION_YEARS_KEY = 'media-logger-navigation-years';
-const RATING_DISPLAY_MODE_KEY = 'media-logger-rating-display-mode';
 const ADULT_MEDIA_ENABLED_KEY = 'media-logger-adult-media-enabled';
 const FEATURED_ADULT_ALLOWED_KEY = 'media-logger-featured-adult-allowed';
 const DASHBOARD_LIST_ADULT_ALLOWED_KEY = 'media-logger-dashboard-list-adult-allowed';
@@ -156,23 +155,6 @@ export function setNavigationYears(years: string[]): string[] {
 
     localStorage.setItem(NAVIGATION_YEARS_KEY, JSON.stringify(normalized));
     return normalized;
-}
-
-/**
- * Get the configured rating display mode.
- * Defaults to 'pill' for backward compatibility.
- */
-export function getRatingDisplayMode(): 'pill' | 'vertical-pill' | 'thermometer' {
-    const mode = localStorage.getItem(RATING_DISPLAY_MODE_KEY);
-    if (mode === 'thermometer' || mode === 'vertical-pill') return mode;
-    return 'pill';
-}
-
-/**
- * Set the rating display mode.
- */
-export function setRatingDisplayMode(mode: 'pill' | 'vertical-pill' | 'thermometer'): void {
-    localStorage.setItem(RATING_DISPLAY_MODE_KEY, mode);
 }
 
 /**

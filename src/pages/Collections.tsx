@@ -519,7 +519,7 @@ export default function CollectionsPage() {
                 getItemKey={(entry) => entry.id}
                 columns={COLLECTION_GRID_COLUMNS}
                 gap={24}
-                estimatedRowHeight={520}
+                estimatedRowHeight={420}
                 threshold={1}
                 className="relative z-10"
                 ariaLabel={`${selectedCollection.name} collection`}

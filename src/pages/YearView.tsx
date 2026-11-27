@@ -662,7 +662,7 @@ export default function YearView() {
           getItemKey={(entry) => entry.id}
           columns={{ base: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
           gap={24}
-          estimatedRowHeight={520}
+          estimatedRowHeight={420}
           highlightedKey={highlightedId}
           highlightClassName="rounded-2xl ring-4 ring-amber-400 ring-offset-2 ring-offset-gray-900 animate-pulse"
           scrollOptions={{ behavior: 'smooth', align: 'center' }}

@@ -492,7 +492,7 @@ export function ProfileDetailView({
             <VirtualizedCardGrid
               items={collectionEntries}
               getItemKey={getMediaEntryKey}
-              columns={{ base: 2, sm: 3, md: 4, lg: 5, xl: 6 }}
+              columns={{ base: 2, md: 3, lg: 4, xl: 5, '2xl': 6 }}
               gap={16}
               estimatedRowHeight={420}
               className="pb-10"

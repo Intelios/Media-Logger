@@ -138,7 +138,7 @@ function VirtualizedCardGridInner<T>(
     renderItem,
     columns = DEFAULT_COLUMNS,
     gap = 24,
-    estimatedRowHeight = 520,
+    estimatedRowHeight = 420,
     threshold = DEFAULT_GRID_VIRTUALIZATION_THRESHOLD,
     overscanRows = DEFAULT_GRID_OVERSCAN_ROWS,
     className,
