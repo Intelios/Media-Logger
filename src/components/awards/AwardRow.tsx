@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { CoverImage } from "../CoverImage";
 import { useHoverTooltip } from "../HoverTooltip";
-import { useCoverPalettes } from "../../lib/cover-palette";
+import type { CoverPalette } from "../../lib/cover-palette";
 import { cn } from "../../lib/utils_ui";
 
 /** Gold focus ring shared by every interactive control on the Awards page. */
@@ -29,6 +29,11 @@ interface AwardRowProps {
   /** Person credited beside the winner, shown after it: "Oppenheimer — Cillian Murphy". */
   credit?: string | null;
   imagePath: string | null;
+  /**
+   * The cover's palette, fetched once for the whole list by the parent view —
+   * one `cover_palettes` call per list rather than one per row.
+   */
+  palette?: CoverPalette;
   /** Whether a winner exists — drives cover vs dashed slot (a winner may lack art). */
   decided: boolean;
   selected?: boolean;
@@ -51,6 +56,7 @@ export function AwardRow({
   headline,
   credit = null,
   imagePath,
+  palette,
   decided,
   selected = false,
   onSelect,
@@ -66,8 +72,6 @@ export function AwardRow({
   // mount tinted from its own cover, so a wide key-art banner and a tall poster
   // read as the same kind of object. "Not loaded yet" and "no palette" share
   // the neutral mount.
-  const palettes = useCoverPalettes(decided && imagePath ? [imagePath] : []);
-  const palette = imagePath ? palettes.get(imagePath) : undefined;
   const mount = palette
     ? `color-mix(in srgb, ${palette.base} 26%, #151219)`
     : "rgba(255, 255, 255, 0.03)";

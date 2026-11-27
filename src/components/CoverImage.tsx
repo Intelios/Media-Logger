@@ -96,11 +96,17 @@ export const CoverImage = forwardRef<HTMLImageElement, CoverImageProps>(function
     setShowDelayedSkeleton(false);
     if (!path) {
       setDecoded(true);
-      return;
     }
+  }, [path, sources.src]);
+
+  // Keyed to `decoded` so a cover that paints inside the delay cancels its
+  // timer: otherwise every fast (cached) cover re-rendered once, 100 ms after
+  // mounting, to set a flag that `showLoading` then ignores.
+  useEffect(() => {
+    if (!path || decoded) return;
     const timer = window.setTimeout(() => setShowDelayedSkeleton(true), skeletonDelayMs);
     return () => window.clearTimeout(timer);
-  }, [path, sources.src, skeletonDelayMs]);
+  }, [path, sources.src, skeletonDelayMs, decoded]);
 
   const reveal = useCallback(async (image: HTMLImageElement) => {
     const decodeStartedAt = performance.now();

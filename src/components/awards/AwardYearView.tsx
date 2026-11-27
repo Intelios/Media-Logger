@@ -6,6 +6,7 @@ import {
   type AwardYearSummary,
   type TemplateWinnerHistory,
 } from "../../lib/awards-logic";
+import { useCoverPalettes } from "../../lib/cover-palette";
 import { cn } from "../../lib/utils_ui";
 import { useHoverTooltip } from "../HoverTooltip";
 import {
@@ -97,6 +98,12 @@ export function AwardYearView({
   const visibleItems = useMemo(
     () => visibleGroups.flatMap(([, group]) => group),
     [visibleGroups]
+  );
+
+  // Every winner of the year in one batch, so switching the type tab costs no
+  // further palette request.
+  const palettes = useCoverPalettes(
+    useMemo(() => categories.map((category) => category.winner?.image_url), [categories])
   );
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -341,6 +348,7 @@ export function AwardYearView({
                         headline={category.winner?.name ?? null}
                         credit={category.credited_person}
                         imagePath={category.winner?.image_url ?? null}
+                        palette={palettes.get(category.winner?.image_url ?? "")}
                         decided={category.winner !== null}
                         selected={category.id === selectedId}
                         onSelect={() => handleSelect(category)}

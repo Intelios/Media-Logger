@@ -117,7 +117,6 @@ struct LoadedAsset {
     bytes: Arc<Vec<u8>>,
     content_type: &'static str,
     etag: String,
-    generated: bool,
 }
 
 #[derive(Clone)]
@@ -309,7 +308,6 @@ impl EncodedMemoryCache {
             bytes: Arc::clone(&entry.bytes),
             content_type: entry.content_type,
             etag: entry.etag.clone(),
-            generated: false,
         })
     }
 
@@ -670,16 +668,28 @@ impl ImageService {
         image_path: String,
         variant: ImageVariant,
     ) -> Result<LoadedAsset, String> {
-        let configured_for_prepare = configured.clone();
-        let path_for_prepare = image_path.clone();
-        let service_for_prepare = self.clone();
-        let prepared = tauri::async_runtime::spawn_blocking(move || {
-            service_for_prepare.prepare_source_blocking(&configured_for_prepare, &path_for_prepare, variant)
-        })
-        .await
-        .map_err(|error| format!("Image metadata worker failed: {error}"))??;
+        let prepared = self
+            .prepare_source(configured.clone(), image_path, variant)
+            .await?;
         self.load_asset_prepared(configured, prepared, variant)
             .await
+    }
+
+    /// `prepare_source_blocking` off the async runtime: one stat on a warm
+    /// source cache, and enough to know the response's ETag before any image
+    /// bytes are read.
+    async fn prepare_source(
+        &self,
+        configured: ConfiguredRoot,
+        image_path: String,
+        variant: ImageVariant,
+    ) -> Result<PreparedSource, String> {
+        let service = self.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            service.prepare_source_blocking(&configured, &image_path, variant)
+        })
+        .await
+        .map_err(|error| format!("Image metadata worker failed: {error}"))?
     }
 
     /// Everything after source preparation: memory hit, existing derivative,
@@ -704,7 +714,6 @@ impl ImageService {
                     bytes: Arc::new(bytes),
                     content_type,
                     etag,
-                    generated: false,
                 })
             })
             .await
@@ -754,21 +763,37 @@ impl ImageService {
             return Ok(asset);
         }
 
+        let prepared_key = prepared.cache_key.clone();
+        let generated = self
+            .generate_with_slot(configured, derivative_root, prepared, variant)
+            .await?;
+        let asset = LoadedAsset {
+            bytes: Arc::new(generated.bytes),
+            content_type: generated.content_type,
+            etag: generated.etag,
+        };
+        self.insert_memory(prepared_key, asset.clone())?;
+        Ok(asset)
+    }
+
+    /// Generate one derivative inside a generation slot and account for it on
+    /// disk. The caller must hold the cache key's in-flight lock and have
+    /// already re-checked that no derivative exists.
+    async fn generate_with_slot(
+        &self,
+        configured: ConfiguredRoot,
+        derivative_root: PathBuf,
+        prepared: PreparedSource,
+        variant: ImageVariant,
+    ) -> Result<GeneratedDerivative, String> {
         let _generation_permit = Arc::clone(&self.inner.generation_slots)
             .acquire_owned()
             .await
             .map_err(|_| "Image generation is shutting down".to_string())?;
         self.ensure_generation(configured.generation)?;
 
-        let prepared_key = prepared.cache_key.clone();
-        let prepared_for_generation = prepared;
-        let derivative_root_for_generation = derivative_root.clone();
         let generated = tauri::async_runtime::spawn_blocking(move || {
-            generate_derivative(
-                &derivative_root_for_generation,
-                prepared_for_generation,
-                variant,
-            )
+            generate_derivative(&derivative_root, prepared, variant)
         })
         .await
         .map_err(|error| format!("Image generation worker failed: {error}"))??;
@@ -780,15 +805,8 @@ impl ImageService {
                 .disk_bytes
                 .fetch_add(generated.bytes.len() as u64, Ordering::Relaxed);
         }
-        let asset = LoadedAsset {
-            bytes: Arc::new(generated.bytes),
-            content_type: generated.content_type,
-            etag: generated.etag,
-            generated: generated.created_new_file,
-        };
-        self.insert_memory(prepared_key, asset.clone())?;
         self.schedule_cleanup_if_needed(configured);
-        Ok(asset)
+        Ok(generated)
     }
 
     fn ensure_generation(&self, generation: u64) -> Result<(), String> {
@@ -917,15 +935,15 @@ impl ImageService {
                 continue;
             }
             match self
-                .load_asset(
+                .prewarm_one(
                     configured.clone(),
                     request.image_path.clone(),
                     request.variant,
                 )
                 .await
             {
-                Ok(asset) if asset.generated => generated += 1,
-                Ok(_) => cached += 1,
+                Ok(true) => generated += 1,
+                Ok(false) => cached += 1,
                 Err(error) => failures.push(PrewarmFailure {
                     image_path: request.image_path,
                     variant: request.variant,
@@ -941,6 +959,56 @@ impl ImageService {
             failed: failures.len(),
             failures,
         }
+    }
+
+    /// Make sure one derivative exists on disk; true when it had to be
+    /// generated. Prewarm only guarantees the file — it never reads an
+    /// existing derivative's bytes or touches the memory cache, so warming a
+    /// whole library neither re-reads hundreds of megabytes on a restarted run
+    /// nor evicts the covers currently on screen.
+    async fn prewarm_one(
+        &self,
+        configured: ConfiguredRoot,
+        image_path: String,
+        variant: ImageVariant,
+    ) -> Result<bool, String> {
+        let derivative_root = self.derivative_root();
+        let (prepared, exists) = {
+            let service = self.clone();
+            let configured = configured.clone();
+            let root = derivative_root.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                let prepared = service.prepare_source_blocking(&configured, &image_path, variant)?;
+                let exists = derivative_exists(&root, &prepared.cache_key);
+                Ok::<_, String>((prepared, exists))
+            })
+            .await
+            .map_err(|error| format!("Image metadata worker failed: {error}"))??
+        };
+        if exists {
+            self.ensure_generation(configured.generation)?;
+            return Ok(false);
+        }
+
+        let key_lock = self.lock_for_key(&prepared.cache_key)?;
+        let _key_guard = key_lock.lock().await;
+        // A visible cover may have generated it while this waited on the lock.
+        let exists = {
+            let root = derivative_root.clone();
+            let cache_key = prepared.cache_key.clone();
+            tauri::async_runtime::spawn_blocking(move || derivative_exists(&root, &cache_key))
+                .await
+                .map_err(|error| format!("Image cache check worker failed: {error}"))?
+        };
+        if exists {
+            self.ensure_generation(configured.generation)?;
+            return Ok(false);
+        }
+
+        let generated = self
+            .generate_with_slot(configured, derivative_root, prepared, variant)
+            .await?;
+        Ok(generated.created_new_file)
     }
 
     /// Palettes for a batch of covers. Failures are reported as a `None`
@@ -1329,7 +1397,6 @@ impl ImageService {
                 bytes: Arc::new(bytes),
                 content_type,
                 etag: format!("\"ml-stage-{token}-{}\"", staged.size_bytes),
-                generated: false,
             })
         })
         .await
@@ -1381,6 +1448,13 @@ impl ImageService {
             ));
         }
 
+        let load_error = |error: String| {
+            if self.generation_is_current(requested_generation) {
+                ProtocolError::new(StatusCode::NOT_FOUND, error)
+            } else {
+                ProtocolError::new(StatusCode::GONE, error)
+            }
+        };
         let asset_result = if parts[2] == "staged" {
             self.load_staged_asset(requested_generation, parts[3]).await
         } else {
@@ -1393,16 +1467,30 @@ impl ImageService {
                     format!("Invalid image path: {error}"),
                 )
             })?;
-            self.load_asset(configured.clone(), image_path, variant)
+            // The ETag is a pure function of the source's identity, known after
+            // one stat. Answering a revalidation here keeps a 304 from reading
+            // (or, after a disk-limit eviction, regenerating) the whole image
+            // only to discard it. `original` covers bypass the memory cache, so
+            // they gain the most. WKWebView was observed sending no conditional
+            // requests to `media://` at all (a remounted cover refetches
+            // unconditionally), so on macOS this is a guard, not a hot path.
+            let prepared = self
+                .prepare_source(configured.clone(), image_path, variant)
+                .await
+                .map_err(load_error)?;
+            if if_none_match(&request, &prepared.etag) {
+                if !self.generation_is_current(requested_generation) {
+                    return Err(ProtocolError::new(
+                        StatusCode::GONE,
+                        "The data directory changed while this image was loading",
+                    ));
+                }
+                return not_modified_response(prepared.etag);
+            }
+            self.load_asset_prepared(configured.clone(), prepared, variant)
                 .await
         };
-        let asset = asset_result.map_err(|error| {
-            if self.generation_is_current(requested_generation) {
-                ProtocolError::new(StatusCode::NOT_FOUND, error)
-            } else {
-                ProtocolError::new(StatusCode::GONE, error)
-            }
-        })?;
+        let asset = asset_result.map_err(load_error)?;
         if !self.generation_is_current(requested_generation) {
             return Err(ProtocolError::new(
                 StatusCode::GONE,
@@ -1410,21 +1498,8 @@ impl ImageService {
             ));
         }
 
-        let not_modified = request
-            .headers()
-            .get(IF_NONE_MATCH)
-            .and_then(|value| value.to_str().ok())
-            .is_some_and(|value| value == asset.etag);
-        if not_modified {
-            return Response::builder()
-                .status(StatusCode::NOT_MODIFIED)
-                .header(ETAG, asset.etag)
-                .header(CACHE_CONTROL, "no-cache, max-age=0, must-revalidate")
-                .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-                .body(Vec::new())
-                .map_err(|error| {
-                    ProtocolError::new(StatusCode::INTERNAL_SERVER_ERROR, error.to_string())
-                });
+        if if_none_match(&request, &asset.etag) {
+            return not_modified_response(asset.etag);
         }
 
         let content_length = asset.bytes.len();
@@ -1742,8 +1817,27 @@ fn read_existing_derivative(
         bytes: Arc::new(bytes),
         content_type,
         etag: prepared.etag.clone(),
-        generated: false,
     }))
+}
+
+/// Whether a usable derivative for `cache_key` is on disk, from metadata
+/// alone. Zero-length leftovers are removed and reported missing, matching
+/// `read_existing_derivative`.
+fn derivative_exists(root: &Path, cache_key: &str) -> bool {
+    let (jpeg, png) = derivative_candidates(root, cache_key);
+    for path in [jpeg, png] {
+        let Ok(metadata) = fs::metadata(&path) else {
+            continue;
+        };
+        if !metadata.is_file() {
+            continue;
+        }
+        if metadata.len() > 0 {
+            return true;
+        }
+        let _ = fs::remove_file(&path);
+    }
+    false
 }
 
 async fn read_existing_derivative_async(
@@ -2163,12 +2257,12 @@ fn generate_derivative(
                 temporary.display()
             )
         })?;
-        writer.get_ref().sync_all().map_err(|error| {
-            format!(
-                "Failed to sync image cache file {}: {error}",
-                temporary.display()
-            )
-        })?;
+        // Deliberately no `sync_all()`: on macOS it is F_FULLFSYNC, which
+        // flushes the drive's whole write cache (~5 ms per file, measured)
+        // while this job holds one of the two generation slots. A derivative
+        // is a disposable cache file and temp-file + rename already keeps
+        // readers from seeing a partial write; only a power cut could leave a
+        // damaged thumbnail, which clearing the image cache regenerates.
         match fs::rename(&temporary, &output) {
             Ok(()) => Ok(()),
             Err(_error) if output.is_file() => {
@@ -2549,6 +2643,24 @@ impl ProtocolError {
             message: message.into(),
         }
     }
+}
+
+fn if_none_match(request: &Request<Vec<u8>>, etag: &str) -> bool {
+    request
+        .headers()
+        .get(IF_NONE_MATCH)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value == etag)
+}
+
+fn not_modified_response(etag: String) -> Result<Response<Vec<u8>>, ProtocolError> {
+    Response::builder()
+        .status(StatusCode::NOT_MODIFIED)
+        .header(ETAG, etag)
+        .header(CACHE_CONTROL, "no-cache, max-age=0, must-revalidate")
+        .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+        .body(Vec::new())
+        .map_err(|error| ProtocolError::new(StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))
 }
 
 fn error_response(status: StatusCode, message: &str) -> Response<Vec<u8>> {

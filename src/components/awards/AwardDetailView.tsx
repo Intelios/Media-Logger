@@ -6,6 +6,7 @@ import {
   type AwardTemplate,
   type TemplateWinnerHistory,
 } from "../../lib/awards-logic";
+import { useCoverPalettes } from "../../lib/cover-palette";
 import { cn } from "../../lib/utils_ui";
 import { AwardTypeMenu } from "../AwardTypeMenu";
 import { useHoverTooltip } from "../HoverTooltip";
@@ -60,6 +61,9 @@ export function AwardDetailView({
   onToggleCreditsPerson,
 }: AwardDetailViewProps) {
   const { bindTooltip } = useHoverTooltip();
+  const palettes = useCoverPalettes(
+    useMemo(() => history.map((entry) => entry.winner?.image_url), [history])
+  );
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(() => {
     const first = history.find((entry) => entry.winner) ?? history[0];
@@ -226,6 +230,7 @@ export function AwardDetailView({
                 headline={entry.winner?.name ?? null}
                 credit={entry.credited_person}
                 imagePath={entry.winner?.image_url ?? null}
+                palette={palettes.get(entry.winner?.image_url ?? "")}
                 decided={entry.winner !== null}
                 selected={entry.category_id === selectedCategoryId}
                 onSelect={() => {

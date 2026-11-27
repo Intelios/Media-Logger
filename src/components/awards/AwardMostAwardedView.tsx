@@ -273,6 +273,10 @@ export function AwardMostAwardedView({
     );
   }, [entries]);
 
+  const palettes = useCoverPalettes(
+    useMemo(() => entries.map((item) => item.entry.image_url), [entries])
+  );
+
   const activeTypeFilter =
     typeFilter !== null && groups.some(([key]) => key === typeFilter)
       ? typeFilter
@@ -399,6 +403,7 @@ export function AwardMostAwardedView({
                           label={label}
                           headline={item.entry.name}
                           imagePath={item.entry.image_url}
+                          palette={palettes.get(item.entry.image_url ?? "")}
                           decided={true}
                           selected={isSelected}
                           onSelect={() => setSelectedId(item.entry.id)}

@@ -509,11 +509,30 @@ export default function StatsPage() {
     workerMode,
   ]);
 
+  // Chip counts and the id lookup are the only O(n) work kept on the main
+  // thread. They depend on the fetched dataset alone, so they live in their own
+  // memo: keyed alongside `derivedResult` they were rebuilt on every brush frame.
+  const datasetLookups = useMemo(
+    () =>
+      activeDataset
+        ? {
+            entriesById: new Map(activeDataset.entries.map((entry) => [entry.id, entry])),
+            typeCounts: countEntriesByType(activeDataset.entries),
+          }
+        : null,
+    [activeDataset]
+  );
+
   const currentPresentation = useMemo<PlatePresentation | null>(() => {
-    if (!activeDataset || !derivedResult || derivedResult.activeVersion !== activeDataset.version) {
+    if (
+      !activeDataset ||
+      !datasetLookups ||
+      !derivedResult ||
+      derivedResult.activeVersion !== activeDataset.version
+    ) {
       return null;
     }
-    const entriesById = new Map(activeDataset.entries.map((entry) => [entry.id, entry]));
+    const { entriesById, typeCounts } = datasetLookups;
     const rangedEntries = derivedResult.plate.rangedEntryIds
       .map((id) => entriesById.get(id))
       .filter((entry): entry is StatsEntry => entry !== undefined);
@@ -528,11 +547,9 @@ export default function StatsPage() {
         genreCount: derivedResult.plate.genreCount,
       },
       comparison: derivedResult.comparison,
-      // Chip counts are the only O(n) work kept on the main thread, and run
-      // once per fetched dataset rather than on brush/type requests.
-      typeCounts: countEntriesByType(activeDataset.entries),
+      typeCounts,
     };
-  }, [activeDataset, derivedResult]);
+  }, [activeDataset, datasetLookups, derivedResult]);
 
   if (currentPresentation) {
     lastPresentationRef.current = currentPresentation;
