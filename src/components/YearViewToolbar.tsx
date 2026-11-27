@@ -14,15 +14,22 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "../lib/utils_ui";
+import { useOptionalMainScrollContainer } from "../lib/scroll-container";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { FILTER_PRESETS, getTypeBadgeStyle, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 import { TooltipDetail, TooltipTitle, useHoverTooltip } from "./HoverTooltip";
 import { MultiSelectFilter } from "./MultiSelectFilter";
 
-// The Year View's one bar: year, presets, types, status, sort. It sits
-// in a sticky band so the filters stay one click away while scrolling. The band
-// is solid page colour, never a backdrop blur: blurring a scrolling poster grid
-// would recomposite every frame.
+// The Year View's one bar: year, presets, types, status, sort. It is sticky so
+// the filters stay one click away while scrolling.
+//
+// Nothing paints behind the bar: --color-background is translucent under the
+// glass styles, so a full-width band of it stacked a second tint over the page
+// and read as a dark strip. Instead the bar floats, and only once it is stuck
+// does a frosted layer fade in behind its content so it stays legible over
+// cover art. The blur covers the bar's own area only, and sits on a sibling
+// layer rather than the bar itself: a backdrop-filter on the bar would make it
+// the backdrop root for its dropdowns.
 
 export type StatusFilter = boolean | null;
 export type StatusKey = "localCopy" | "rewatch" | "subtitles";
@@ -120,15 +127,54 @@ export function YearViewToolbar({
   canScrollToBottom,
 }: YearViewToolbarProps) {
   const { bindTooltip } = useHoverTooltip();
+  const scrollContainer = useOptionalMainScrollContainer();
+  const barRef = useRef<HTMLDivElement>(null);
+  const [stuck, setStuck] = useState(false);
+
+  // Stuck = the bar's top edge has reached the line it sticks at. Sticky
+  // offsets count from inside the scroll container's padding, so that line is
+  // padding-top + top. The root margin sits 1px below it, so the observer fires
+  // as the bar crosses; compare edges rather than isIntersecting, which WebKit
+  // ties to the threshold (a 98%-visible bar reports false).
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const root = scrollContainer?.getScrollElement() ?? null;
+    const rootPadding = root ? parseFloat(getComputedStyle(root).paddingTop) || 0 : 0;
+    const stickLine = Math.max(0, rootPadding + (parseFloat(getComputedStyle(bar).top) || 0));
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const line = entry.rootBounds?.top;
+        setStuck(line !== undefined && entry.boundingClientRect.top <= line);
+      },
+      { root, rootMargin: `-${stickLine + 1}px 0px 0px 0px`, threshold: 1 }
+    );
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [scrollContainer]);
 
   return (
-    // -mx-6/px-6 bleeds the band to the edges of <main>'s padding; the fade
-    // under it softens the edge where cards slide beneath while stuck.
+    // -top-3: <main> has 24px padding and sticky offsets count from inside it,
+    // so -12px stops the bar 12px from the window's top edge.
     <div
-      className="sticky top-0 z-40 -mx-6 -mt-3 px-6 pb-2 pt-3 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-5 after:bg-gradient-to-b after:from-[var(--color-background)] after:to-transparent"
-      style={{ backgroundColor: "var(--color-background)" }}
+      ref={barRef}
+      className={cn(
+        "sticky -top-3 z-40 rounded-2xl bg-white/[0.04] transition-shadow duration-200",
+        stuck && "shadow-[0_16px_40px_-12px_rgba(0,0,0,0.7)]"
+      )}
     >
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-2.5">
+      {/* The frost covers the whole bar, edge included. A real border would
+          sit outside it and show the cards unblurred as a hairline, so the
+          outline is drawn on top instead (last child below). */}
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-0 rounded-2xl bg-[rgba(26,26,29,0.82)] backdrop-blur-xl backdrop-saturate-150 transition-opacity duration-200",
+          stuck ? "opacity-100" : "opacity-0"
+        )}
+      />
+      {/* p-[11px] = the old 1px border + p-2.5, so the bar keeps its size. */}
+      <div className="relative flex flex-wrap items-center gap-2 p-[11px]">
         {/* Year: the page's title, so it gets the most weight on the bar */}
         <div className="mr-1 flex items-center gap-1 border-r border-white/[0.08] pr-4">
           <button
@@ -253,6 +299,13 @@ export function YearViewToolbar({
           </button>
         </div>
       </div>
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-0 rounded-2xl border transition-colors duration-200",
+          stuck ? "border-white/[0.12]" : "border-white/[0.08]"
+        )}
+      />
     </div>
   );
 }
