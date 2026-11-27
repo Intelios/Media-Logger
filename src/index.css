@@ -58,8 +58,9 @@
    every animation can strand finite page-entry animations on their first
    (often transparent) frame when Windows reports startup focus late. */
 html.animations-paused :is(
-  .animate-perfect-glow,
-  .animate-platinum-glow,
+  .perfect-bloom,
+  .perfect-swell,
+  .platinum-sweep,
   .cover-skeleton,
   .animate-float,
   .animate-float-delayed,
@@ -79,8 +80,9 @@ html.animations-paused :is(
    rest. Finite entrance/loading motion continues; only persistent card/hero
    effects freeze until scrolling has settled. */
 html.animations-scrolling :is(
-  .animate-perfect-glow,
-  .animate-platinum-glow,
+  .perfect-bloom,
+  .perfect-swell,
+  .platinum-sweep,
   .dashboard-featured-bg img
 ) {
   animation-play-state: paused !important;
@@ -304,50 +306,130 @@ body:has(.development-build-badge) .app-error-toast {
   }
 }
 
-/* Perfect 10 glow animation — 3-layer emerald aura */
-@keyframes perfect-glow {
-
-  0%,
-  100% {
-    box-shadow:
-      0 0 8px rgba(52, 211, 153, 0.75),
-      0 0 22px rgba(52, 211, 153, 0.35),
-      0 0 50px rgba(52, 211, 153, 0.1);
-  }
-
-  50% {
-    box-shadow:
-      0 0 12px rgba(52, 211, 153, 0.9),
-      0 0 30px rgba(52, 211, 153, 0.45),
-      0 0 60px rgba(52, 211, 153, 0.15);
-  }
+/* Perfect 10 — a steady emerald glow, with a wider bloom around it that
+   breathes in and out, so the glow visibly swells. Four side swells on a
+   slower, out-of-step cycle brighten one side of the frame and glow after
+   another, so the light drifts round the card with no head to follow. Every
+   layer is a static shadow or gradient animated by opacity alone, so the
+   compositor runs it without repainting the card. */
+.perfect-aura {
+  box-shadow:
+    0 0 6px rgba(52, 211, 153, 0.75),
+    0 0 14px rgba(52, 211, 153, 0.3);
 }
 
-.animate-perfect-glow {
-  animation: perfect-glow 3s ease-in-out infinite;
+/* Its resting opacity is what reduced motion shows. */
+.perfect-bloom {
+  box-shadow:
+    0 0 14px rgba(52, 211, 153, 0.65),
+    0 0 30px rgba(52, 211, 153, 0.4),
+    0 0 60px rgba(52, 211, 153, 0.14);
+  opacity: 0.6;
+  animation: perfect-breathe 3s ease-in-out infinite;
 }
 
-/* Platinum/100% glow animation — 3-layer cyan+amber aura */
-@keyframes platinum-glow {
-
-  0%,
-  100% {
-    box-shadow:
-      0 0 8px rgba(34, 211, 238, 0.65),
-      0 0 22px rgba(245, 158, 11, 0.2),
-      0 0 50px rgba(34, 211, 238, 0.08);
-  }
-
-  50% {
-    box-shadow:
-      0 0 12px rgba(34, 211, 238, 0.85),
-      0 0 30px rgba(245, 158, 11, 0.3),
-      0 0 60px rgba(34, 211, 238, 0.12);
-  }
+@keyframes perfect-breathe {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 1; }
 }
 
-.animate-platinum-glow {
-  animation: platinum-glow 3s ease-in-out infinite;
+/* Sits under the art, so its gradient shows only in the 2px frame. */
+.perfect-swell {
+  opacity: 0;
+  animation: perfect-swell 10s ease-in-out infinite;
+}
+
+@keyframes perfect-swell {
+  0%, 50%, 100% { opacity: 0; }
+  25% { opacity: 1; }
+}
+
+.perfect-swell-top {
+  background: linear-gradient(to bottom, rgba(236, 253, 245, 1), rgba(209, 250, 229, 0) 50%);
+  box-shadow: 0 -10px 28px -6px rgba(52, 211, 153, 0.65);
+}
+
+.perfect-swell-right {
+  background: linear-gradient(to left, rgba(236, 253, 245, 1), rgba(209, 250, 229, 0) 50%);
+  box-shadow: 10px 0 28px -6px rgba(52, 211, 153, 0.65);
+  animation-delay: -7.5s;
+}
+
+.perfect-swell-bottom {
+  background: linear-gradient(to top, rgba(236, 253, 245, 1), rgba(209, 250, 229, 0) 50%);
+  box-shadow: 0 10px 28px -6px rgba(52, 211, 153, 0.65);
+  animation-delay: -5s;
+}
+
+.perfect-swell-left {
+  background: linear-gradient(to right, rgba(236, 253, 245, 1), rgba(209, 250, 229, 0) 50%);
+  box-shadow: -10px 0 28px -6px rgba(52, 211, 153, 0.65);
+  animation-delay: -2.5s;
+}
+
+/* Platinum — holo foil. A faint, still iridescence on the art, and every few
+   seconds a rainbow sheen sweeps across it; the silver frame and the chip
+   flash as it passes. The sweep is a translated band (compositor only). */
+.platinum-aura {
+  box-shadow: 0 0 16px rgba(226, 232, 240, 0.22), 0 0 38px rgba(196, 181, 253, 0.18);
+}
+
+.platinum-foil {
+  background: linear-gradient(
+    125deg,
+    rgba(255, 120, 200, 0.12),
+    rgba(255, 230, 120, 0.08) 30%,
+    rgba(120, 255, 210, 0.12) 60%,
+    rgba(120, 170, 255, 0.12)
+  );
+  mix-blend-mode: screen;
+}
+
+/* Starts off the left edge, crosses in the first third of the cycle, then
+   rests off the right edge until the next pass. */
+.platinum-sweep {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: -120%;
+  width: 120%;
+  pointer-events: none;
+  animation: platinum-sweep 6s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+
+@keyframes platinum-sweep {
+  0% { transform: translateX(0); }
+  32%, 100% { transform: translateX(200%); }
+}
+
+/* The colours fade out well inside the band: at this angle on a tall band,
+   its edges reach about 24% into the gradient, and colour there would show as
+   a hard vertical line. */
+.platinum-sweep-holo {
+  background: linear-gradient(
+    100deg,
+    rgba(255, 110, 190, 0) 25%,
+    rgba(255, 110, 190, 0.55) 33%,
+    rgba(255, 221, 110, 0.55) 42%,
+    rgba(120, 255, 210, 0.55) 50%,
+    rgba(110, 170, 255, 0.55) 58%,
+    rgba(200, 130, 255, 0.5) 67%,
+    rgba(200, 130, 255, 0) 75%
+  );
+  mix-blend-mode: screen;
+  opacity: 0.7;
+}
+
+.platinum-sweep-shine {
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.9) 50%, rgba(255, 255, 255, 0) 70%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .perfect-bloom,
+  .perfect-swell,
+  .platinum-sweep {
+    animation: none;
+  }
 }
 
 /* Shimmer effect for text highlights */

@@ -33,17 +33,21 @@ const TOP_SCRIM = "linear-gradient(to bottom, rgba(0, 0, 0, 0.38) 0%, rgba(0, 0,
 const scrimGradient = (color: string) =>
   `linear-gradient(to top, ${color} 0%, ${color}f2 30%, ${color}a6 50%, ${color}00 72%)`;
 
-const PLATINUM_FRAME = "linear-gradient(135deg, #fbbf24, #67e8f9 40%, #fde68a 70%, #22d3ee)";
+/** Polished silver: the holo sweep reads best against a neutral metal. */
+const PLATINUM_FRAME = "linear-gradient(135deg, #f8fafc 0%, #a5b4c8 22%, #f1f5f9 40%, #7c8aa0 58%, #e2e8f0 76%, #b8c4d6 100%)";
 const PERFECT_FRAME = "linear-gradient(135deg, #34d399, #a7f3d0 50%, #10b981)";
 const PLATINUM_CHIP = "linear-gradient(100deg, #fbbf24, #fde68a 35%, #a5f3fc 65%, #67e8f9)";
 /** Unfilled part of the score ring, laid over the solid palette shadow. */
 const RING_TRACK = "rgba(255, 255, 255, 0.2)";
 
 const ELEVATION_SHADOW = {
-  platinum: "0 30px 60px rgba(0, 0, 0, 0.42), 0 12px 26px rgba(8, 47, 73, 0.28), 0 0 54px rgba(34, 211, 238, 0.22), 0 0 84px rgba(245, 158, 11, 0.14)",
+  platinum: "0 30px 60px rgba(0, 0, 0, 0.42), 0 12px 26px rgba(30, 41, 59, 0.3), 0 0 54px rgba(226, 232, 240, 0.2), 0 0 84px rgba(196, 181, 253, 0.14)",
   perfect: "0 30px 60px rgba(0, 0, 0, 0.42), 0 12px 26px rgba(6, 78, 59, 0.26), 0 0 58px rgba(52, 211, 153, 0.22)",
   default: "0 26px 54px rgba(0, 0, 0, 0.38), 0 10px 22px rgba(0, 0, 0, 0.24), 0 0 36px color-mix(in srgb, var(--color-primary) 18%, transparent)",
 };
+
+/** One per side; each swells in turn (index.css staggers them). */
+const PERFECT_SWELLS = ["perfect-swell-top", "perfect-swell-right", "perfect-swell-bottom", "perfect-swell-left"] as const;
 
 const SMALL_TOOLTIP = { width: "content" as const, className: "rounded-lg px-3 py-1.5 whitespace-nowrap" };
 
@@ -110,19 +114,31 @@ export function MediaCardPoster({
       )}
       style={special ? { background: hasPlatinum ? PLATINUM_FRAME : PERFECT_FRAME } : undefined}
     >
-      {/* Same animated glows as the classic card, so the energy saver pauses them too */}
-      {special && (
-        <div
-          className={cn(
-            "pointer-events-none absolute -inset-[3px] -z-10 rounded-[20px]",
-            hasPlatinum ? "animate-platinum-glow" : "animate-perfect-glow",
-          )}
-        />
-      )}
+      {/* Glow behind the frame. A Platinum 10/10 keeps the 10/10 glow; its
+          face carries the Platinum foil. The energy saver pauses both
+          (index.css), and reduced motion stills them. */}
+      {perfectTen ? (
+        <>
+          <div aria-hidden className="perfect-aura pointer-events-none absolute -inset-[3px] -z-10 rounded-[20px]" />
+          <div aria-hidden className="perfect-bloom pointer-events-none absolute -inset-[3px] -z-10 rounded-[20px]" />
+        </>
+      ) : hasPlatinum ? (
+        <div aria-hidden className="platinum-aura pointer-events-none absolute -inset-[3px] -z-10 rounded-[20px]" />
+      ) : null}
       <div
         className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100"
         style={{ boxShadow: hasPlatinum ? ELEVATION_SHADOW.platinum : perfectTen ? ELEVATION_SHADOW.perfect : ELEVATION_SHADOW.default }}
       />
+      {/* Light in the 2px frame: these cover the whole card, but the article
+          paints over everything inside the frame. */}
+      {perfectTen && PERFECT_SWELLS.map((side) => (
+        <div key={side} aria-hidden className={cn("perfect-swell pointer-events-none absolute inset-0 rounded-2xl", side)} />
+      ))}
+      {hasPlatinum && (
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+          <div className="platinum-sweep platinum-sweep-shine" />
+        </div>
+      )}
 
       <article
         className={cn(
@@ -159,6 +175,13 @@ export function MediaCardPoster({
             className="pointer-events-none absolute inset-0 transition-opacity duration-500"
             style={{ background: palette ? scrimGradient(palette.shadow) : "none", opacity: palette ? 1 : 0 }}
           />
+          {/* Platinum foil: above the art and scrims, beneath the text. */}
+          {hasPlatinum && (
+            <>
+              <div aria-hidden className="platinum-foil pointer-events-none absolute inset-0" />
+              <div aria-hidden className="platinum-sweep platinum-sweep-holo" />
+            </>
+          )}
         </div>
 
         {/* Top left: platinum and awards own the corner; a host page's own
@@ -182,11 +205,13 @@ export function MediaCardPoster({
                 )}
               >
                 <span
-                  className="inline-flex items-center gap-[5px] rounded-full px-[9px] py-1 text-[9.5px] font-extrabold tracking-[0.08em] text-slate-900 shadow-[0_4px_14px_rgba(34,211,238,0.35)]"
+                  className="relative inline-flex items-center gap-[5px] overflow-hidden rounded-full px-[9px] py-1 text-[9.5px] font-extrabold tracking-[0.08em] text-slate-900 shadow-[0_4px_14px_rgba(34,211,238,0.35)]"
                   style={{ background: PLATINUM_CHIP }}
                 >
                   <Trophy size={11} strokeWidth={2.25} />
                   PLATINUM
+                  {/* Catches the same sweep as the foil */}
+                  <span aria-hidden className="platinum-sweep platinum-sweep-shine" />
                 </span>
               </div>
             )}
