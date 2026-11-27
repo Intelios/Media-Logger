@@ -1,28 +1,30 @@
 import { useDeferredValue, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router";
-import { Sparkles, ChevronDown, ChevronUp, X, HardDrive, RotateCcw, Captions, ArrowDownToLine } from "lucide-react";
 import { dbService, type EntryCardSummary, type MediaEntry } from "../lib/db";
 import { awardsLogic } from "../lib/awards-logic";
 import { profilesLogic } from "../lib/profiles-logic";
 import { MediaCard, type MediaAward } from "../components/MediaCard";
 import { EntryForm } from "../components/EntryForm";
 import { ExpansionsModal } from "../components/ExpansionsModal";
-import { MultiSelectFilter } from "../components/MultiSelectFilter";
+import { YearViewToolbar, YEAR_SORT_OPTIONS, type StatusFilter, type StatusKey, type YearSort } from "../components/YearViewToolbar";
 import { VirtualizedCardGrid, type VirtualizedCardGridHandle } from "../components/VirtualizedCardGrid";
 import { reportMutationError } from "../components/MutationErrorToast";
 import { mediaQueryKeys, queryClient } from "../lib/query-client";
-import { useHoverTooltip } from "../components/HoverTooltip";
 import { getLocalTodayDate } from "../lib/dates";
 import { ENTRY_TYPES, FILTER_PRESETS, FILTER_PRESET_KEYS, getVisibleEntryTypes, getVisiblePresetKeys, useAdultMediaEnabled, type ActiveFilterPresetKey, type FilterPresetKey } from "../lib/media-config";
 
 const FILTER_STORAGE_KEY = "yearview-filter-types";
 const PRESET_STORAGE_KEY = "yearview-active-preset";
-const QUICK_FILTERS_VISIBLE_KEY = "yearview-quick-filters-visible";
 const LOCAL_COPY_FILTER_KEY = "yearview-local-copy-filter";
 const REWATCH_FILTER_KEY = "yearview-rewatch-filter";
 const SUBTITLES_FILTER_KEY = "yearview-subtitles-filter";
+const SORT_STORAGE_KEY = "yearview-sort";
 
-type StatusFilter = boolean | null;
+const STATUS_STORAGE_KEYS: Record<StatusKey, string> = {
+  localCopy: LOCAL_COPY_FILTER_KEY,
+  rewatch: REWATCH_FILTER_KEY,
+  subtitles: SUBTITLES_FILTER_KEY,
+};
 
 const computeFiltered = (
   data: EntryCardSummary[],
@@ -57,6 +59,32 @@ const computeFiltered = (
   return result;
 };
 
+// Entries arrive oldest first (completion_date, then id), so "oldest" is the
+// order as loaded; the rest sort a copy.
+const sortEntries = (data: EntryCardSummary[], sort: YearSort): EntryCardSummary[] => {
+  switch (sort) {
+    case "newest":
+      return [...data].reverse();
+    case "score":
+      // Highest first; unscored entries go last, keeping date order among ties.
+      return [...data].sort((a, b) => (b.review_score ?? -1) - (a.review_score ?? -1));
+    case "title":
+      return [...data].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true }));
+    default:
+      return data;
+  }
+};
+
+const loadPersistedSort = (): YearSort => {
+  try {
+    const stored = localStorage.getItem(SORT_STORAGE_KEY);
+    if (YEAR_SORT_OPTIONS.some((option) => option.value === stored)) return stored as YearSort;
+  } catch {
+    // Fall back to the default order
+  }
+  return "oldest";
+};
+
 // Helper to load persisted preset from localStorage
 const loadPersistedPreset = (): ActiveFilterPresetKey => {
   try {
@@ -68,19 +96,6 @@ const loadPersistedPreset = (): ActiveFilterPresetKey => {
     // If parsing fails, fall back to default
   }
   return null;
-};
-
-// Helper to load persisted quick filters visibility
-const loadQuickFiltersVisible = (): boolean => {
-  try {
-    const stored = localStorage.getItem(QUICK_FILTERS_VISIBLE_KEY);
-    if (stored !== null) {
-      return stored === "true";
-    }
-  } catch {
-    // If parsing fails, fall back to default
-  }
-  return true; // Default: visible
 };
 
 // Helper to load persisted status filter from localStorage
@@ -118,7 +133,6 @@ const loadPersistedFilter = (): string[] => {
 export default function YearView() {
   const { year } = useParams();
   const adultEnabled = useAdultMediaEnabled();
-  const { bindTooltip } = useHoverTooltip();
   const [searchParams, setSearchParams] = useSearchParams();
   const [entries, setEntries] = useState<EntryCardSummary[]>([]);
 
@@ -178,8 +192,8 @@ export default function YearView() {
   }, []);
   const loadIdRef = useRef(0);
 
-  // Quick filters visibility state
-  const [quickFiltersVisible, setQuickFiltersVisible] = useState<boolean>(loadQuickFiltersVisible);
+  // Sort order is a remembered preference, like the filters.
+  const [sort, setSort] = useState<YearSort>(loadPersistedSort);
 
   // Status filters state
   const [localCopyFilter, setLocalCopyFilter] = useState<StatusFilter>(() => loadStatusFilter(LOCAL_COPY_FILTER_KEY));
@@ -192,11 +206,10 @@ export default function YearView() {
     gridRef.current?.scrollToEnd();
   }, []);
 
-  // Toggle quick filters visibility
-  const toggleQuickFilters = () => {
-    const newValue = !quickFiltersVisible;
-    setQuickFiltersVisible(newValue);
-    localStorage.setItem(QUICK_FILTERS_VISIBLE_KEY, String(newValue));
+  const changeSort = (next: YearSort) => {
+    setSort(next);
+    if (next === "oldest") localStorage.removeItem(SORT_STORAGE_KEY);
+    else localStorage.setItem(SORT_STORAGE_KEY, next);
   };
 
   // Cycle status filter: null -> true -> false -> null
@@ -296,8 +309,8 @@ export default function YearView() {
   }, [year, adultEnabled]); // adultEnabled changes the query scope/adult SQL policy.
 
   const filteredEntries = useMemo(
-    () => computeFiltered(entries, selectedTypes, localCopyFilter, rewatchFilter, subtitlesFilter),
-    [entries, selectedTypes, localCopyFilter, rewatchFilter, subtitlesFilter]
+    () => sortEntries(computeFiltered(entries, selectedTypes, localCopyFilter, rewatchFilter, subtitlesFilter), sort),
+    [entries, selectedTypes, localCopyFilter, rewatchFilter, subtitlesFilter, sort]
   );
   const deferredEntries = useDeferredValue(filteredEntries);
 
@@ -421,238 +434,77 @@ export default function YearView() {
     setIsModalOpen(true);
   }, []);
 
+  const yearNumber = Number(year);
+  const visibleTypes = getVisibleEntryTypes();
+  const showingAllTypes = selectedTypes.length === visibleTypes.length;
+  const statuses: Record<StatusKey, StatusFilter> = {
+    localCopy: localCopyFilter,
+    rewatch: rewatchFilter,
+    subtitles: subtitlesFilter,
+  };
+  const statusSetters: Record<StatusKey, (value: StatusFilter) => void> = {
+    localCopy: setLocalCopyFilter,
+    rewatch: setRewatchFilter,
+    subtitles: setSubtitlesFilter,
+  };
+  const cycleStatus = (key: StatusKey) => {
+    handleStatusToggle(STATUS_STORAGE_KEYS[key], statusSetters[key], statuses[key]);
+  };
+  const hasActiveFilters =
+    activePreset !== null ||
+    !showingAllTypes ||
+    localCopyFilter !== null ||
+    rewatchFilter !== null ||
+    subtitlesFilter !== null;
+
+  const showAllTypes = () => {
+    clearPreset();
+    setSelectedTypes(visibleTypes);
+  };
+
+  // Resets every filter; the sort order is a preference, not a filter, so it
+  // stays.
+  const clearFilters = () => {
+    showAllTypes();
+    setLocalCopyFilter(null);
+    setRewatchFilter(null);
+    setSubtitlesFilter(null);
+    for (const key of Object.values(STATUS_STORAGE_KEYS)) localStorage.removeItem(key);
+  };
+
   return (
     <div className="space-y-6 relative min-h-[calc(100vh-100px)]">
-      {/* Header & Filters */}
-      <header className="flex flex-col gap-4">
-        {/* Title Row with Quick Filters Toggle */}
-        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-          <div>
-            {/* Title and button on same line */}
-            <div className="flex items-center gap-4">
-              <h2 className="text-3xl font-bold">
-                <span className="text-primary">{year}</span> Collection
-              </h2>
-
-              {/* Quick Filters Toggle Button */}
-              <button
-                onClick={toggleQuickFilters}
-                className={`
-                  flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
-                  transition-all duration-200
-                  ${quickFiltersVisible
-                    ? 'bg-primary/20 text-primary border border-primary/30'
-                    : 'bg-white/5 text-gray-400 hover:text-gray-300 border border-white/10 hover:border-white/20'}
-                `}
-                {...bindTooltip(
-                  <span>{quickFiltersVisible ? "Hide quick filters" : "Show quick filters"}</span>,
-                  { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
-                )}
-              >
-                <Sparkles size={14} />
-                <span>Quick Filters</span>
-                {quickFiltersVisible ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-            </div>
-
-            {/* Item count below */}
-            <p className="text-gray-500 text-sm mt-1">
-              {filteredEntries.length} of {entries.length} items
-            </p>
-          </div>
-
-          {/* Multi-Select Filter */}
-          <MultiSelectFilter
-            options={getVisibleEntryTypes()}
-            selected={selectedTypes}
-            onChange={(types) => {
-              setSelectedTypes(types);
-              // Clear active preset when manually changing filters
-              clearPreset();
-            }}
-            onSolo={(option) => {
-              const visible = getVisibleEntryTypes();
-              const isSoloed = selectedTypes.length === 1 && selectedTypes[0] === option;
-              setSelectedTypes(isSoloed ? visible : [option]);
-              clearPreset();
-            }}
-            label="Filter Types"
-          />
-        </div>
-
-        {/* Collapsible Quick Filter Panel */}
-        <div
-          className={`
-            overflow-hidden transition-all duration-300 ease-in-out
-            ${quickFiltersVisible ? 'max-h-32 opacity-100' : 'max-h-0 opacity-0'}
-          `}
-        >
-          <div className="
-            flex items-center gap-3 p-4 rounded-xl
-            bg-white/[0.03] backdrop-blur-sm
-            border border-white/[0.08]
-            shadow-lg shadow-black/10
-          ">
-            <span className="text-xs text-gray-500 uppercase tracking-wider font-medium mr-2">Presets</span>
-
-            {getVisiblePresetKeys().map((key) => {
-              const preset = FILTER_PRESETS[key];
-              const Icon = preset.icon;
-              const isActive = activePreset === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => handlePresetClick(key)}
-                  className={`
-                    group relative flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm
-                    transition-all duration-200
-                    ${isActive
-                      ? `bg-gradient-to-r ${preset.gradient} text-white shadow-lg shadow-black/20`
-                      : 'bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15]'}
-                  `}
-                >
-                  <Icon size={16} className={isActive ? '' : 'opacity-70 group-hover:opacity-100'} />
-                  <span>{preset.label}</span>
-                  <span className={`
-                    text-xs px-1.5 py-0.5 rounded-md ml-1
-                    ${isActive ? 'bg-white/20' : 'bg-white/[0.05] text-gray-500 group-hover:text-gray-400'}
-                  `}>
-                    {preset.types.length}
-                  </span>
-                </button>
-              );
-            })}
-
-            {/* Separator */}
-            <div className="w-px h-8 bg-white/10 mx-2" />
-
-            {/* Status Filters */}
-            <span className="text-xs text-gray-500 uppercase tracking-wider font-medium mr-2">Status</span>
-
-            {/* Local Copy Filter */}
-            <button
-              onClick={() => handleStatusToggle(LOCAL_COPY_FILTER_KEY, setLocalCopyFilter, localCopyFilter)}
-              className={`
-                group relative flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm
-                transition-all duration-200
-                ${localCopyFilter !== null
-                  ? localCopyFilter
-                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-black/20'
-                    : 'bg-gradient-to-r from-gray-600 to-gray-700 text-white shadow-lg shadow-black/20'
-                  : 'bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15]'}
-              `}
-              {...bindTooltip(
-                <span>{localCopyFilter === null ? "Show all" : localCopyFilter ? "Showing only with local copy" : "Showing only without local copy"}</span>,
-                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
-              )}
-            >
-              <HardDrive size={16} className={localCopyFilter !== null ? '' : 'opacity-70 group-hover:opacity-100'} />
-              <span>Local Copy</span>
-              {localCopyFilter !== null && (
-                <span className="text-xs px-1.5 py-0.5 rounded-md ml-1 bg-white/20">
-                  {localCopyFilter ? "Yes" : "No"}
-                </span>
-              )}
-            </button>
-
-            {/* Rewatch Filter */}
-            <button
-              onClick={() => handleStatusToggle(REWATCH_FILTER_KEY, setRewatchFilter, rewatchFilter)}
-              className={`
-                group relative flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm
-                transition-all duration-200
-                ${rewatchFilter !== null
-                  ? rewatchFilter
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-black/20'
-                    : 'bg-gradient-to-r from-gray-600 to-gray-700 text-white shadow-lg shadow-black/20'
-                  : 'bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15]'}
-              `}
-              {...bindTooltip(
-                <span>{rewatchFilter === null ? "Show all" : rewatchFilter ? "Showing only replays" : "Showing only first-time entries"}</span>,
-                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
-              )}
-            >
-              <RotateCcw size={16} className={rewatchFilter !== null ? '' : 'opacity-70 group-hover:opacity-100'} />
-              <span>Replay</span>
-              {rewatchFilter !== null && (
-                <span className="text-xs px-1.5 py-0.5 rounded-md ml-1 bg-white/20">
-                  {rewatchFilter ? "Yes" : "No"}
-                </span>
-              )}
-            </button>
-
-            {/* Subtitles Filter */}
-            <button
-              onClick={() => handleStatusToggle(SUBTITLES_FILTER_KEY, setSubtitlesFilter, subtitlesFilter)}
-              className={`
-                group relative flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm
-                transition-all duration-200
-                ${subtitlesFilter !== null
-                  ? subtitlesFilter
-                    ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg shadow-black/20'
-                    : 'bg-gradient-to-r from-gray-600 to-gray-700 text-white shadow-lg shadow-black/20'
-                  : 'bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/[0.15]'}
-              `}
-              {...bindTooltip(
-                <span>{subtitlesFilter === null ? "Show all" : subtitlesFilter ? "Showing only with subtitles" : "Showing only without subtitles"}</span>,
-                { width: "content", className: "rounded-lg px-3 py-1.5 whitespace-nowrap" }
-              )}
-            >
-              <Captions size={16} className={subtitlesFilter !== null ? '' : 'opacity-70 group-hover:opacity-100'} />
-              <span>Subtitles</span>
-              {subtitlesFilter !== null && (
-                <span className="text-xs px-1.5 py-0.5 rounded-md ml-1 bg-white/20">
-                  {subtitlesFilter ? "Yes" : "No"}
-                </span>
-              )}
-            </button>
-
-            {/* Clear/Reset button - only show when a preset or status filter is active */}
-            {(activePreset || localCopyFilter !== null || rewatchFilter !== null || subtitlesFilter !== null) && (
-              <button
-                onClick={() => {
-                  setActivePreset(null);
-                  setSelectedTypes(getVisibleEntryTypes());
-                  setLocalCopyFilter(null);
-                  setRewatchFilter(null);
-                  setSubtitlesFilter(null);
-                  localStorage.removeItem(PRESET_STORAGE_KEY);
-                  localStorage.removeItem(LOCAL_COPY_FILTER_KEY);
-                  localStorage.removeItem(REWATCH_FILTER_KEY);
-                  localStorage.removeItem(SUBTITLES_FILTER_KEY);
-                }}
-                className="
-                  flex items-center gap-1 px-2 py-1.5 rounded-lg text-sm
-                  text-gray-400 hover:text-white hover:bg-white/[0.05]
-                  transition-all duration-200
-                "
-              >
-                <X size={14} />
-                <span>Clear All</span>
-              </button>
-            )}
-
-            {/* Scroll to bottom button */}
-            <button
-              type="button"
-              onClick={handleScrollToBottom}
-              disabled={deferredEntries.length === 0}
-              className="
-                group relative flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm
-                transition-all duration-200
-                bg-white/[0.05] hover:bg-white/[0.08] text-gray-400 hover:text-white
-                border border-white/[0.08] hover:border-white/[0.15]
-                active:scale-95 disabled:opacity-40 disabled:pointer-events-none
-                ml-auto
-              "
-              aria-label="Scroll to bottom"
-            >
-              <ArrowDownToLine size={16} className="opacity-70 group-hover:opacity-100 transition-opacity" />
-              <span>To Bottom</span>
-            </button>
-          </div>
-        </div>
-      </header>
+      <YearViewToolbar
+        year={yearNumber}
+        shownCount={filteredEntries.length}
+        totalCount={entries.length}
+        onYearStep={(delta) => navigate(`/year/${yearNumber + delta}`)}
+        presetKeys={getVisiblePresetKeys()}
+        activePreset={activePreset}
+        showingAll={showingAllTypes && activePreset === null}
+        onPresetClick={handlePresetClick}
+        onShowAll={showAllTypes}
+        typeOptions={visibleTypes}
+        selectedTypes={selectedTypes}
+        onTypesChange={(types) => {
+          setSelectedTypes(types);
+          // Clear active preset when manually changing filters
+          clearPreset();
+        }}
+        onTypeSolo={(option) => {
+          const isSoloed = selectedTypes.length === 1 && selectedTypes[0] === option;
+          setSelectedTypes(isSoloed ? visibleTypes : [option]);
+          clearPreset();
+        }}
+        statuses={statuses}
+        onStatusCycle={cycleStatus}
+        sort={sort}
+        onSortChange={changeSort}
+        hasActiveFilters={hasActiveFilters}
+        onClearFilters={clearFilters}
+        onScrollToBottom={handleScrollToBottom}
+        canScrollToBottom={deferredEntries.length > 0}
+      />
 
       {/* Grid */}
       {deferredEntries.length > 0 ? (
@@ -689,14 +541,18 @@ export default function YearView() {
             );
           }}
         />
+      ) : entries.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+          <p className="text-lg">Nothing logged in {year} yet.</p>
+        </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-          <p className="text-lg">No entries match your filter.</p>
+          <p className="text-lg">No entries match your filters.</p>
           <button
-            onClick={() => setSelectedTypes(getVisibleEntryTypes())}
+            onClick={clearFilters}
             className="mt-4 text-primary hover:underline"
           >
-            Reset Filters
+            Clear filters
           </button>
         </div>
       )}
