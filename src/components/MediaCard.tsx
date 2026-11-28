@@ -1,13 +1,13 @@
 import * as React from "react";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
-import { MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Heart, Check, Pencil, Trash2, FileText, Image as ImageIcon, Copy, CopyPlus, Crop } from "lucide-react";
+import { Monitor, Disc3, BookOpen, Gamepad2, Film, Heart, Check, Pencil, Trash2, FileText, Image as ImageIcon, Copy, CopyPlus, Crop } from "lucide-react";
 import { dbService, type EntryCardSummary, type MediaEntry } from "../lib/db";
-import { cn } from "../lib/utils_ui";
 import type { CoverPriority } from "./CoverImage";
 import { MediaCardPoster } from "./MediaCardPoster";
 import type { MediaCardDialogKind } from "./MediaCardDialogs";
+import type { PosterMenuAction } from "./PosterActionSheet";
 
 const loadMediaCardDialogs = () => import("./MediaCardDialogs");
 const LazyMediaCardDialogs = React.lazy(loadMediaCardDialogs);
@@ -120,56 +120,18 @@ export const MediaCard = React.memo(function MediaCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeDialog, setActiveDialog] = useState<MediaCardDialogKind | null>(null);
   const [dialogEntry, setDialogEntry] = useState<MediaEntry | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const menuDropdownRef = useRef<HTMLDivElement>(null);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const contextInfo = getContextInfo(entry);
 
-  // Click outside to close menu
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const insideButton = menuRef.current?.contains(e.target as Node);
-      const insideDropdown = menuDropdownRef.current?.contains(e.target as Node);
-      if (!insideButton && !insideDropdown) {
-        setMenuOpen(false);
-      }
-    };
-    if (menuOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [menuOpen]);
-
-  const handleMenuClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!menuOpen && menuButtonRef.current) {
-      void loadMediaCardDialogs();
-      const rect = menuButtonRef.current.getBoundingClientRect();
-      setMenuPosition({
-        top: rect.bottom + 4,
-        right: window.innerWidth - rect.right,
-      });
-    }
-    setMenuOpen(!menuOpen);
-  };
+  // Stable, so the sheet's open effect only runs when it actually opens.
+  const handleMenuOpenChange = useCallback((open: boolean) => {
+    // Warm the dialogs chunk while the user is still choosing.
+    if (open) void loadMediaCardDialogs();
+    setMenuOpen(open);
+  }, []);
 
   const getDetail = async (): Promise<MediaEntry> => {
     if (isEntryDetail(entry)) return entry;
     return await dbService.getEntryById(entry.id) ?? materializeSummary(entry);
-  };
-
-  const handleEdit = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setMenuOpen(false);
-    if (!onEdit) return;
-    onEdit(await getDetail());
-  };
-
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setMenuOpen(false);
-    setActiveDialog("delete");
   };
 
   const confirmDelete = () => {
@@ -178,33 +140,50 @@ export const MediaCard = React.memo(function MediaCard({
     }
   };
 
-  const handleViewDescription = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setMenuOpen(false);
-    setDialogEntry(await getDetail());
-    setActiveDialog("details");
+  const openDialog = (kind: MediaCardDialogKind) => {
+    setDialogEntry(materializeSummary(entry));
+    setActiveDialog(kind);
   };
 
-  const handleViewImage = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setMenuOpen(false);
-    setDialogEntry(materializeSummary(entry));
-    setActiveDialog("image");
-  };
-
-  const handleAdjustCover = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setMenuOpen(false);
-    setDialogEntry(materializeSummary(entry));
-    setActiveDialog("cover");
-  };
-
-  const handleFindDuplicates = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setMenuOpen(false);
-    setDialogEntry(materializeSummary(entry));
-    setActiveDialog("duplicates");
-  };
+  // The sheet closes itself before running an action.
+  const actions: PosterMenuAction[] = [
+    {
+      id: "details",
+      label: "View Details",
+      shortLabel: "Details",
+      icon: <FileText size={17} />,
+      onSelect: () => {
+        void getDetail().then((detail) => {
+          setDialogEntry(detail);
+          setActiveDialog("details");
+        });
+      },
+    },
+    { id: "image", label: "View Image", shortLabel: "Image", icon: <ImageIcon size={17} />, onSelect: () => openDialog("image") },
+    ...(entry.image_url
+      ? [{ id: "cover", label: "Adjust Cover", shortLabel: "Frame", icon: <Crop size={17} />, onSelect: () => openDialog("cover") }]
+      : []),
+    {
+      id: "edit",
+      label: "Edit",
+      shortLabel: "Edit",
+      icon: <Pencil size={17} />,
+      onSelect: () => {
+        if (onEdit) void getDetail().then(onEdit);
+      },
+    },
+    {
+      id: "duplicate",
+      label: "Duplicate",
+      shortLabel: "Duplicate",
+      icon: <CopyPlus size={17} />,
+      onSelect: () => {
+        if (onDuplicate) void getDetail().then(onDuplicate);
+      },
+    },
+    { id: "find-duplicates", label: "Find Duplicates", shortLabel: "Find Dupes", icon: <Copy size={17} />, onSelect: () => openDialog("duplicates") },
+    { id: "delete", label: "Delete", shortLabel: "Delete", icon: <Trash2 size={14} />, onSelect: () => setActiveDialog("delete"), tone: "danger" },
+  ];
 
   const openProfile = (profileType: string, name: string) => {
     const params = new URLSearchParams({ type: profileType, name });
@@ -213,108 +192,6 @@ export const MediaCard = React.memo(function MediaCard({
     if (entry.entry_type) params.set('fromType', entry.entry_type);
     navigate(`/profiles?${params.toString()}`);
   };
-
-  // Parked beside the score ring, or in the corner when the entry is unscored
-  // and has no ring.
-  const hasScore = entry.review_score !== null && entry.review_score !== undefined;
-  const menuAnchorClass = hasScore ? "top-[15px] right-[56px]" : "top-2.5 right-2.5";
-  const menuButton = (
-    <div
-      className={cn("absolute z-20", menuAnchorClass)}
-      ref={menuRef}
-    >
-      <button
-        ref={menuButtonRef}
-        onClick={handleMenuClick}
-        className={cn(
-          "w-7 h-7 flex items-center justify-center bg-black/50 backdrop-blur-sm border border-white/10 rounded-full transition-all hover:bg-black/70 hover:border-white/20 text-white/80 hover:text-white shadow-sm",
-          menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-        )}
-      >
-        <MoreVertical size={14} />
-      </button>
-    </div>
-  );
-
-  const menuPortal = menuOpen && createPortal(
-    <div
-      ref={menuDropdownRef}
-      className="fixed w-44 rounded-xl border border-white/20 bg-transparent backdrop-blur-2xl shadow-2xl shadow-black/45 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[200]"
-      style={{
-        top: menuPosition.top,
-        right: menuPosition.right,
-        background: "color-mix(in srgb, var(--color-surface) 42%, transparent)",
-        backdropFilter: "blur(24px) saturate(170%)",
-        WebkitBackdropFilter: "blur(24px) saturate(170%)",
-      }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <button
-        onClick={handleViewDescription}
-        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-purple-500/20 hover:text-purple-400 transition-colors"
-      >
-        <FileText size={14} />
-        <span>View Details</span>
-      </button>
-      <div className="h-px bg-white/10" />
-      <button
-        onClick={handleViewImage}
-        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-blue-500/20 hover:text-blue-400 transition-colors"
-      >
-        <ImageIcon size={14} />
-        <span>View Image</span>
-      </button>
-      <div className="h-px bg-white/10" />
-      {entry.image_url && (
-        <>
-          <button
-            onClick={handleAdjustCover}
-            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-sky-500/20 hover:text-sky-400 transition-colors"
-          >
-            <Crop size={14} />
-            <span>Adjust Cover</span>
-          </button>
-          <div className="h-px bg-white/10" />
-        </>
-      )}
-      <button
-        onClick={handleEdit}
-        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] hover:text-primary transition-colors"
-      >
-        <Pencil size={14} />
-        <span>Edit</span>
-      </button>
-      <div className="h-px bg-white/10" />
-      <button
-        onClick={handleFindDuplicates}
-        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-amber-500/20 hover:text-amber-400 transition-colors"
-      >
-        <Copy size={14} />
-        <span>Find Duplicates</span>
-      </button>
-      <div className="h-px bg-white/10" />
-      <button
-        onClick={async (e) => {
-          e.stopPropagation();
-          setMenuOpen(false);
-          if (onDuplicate) onDuplicate(await getDetail());
-        }}
-        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-green-500/20 hover:text-green-400 transition-colors"
-      >
-        <CopyPlus size={14} />
-        <span>Duplicate</span>
-      </button>
-      <div className="h-px bg-white/10" />
-      <button
-        onClick={handleDelete}
-        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-400 hover:bg-red-500/15 transition-colors"
-      >
-        <Trash2 size={14} />
-        <span>Delete</span>
-      </button>
-    </div>,
-    document.body
-  );
 
   return (
     <>
@@ -325,14 +202,15 @@ export const MediaCard = React.memo(function MediaCard({
         profileKeys={profileKeys}
         imagePriority={imagePriority}
         topLeftActions={topLeftActions}
-        menu={menuButton}
+        actions={actions}
+        menuOpen={menuOpen}
+        onMenuOpenChange={handleMenuOpenChange}
         dateEmphasis={dateEmphasis}
         dateAccentClass={dateAccentClass}
         dateTintClass={dateTintClass}
         onOpenProfile={openProfile}
         onNavigateToParent={onNavigateToParent}
       />
-      {menuPortal}
       {activeDialog && (
         <Suspense fallback={<MediaCardDialogFallback />}>
           <LazyMediaCardDialogs

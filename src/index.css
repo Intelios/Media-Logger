@@ -519,6 +519,95 @@ body:has(.development-build-badge) .app-error-toast {
   }
 }
 
+/* Poster card action sheet: the ⋯ menu takes over the card's own face instead
+   of popping out. The card hands in its palette as --sheet-shadow (the dimmed
+   fill and the icon on a lit button) and --sheet-accent (the lit button). An
+   accent is always 0.62 lightness, so dark-on-accent is the legible pairing.
+   The sheet is a size container so buttons scale with the card and labels drop
+   on small cards; the header line then names whatever is hovered. Both
+   animations are one-shot, so the energy saver leaves them alone. */
+.poster-actions {
+  container: poster-actions / size;
+  background-color: color-mix(in srgb, var(--sheet-shadow) 88%, transparent);
+  animation: poster-actions-in 160ms ease-out both;
+}
+
+.poster-action {
+  outline: none;
+  animation: poster-action-pop 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 20ms);
+}
+
+.poster-action-disc {
+  width: clamp(30px, 19cqw, 42px);
+  height: clamp(30px, 19cqw, 42px);
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #fff;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out, transform 120ms ease-out;
+}
+
+.poster-action-disc svg {
+  width: clamp(14px, 8cqw, 18px);
+  height: clamp(14px, 8cqw, 18px);
+}
+
+.poster-action:hover .poster-action-disc,
+.poster-action:focus-visible .poster-action-disc {
+  background-color: var(--sheet-accent);
+  border-color: var(--sheet-accent);
+  color: var(--sheet-shadow);
+}
+
+.poster-action:active .poster-action-disc {
+  transform: scale(0.94);
+}
+
+.poster-action-label {
+  color: rgba(255, 255, 255, 0.8);
+  transition: color 120ms ease-out;
+}
+
+.poster-action:hover .poster-action-label,
+.poster-action:focus-visible .poster-action-label {
+  color: #fff;
+}
+
+.poster-action-danger {
+  background-color: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  color: #f87171;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
+}
+
+.poster-action-danger:hover,
+.poster-action-danger:focus-visible {
+  background-color: rgba(239, 68, 68, 0.18);
+  border-color: rgba(248, 113, 113, 0.75);
+  color: #fca5a5;
+}
+
+@container poster-actions (max-width: 169px) or (max-height: 279px) {
+  .poster-action-label {
+    display: none;
+  }
+}
+
+@keyframes poster-actions-in {
+  from { opacity: 0; }
+}
+
+@keyframes poster-action-pop {
+  from { opacity: 0; transform: scale(0.92); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poster-actions,
+  .poster-action {
+    animation: none;
+  }
+}
+
 /* Shimmer effect for text highlights */
 @keyframes shimmer {
   0% {

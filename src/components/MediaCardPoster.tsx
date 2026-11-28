@@ -3,7 +3,7 @@ import { Calendar, Captions, Check, Clock, Puzzle, RotateCcw, Trophy } from "luc
 import type { EntryCardSummary, MediaEntry } from "../lib/db";
 import { useCoverPalette } from "../lib/cover-palette";
 import { coverFramingStyle, framedCoverSizing, parseCoverFraming } from "../lib/cover-framing";
-import { FALLBACK_SHADOW, TOP_SCRIM, scrimGradient } from "../lib/poster-scrims";
+import { FALLBACK_ACCENT, FALLBACK_SHADOW, TOP_SCRIM, scrimGradient } from "../lib/poster-scrims";
 import { CardLightContext, LIGHT_FROM, syncGlowPhase } from "../lib/card-light";
 import { cn } from "../lib/utils_ui";
 import { formatDate } from "../lib/dates";
@@ -17,11 +17,13 @@ import {
 } from "../lib/media-config";
 import { useHoverTooltip } from "./HoverTooltip";
 import { CoverImage, type CoverPriority } from "./CoverImage";
+import { PosterActionSheet, type PosterMenuAction } from "./PosterActionSheet";
 import type { MediaAward, MediaCardContextItem } from "./MediaCard";
 
 // Layout for MediaCard: the cover fills a 2:3 card and the details sit on a
 // scrim tinted with the cover's own palette shadow. MediaCard owns state, the
-// action menu and dialogs; this component is layout only.
+// actions and dialogs; this component is layout, and hands the actions to the
+// in-card sheet with the palette they are drawn in.
 //
 // 2:3 is a minimum, not a fixed size: when a narrow grid leaves the details
 // more height than the poster has, the card grows rather than clipping them.
@@ -64,8 +66,10 @@ interface MediaCardPosterProps {
   profileKeys?: Set<string>;
   imagePriority: CoverPriority;
   topLeftActions?: ReactNode;
-  /** The ⋯ action-menu button, already positioned by MediaCard. */
-  menu: ReactNode;
+  /** The ⋯ menu's actions, shown on the card's own face when open. */
+  actions: PosterMenuAction[];
+  menuOpen: boolean;
+  onMenuOpenChange: (open: boolean) => void;
   dateEmphasis: "default" | "prominent";
   dateAccentClass?: string;
   dateTintClass?: string;
@@ -80,7 +84,9 @@ export function MediaCardPoster({
   profileKeys,
   imagePriority,
   topLeftActions,
-  menu,
+  actions,
+  menuOpen,
+  onMenuOpenChange,
   dateEmphasis,
   dateAccentClass,
   dateTintClass,
@@ -226,8 +232,9 @@ export function MediaCardPoster({
           // name truncates instead of running underneath it.
           <div
             className={cn(
-              "absolute left-2.5 top-2.5 z-20 flex flex-col items-start gap-1.5",
+              "absolute left-2.5 top-2.5 z-20 flex flex-col items-start gap-1.5 transition-[opacity,visibility] duration-150",
               score !== null ? "right-[58px]" : "right-2.5",
+              menuOpen && "invisible opacity-0",
             )}
           >
             {hasPlatinum && (
@@ -293,7 +300,7 @@ export function MediaCardPoster({
           <div
             role="img"
             aria-label={`Score ${formatCardRating(score)} out of 10`}
-            className="absolute right-2.5 top-2.5 z-10 h-[38px] w-[38px] rounded-full p-[3px] transition-colors duration-500"
+            className="absolute right-2.5 top-2.5 z-40 h-[38px] w-[38px] rounded-full p-[3px] transition-colors duration-500"
             style={{
               backgroundColor: shadow,
               backgroundImage: `conic-gradient(${getRatingHex(score)} 0% ${score * 10}%, ${RING_TRACK} ${score * 10}% 100%)`,
@@ -309,14 +316,32 @@ export function MediaCardPoster({
           </div>
         )}
 
-        {menu}
+        {/* The ⋯ trigger parks beside the score ring (in the corner when the
+            entry is unscored); when open, the sheet covers the card's face
+            beneath the ring and trigger. */}
+        <PosterActionSheet
+          entryName={entry.name}
+          actions={actions}
+          open={menuOpen}
+          onOpenChange={onMenuOpenChange}
+          shadow={shadow}
+          accent={palette?.accent ?? FALLBACK_ACCENT}
+          anchorClass={score !== null ? "top-[15px] right-[56px]" : "top-2.5 right-2.5"}
+        />
 
         {/* Keeps the corner chips' and score ring's band clear when a narrow
             card has to grow to fit its details. */}
         <div aria-hidden className="h-14 shrink-0" />
 
         {/* Details */}
-        <div className="relative z-10 flex flex-col gap-1.5 p-3.5">
+        {/* Steps aside while the action sheet is open, so only the art shows
+            through it rather than ghosted text. */}
+        <div
+          className={cn(
+            "relative z-10 flex flex-col gap-1.5 p-3.5 transition-[opacity,visibility] duration-150",
+            menuOpen && "invisible opacity-0",
+          )}
+        >
           <div className={cn("flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em]", getTypeAccentClass(entry.entry_type))}>
             {typeBadge.icon}
             <span className="truncate">{entry.entry_type}</span>
