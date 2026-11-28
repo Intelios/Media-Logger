@@ -91,6 +91,9 @@ export interface ProfileAvgHistoryBackupRow {
 export type BacklogBackupRow = BacklogItem;
 
 export interface BackupTables {
+  // `cover_framing` was added with schema v9. Older backups omit it; the
+  // native import reads that as null, and a null never overwrites the framing
+  // already on a matching local entry.
   entries: MediaEntry[];
   collections: CollectionBackupRow[];
   collection_eras: CollectionEraBackupRow[];

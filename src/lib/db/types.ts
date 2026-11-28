@@ -31,6 +31,8 @@ export interface MediaEntry {
   update_version: string | null;
   franchise: string | null;
   series: string | null;
+  /** Poster framing JSON (`lib/cover-framing.ts`); null renders centred. */
+  cover_framing: string | null;
 }
 
 /** Full row used by edit/detail surfaces. */
@@ -49,7 +51,7 @@ export type EntryCardSummary = Omit<MediaEntry, 'description' | 'notes'>;
  */
 export type StatsEntry = Omit<
   MediaEntry,
-  'description' | 'notes' | 'early_access_version' | 'update_version'
+  'description' | 'notes' | 'early_access_version' | 'update_version' | 'cover_framing'
 >;
 
 /**

@@ -141,6 +141,9 @@ export function createMediaUrl(
   return `${status.protocolBase}/${variant}/${encodePath(imagePath)}`;
 }
 
+/** `sizes` hint for card-variant covers in the media-card grids. */
+export const CARD_COVER_SIZES = '(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 20vw';
+
 export function createMediaSources(
   imagePath: string | null | undefined,
   variant: CoverVariant,
@@ -156,7 +159,7 @@ export function createMediaSources(
     return {
       src: createMediaUrl(imagePath, 'card'),
       srcSet: `${createMediaUrl(imagePath, 'small')} 384w, ${createMediaUrl(imagePath, 'card')} 768w`,
-      sizes: '(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 20vw',
+      sizes: CARD_COVER_SIZES,
     };
   }
   return {

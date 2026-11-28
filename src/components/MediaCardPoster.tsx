@@ -1,7 +1,9 @@
-import { Fragment, useContext, type ReactNode } from "react";
+import { Fragment, useContext, useMemo, type ReactNode } from "react";
 import { Calendar, Captions, Check, Clock, Puzzle, RotateCcw, Trophy } from "lucide-react";
 import type { EntryCardSummary, MediaEntry } from "../lib/db";
 import { useCoverPalette } from "../lib/cover-palette";
+import { coverFramingStyle, framedCoverSizing, parseCoverFraming } from "../lib/cover-framing";
+import { FALLBACK_SHADOW, TOP_SCRIM, scrimGradient } from "../lib/poster-scrims";
 import { CardLightContext, LIGHT_FROM, syncGlowPhase } from "../lib/card-light";
 import { cn } from "../lib/utils_ui";
 import { formatDate } from "../lib/dates";
@@ -23,16 +25,6 @@ import type { MediaAward, MediaCardContextItem } from "./MediaCard";
 //
 // 2:3 is a minimum, not a fixed size: when a narrow grid leaves the details
 // more height than the poster has, the card grows rather than clipping them.
-
-/** Stands in for the palette shadow until it arrives, and for coverless entries. */
-const FALLBACK_SHADOW = "#0c0c0e";
-
-/** Darkens the top edge so the corner chips and score ring read on any art. */
-const TOP_SCRIM = "linear-gradient(to bottom, rgba(0, 0, 0, 0.38) 0%, rgba(0, 0, 0, 0) 24%)";
-
-/** Bottom-up fade into a solid colour. `color` must be #rrggbb so alpha can be appended. */
-const scrimGradient = (color: string) =>
-  `linear-gradient(to top, ${color} 0%, ${color}f2 30%, ${color}a6 50%, ${color}00 72%)`;
 
 /** Polished silver: the holo sweep reads best against a neutral metal. */
 const PLATINUM_FRAME = "linear-gradient(135deg, #f8fafc 0%, #a5b4c8 22%, #f1f5f9 40%, #7c8aa0 58%, #e2e8f0 76%, #b8c4d6 100%)";
@@ -99,6 +91,9 @@ export function MediaCardPoster({
   // Null until extracted, and for coverless entries: the neutral scrim stands in.
   const palette = useCoverPalette(entry.image_url);
   const lightFrom = useContext(CardLightContext);
+  // The user's framing for this cover (focal point and zoom); null is centred.
+  const framing = useMemo(() => parseCoverFraming(entry.cover_framing), [entry.cover_framing]);
+  const coverSizing = framedCoverSizing(framing);
   const incomingLight = lightFrom === 0 ? [] : CARD_LIGHT.filter(({ bit }) => (lightFrom & bit) !== 0);
   const typeBadge = getTypeBadgeStyle(entry.entry_type);
   const genres = parseGenres(entry.genre);
@@ -178,13 +173,17 @@ export function MediaCardPoster({
           className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
           style={{ WebkitMaskImage: "-webkit-radial-gradient(white, black)" }}
         >
+          {/* The hover zoom lives on the wrapper so it stacks on the framing's
+              own transform instead of replacing it. */}
           <CoverImage
             path={entry.image_url}
-            variant="card"
+            variant={coverSizing.variant}
+            sizes={coverSizing.sizes}
             priority={imagePriority}
             alt={entry.name}
-            containerClassName="absolute inset-0"
-            imageClassName="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            containerClassName="absolute inset-0 transition-transform duration-300 group-hover:scale-105"
+            imageClassName="h-full w-full object-cover"
+            imageStyle={coverFramingStyle(framing)}
           />
 
           {/* Scrims. The palette layer fades in over the neutral one, so a late

@@ -1,8 +1,9 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { AnimatePresence, motion, type TargetAndTransition, type Transition } from "framer-motion";
 import { useNavigate } from "react-router";
 import { BookOpen, CalendarDays, Check, Clapperboard, Clock, Dices, Disc3, Eye, Gamepad2, Heart, Layers, Monitor, Pencil, RotateCcw, Shuffle, SlidersHorizontal, Trophy, Tv, ZoomIn, type LucideIcon } from "lucide-react";
 import { awardsLogic } from "../../lib/awards-logic";
+import { coverFramingStyle, framedCoverSizing, parseCoverFraming } from "../../lib/cover-framing";
 import { formatDate } from "../../lib/dates";
 import { dbService, type MediaEntry, type RandomPickFilters } from "../../lib/db";
 import { getRatingColor, getReplayTerm, getTypeBadgeStyle, parseGenres } from "../../lib/media-config";
@@ -203,6 +204,9 @@ function CardFace({
   onExpand?: () => void;
 }) {
   const typeStyle = getTypeBadgeStyle(entry.entry_type);
+  // The dealt card is a poster, so it honours the cover's poster framing.
+  const framing = useMemo(() => parseCoverFraming(entry.cover_framing), [entry.cover_framing]);
+  const coverSizing = framedCoverSizing(framing, `${Math.round(sizePx)}px`);
   return (
     <div
       className="absolute inset-0 overflow-hidden rounded-[22px] border border-white/15 bg-black shadow-2xl"
@@ -211,12 +215,13 @@ function CardFace({
       {entry.image_url ? (
         <CoverImage
           path={entry.image_url}
-          variant="card"
+          variant={coverSizing.variant}
           priority="high"
-          sizes={`${Math.round(sizePx)}px`}
+          sizes={coverSizing.sizes}
           alt={entry.name}
           containerClassName="absolute inset-0"
           imageClassName="h-full w-full object-cover"
+          imageStyle={coverFramingStyle(framing)}
           draggable={false}
         />
       ) : (

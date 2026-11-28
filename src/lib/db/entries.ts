@@ -42,6 +42,7 @@ const ENTRY_CARD_SUMMARY_COLUMNS = [
   'update_version',
   'franchise',
   'series',
+  'cover_framing',
 ] as const satisfies readonly (keyof EntryCardSummary)[];
 
 const STATS_ENTRY_COLUMNS = [
@@ -101,6 +102,7 @@ const ENTRY_COLUMNS = [
   'update_version',
   'franchise',
   'series',
+  'cover_framing',
 ] as const satisfies readonly (keyof Omit<MediaEntry, 'id'>)[];
 function selectColumns(columns: readonly string[], alias?: string): string {
   const prefix = alias ? `${alias}.` : '';
@@ -505,6 +507,16 @@ export async function updateEntry(entry: MediaEntry): Promise<void> {
   notifyEntriesMutated();
 
   await recordAvgHistoryForEntryMutation(oldEntry, entry);
+}
+
+/**
+ * Saves only an entry's poster framing. It touches no field that profile AVG
+ * history tracks, so it skips the read-before-write that updateEntry does.
+ */
+export async function setEntryCoverFraming(id: number, framing: string | null): Promise<void> {
+  const db = await connect();
+  await db.execute("UPDATE entries SET cover_framing = $1 WHERE id = $2", [framing, id]);
+  notifyEntriesMutated();
 }
 
 export async function deleteEntry(id: number): Promise<void> {

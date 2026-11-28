@@ -20,8 +20,11 @@ import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { useHoverTooltip } from "./HoverTooltip";
 import { CoverImage } from "./CoverImage";
+import { CoverFramingDialog } from "./CoverFramingDialog";
+import { parseCoverFraming, serializeCoverFraming } from "../lib/cover-framing";
+import { reportMutationError } from "./MutationErrorToast";
 
-export type MediaCardDialogKind = "details" | "image" | "delete" | "duplicates";
+export type MediaCardDialogKind = "details" | "image" | "cover" | "delete" | "duplicates";
 
 interface MediaCardDialogsProps {
   dialog: MediaCardDialogKind;
@@ -149,6 +152,25 @@ export default function MediaCardDialogs({
         </div>
       </div>,
       document.body
+    );
+  }
+
+  if (dialog === "cover") {
+    return (
+      <CoverFramingDialog
+        name={entry.name}
+        path={entry.image_url}
+        initial={parseCoverFraming(entry.cover_framing)}
+        onCancel={onClose}
+        onSave={async (framing) => {
+          try {
+            await dbService.setEntryCoverFraming(entry.id, serializeCoverFraming(framing));
+            onClose();
+          } catch (error) {
+            reportMutationError("Could not save the cover framing.", error);
+          }
+        }}
+      />
     );
   }
 

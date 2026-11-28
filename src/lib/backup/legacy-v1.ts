@@ -205,6 +205,7 @@ export function convertLegacyBackup(data: LegacyBackup): BackupTables {
     update_version: nullableText(row.update_version),
     franchise: nullableText(row.franchise),
     series: nullableText(row.series),
+    cover_framing: null,
   }));
 
   const collections = parseCsv(data.collections, 'collections').map((row): CollectionBackupRow => ({

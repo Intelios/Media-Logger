@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, Upload, Save, Calendar as CalIcon, Sparkles, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock, RotateCcw, Captions, Puzzle, Search } from "lucide-react";
+import { X, Upload, Save, Calendar as CalIcon, Sparkles, Tag, Star, Music, Book, Gamepad, FileText, StickyNote, Trophy, Check, Clock, RotateCcw, Captions, Puzzle, Search, Crop } from "lucide-react";
 import { open } from '@tauri-apps/plugin-dialog';
 import type { MediaEntry, AutocompleteOptions } from "../lib/db";
 import { dbService } from "../lib/db";
@@ -19,6 +19,8 @@ import {
 } from "../lib/image-service";
 import { CoverImage } from "./CoverImage";
 import { CoverSearchModal } from "./CoverSearchModal";
+import { CoverFramingDialog } from "./CoverFramingDialog";
+import { coverFramingStyle, framedCoverSizing, parseCoverFraming, serializeCoverFraming } from "../lib/cover-framing";
 import { getCoverSearchAvailability } from "../lib/cover-search";
 import { getLocalTodayDate } from "../lib/dates";
 
@@ -36,6 +38,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
   const [isSaving, setIsSaving] = useState(false);
   const [isParentPickerOpen, setIsParentPickerOpen] = useState(false);
   const [isCoverSearchOpen, setIsCoverSearchOpen] = useState(false);
+  const [isFramingOpen, setIsFramingOpen] = useState(false);
   const stagedCoverRef = useRef<StagedCoverImport | null>(null);
   const [suggestions, setSuggestions] = useState<AutocompleteOptions>({
     platforms: [],
@@ -78,6 +81,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
     if (isOpen) {
       stagedCoverRef.current = null;
       setStagedCover(null);
+      setIsFramingOpen(false);
 
       if (initialData) {
         setFormData({
@@ -139,6 +143,8 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
             stagedCoverRef.current = nextStage;
             setStagedCover(nextStage);
             setPreviewImage(nextStage.previewUrl);
+            // The old framing was chosen for the old art.
+            setFormData(prev => ({ ...prev, cover_framing: null }));
             if (previous) void cancelCoverImport(previous.token);
           } catch (err) {
             console.error("Failed to load preview for picked image:", err);
@@ -157,6 +163,7 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
     stagedCoverRef.current = staged;
     setStagedCover(staged);
     setPreviewImage(staged.previewUrl);
+    setFormData(prev => ({ ...prev, cover_framing: null }));
     if (previous) void cancelCoverImport(previous.token);
   };
 
@@ -268,6 +275,9 @@ export function EntryForm({ initialData, isOpen, onClose, onSave }: EntryFormPro
     });
   };
 
+  const coverFraming = useMemo(() => parseCoverFraming(formData.cover_framing), [formData.cover_framing]);
+  const previewSizing = framedCoverSizing(coverFraming, "300px");
+
   if (!isOpen) return null;
 
 const typeOption = getVisibleEntryTypeOptions().find(o => o.value === formData.entry_type);
@@ -302,16 +312,17 @@ const typeOption = getVisibleEntryTypeOptions().find(o => o.value === formData.e
               {previewImage || formData.image_url ? (
                 <>
                   {previewImage ? (
-                    <img src={previewImage} className="w-full h-full object-cover" alt="Preview" />
+                    <img src={previewImage} className="w-full h-full object-cover" style={coverFramingStyle(coverFraming)} alt="Preview" />
                   ) : (
                     <CoverImage
                       path={formData.image_url}
                       alt="Preview"
-                      variant="card"
+                      variant={previewSizing.variant}
                       priority="high"
-                      sizes="300px"
+                      sizes={previewSizing.sizes}
                       containerClassName="h-full w-full"
                       imageClassName="h-full w-full object-cover"
+                      imageStyle={coverFramingStyle(coverFraming)}
                     />
                   )}
                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white">
@@ -336,6 +347,17 @@ const typeOption = getVisibleEntryTypeOptions().find(o => o.value === formData.e
               >
                 <Search size={14} />
                 <span>Search Cover Art</span>
+              </button>
+            )}
+
+            {(previewImage || formData.image_url) && (
+              <button
+                type="button"
+                onClick={() => setIsFramingOpen(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-200 text-sm font-medium hover:bg-white/10 hover:text-white transition-all"
+              >
+                <Crop size={14} />
+                <span>Adjust Framing</span>
               </button>
             )}
 
@@ -858,6 +880,22 @@ const typeOption = getVisibleEntryTypeOptions().find(o => o.value === formData.e
         initialQuery={formData.name ?? ""}
         onStaged={handleCoverStaged}
       />
+
+      {/* Framing is saved with the entry, so a freshly picked cover can be
+          framed before it is committed. */}
+      {isFramingOpen && (previewImage || formData.image_url) && (
+        <CoverFramingDialog
+          name={formData.name || "Untitled"}
+          path={formData.image_url}
+          src={previewImage || undefined}
+          initial={coverFraming}
+          onCancel={() => setIsFramingOpen(false)}
+          onSave={(framing) => {
+            updateField("cover_framing", serializeCoverFraming(framing));
+            setIsFramingOpen(false);
+          }}
+        />
+      )}
 
       {/* Parent base-game picker (Expansion / DLC link) */}
       <WinnerPicker

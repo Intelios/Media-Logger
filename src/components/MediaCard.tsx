@@ -2,7 +2,7 @@ import * as React from "react";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
-import { MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Heart, Check, Pencil, Trash2, FileText, Image as ImageIcon, Copy, CopyPlus } from "lucide-react";
+import { MoreVertical, Monitor, Disc3, BookOpen, Gamepad2, Film, Heart, Check, Pencil, Trash2, FileText, Image as ImageIcon, Copy, CopyPlus, Crop } from "lucide-react";
 import { dbService, type EntryCardSummary, type MediaEntry } from "../lib/db";
 import { cn } from "../lib/utils_ui";
 import type { CoverPriority } from "./CoverImage";
@@ -192,6 +192,13 @@ export const MediaCard = React.memo(function MediaCard({
     setActiveDialog("image");
   };
 
+  const handleAdjustCover = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    setDialogEntry(materializeSummary(entry));
+    setActiveDialog("cover");
+  };
+
   const handleFindDuplicates = (e: React.MouseEvent) => {
     e.stopPropagation();
     setMenuOpen(false);
@@ -258,6 +265,18 @@ export const MediaCard = React.memo(function MediaCard({
         <span>View Image</span>
       </button>
       <div className="h-px bg-white/10" />
+      {entry.image_url && (
+        <>
+          <button
+            onClick={handleAdjustCover}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-sky-500/20 hover:text-sky-400 transition-colors"
+          >
+            <Crop size={14} />
+            <span>Adjust Cover</span>
+          </button>
+          <div className="h-px bg-white/10" />
+        </>
+      )}
       <button
         onClick={handleEdit}
         className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-200 hover:bg-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] hover:text-primary transition-colors"

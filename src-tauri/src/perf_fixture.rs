@@ -222,6 +222,7 @@ mod implementation {
         update_version: String,
         franchise: String,
         series: String,
+        cover_framing: Option<String>,
     }
 
     pub(super) async fn generate(
@@ -742,6 +743,17 @@ mod implementation {
             update_version: format!("4.0.{}", index % 12),
             franchise: format!("Franchise {:02}", index % 24),
             series: format!("Series {:02}", index % 28),
+            // About one entry in eight carries poster framing, and half of
+            // those are zoomed, so the Performance Lab exercises the framed
+            // render path and the zoomed covers' hero derivatives.
+            cover_framing: index.is_multiple_of(8).then(|| {
+                let scale = if index.is_multiple_of(16) { 1.8 } else { 1.0 };
+                format!(
+                    r#"{{"x":{},"y":{},"scale":{scale}}}"#,
+                    index % 101,
+                    (index * 7) % 101
+                )
+            }),
         }
     }
 
@@ -841,7 +853,7 @@ mod implementation {
                 .map(|index| entry_fixture(index, preset.covers()))
                 .collect::<Vec<_>>();
             let mut query = QueryBuilder::<Sqlite>::new(
-                "INSERT INTO entries (id,name,genre,completion_date,review_score,description,notes,year_completed,is_rewatch,own_local_copy,has_subtitles,is_platinum,is_completed,is_early_access,early_access_version,is_expansion,parent_entry_id,image_url,entry_type,platform,author,artist,director,actress,update_version,franchise,series) ",
+                "INSERT INTO entries (id,name,genre,completion_date,review_score,description,notes,year_completed,is_rewatch,own_local_copy,has_subtitles,is_platinum,is_completed,is_early_access,early_access_version,is_expansion,parent_entry_id,image_url,entry_type,platform,author,artist,director,actress,update_version,franchise,series,cover_framing) ",
             );
             query.push_values(fixtures, |mut row, entry| {
                 row.push_bind(entry.id)
@@ -870,7 +882,8 @@ mod implementation {
                     .push_bind(entry.actress)
                     .push_bind(entry.update_version)
                     .push_bind(entry.franchise)
-                    .push_bind(entry.series);
+                    .push_bind(entry.series)
+                    .push_bind(entry.cover_framing);
             });
             query
                 .build()

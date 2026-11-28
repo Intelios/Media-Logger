@@ -99,6 +99,9 @@ function validateEntry(row: UnknownRecord, index: number, entryIds: Set<number>)
   ]) {
     requireBooleanInteger(row, key, context);
   }
+  // Optional: backups written before schema v9 do not carry poster framing.
+  // Its JSON is parsed leniently at render time, so only the type is checked.
+  if (row.cover_framing !== undefined) requireNullableString(row, 'cover_framing', context);
   // Optional: backups written before schema v6 do not carry the expansion link.
   if (row.is_expansion !== undefined) requireBooleanInteger(row, 'is_expansion', context);
   if (row.parent_entry_id !== undefined) {

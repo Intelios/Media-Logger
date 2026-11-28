@@ -662,7 +662,8 @@ export const awardsLogic = {
               m.actress,
               m.update_version,
               m.franchise,
-              m.series
+              m.series,
+              m.cover_framing
        FROM award_winners w
        JOIN award_categories c ON c.id = w.category_id
        JOIN entries m ON m.id = w.media_id

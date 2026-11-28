@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use tauri::State;
 use tauri_plugin_sql::{DbInstances, DbPool};
 
-pub(crate) const DATABASE_SCHEMA_VERSION: i64 = 8;
+pub(crate) const DATABASE_SCHEMA_VERSION: i64 = 9;
 const MAX_SQLITE_BIND_PARAMS: usize = 999;
 const MAX_BULK_MUTATION_ITEMS: usize = 10_000;
 
@@ -41,6 +41,10 @@ pub struct EntryRow {
     pub update_version: Option<String>,
     pub franchise: Option<String>,
     pub series: Option<String>,
+    // Poster framing JSON ({x, y, scale}); NULL renders centred. Defaulted so
+    // backups written before schema v9 still deserialize.
+    #[serde(default)]
+    pub cover_framing: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, FromRow)]
@@ -280,7 +284,8 @@ async fn create_current_tables(tx: &mut Transaction<'_, Sqlite>) -> Result<(), S
             actress TEXT,
             update_version TEXT,
             franchise TEXT,
-            series TEXT
+            series TEXT,
+            cover_framing TEXT
         )"#,
         r#"CREATE TABLE IF NOT EXISTS collections (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -978,6 +983,14 @@ async fn migrate_to_v8(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
     .await
 }
 
+async fn migrate_to_v9(tx: &mut Transaction<'_, Sqlite>) -> Result<(), String> {
+    // How a cover is framed on poster cards (focal point and zoom), as JSON.
+    // It lives on the entry rather than in per-machine settings so it travels
+    // with the database and its backups. NULL keeps the centred default.
+    let mut columns = table_columns(tx, "entries").await?;
+    add_missing_column(tx, "entries", &mut columns, "cover_framing", "TEXT").await
+}
+
 #[tauri::command]
 pub async fn database_run_migrations(
     database_url: String,
@@ -1203,6 +1216,36 @@ pub async fn database_run_migrations(
             .await
             .map_err(|error| database_error("Failed to commit database migration", error))?;
         applied.push(8);
+        migrated_version = 8;
+    }
+
+    if migrated_version < 9 {
+        let mut tx = pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(|error| database_error("Failed to begin database migration", error))?;
+        let migration_result = async {
+            migrate_to_v9(&mut tx).await?;
+            execute_schema_sql(
+                &mut tx,
+                "PRAGMA user_version = 9",
+                "Failed to record the database schema version",
+            )
+            .await
+        }
+        .await;
+        if let Err(error) = migration_result {
+            return match tx.rollback().await {
+                Ok(()) => Err(error),
+                Err(rollback_error) => Err(format!(
+                    "{error}; migration rollback also failed: {rollback_error}"
+                )),
+            };
+        }
+        tx.commit()
+            .await
+            .map_err(|error| database_error("Failed to commit database migration", error))?;
+        applied.push(9);
     }
 
     if !applied.is_empty() {
@@ -1571,7 +1614,8 @@ pub async fn database_export_snapshot(
                       year_completed, is_rewatch, own_local_copy, has_subtitles, is_platinum,
                       is_completed, is_early_access, early_access_version, is_expansion, parent_entry_id,
                       image_url, entry_type,
-                      platform, author, artist, director, actress, update_version, franchise, series
+                      platform, author, artist, director, actress, update_version, franchise, series,
+                      cover_framing
                FROM entries ORDER BY id"#,
             "Failed to export media entries"
         ),
@@ -1649,6 +1693,9 @@ fn entry_identity_key(entry: &EntryRow) -> Result<String, String> {
         return Err("Failed to compare media identity".to_string());
     };
     object.remove("id");
+    // Framing is presentation, not identity: the same entry framed differently
+    // on two machines must still match, so the merge below can carry it over.
+    object.remove("cover_framing");
     serde_json::to_string(object)
         .map_err(|error| database_error("Failed to compare media identity", error))
 }
@@ -1749,7 +1796,7 @@ async fn insert_entries(
                id, name, genre, completion_date, review_score, description, notes, year_completed,
                is_rewatch, own_local_copy, has_subtitles, is_platinum, is_completed, is_early_access,
                early_access_version, is_expansion, parent_entry_id, image_url, entry_type, platform, author, artist, director, actress,
-               update_version, franchise, series
+               update_version, franchise, series, cover_framing
             ) "#,
         );
         query.push_values(chunk, |mut values, planned| {
@@ -1781,13 +1828,29 @@ async fn insert_entries(
                 .push_bind(&row.actress)
                 .push_bind(&row.update_version)
                 .push_bind(&row.franchise)
-                .push_bind(&row.series);
+                .push_bind(&row.series)
+                .push_bind(&row.cover_framing);
         });
         query
             .build()
             .execute(&mut **tx)
             .await
             .map_err(|error| database_error("Failed to import media entries", error))?;
+    }
+    Ok(())
+}
+
+async fn update_entry_framing(
+    tx: &mut Transaction<'_, Sqlite>,
+    rows: &[(i64, String)],
+) -> Result<(), String> {
+    for (id, framing) in rows {
+        sqlx::query("UPDATE entries SET cover_framing = ? WHERE id = ?")
+            .bind(framing)
+            .bind(id)
+            .execute(&mut **tx)
+            .await
+            .map_err(|error| database_error("Failed to import cover framing", error))?;
     }
     Ok(())
 }
@@ -2147,7 +2210,8 @@ async fn import_backup_transaction(
                   year_completed, is_rewatch, own_local_copy, has_subtitles, is_platinum,
                   is_completed, is_early_access, early_access_version, is_expansion, parent_entry_id,
                   image_url, entry_type,
-                  platform, author, artist, director, actress, update_version, franchise, series
+                  platform, author, artist, director, actress, update_version, franchise, series,
+                  cover_framing
            FROM entries ORDER BY id"#,
     )
     .fetch_all(&mut **tx)
@@ -2155,15 +2219,18 @@ async fn import_backup_transaction(
     .map_err(|error| database_error("Failed to inspect existing media entries", error))?;
     let preserve_media_ids = existing_entries.is_empty();
     let mut media_matches = HashMap::<String, VecDeque<i64>>::new();
+    let mut existing_framing = HashMap::<i64, Option<String>>::new();
     for entry in &existing_entries {
         media_matches
             .entry(entry_identity_key(entry)?)
             .or_default()
             .push_back(entry.id);
+        existing_framing.insert(entry.id, entry.cover_framing.clone());
     }
     let mut next_media_id = next_autoincrement_id(tx, "entries").await?;
     let mut media_id_map = HashMap::<i64, i64>::new();
     let mut planned_entries = Vec::new();
+    let mut planned_framing = Vec::<(i64, String)>::new();
     for entry in tables.entries {
         if entry.name.trim().is_empty() {
             return Err(format!("Media entry {} has no name", entry.id));
@@ -2175,7 +2242,17 @@ async fn import_backup_transaction(
             .and_then(VecDeque::pop_front);
         if let Some(target_id) = existing_id {
             insert_source_mapping(&mut media_id_map, source_id, target_id, "media entry")?;
-            count_mut(&mut counts, "entries").reused += 1;
+            // A backup's framing wins over the local one. A backup without
+            // framing (never framed, or written before schema v9) leaves the
+            // local framing alone.
+            let local_framing = existing_framing.get(&target_id).cloned().flatten();
+            match entry.cover_framing {
+                Some(framing) if local_framing.as_ref() != Some(&framing) => {
+                    planned_framing.push((target_id, framing));
+                    count_mut(&mut counts, "entries").updated += 1;
+                }
+                _ => count_mut(&mut counts, "entries").reused += 1,
+            }
             continue;
         }
         let target_id = if preserve_media_ids {
@@ -2594,6 +2671,7 @@ async fn import_backup_transaction(
 
     insert_entries(tx, &planned_entries).await?;
     backpatch_parent_links(tx, &planned_entries, &media_id_map).await?;
+    update_entry_framing(tx, &planned_framing).await?;
     insert_collections(tx, &planned_collections).await?;
     insert_collection_eras(tx, &planned_eras).await?;
     insert_collection_items(tx, &planned_items).await?;
