@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { BarChart3, FolderOpen, Gem, Repeat, Star, Tags, X } from "lucide-react";
+import { FolderOpen, Gem, Repeat, Star, Tags } from "lucide-react";
 import type { Collection, CollectionItemView, Era } from "../../lib/collections-logic";
 import { deriveCollectionStats } from "../../lib/collections/stats";
 import type { StatItem } from "../../lib/stats-logic";
@@ -8,6 +8,7 @@ import { cn } from "../../lib/utils_ui";
 import { useEscapeToClose } from "../../lib/useEscapeToClose";
 import { useFocusTrap } from "../../lib/useFocusTrap";
 import { CoverImage } from "../CoverImage";
+import { IndexTabPanel } from "../IndexTabPanel";
 import { TooltipDetail, TooltipTitle, useHoverTooltip } from "../HoverTooltip";
 import { CATEGORY_PALETTE } from "../stats/plate/plate-ui";
 
@@ -144,32 +145,23 @@ export function CollectionStatsModal({ isOpen, onClose, collection, items, eras 
       />
 
       {/* Modal */}
-      <div
+      <IndexTabPanel
         ref={modalRef}
-        className="glass-surface fixed inset-4 md:inset-10 lg:inset-16 rounded-3xl z-50 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-200"
+        size="sheet"
+        tab="Collection Stats"
+        title={collection.name}
+        meta={
+          <>
+            {stats.itemCount} {stats.itemCount === 1 ? "item" : "items"} ·{" "}
+            {stats.distinctGenreCount} {stats.distinctGenreCount === 1 ? "genre" : "genres"}
+          </>
+        }
+        onClose={onClose}
+        closeLabel="Close collection stats"
+        className="fixed inset-4 md:inset-10 lg:inset-16 z-50 animate-in zoom-in-95 fade-in duration-200"
       >
-        {/* Header */}
-        <header className="flex items-center justify-between p-6 border-b border-primary/15 shrink-0">
-          <div className="min-w-0">
-            <h2 className="text-2xl font-bold text-text flex items-center gap-3">
-              <BarChart3 className="text-primary shrink-0" size={24} />
-              <span className="truncate">{collection.name}</span>
-            </h2>
-            <p className="text-text-muted text-sm mt-1">
-              Collection stats · {stats.itemCount} {stats.itemCount === 1 ? "item" : "items"} ·{" "}
-              {stats.distinctGenreCount} {stats.distinctGenreCount === 1 ? "genre" : "genres"}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl hover:bg-primary/10 transition-colors text-text-muted hover:text-primary shrink-0"
-          >
-            <X size={24} />
-          </button>
-        </header>
-
         {/* Headline figures */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 px-6 py-4 border-b border-primary/5 shrink-0">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 px-6 pt-5 pb-4 border-b border-white/5 shrink-0">
           <FigureTile icon={<FolderOpen size={18} />} label="Items" value={String(stats.itemCount)} />
           <FigureTile
             icon={<Star size={18} />}
@@ -282,7 +274,7 @@ export function CollectionStatsModal({ isOpen, onClose, collection, items, eras 
             )}
           </div>
         </div>
-      </div>
+      </IndexTabPanel>
     </>,
     document.body
   );

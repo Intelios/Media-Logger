@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, CheckCircle2, Trash2, X } from 'lucide-react';
+import { Check, CheckCircle2, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
+import { IndexTabPanel } from './IndexTabPanel';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { useFocusTrap } from '../lib/useFocusTrap';
 import { useHoverTooltip } from './HoverTooltip';
@@ -169,31 +170,25 @@ export function CleanupImagesModal({
         <>
             {/* zIndex sits below ConfirmDialog's z-[100] so the confirmation can layer on top */}
             <div className="modal-overlay" style={{ zIndex: 90 }} onClick={onClose}>
-                <div
+                <IndexTabPanel
                     ref={modalRef}
-                    className="modal-content"
+                    tab="Unused Images"
+                    title={
+                        orphans.length === 0
+                            ? 'Nothing left to clean up'
+                            : `${orphans.length} unused image${orphans.length === 1 ? '' : 's'}`
+                    }
+                    meta={
+                        orphans.length === 0
+                            ? undefined
+                            : `${formatBytes(totalBytes)} not used by any entry, backlog item, or profile`
+                    }
+                    onClose={onClose}
+                    className="w-full max-w-[760px] max-h-[82vh]"
+                    panelClassName="flex min-h-0 flex-col"
                     onClick={(event) => event.stopPropagation()}
-                    style={{ width: 'min(100%, 760px)', display: 'flex', flexDirection: 'column', maxHeight: '82vh' }}
                 >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
-                        <div style={{ flex: 1 }}>
-                            <h2 style={{ margin: 0 }}>Unused Images</h2>
-                            <p style={{ margin: '4px 0 0', color: 'var(--color-text-muted)', fontSize: 13 }}>
-                                {orphans.length === 0
-                                    ? 'Nothing left to clean up'
-                                    : `${orphans.length} image${orphans.length === 1 ? '' : 's'} (${formatBytes(totalBytes)}) not used by any entry, backlog item, or profile`}
-                            </p>
-                        </div>
-                        <button
-                            onClick={onClose}
-                            className="p-2 rounded-xl hover:bg-white/10 transition-colors"
-                            style={{ color: 'var(--color-text-muted)' }}
-                            aria-label="Close"
-                        >
-                            <X size={18} />
-                        </button>
-                    </div>
-
+                <div className="flex min-h-0 flex-1 flex-col px-5 pb-5 pt-4">
                     {lastResult && (lastResult.skipped.length > 0 || lastResult.failed.length > 0) && (
                         <div
                             style={{
@@ -314,6 +309,7 @@ export function CleanupImagesModal({
                         )}
                     </div>
                 </div>
+                </IndexTabPanel>
             </div>
 
             <ConfirmDialog

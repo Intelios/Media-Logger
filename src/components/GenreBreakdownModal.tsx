@@ -1,11 +1,12 @@
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, Star, Gem, ChevronRight, BarChart3 } from "lucide-react";
+import { Star, Gem, ChevronRight } from "lucide-react";
 import { type StatItem } from "../lib/stats-logic";
 import { cn } from "../lib/utils_ui";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { useHoverTooltip } from "./HoverTooltip";
+import { IndexTabPanel } from "./IndexTabPanel";
 
 const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1"];
 
@@ -44,28 +45,17 @@ export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onG
             />
 
             {/* Modal */}
-            <div ref={modalRef} className="glass-surface fixed inset-4 md:inset-10 lg:inset-16 rounded-3xl z-50 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-200">
-                {/* Header */}
-                <header className="flex items-center justify-between p-6 border-b border-primary/15 shrink-0">
-                    <div>
-                        <h2 className="text-2xl font-bold text-text flex items-center gap-3">
-                            <BarChart3 className="text-primary" size={24} />
-                            Genre Breakdown
-                        </h2>
-                        <p className="text-text-muted text-sm mt-1">
-                            {genres.length} genres across {totalEntries} entries — click a genre to view its entries
-                        </p>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 rounded-xl hover:bg-primary/10 transition-colors text-text-muted hover:text-primary"
-                    >
-                        <X size={24} />
-                    </button>
-                </header>
-
+            <IndexTabPanel
+                ref={modalRef}
+                size="sheet"
+                tab="Genre Breakdown"
+                title={`${genres.length} ${genres.length === 1 ? "genre" : "genres"}`}
+                meta={`across ${totalEntries} ${totalEntries === 1 ? "entry" : "entries"} — click a genre to view its entries`}
+                onClose={onClose}
+                className="fixed inset-4 md:inset-10 lg:inset-16 z-50 animate-in zoom-in-95 fade-in duration-200"
+            >
                 {/* Sort Controls */}
-                <div className="flex items-center gap-2 px-6 py-3 border-b border-primary/5 shrink-0">
+                <div className="flex items-center gap-2 px-6 pt-4 pb-3 border-b border-white/5 shrink-0">
                     <span className="text-xs text-text-subtle uppercase tracking-wide font-semibold mr-2">Sort by</span>
                     {([
                         { key: "count", label: "Most Entries" },
@@ -177,7 +167,7 @@ export function GenreBreakdownModal({ isOpen, onClose, genres, totalEntries, onG
                         })}
                     </div>
                 </div>
-            </div>
+            </IndexTabPanel>
         </>,
         document.body
     );

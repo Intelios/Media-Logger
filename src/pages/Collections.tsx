@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useState, useMemo, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
-import { Layers, Plus, ChevronLeft, Trash2, X, Sparkles, FolderOpen, Image, Pencil, CornerDownRight, GripVertical, BarChart3 } from "lucide-react";
+import { Layers, Plus, ChevronLeft, Trash2, Sparkles, FolderOpen, Image, Pencil, CornerDownRight, GripVertical, BarChart3 } from "lucide-react";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from "@dnd-kit/sortable";
 import { collectionsLogic, type Collection, type Era, type CollectionItemView } from "../lib/collections-logic";
@@ -617,10 +616,10 @@ export default function CollectionsPage() {
           onClose={() => setItemToRemove(null)}
           onConfirm={confirmRemoveItem}
           title="Remove Collection Item"
+          subject={itemToRemove?.name}
           confirmLabel="Remove"
-          detail="The entry will stay in your library; it will only be removed from this collection."
         >
-          Remove <span className="font-semibold text-white">"{itemToRemove?.name}"</span> from <span className="font-semibold text-white">"{selectedCollection.name}"</span>?
+          It will be removed from <span className="font-semibold text-white">{selectedCollection.name}</span>. The entry stays in your library.
         </ConfirmDialog>
       </div>
     );
@@ -780,71 +779,18 @@ export default function CollectionsPage() {
         onSubmit={handleCreate}
       />
 
-      {/* Delete Collection Confirmation Modal */}
-      {deleteConfirmOpen && collectionToDelete && createPortal(
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
-          onClick={() => {
-            setDeleteConfirmOpen(false);
-            setCollectionToDelete(null);
-          }}
-        >
-          <div
-            className="collection-modal-glass border border-white/10 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center gap-3 p-5 border-b border-white/5 bg-gradient-to-r from-red-500/10 via-transparent to-transparent">
-              <div className="p-2.5 bg-red-500/20 rounded-xl">
-                <Trash2 size={20} className="text-red-400" />
-              </div>
-              <div>
-                <h3 className="font-bold text-white text-lg">Delete Collection</h3>
-                <p className="text-xs text-gray-400">This action cannot be undone</p>
-              </div>
-              <button
-                onClick={() => {
-                  setDeleteConfirmOpen(false);
-                  setCollectionToDelete(null);
-                }}
-                className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-5">
-              <p className="text-gray-200 text-sm leading-relaxed">
-                Are you sure you want to delete <span className="font-semibold text-white">"{collectionToDelete.name}"</span>?
-              </p>
-              <p className="text-gray-500 text-xs mt-2">
-                Items in this collection will not be deleted from your library.
-              </p>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-3 p-5 pt-0">
-              <button
-                onClick={() => {
-                  setDeleteConfirmOpen(false);
-                  setCollectionToDelete(null);
-                }}
-                className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-semibold text-gray-300 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDeleteCollection}
-                className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 rounded-xl font-semibold text-white transition-colors shadow-lg shadow-red-500/25"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen && collectionToDelete !== null}
+        title="Delete Collection"
+        subject={collectionToDelete?.name}
+        onConfirm={confirmDeleteCollection}
+        onClose={() => {
+          setDeleteConfirmOpen(false);
+          setCollectionToDelete(null);
+        }}
+      >
+        Items in this collection will not be deleted from your library.
+      </ConfirmDialog>
     </div>
   );
 }

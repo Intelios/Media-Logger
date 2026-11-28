@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { Bookmark, Plus, Play, Package, CalendarClock, ChevronDown, ChevronUp } from "lucide-react";
 import {
   DndContext,
@@ -25,6 +24,7 @@ import {
   FACEOUT_GAP, FACEOUT_WIDTH, getShelfItemGap, getShelfItemWidth,
 } from "../components/backlog/backlog-visuals";
 import { BacklogForm } from "../components/BacklogForm";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { EntryForm } from "../components/EntryForm";
 import { reportMutationError } from "../components/MutationErrorToast";
 import { backlogLogic, type BacklogItemsByStatus } from "../lib/backlog-logic";
@@ -860,36 +860,16 @@ export default function Backlog() {
         />
       )}
 
-      {/* Delete Confirmation — portalled to <body> so the page's layout can't
-          offset the fixed overlay (see the note in EntryForm). */}
-      {showDeleteConfirm !== null && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
-          <div
-            className="w-full max-w-sm rounded-2xl border border-white/10 p-6 shadow-2xl"
-            style={{ backgroundColor: "var(--color-surface)" }}
-          >
-            <h3 className="mb-2 text-lg font-bold text-white">Remove from Backlog?</h3>
-            <p className="mb-6 text-sm text-gray-400">
-              This item will be removed from your backlog. This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowDeleteConfirm(null)}
-                className="rounded-xl px-4 py-2 text-sm font-medium text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmRemove}
-                className="rounded-xl border border-red-500/30 bg-red-500/20 px-4 py-2 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/30"
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm !== null}
+        title="Remove from Backlog"
+        subject={allItems.find((item) => item.id === showDeleteConfirm)?.name}
+        confirmLabel="Remove"
+        onConfirm={confirmRemove}
+        onClose={() => setShowDeleteConfirm(null)}
+      >
+        This item will be removed from your backlog.
+      </ConfirmDialog>
     </div>
   );
 }

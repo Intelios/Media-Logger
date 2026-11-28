@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Puzzle, X } from "lucide-react";
+import { Puzzle } from "lucide-react";
 import { dbService, type EntryCardSummary, type MediaEntry } from "../lib/db";
 import { MediaCard } from "./MediaCard";
 import { EntryForm } from "./EntryForm";
 import { VirtualizedCardGrid } from "./VirtualizedCardGrid";
+import { IndexTabPanel } from "./IndexTabPanel";
 import { castsCardLight } from "../lib/card-light";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -95,28 +96,17 @@ export function ExpansionsModal({
       />
 
       {/* Modal */}
-      <div ref={modalRef} className="glass-surface fixed inset-4 md:inset-10 lg:inset-16 rounded-3xl z-50 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-200">
-        {/* Header */}
-        <header className="flex items-center justify-between p-6 border-b border-primary/15 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-sky-500/20 rounded-lg">
-              <Puzzle size={20} className="text-sky-400" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-text">Expansions for {parentName}</h2>
-              <p className="text-text-muted text-sm mt-1">
-                {entries.length} {entries.length === 1 ? 'expansion' : 'expansions'}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl hover:bg-primary/10 transition-colors text-text-muted hover:text-primary"
-          >
-            <X size={24} />
-          </button>
-        </header>
-
+      <IndexTabPanel
+        ref={modalRef}
+        size="sheet"
+        tab="Expansions"
+        tone="sky"
+        title={parentName}
+        meta={`${entries.length} ${entries.length === 1 ? 'expansion' : 'expansions'}`}
+        onClose={onClose}
+        closeLabel="Close expansions"
+        className="fixed inset-4 md:inset-10 lg:inset-16 z-50 animate-in zoom-in-95 fade-in duration-200"
+      >
         {/* Scrollable Content */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
           {isLoading ? (
@@ -150,7 +140,7 @@ export function ExpansionsModal({
             </div>
           )}
         </div>
-      </div>
+      </IndexTabPanel>
 
       {/* Entry Form Modal */}
       <EntryForm

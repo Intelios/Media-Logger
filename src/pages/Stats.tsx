@@ -30,6 +30,7 @@ import {
   type FilterPresetKey,
 } from "../lib/media-config";
 import { getNavigationYears } from "../lib/settings";
+import { formatDate } from "../lib/dates";
 import { mediaQueryKeys, queryClient } from "../lib/query-client";
 import type {
   StatsWorkerRequest,
@@ -665,20 +666,24 @@ export default function StatsPage() {
     openStatsModal({ kind: "genre", value: genre });
   };
 
-  const modalTitle = useMemo(() => {
+  const displayedYear = presentation?.year ?? activeYear;
+  const modalHeading = useMemo(() => {
     switch (modalSource?.kind) {
       case "perfect10s":
-        return "Perfect 10s";
+        return { tab: "Perfect 10s", title: displayedYear };
       case "thisMonth":
-        return "This Month";
+        return {
+          tab: "This Month",
+          title: new Date().toLocaleString("en-US", { month: "long", year: "numeric" }),
+        };
       case "genre":
-        return `Genre: ${modalSource.value}`;
+        return { tab: "Genre", title: modalSource.value };
       case "date":
-        return `Logged on: ${modalSource.value}`;
+        return { tab: "Logged on", title: formatDate(modalSource.value) };
       default:
-        return "";
+        return { tab: "", title: "" };
     }
-  }, [modalSource]);
+  }, [modalSource, displayedYear]);
 
   if (!presentation || !plate) {
     return <div className="p-10 text-gray-400">Calculating analytics...</div>;
@@ -729,7 +734,8 @@ export default function StatsPage() {
       <StatsEntriesModal
         isOpen={modalSource !== null}
         onClose={closeStatsModal}
-        title={modalTitle}
+        tab={modalHeading.tab}
+        title={modalHeading.title}
         entries={modalEntries}
         isLoading={modalEntriesLoading}
         onEntriesChange={() => {

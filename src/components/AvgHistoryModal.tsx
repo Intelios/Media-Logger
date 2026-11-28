@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { LineChart as LineChartIcon, X } from "lucide-react";
 import { profilesLogic, type ProfileSummary } from "../lib/profiles-logic";
 import type { AvgHistoryPoint, MediaEntry } from "../lib/db";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { formatShortDate } from "../lib/dates";
 import { CoverImage } from "./CoverImage";
+import { IndexTabPanel } from "./IndexTabPanel";
 
 interface AvgHistoryModalProps {
   isOpen: boolean;
@@ -193,30 +193,16 @@ export function AvgHistoryModal({ isOpen, profile, entries, onClose }: AvgHistor
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
       onClick={onClose}
     >
-      <div
+      <IndexTabPanel
         ref={modalRef}
-        className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-6xl rounded-2xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        tab="Average Rating History"
+        tone="yellow"
+        title={profile.name}
+        meta={<span className="capitalize">{profile.type}</span>}
+        onClose={onClose}
+        className="w-full max-w-6xl animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-3 p-5 border-b border-white/5 bg-gradient-to-r from-yellow-500/10 via-transparent to-transparent">
-          <div className="p-2.5 bg-yellow-500/20 rounded-xl">
-            <LineChartIcon size={20} className="text-yellow-400" />
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-bold text-white text-lg truncate">Average Rating History</h3>
-            <p className="text-xs text-gray-400 truncate">
-              {profile.name} · <span className="capitalize">{profile.type}</span>
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
         <div className="p-5">
           <div className="flex items-center gap-6 mb-4">
             <div>
@@ -382,7 +368,7 @@ export function AvgHistoryModal({ isOpen, profile, entries, onClose }: AvgHistor
             </div>
           )}
         </div>
-      </div>
+      </IndexTabPanel>
     </div>,
     document.body
   );

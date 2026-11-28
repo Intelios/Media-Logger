@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
 import { type MediaEntry } from "../lib/db";
 import { MediaCard } from "./MediaCard";
 import { EntryForm } from "./EntryForm";
@@ -9,19 +8,23 @@ import { dbService } from "../lib/db";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { VirtualizedCardGrid } from "./VirtualizedCardGrid";
+import { IndexTabPanel } from "./IndexTabPanel";
 import { castsCardLight } from "../lib/card-light";
 import { reportMutationError } from "./MutationErrorToast";
 
 interface StatsEntriesModalProps {
     isOpen: boolean;
     onClose: () => void;
+    /** What kind of list this is ("Genre", "Perfect 10s"), shown on the index tab. */
+    tab: string;
+    /** The specific subject ("Action", "2025"). */
     title: string;
     entries: MediaEntry[];
     isLoading?: boolean;
     onEntriesChange: () => void;
 }
 
-export function StatsEntriesModal({ isOpen, onClose, title, entries, isLoading = false, onEntriesChange }: StatsEntriesModalProps) {
+export function StatsEntriesModal({ isOpen, onClose, tab, title, entries, isLoading = false, onEntriesChange }: StatsEntriesModalProps) {
     const [editingEntry, setEditingEntry] = useState<MediaEntry | null>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
@@ -75,23 +78,15 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, isLoading =
             />
 
             {/* Modal */}
-            <div ref={modalRef} className="glass-surface fixed inset-4 md:inset-10 lg:inset-16 rounded-3xl z-50 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-200">
-                {/* Header */}
-                <header className="flex items-center justify-between p-6 border-b border-primary/15 shrink-0">
-                    <div>
-                        <h2 className="text-2xl font-bold text-text">{title}</h2>
-                        <p className="text-text-muted text-sm mt-1">
-                            {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
-                        </p>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 rounded-xl hover:bg-primary/10 transition-colors text-text-muted hover:text-primary"
-                    >
-                        <X size={24} />
-                    </button>
-                </header>
-
+            <IndexTabPanel
+                ref={modalRef}
+                size="sheet"
+                tab={tab}
+                title={title}
+                meta={`${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`}
+                onClose={onClose}
+                className="fixed inset-4 md:inset-10 lg:inset-16 z-50 animate-in zoom-in-95 fade-in duration-200"
+            >
                 {/* Scrollable Content */}
                 <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
                     {isLoading ? (
@@ -106,7 +101,7 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, isLoading =
                             gap={24}
                             estimatedRowHeight={420}
                             scrollContainerRef={scrollRef}
-                            ariaLabel={title}
+                            ariaLabel={`${tab}: ${title}`}
                             lightSource={castsCardLight}
                             renderItem={(entry) => (
                 <MediaCard
@@ -124,7 +119,7 @@ export function StatsEntriesModal({ isOpen, onClose, title, entries, isLoading =
                         </div>
                     )}
                 </div>
-            </div>
+            </IndexTabPanel>
 
             {/* Entry Form Modal */}
             <EntryForm

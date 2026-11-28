@@ -567,11 +567,10 @@ export default function AwardsPage() {
       }}
       onConfirm={confirmDeleteTemplate}
       title="Delete Award"
+      subject={templateToDelete?.name}
       confirmLabel="Delete Award"
       detail={describeTemplateImpact(templateImpact)}
     >
-      Are you sure you want to delete{" "}
-      <span className="font-semibold text-white">"{templateToDelete?.name}"</span>?{" "}
       This removes the award from every year it appears in.
     </ConfirmDialog>
   );
@@ -706,11 +705,11 @@ export default function AwardsPage() {
         onClose={() => setCategoryToDelete(null)}
         onConfirm={confirmDeleteCategory}
         title={`Remove Award from ${selectedYear}`}
+        subject={categoryToDelete?.name}
         confirmLabel="Remove"
-        detail="The award itself stays in your library and in any other years. Any winner selected here will be cleared."
+        detail="Any winner selected here will be cleared."
       >
-        Remove <span className="font-semibold text-white">"{categoryToDelete?.name}"</span> from{" "}
-        {selectedYear}?
+        The award itself stays in your library and in any other years.
       </ConfirmDialog>
 
       <ConfirmDialog
@@ -718,11 +717,10 @@ export default function AwardsPage() {
         onClose={() => setYearToDelete(null)}
         onConfirm={confirmDeleteYear}
         title="Delete Award Year"
+        subject={yearToDelete ? String(yearToDelete.year) : undefined}
         confirmLabel="Delete Year"
-        detail="Only the empty year shell will be removed. Award templates and other years will stay intact."
       >
-        Are you sure you want to delete{" "}
-        <span className="font-semibold text-white">{yearToDelete?.year}</span>?
+        Only the empty year shell will be removed. Award templates and other years will stay intact.
       </ConfirmDialog>
 
       {templateDeleteDialog}

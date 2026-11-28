@@ -8,7 +8,7 @@ import {
   type SyntheticEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, Crop, RotateCcw, X } from "lucide-react";
+import { Check, RotateCcw, X } from "lucide-react";
 import { useCoverPalette } from "../lib/cover-palette";
 import {
   COVER_FRAMING_MAX_SCALE,
@@ -27,6 +27,7 @@ import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { cn } from "../lib/utils_ui";
 import { CoverImage } from "./CoverImage";
+import { IndexTabPanel } from "./IndexTabPanel";
 
 // Edits how a cover is framed on poster cards: drag the art to move the crop,
 // scroll / pinch / slider to zoom. The frame is the poster's 2:3 shape, the
@@ -221,34 +222,15 @@ export function CoverFramingDialog({ name, path, src, initial, onCancel, onSave 
         backdropPressRef.current = false;
       }}
     >
-      <div
+      <IndexTabPanel
         ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Adjust cover for ${name}`}
-        className="w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#1a1a1a] to-[#141414] shadow-2xl shadow-primary/10 animate-in fade-in zoom-in-95 duration-200"
+        tab="Adjust Cover"
+        tone="sky"
+        title={name}
+        onClose={onCancel}
+        className="w-full max-w-xl animate-in fade-in zoom-in-95 duration-200"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-white/5 bg-gradient-to-r from-sky-500/10 via-transparent to-transparent p-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="rounded-lg bg-sky-500/20 p-2">
-              <Crop size={18} className="text-sky-400" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="font-bold text-white">Adjust Cover</h3>
-              <p className="line-clamp-1 text-xs text-gray-400">{name}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-xl p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
         <div
           ref={stageRef}
           onPointerDown={beginDrag}
@@ -257,7 +239,7 @@ export function CoverFramingDialog({ name, path, src, initial, onCancel, onSave 
           onPointerCancel={endDrag}
           onLostPointerCapture={endDrag}
           className={cn(
-            "relative flex h-[512px] touch-none select-none items-center justify-center overflow-hidden bg-black/40",
+            "relative mt-4 flex h-[512px] touch-none select-none items-center justify-center overflow-hidden border-y border-white/5 bg-black/40",
             natural && (dragging ? "cursor-grabbing" : "cursor-grab"),
           )}
         >
@@ -296,7 +278,7 @@ export function CoverFramingDialog({ name, path, src, initial, onCancel, onSave 
           </div>
         </div>
 
-        <div className="space-y-4 border-t border-white/5 p-4">
+        <div className="space-y-4 p-4">
           <div className="flex items-center gap-3">
             <span className="w-12 text-[11px] font-semibold uppercase tracking-wider text-gray-300">Zoom</span>
             <input
@@ -350,7 +332,7 @@ export function CoverFramingDialog({ name, path, src, initial, onCancel, onSave 
             </div>
           </div>
         </div>
-      </div>
+      </IndexTabPanel>
     </div>,
     document.body,
   );

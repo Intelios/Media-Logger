@@ -1,23 +1,30 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { EyeOff, Trash2, X } from "lucide-react";
 import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
+import { IndexTabCloseButton, IndexTabPanel } from "./IndexTabPanel";
 
 interface ConfirmDialogProps {
   isOpen: boolean;
+  /** The action, shown on the index tab ("Delete Award Year"). */
   title: string;
+  /**
+   * What the action applies to ("Mister Goon"). When given it leads the panel
+   * as the title and `children` becomes supporting copy; without it,
+   * `children` leads.
+   */
+  subject?: string;
   children: ReactNode;
   detail?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   /**
-   * Visual tone. 'danger' (default) is the destructive red/Trash2 style used by
-   * delete confirmations. 'default' is a non-destructive amber/EyeOff style for
+   * Visual tone. 'danger' (default) is the destructive red style used by
+   * delete confirmations. 'default' is a non-destructive amber style for
    * reversible actions such as hiding content.
    */
   tone?: "danger" | "default";
-  /** Small line under the title. Defaults per tone (danger: "This action cannot be undone"). */
+  /** Small line under the lead. Defaults per tone (danger: "This action cannot be undone"). */
   subtitle?: string;
   onConfirm: () => void | Promise<void>;
   onClose: () => void;
@@ -26,6 +33,7 @@ interface ConfirmDialogProps {
 export function ConfirmDialog({
   isOpen,
   title,
+  subject,
   children,
   detail,
   confirmLabel = "Delete",
@@ -39,11 +47,6 @@ export function ConfirmDialog({
   const modalRef = useRef<HTMLDivElement>(null);
 
   const isDanger = tone === "danger";
-  const Icon = isDanger ? Trash2 : EyeOff;
-  const accentText = isDanger ? "text-red-400" : "text-amber-400";
-  const accentIconBg = isDanger ? "bg-red-500/20" : "bg-amber-500/20";
-  const headerGradient = isDanger ? "from-red-500/10" : "from-amber-500/10";
-  const containerShadow = isDanger ? "shadow-red-500/10" : "shadow-amber-500/10";
   const confirmBtn = isDanger
     ? "bg-red-600 hover:bg-red-500 shadow-red-500/25"
     : "bg-amber-600 hover:bg-amber-500 shadow-amber-500/25";
@@ -78,35 +81,32 @@ export function ConfirmDialog({
         if (!isSubmitting) onClose();
       }}
     >
-      <div
+      <IndexTabPanel
         ref={modalRef}
-        className={`bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl ${containerShadow} overflow-hidden animate-in fade-in zoom-in-95 duration-200`}
+        tab={title}
+        tone={isDanger ? "red" : "amber"}
+        title={subject}
+        meta={subject ? subtitleText : undefined}
+        onClose={subject ? onClose : undefined}
+        closeDisabled={isSubmitting}
+        className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className={`flex items-center gap-3 p-5 border-b border-white/5 bg-gradient-to-r ${headerGradient} via-transparent to-transparent`}>
-          <div className={`p-2.5 ${accentIconBg} rounded-xl`}>
-            <Icon size={20} className={accentText} />
+        {subject ? (
+          <div className="p-5">
+            <p className="text-gray-300 text-sm leading-relaxed">{children}</p>
+            {detail && <p className="text-gray-500 text-xs mt-2">{detail}</p>}
           </div>
-          <div>
-            <h3 className="font-bold text-white text-lg">{title}</h3>
-            {subtitleText && <p className="text-xs text-gray-400">{subtitleText}</p>}
+        ) : (
+          <div className="flex items-start gap-4 px-5 pt-4 pb-5">
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-medium leading-snug text-white">{children}</p>
+              {subtitleText && <p className="mt-1 text-[13px] text-white/45">{subtitleText}</p>}
+              {detail && <p className="mt-3 text-xs leading-relaxed text-gray-500">{detail}</p>}
+            </div>
+            <IndexTabCloseButton onClick={onClose} disabled={isSubmitting} />
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="ml-auto p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="p-5">
-          <p className="text-gray-200 text-sm leading-relaxed">{children}</p>
-          {detail && (
-            <p className="text-gray-500 text-xs mt-2">{detail}</p>
-          )}
-        </div>
+        )}
 
         <div className="flex gap-3 p-5 pt-0">
           <button
@@ -126,7 +126,7 @@ export function ConfirmDialog({
             {isSubmitting ? "Working..." : confirmLabel}
           </button>
         </div>
-      </div>
+      </IndexTabPanel>
     </div>,
     document.body
   );

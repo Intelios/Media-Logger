@@ -8,7 +8,6 @@ import {
   FileText,
   RotateCcw,
   StickyNote,
-  Trash2,
   Trophy,
   X,
 } from "lucide-react";
@@ -20,6 +19,7 @@ import { useEscapeToClose } from "../lib/useEscapeToClose";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { useHoverTooltip } from "./HoverTooltip";
 import { CoverImage } from "./CoverImage";
+import { IndexTabPanel } from "./IndexTabPanel";
 import { CoverFramingDialog } from "./CoverFramingDialog";
 import { parseCoverFraming, serializeCoverFraming } from "../lib/cover-framing";
 import { reportMutationError } from "./MutationErrorToast";
@@ -70,6 +70,16 @@ export default function MediaCardDialogs({
     };
   }, [dialog, entry.name]);
 
+  const entryMeta = [
+    entry.entry_type,
+    entry.completion_date ? formatDate(entry.completion_date) : null,
+  ].filter(Boolean).join(" · ");
+  const duplicateCount = duplicatesLoading ? 0 : duplicateEntries.length;
+  const duplicatesMeta = [
+    entry.entry_type,
+    duplicateCount > 1 ? `${duplicateCount} entries with this name` : null,
+  ].filter(Boolean).join(" · ") || undefined;
+
   if (dialog === "details") {
     return createPortal(
       <div
@@ -79,33 +89,17 @@ export default function MediaCardDialogs({
           onClose();
         }}
       >
-        <div
+        <IndexTabPanel
           ref={modalRef}
-          className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-lg rounded-2xl shadow-2xl shadow-primary/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+          tab="Details"
+          tone="purple"
+          title={entry.name}
+          meta={entryMeta || undefined}
+          onClose={onClose}
+          closeLabel="Close details"
+          className="w-full max-w-lg animate-in fade-in zoom-in-95 duration-200"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex items-center justify-between p-4 border-b border-white/5 bg-gradient-to-r from-purple-500/10 via-transparent to-transparent">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500/20 rounded-lg">
-                <FileText size={18} className="text-purple-400" />
-              </div>
-              <div>
-                <h3 className="font-bold text-white">Details</h3>
-                <p className="text-xs text-gray-400 line-clamp-1">{entry.name}</p>
-              </div>
-            </div>
-            <button
-              onClick={(event) => {
-                event.stopPropagation();
-                onClose();
-              }}
-              className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white"
-              aria-label="Close details"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
           <div className="p-5 max-h-[60vh] overflow-y-auto custom-scrollbar space-y-4">
             {!entry.description && !entry.notes ? (
               <div className="text-center py-8">
@@ -149,7 +143,7 @@ export default function MediaCardDialogs({
               </>
             )}
           </div>
-        </div>
+        </IndexTabPanel>
       </div>,
       document.body
     );
@@ -233,26 +227,19 @@ export default function MediaCardDialogs({
           onClose();
         }}
       >
-        <div
+        <IndexTabPanel
           ref={modalRef}
-          className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-md rounded-2xl shadow-2xl shadow-red-500/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+          tab="Delete Entry"
+          tone="red"
+          title={entry.name}
+          meta="This action cannot be undone"
+          onClose={onClose}
+          closeLabel="Cancel delete"
+          className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex items-center gap-3 p-5 border-b border-white/5 bg-gradient-to-r from-red-500/10 via-transparent to-transparent">
-            <div className="p-2.5 bg-red-500/20 rounded-xl">
-              <Trash2 size={20} className="text-red-400" />
-            </div>
-            <div>
-              <h3 className="font-bold text-white text-lg">Delete Entry</h3>
-              <p className="text-xs text-gray-400">This action cannot be undone</p>
-            </div>
-          </div>
-
           <div className="p-5">
-            <p className="text-gray-200 text-sm leading-relaxed">
-              Are you sure you want to delete <span className="font-semibold text-white">"{entry.name}"</span>?
-            </p>
-            <p className="text-gray-500 text-xs mt-2">
+            <p className="text-gray-300 text-sm leading-relaxed">
               This will permanently remove the entry from your library.
             </p>
           </div>
@@ -278,7 +265,7 @@ export default function MediaCardDialogs({
               Delete
             </button>
           </div>
-        </div>
+        </IndexTabPanel>
       </div>,
       document.body
     );
@@ -292,33 +279,17 @@ export default function MediaCardDialogs({
         onClose();
       }}
     >
-      <div
+      <IndexTabPanel
         ref={modalRef}
-        className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] border border-white/10 w-full max-w-2xl rounded-2xl shadow-2xl shadow-amber-500/10 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        tab="Duplicates & Replays"
+        tone="amber"
+        title={entry.name}
+        meta={duplicatesMeta}
+        onClose={onClose}
+        closeLabel="Close duplicates"
+        className="w-full max-w-2xl animate-in fade-in zoom-in-95 duration-200"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-4 border-b border-white/5 bg-gradient-to-r from-amber-500/10 via-transparent to-transparent">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-500/20 rounded-lg">
-              <Copy size={18} className="text-amber-400" />
-            </div>
-            <div>
-              <h3 className="font-bold text-white">Duplicates & Replays</h3>
-              <p className="text-xs text-gray-400 line-clamp-1">All entries matching "{entry.name}"</p>
-            </div>
-          </div>
-          <button
-            onClick={(event) => {
-              event.stopPropagation();
-              onClose();
-            }}
-            className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white"
-            aria-label="Close duplicates"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
         <div className="p-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
           {duplicatesLoading ? (
             <div className="flex items-center justify-center py-8">
@@ -326,9 +297,6 @@ export default function MediaCardDialogs({
             </div>
           ) : duplicateEntries.length > 1 ? (
             <div className="space-y-3">
-              <p className="text-xs text-gray-500 mb-4">
-                Found {duplicateEntries.length} entries with this name
-              </p>
               {duplicateEntries.map((duplicate) => (
                 <div
                   key={duplicate.id}
@@ -435,7 +403,7 @@ export default function MediaCardDialogs({
             </div>
           )}
         </div>
-      </div>
+      </IndexTabPanel>
     </div>,
     document.body
   );
