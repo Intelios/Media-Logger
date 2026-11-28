@@ -544,7 +544,9 @@ body:has(.development-build-badge) .app-error-toast {
   background-color: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: #fff;
-  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out, transform 120ms ease-out;
+  /* Transform is spring-driven per frame (PosterActionSheet), so it stays
+     out of this transition. */
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
 }
 
 .poster-action-disc svg {
@@ -559,8 +561,20 @@ body:has(.development-build-badge) .app-error-toast {
   color: var(--sheet-shadow);
 }
 
-.poster-action:active .poster-action-disc {
-  transform: scale(0.94);
+/* The highlight that makes a lit ball look round. It slides against the
+   ball's lean, so it is oversized to never show an edge. */
+.poster-action-sheen {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background: radial-gradient(circle at 36% 30%, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 46%);
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+
+.poster-action:hover .poster-action-sheen,
+.poster-action:focus-visible .poster-action-sheen {
+  opacity: 1;
 }
 
 .poster-action-label {
